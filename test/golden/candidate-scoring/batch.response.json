@@ -1,0 +1,189 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-batch-response.v1",
+  "batch_id": "batch-fixture-001",
+  "request_sha256": "878c6227f26f960462f14edfa43d86496a33f56a768e1776826de028a3e55157",
+  "policy": {
+    "policy_id": "candidate-scoring-r1",
+    "policy_version": "1.0.0",
+    "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "items": [
+    {
+      "schema_version": "openwatchlist.candidate-scoring-response.v1",
+      "request_id": "batch-item-first",
+      "request_sha256": "2c4d3219ecf0c8a08cc5f0dde3349e4669fb1e962864a03429e121ed44541642",
+      "field": {},
+      "policy": {
+        "policy_id": "candidate-scoring-r1",
+        "policy_version": "1.0.0",
+        "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      },
+      "candidates": [
+        {
+          "candidate_id": "a-tie",
+          "score": 440,
+          "strength_band": "review_candidate",
+          "exact_identifier_matched": false,
+          "exact_name_matched": true,
+          "reason_codes": [
+            "entity_type_exact",
+            "name_exact"
+          ],
+          "components": [
+            {
+              "component": "name",
+              "points": 400,
+              "reason_code": "name_exact"
+            },
+            {
+              "component": "entity_type",
+              "points": 40,
+              "reason_code": "entity_type_exact"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "name",
+              "outcome": "support",
+              "subject_value": "ALPHA HOLDINGS",
+              "candidate_value": "ALPHA HOLDINGS",
+              "points": 400,
+              "reason_code": "name_exact"
+            },
+            {
+              "kind": "entity_type",
+              "outcome": "support",
+              "subject_value": "ORGANIZATION",
+              "candidate_value": "ORGANIZATION",
+              "points": 40,
+              "reason_code": "entity_type_exact"
+            }
+          ],
+          "retrieval": {
+            "routes": [
+              "name_exact"
+            ]
+          },
+          "lineage": {
+            "provider": "ofac-direct",
+            "catalog_id": "ofac-fixture-catalog",
+            "component_id": "ofac-sdn",
+            "component_version": "2026-07-14-fixture",
+            "activation_id": "activation-fixture-001",
+            "normalization_profile": "unicode-upper-alnum-space-v1"
+          }
+        },
+        {
+          "candidate_id": "z-tie",
+          "score": 440,
+          "strength_band": "review_candidate",
+          "exact_identifier_matched": false,
+          "exact_name_matched": true,
+          "reason_codes": [
+            "entity_type_exact",
+            "name_exact"
+          ],
+          "components": [
+            {
+              "component": "name",
+              "points": 400,
+              "reason_code": "name_exact"
+            },
+            {
+              "component": "entity_type",
+              "points": 40,
+              "reason_code": "entity_type_exact"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "name",
+              "outcome": "support",
+              "subject_value": "ALPHA HOLDINGS",
+              "candidate_value": "ALPHA HOLDINGS",
+              "points": 400,
+              "reason_code": "name_exact"
+            },
+            {
+              "kind": "entity_type",
+              "outcome": "support",
+              "subject_value": "ORGANIZATION",
+              "candidate_value": "ORGANIZATION",
+              "points": 40,
+              "reason_code": "entity_type_exact"
+            }
+          ],
+          "retrieval": {
+            "routes": [
+              "name_exact"
+            ]
+          },
+          "lineage": {
+            "provider": "ofac-direct",
+            "catalog_id": "ofac-fixture-catalog",
+            "component_id": "ofac-sdn",
+            "component_version": "2026-07-14-fixture",
+            "activation_id": "activation-fixture-001",
+            "normalization_profile": "unicode-upper-alnum-space-v1"
+          }
+        }
+      ]
+    },
+    {
+      "schema_version": "openwatchlist.candidate-scoring-response.v1",
+      "request_id": "batch-item-second",
+      "request_sha256": "da2ddfa685f146e2b1ae6fb7821f6d02faac2c98a303ae83dadb4a15e445194e",
+      "field": {},
+      "policy": {
+        "policy_id": "candidate-scoring-r1",
+        "policy_version": "1.0.0",
+        "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      },
+      "candidates": [
+        {
+          "candidate_id": "bic-match",
+          "score": 550,
+          "strength_band": "review_candidate",
+          "exact_identifier_matched": true,
+          "exact_name_matched": false,
+          "reason_codes": [
+            "typed_identifier_exact"
+          ],
+          "components": [
+            {
+              "component": "typed_identifier",
+              "points": 550,
+              "reason_code": "typed_identifier_exact"
+            }
+          ],
+          "evidence": [
+            {
+              "kind": "identifier",
+              "outcome": "support",
+              "subject_value": "BIC:AAAAUS33XXX",
+              "candidate_value": "BIC:AAAAUS33XXX",
+              "points": 550,
+              "reason_code": "typed_identifier_exact"
+            }
+          ],
+          "retrieval": {
+            "routes": [
+              "typed_identifier"
+            ]
+          },
+          "lineage": {
+            "provider": "ofac-direct",
+            "catalog_id": "ofac-fixture-catalog",
+            "component_id": "ofac-sdn",
+            "component_version": "2026-07-14-fixture",
+            "activation_id": "activation-fixture-001",
+            "normalization_profile": "unicode-upper-alnum-space-v1"
+          }
+        }
+      ]
+    }
+  ]
+}

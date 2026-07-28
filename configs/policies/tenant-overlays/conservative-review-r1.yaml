@@ -1,0 +1,22 @@
+schema_version: tenant-policy-overlay/v1alpha1
+overlay_id: conservative-review-r1
+overlay_version: 1.0.0
+overlay_checksum: 4c4a0d7d11355201a8c1ea3d3d2d5a12e429f054515340abbf74bd7d1fe1b7ae
+tenant_id: synthetic-conservative-bank
+base_policy:
+  policy_id: transaction-screening-r1
+  policy_version: 1.0.0
+  policy_checksum: 91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591
+threshold_overrides_basis_points:
+  clear_maximum: 1500
+  escalate_minimum: 9000
+  minimum_release_support_for_clear: 8000
+  minimum_countervailing_for_escalate: 9500
+control_overrides:
+  allow_auto_clear: false
+  allow_escalation: false
+pattern_rule_overrides:
+  legal_control_context:
+    score_adjustment_basis_points: 500
+    maximum_disposition: investigate
+    reason_code: tenant_legal_control_manual_review

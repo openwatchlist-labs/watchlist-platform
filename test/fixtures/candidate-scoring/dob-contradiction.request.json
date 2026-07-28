@@ -1,0 +1,49 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-request.v1",
+  "request_id": "screening-fixture-dob-001",
+  "field_path": "subject.name",
+  "original_value": "Jane Doe",
+  "normalized_value": "JANE DOE",
+  "subject": {
+    "names": ["Jane Doe"],
+    "countries": ["US"],
+    "dates_of_birth": ["1980-04-12"],
+    "entity_type": "person"
+  },
+  "lineage": {
+    "provider": "ofac-direct",
+    "catalog_id": "ofac-fixture-catalog",
+    "component_id": "ofac-sdn",
+    "component_version": "2026-07-14-fixture",
+    "activation_id": "activation-fixture-001",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "candidates": [
+    {
+      "candidate": {
+        "candidate_id": "candidate-dob-support",
+        "names": ["DOE JANE"],
+        "countries": ["US"],
+        "dates_of_birth": ["1980-04-12"],
+        "entity_type": "individual"
+      },
+      "retrieval": {
+        "routes": ["name_exact"],
+        "reason_codes": ["runtime_name_exact_candidate"]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "candidate-dob-conflict",
+        "names": ["Jane Doe"],
+        "countries": ["US"],
+        "dates_of_birth": ["1991-09-30"],
+        "entity_type": "person"
+      },
+      "retrieval": {
+        "routes": ["name_exact"],
+        "reason_codes": ["runtime_name_exact_candidate"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>OWP-PACS008-MULTI-0001</MsgId>
+      <CreDtTm>2026-07-13T15:00:00Z</CreDtTm>
+      <NbOfTxs>2</NbOfTxs>
+      <SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId><EndToEndId>E2E-MULTI-1</EndToEndId><TxId>TX-MULTI-1</TxId></PmtId>
+      <IntrBkSttlmAmt Ccy="USD">10.00</IntrBkSttlmAmt>
+      <IntrBkSttlmDt>2026-07-14</IntrBkSttlmDt>
+      <Dbtr><Nm>First Debtor Ltd</Nm><PstlAdr><Ctry>US</Ctry></PstlAdr></Dbtr>
+      <DbtrAgt><FinInstnId><BICFI>CITIUS33XXX</BICFI></FinInstnId></DbtrAgt>
+      <CdtrAgt><FinInstnId><BICFI>BARCGB22XXX</BICFI></FinInstnId></CdtrAgt>
+      <Cdtr><Nm>First Creditor Ltd</Nm><PstlAdr><Ctry>GB</Ctry></PstlAdr></Cdtr>
+      <RmtInf><Ustrd>First transaction narrative</Ustrd></RmtInf>
+    </CdtTrfTxInf>
+    <CdtTrfTxInf>
+      <PmtId><EndToEndId>E2E-MULTI-2</EndToEndId><TxId>TX-MULTI-2</TxId></PmtId>
+      <IntrBkSttlmAmt Ccy="EUR">20.00</IntrBkSttlmAmt>
+      <IntrBkSttlmDt>2026-07-15</IntrBkSttlmDt>
+      <Dbtr><Nm>Second Debtor SARL</Nm><PstlAdr><Ctry>FR</Ctry></PstlAdr></Dbtr>
+      <DbtrAgt><FinInstnId><BICFI>BNPAFRPPXXX</BICFI></FinInstnId></DbtrAgt>
+      <CdtrAgt><FinInstnId><BICFI>DEUTDEFFXXX</BICFI></FinInstnId></CdtrAgt>
+      <Cdtr><Nm>Second Creditor GmbH</Nm><PstlAdr><Ctry>DE</Ctry></PstlAdr></Cdtr>
+      <RmtInf>
+        <Ustrd>Second transaction narrative line one</Ustrd>
+        <Ustrd>Second transaction narrative line two</Ustrd>
+      </RmtInf>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

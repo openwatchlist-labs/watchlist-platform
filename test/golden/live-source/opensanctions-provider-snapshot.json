@@ -1,0 +1,167 @@
+{
+  "schema_version": "opensanctions-like-snapshot/v1alpha1",
+  "snapshot_id": "provider_snapshot_87b0c5d53a5ae1d7766dd493",
+  "snapshot_version": "2026-07-14",
+  "snapshot_checksum": "564ae87f027d2585d11f344e6c09cd752acdcb4828d48a23102c0a540c7fba93",
+  "provider_name": "opensanctions-us_ofac_sdn",
+  "entity_count": 3,
+  "entities": [
+    {
+      "entity_id": "Q1001",
+      "schema": "Company",
+      "entity_type": "organization",
+      "primary_name": "Acme Imports LLC",
+      "aliases": [
+        {
+          "name": "ACME GLOBAL",
+          "type": "previous_name",
+          "strength": "medium"
+        },
+        {
+          "name": "ACME IMPORTS",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "addresses": [
+        {
+          "line1": "100 Example Avenue, Suite 200",
+          "city": "New York",
+          "region": "NY",
+          "postal_code": "10001",
+          "country": "us"
+        }
+      ],
+      "identifiers": [
+        {
+          "type": "Account Number",
+          "value": "ACME-OPERATING-001"
+        },
+        {
+          "type": "Legal Entity Identifier",
+          "value": "5493001KJTIIGC8Y1R12"
+        }
+      ],
+      "remarks": "Synthetic FtM fixture record. Not an actual designation.",
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "1001",
+          "programs": [
+            "DEMO",
+            "DEMO-SECONDARY"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions",
+          "authority": "OpenSanctions",
+          "list_id": "us_ofac_sdn",
+          "source_record_id": "Q1001",
+          "active": true
+        }
+      ],
+      "attributes": {
+        "datasets": "us_ofac_sdn",
+        "ftm_adapter_version": "opensanctions-ftm-adapter/v0.1.2",
+        "ftm_schema": "Company",
+        "referents": "ofac-1001"
+      }
+    },
+    {
+      "entity_id": "Q2002",
+      "schema": "Person",
+      "entity_type": "individual",
+      "primary_name": "Jordan Example",
+      "aliases": [
+        {
+          "name": "J. Example",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "addresses": [
+        {
+          "city": "New York",
+          "country": "us"
+        }
+      ],
+      "dates_of_birth": [
+        "1980-05-20"
+      ],
+      "remarks": "Synthetic FtM fixture record. Not an actual designation.",
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "2002",
+          "programs": [
+            "DEMO"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions",
+          "authority": "OpenSanctions",
+          "list_id": "us_ofac_sdn",
+          "source_record_id": "Q2002",
+          "active": true
+        }
+      ],
+      "attributes": {
+        "datasets": "us_ofac_sdn",
+        "ftm_adapter_version": "opensanctions-ftm-adapter/v0.1.2",
+        "ftm_schema": "Person",
+        "referents": "ofac-2002"
+      }
+    },
+    {
+      "entity_id": "Q3003",
+      "schema": "Vessel",
+      "entity_type": "vessel",
+      "primary_name": "Example Vessel",
+      "aliases": [
+        {
+          "name": "MV EXAMPLE",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "identifiers": [
+        {
+          "type": "IMO Number",
+          "value": "IMO 1234567"
+        }
+      ],
+      "remarks": "Synthetic FtM fixture record. Not an actual designation.",
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "3003",
+          "programs": [
+            "DEMO-MARITIME"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions",
+          "authority": "OpenSanctions",
+          "list_id": "us_ofac_sdn",
+          "source_record_id": "Q3003",
+          "active": true
+        }
+      ],
+      "attributes": {
+        "datasets": "us_ofac_sdn",
+        "ftm_adapter_version": "opensanctions-ftm-adapter/v0.1.2",
+        "ftm_schema": "Vessel",
+        "referents": "ofac-3003"
+      }
+    }
+  ]
+}

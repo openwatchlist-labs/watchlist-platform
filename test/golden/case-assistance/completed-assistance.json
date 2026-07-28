@@ -1,0 +1,211 @@
+{
+  "schema_version": "openwatchlist.case-assistance.v1",
+  "assistance_id": "assistance_900d9374c7c59d49db330558",
+  "case_id": "case_04ae17abc93c855f6359653970123d35",
+  "tenant_id": "tenant-a",
+  "task": "draft_note",
+  "status": "completed",
+  "actor": "analyst-a",
+  "occurred_at": "2026-07-15T16:01:00Z",
+  "case_context": {
+    "case_id": "case_04ae17abc93c855f6359653970123d35",
+    "tenant_id": "tenant-a",
+    "state": "open",
+    "revision": 1,
+    "alert_ids": [
+      "alert_38eb8343f30c2e07a2378206a8c33638"
+    ],
+    "alert_facts": [
+      {
+        "alert_id": "alert_38eb8343f30c2e07a2378206a8c33638",
+        "candidate_summary": [
+          {
+            "candidate_id": "sdn-1001",
+            "reason_codes": [
+              "country_exact",
+              "name_exact"
+            ],
+            "score": 930
+          }
+        ],
+        "classification": {
+          "classification_id": "b202cc4383902ec77f597cf1a3e31d1a3437535ca95ddf19b6629055677911bc",
+          "countervailing_codes": [
+            "country_exact",
+            "name_exact"
+          ],
+          "pattern_codes": [],
+          "route_hint": "escalate",
+          "schema_version": "openwatchlist.false-positive-classification.phase9ab.v1",
+          "score_basis": 930
+        },
+        "policy_decision": {
+          "decision_id": "4b4c2dc4cd1bcfa0fe60d908dbe404a9319e85113dd8a637f8eebccac7e9b7f3",
+          "ordered_rule_trace": [
+            "load_checksum_addressed_policy",
+            "evaluate_phase4_pattern_evidence",
+            "apply_missing_evidence_blockers",
+            "apply_score_thresholds",
+            "emit_non_analyst_policy_route"
+          ],
+          "policy_id": "phase9ab-alert-policy",
+          "policy_sha256": "a82299ef70541804a820d08369fc3c41bd69d70ff0bf240a44c6cb7f6b394cc5",
+          "policy_version": "r1",
+          "reason_codes": [
+            "country_exact",
+            "name_exact"
+          ],
+          "route": "escalate",
+          "schema_version": "openwatchlist.policy-decision.phase9ab.v1",
+          "score": 930,
+          "threshold": 850
+        },
+        "source_identity": "9c15117914fe574d9af9b89279417f1312537b55f8f7462d320e1179515b2236:855cf134fb8eb40dff54559a6cc62834e1c861fab73f00f327e5c8048f9176cc",
+        "source_type": "screening_ledger",
+        "subject": {
+          "field_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+          "message_id": "msg-001"
+        }
+      }
+    ],
+    "context_sha256": "8f4cfe8040204c1c35b6663c36f4a883fe58793ab0b14ebcf1a41e85ba154dbf"
+  },
+  "retrieval": {
+    "schema_version": "openwatchlist.case-retrieval.v1",
+    "corpus_id": "phase9c-governed-corpus",
+    "corpus_version": "2026-07-15-r1",
+    "snapshot_sha256": "3e50b008055e55086da897a2ba4497634638b15afede270d5e95348f3c092def",
+    "tenant_id": "tenant-a",
+    "query_terms": [
+      "001",
+      "1001",
+      "COUNTRY",
+      "ESCALATE",
+      "EXACT",
+      "MSG",
+      "NAME",
+      "OPEN",
+      "PAYMENT",
+      "SDN"
+    ],
+    "passages": [
+      {
+        "passage_id": "passage_4d26af70e42f0565cd2ce0a2",
+        "document_id": "policy-escalation-r1",
+        "kind": "policy",
+        "title": "Exact name, identifier, and escalation review policy",
+        "source_ref": "fixture:policy/escalation-r1",
+        "effective_at": "2026-07-15T00:00:00Z",
+        "text": "An exact name or typed identifier match is strong evidence requiring investigation under the deterministic policy. Analyst assistance may summarize the evidence but cannot clear, close, escalate, or otherwise change the policy route.",
+        "text_sha256": "23cb7c6f196cc76b8bc316b8d9f95bbf6367c01a4040253298b8fef1691a0434",
+        "score": 14,
+        "match_terms": [
+          "ESCALATE",
+          "EXACT",
+          "NAME"
+        ]
+      },
+      {
+        "passage_id": "passage_0a5edc11c667b7cf434a359b",
+        "document_id": "tenant-a-prior-case-r1",
+        "kind": "prior_case",
+        "title": "Prior case with exact identifier and contradictory country",
+        "source_ref": "fixture:tenant-a/case-101",
+        "effective_at": "2026-07-15T00:00:00Z",
+        "text": "A prior tenant-a review involved an exact identifier candidate with a country contradiction. The analyst requested independent identity evidence before proposing a decision.",
+        "text_sha256": "140b904c73f8fb37163c3458122ec769119d13aeba28397ebd847be7b1eec5b3",
+        "score": 12,
+        "match_terms": [
+          "COUNTRY",
+          "EXACT"
+        ]
+      },
+      {
+        "passage_id": "passage_3e82d8f4938503740f64e3ab",
+        "document_id": "policy-escalation-r1",
+        "kind": "policy",
+        "title": "Exact name, identifier, and escalation review policy",
+        "source_ref": "fixture:policy/escalation-r1",
+        "effective_at": "2026-07-15T00:00:00Z",
+        "text": "Country or entity-type contradictions must be displayed as countervailing evidence and must not be silently discarded.",
+        "text_sha256": "1e418ce01c80b57fe5d577c10868eff1ca7ffd40f3295d18d19c50fa02c5916d",
+        "score": 10,
+        "match_terms": [
+          "COUNTRY",
+          "EXACT",
+          "NAME"
+        ]
+      },
+      {
+        "passage_id": "passage_810e528b382b388e9259f4bb",
+        "document_id": "guidance-evidence-r1",
+        "kind": "guidance",
+        "title": "Evidence collection guidance",
+        "source_ref": "fixture:guidance/evidence-r1",
+        "effective_at": "2026-07-15T00:00:00Z",
+        "text": "Every factual statement in an analyst note must be supported by case evidence or an exact retrieved citation.",
+        "text_sha256": "4e360dd74562ee1b76fece2167e1ab590c9a5337df5f68e3a7e986de91603127",
+        "score": 2,
+        "match_terms": [
+          "EXACT"
+        ]
+      }
+    ],
+    "package_sha256": "519775464b2219a3b951c79f0ee241c805568cf6ac54e87fbaf9b2475295089f"
+  },
+  "generation": {
+    "role": "primary",
+    "model_id": "granite4.1:8b",
+    "request_sha256": "c212b982dd65ebbd5c4001f66bcfad87a6caa80d92d21fd9ac9c7a127ddfc353",
+    "response_sha256": "c83ff3d07760bf2b192bf4dee1d72e13b354f539b833bea6d13e48226fe414f8",
+    "duration_nanos": 1000000,
+    "prompt_tokens": 128,
+    "generated_tokens": 64,
+    "keep_alive": "0",
+    "context_tokens": 16384
+  },
+  "guardian_invocation": {
+    "role": "guardian",
+    "model_id": "granite4.1-guardian:8b",
+    "request_sha256": "f15cc606e283e1d521e9cb24a6a9eb19a0ceef1559467855b789800e25ff4a45",
+    "response_sha256": "80c2a81a51c74f7a94e1584cea7e0896c4e7a9c278295281e50c1b6fb848d5be",
+    "duration_nanos": 1000000,
+    "prompt_tokens": 128,
+    "generated_tokens": 64,
+    "keep_alive": "0",
+    "context_tokens": 16384
+  },
+  "draft": {
+    "schema_version": "openwatchlist.analyst-assistance-draft.v1",
+    "summary": "The verified case contains an exact name signal and countervailing country evidence. Additional identity evidence remains appropriate before a human decision.",
+    "evidence_findings": [
+      {
+        "statement": "Exact name evidence is treated as a strong investigation signal by the retrieved policy.",
+        "citation_ids": [
+          "passage_4d26af70e42f0565cd2ce0a2"
+        ]
+      },
+      {
+        "statement": "Country contradictions must remain visible as countervailing evidence.",
+        "citation_ids": [
+          "passage_3e82d8f4938503740f64e3ab"
+        ]
+      }
+    ],
+    "missing_evidence_questions": [
+      "Is an independently verified date of birth or government identifier available?"
+    ],
+    "suggested_next_steps": [
+      "Review the cited policy and obtain the missing identity evidence."
+    ]
+  },
+  "guardian": {
+    "schema_version": "openwatchlist.guardian-assessment.v1",
+    "grounded": true,
+    "relevant": true,
+    "safe": true,
+    "citations_valid": true,
+    "notes": "The draft is bounded, cited, and non-dispositive."
+  },
+  "record_sha256": "f6bed382982b4c81f20f7564ce2371a2692656cf4346db2d37810fc296283bcd"
+}

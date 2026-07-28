@@ -1,0 +1,21 @@
+{
+  "schema_version": "screening-api-config/v1alpha1",
+  "listen_address": "127.0.0.1:8090",
+  "catalog_registry_path": "var/catalog-registry/example/registry.json",
+  "mapping_registry_path": "var/alert-list-mappings/example/registry.json",
+  "runtime_binary_path": "target/release/catalog-mmap",
+  "idempotency_root": "var/screening-api/idempotency",
+  "runtime_bindings": [
+    {
+      "component_id": "catalog_component_REPLACE_ME",
+      "version_id": "catalog_version_REPLACE_ME",
+      "package_path": "var/runtime-mmap/catalog.owmmap",
+      "package_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "worker_count": 4
+    }
+  ],
+  "max_body_bytes": 1048576,
+  "max_batch_items": 1000,
+  "max_candidates": 100,
+  "request_timeout_ms": 10000
+}

@@ -1,0 +1,13 @@
+{
+  "namespace": "demo-bank",
+  "component_key": "official.ofac.sdn",
+  "display_name": "OFAC SDN official catalog",
+  "catalog_mode": "official_list",
+  "description": "Stable platform component for the OFAC SDN regulatory scope.",
+  "labels": {
+    "authority": "US_TREASURY_OFAC",
+    "risk_domain": "sanctions"
+  },
+  "created_at": "2026-07-14T18:30:00Z",
+  "created_by": "phase7cb-fixture"
+}

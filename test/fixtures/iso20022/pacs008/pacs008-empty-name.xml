@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>OWP-PACS008-EMPTY-0001</MsgId><CreDtTm>2026-07-13T16:00:00Z</CreDtTm><NbOfTxs>1</NbOfTxs></GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId><TxId>TX-EMPTY-1</TxId></PmtId>
+      <Dbtr><Nm></Nm></Dbtr>
+      <Cdtr><Nm>Valid Creditor</Nm></Cdtr>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

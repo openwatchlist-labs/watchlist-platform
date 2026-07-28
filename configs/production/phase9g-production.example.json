@@ -1,0 +1,43 @@
+{
+  "schema_version": "openwatchlist.production-runtime-config.v1",
+  "config_id": "phase9g-production-runtime",
+  "version": "2026-07-15-r1",
+  "environment": "production",
+  "listen_address": "127.0.0.1:18094",
+  "review_console_config_path": "review-console-production.example.json",
+  "signing_key_env": "OPENWATCHLIST_SIGNING_KEY_HEX",
+  "quota_registry_path": "tenant-quotas-r1.json",
+  "runtime_state_directory": "/var/lib/openwatchlist/runtime",
+  "outbox_directory": "/var/lib/openwatchlist/outbox",
+  "backup_directory": "/var/lib/openwatchlist/backups",
+  "shutdown_grace_seconds": 30,
+  "request_timeout_seconds": 180,
+  "read_header_timeout_seconds": 5,
+  "read_timeout_seconds": 190,
+  "write_timeout_seconds": 190,
+  "idle_timeout_seconds": 60,
+  "max_header_bytes": 1048576,
+  "max_body_bytes": 1048576,
+  "global_concurrency": 128,
+  "default_tenant_concurrency": 16,
+  "default_requests_per_minute": 1200,
+  "default_burst": 80,
+  "tls": {
+    "required": true,
+    "trusted_proxy": true,
+    "forwarded_proto_header": "X-Forwarded-Proto"
+  },
+  "readiness": {
+    "required_paths": [
+      "/etc/openwatchlist/alert-policy.json",
+      "/etc/openwatchlist/corpus-snapshot.json",
+      "../review-console/identity-registry-r1.json"
+    ],
+    "min_free_bytes": 1073741824,
+    "postgresql_required": true,
+    "postgresql_dsn_env": "OPENWATCHLIST_POSTGRES_DSN",
+    "psql_path": "psql",
+    "verify_outbox": true
+  },
+  "config_sha256": "4a88193a8dbaa24498ae7daf6ded552d548cb7d8ea000de4525b3f0508331961"
+}

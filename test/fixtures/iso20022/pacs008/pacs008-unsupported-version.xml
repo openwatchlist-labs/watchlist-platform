@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.09">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr><MsgId>OWP-UNSUPPORTED</MsgId></GrpHdr>
+    <CdtTrfTxInf><PmtId><TxId>TX-UNSUPPORTED</TxId></PmtId></CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

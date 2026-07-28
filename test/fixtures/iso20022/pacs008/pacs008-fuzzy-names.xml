@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08">
+  <FIToFICstmrCdtTrf>
+    <GrpHdr>
+      <MsgId>OWP-PACS008-FUZZY-0001</MsgId>
+      <CreDtTm>2026-07-13T14:00:00Z</CreDtTm>
+      <NbOfTxs>1</NbOfTxs>
+      <SttlmInf><SttlmMtd>INDA</SttlmMtd></SttlmInf>
+    </GrpHdr>
+    <CdtTrfTxInf>
+      <PmtId>
+        <InstrId>INSTR-0001</InstrId>
+        <EndToEndId>E2E-0001</EndToEndId>
+        <TxId>TX-0001</TxId>
+        <UETR>123e4567-e89b-42d3-a456-426614174000</UETR>
+      </PmtId>
+      <IntrBkSttlmAmt Ccy="USD">1250.00</IntrBkSttlmAmt>
+      <IntrBkSttlmDt>2026-07-14</IntrBkSttlmDt>
+      <Dbtr>
+        <Nm>Acme Import LLC</Nm>
+        <PstlAdr>
+          <TwnNm>New York</TwnNm>
+          <Ctry>US</Ctry>
+          <AdrLine>100 Example Avenue</AdrLine>
+          <AdrLine>Suite 200</AdrLine>
+        </PstlAdr>
+        <Id><OrgId><LEI>5493001KJTIIGC8Y1R12</LEI></OrgId></Id>
+      </Dbtr>
+      <UltmtDbtr>
+        <Nm>Jordon Example</Nm>
+        <PstlAdr><Ctry>US</Ctry></PstlAdr>
+        <Id><PrvtId><DtAndPlcOfBirth><BirthDt>1980-05-20</BirthDt></DtAndPlcOfBirth></PrvtId></Id>
+      </UltmtDbtr>
+      <DbtrAcct><Id><Othr><Id>ACME-OPERATING-001</Id></Othr></Id></DbtrAcct>
+      <DbtrAgt>
+        <FinInstnId>
+          <BICFI>BOFAUS3NXXX</BICFI>
+          <LEI>B4TYDEB6GKMZO031MB27</LEI>
+          <Nm>Example Sending Bank NA</Nm>
+          <PstlAdr><TwnNm>New York</TwnNm><Ctry>US</Ctry></PstlAdr>
+        </FinInstnId>
+      </DbtrAgt>
+      <CdtrAgt>
+        <FinInstnId>
+          <BICFI>DEUTDEFFXXX</BICFI>
+          <LEI>7LTWFZYICNSX8D621K86</LEI>
+          <Nm>Example Receiving Bank AG</Nm>
+          <PstlAdr><TwnNm>Frankfurt</TwnNm><Ctry>DE</Ctry></PstlAdr>
+        </FinInstnId>
+      </CdtrAgt>
+      <Cdtr>
+        <Nm>Example Vessel</Nm>
+        <PstlAdr>
+          <TwnNm>Berlin</TwnNm>
+          <Ctry>DE</Ctry>
+          <AdrLine>20 Musterstrasse</AdrLine>
+        </PstlAdr>
+        <Id><OrgId><LEI>529900T8BM49AURSDO55</LEI></OrgId></Id>
+      </Cdtr>
+      <UltmtCdtr>
+        <Nm>J Example</Nm>
+        <PstlAdr><Ctry>DE</Ctry></PstlAdr>
+      </UltmtCdtr>
+      <CdtrAcct><Id><IBAN>DE89370400440532013000</IBAN></Id></CdtrAcct>
+      <RmtInf>
+        <Ustrd>Invoice 2026-0713 for industrial components</Ustrd>
+        <Ustrd>Customer reference ORION-7788</Ustrd>
+      </RmtInf>
+    </CdtTrfTxInf>
+  </FIToFICstmrCdtTrf>
+</Document>

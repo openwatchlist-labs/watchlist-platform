@@ -1,0 +1,7 @@
+{
+  "request_id": "phase8f-batch-1",
+  "items": [
+    {"request_id": "phase8f-batch-item-1", "field": {"path": "Dbtr/Nm", "original_value": "Acme Trading LLC"}},
+    {"request_id": "phase8f-batch-item-2", "field": {"path": "Cdtr/Nm", "original_value": "Example Holdings"}}
+  ]
+}

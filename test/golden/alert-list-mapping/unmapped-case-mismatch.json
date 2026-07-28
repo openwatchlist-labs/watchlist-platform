@@ -1,0 +1,12 @@
+{
+  "schema_version": "alert-list-resolution/v1alpha1",
+  "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "source_system_id": "fircosoft-prod",
+  "raw_list_name": "wls_ofac_001",
+  "resolved_at": "2026-07-21T12:00:00Z",
+  "status": "unmapped",
+  "available": false,
+  "exact_match": false,
+  "review_blocker": "ALERT_LIST_MAPPING_REQUIRED"
+}

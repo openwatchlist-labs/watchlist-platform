@@ -1,0 +1,403 @@
+{
+  "schema_version": "analyst-note-invocation/v1alpha1",
+  "invocation_id": "analyst_invocation_bba8b56f1e1f33a719e216ea",
+  "generator_version": "governed-analyst-note/v0.1.0",
+  "decision": {
+    "schema_version": "transaction-screening-decision/v1alpha1",
+    "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+    "classification": {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_f61c701005d071f4d7890732",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_aba1dff2c818ecb839607ad3",
+        "case_id": "fp-03-entity-type-mismatch",
+        "message_id": "FP-MSG-003",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "creditor.name",
+        "semantic_role": "creditor.name",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "input_value": "EXAMPLE VESSEL",
+        "normalized_input_value": "EXAMPLE VESSEL",
+        "watchlist_value": "EXAMPLE VESSEL",
+        "normalized_watchlist_value": "EXAMPLE VESSEL",
+        "watchlist_entity_type": "vessel",
+        "match_route": "normalized_name",
+        "screening_score_basis_points": 10000,
+        "exact": true,
+        "matcher_diagnostic_codes": [
+          "entity_type_mismatch"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization"
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "patterns": [
+        {
+          "schema_version": "false-positive-pattern-evidence/v1alpha1",
+          "code": "entity_type_mismatch",
+          "strength_basis_points": 9000,
+          "route_hint": "investigate",
+          "escalation_blockers": [
+            "entity_type_conflict"
+          ],
+          "reason_codes": [
+            "candidate_type_not_allowed_for_field"
+          ],
+          "detail": "candidate entity type \"vessel\" is outside target entity types"
+        }
+      ],
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "entity_type_conflict"
+      ],
+      "summary": {
+        "pattern_count": 1,
+        "strongest_pattern_basis_points": 9000,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    "engine_version": "transaction-policy-engine/v0.1.0",
+    "policy": {
+      "policy_id": "transaction-screening-r1",
+      "policy_version": "1.0.0",
+      "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+    },
+    "score_components": [
+      {
+        "schema_version": "policy-score-component/v1alpha1",
+        "code": "screening_score",
+        "input_basis_points": 10000,
+        "weight_or_adjustment_basis_points": 4500,
+        "delta_basis_points": 4500,
+        "detail": "weighted matcher screening score"
+      },
+      {
+        "schema_version": "policy-score-component/v1alpha1",
+        "code": "countervailing_support",
+        "input_basis_points": 0,
+        "weight_or_adjustment_basis_points": 4000,
+        "delta_basis_points": 0,
+        "detail": "weighted primary or secondary countervailing evidence"
+      },
+      {
+        "schema_version": "policy-score-component/v1alpha1",
+        "code": "release_support",
+        "input_basis_points": 0,
+        "weight_or_adjustment_basis_points": -5000,
+        "delta_basis_points": 0,
+        "detail": "weighted false-positive release support"
+      },
+      {
+        "schema_version": "policy-score-component/v1alpha1",
+        "code": "pattern:entity_type_mismatch",
+        "input_basis_points": 9000,
+        "weight_or_adjustment_basis_points": -1500,
+        "delta_basis_points": -1500,
+        "detail": "configured false-positive pattern adjustment"
+      }
+    ],
+    "score_before_clamp_basis_points": 3000,
+    "policy_score_basis_points": 3000,
+    "disposition": "investigate",
+    "review_route": "standard_review",
+    "escalation_blockers": [
+      "entity_type_conflict"
+    ],
+    "reason_codes": [
+      "blocker_entity_type_conflict",
+      "fp_entity_type_mismatch",
+      "policy_investigate",
+      "policy_threshold_evaluation",
+      "route_investigate"
+    ],
+    "thresholds_applied_basis_points": {
+      "clear_maximum": 2500,
+      "escalate_minimum": 8500,
+      "minimum_release_support_for_clear": 7000,
+      "minimum_countervailing_for_escalate": 9000
+    },
+    "rule_trace": [
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "pattern_rule:entity_type_mismatch",
+        "outcome": "applied",
+        "detail": "adjustment=-1500 maximum_disposition=investigate"
+      },
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "blocker_rule:entity_type_conflict",
+        "outcome": "applied",
+        "detail": "maximum_disposition=investigate"
+      },
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "route_hint:investigate",
+        "outcome": "applied",
+        "detail": "review_route=standard_review"
+      },
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "score_clamp",
+        "outcome": "applied",
+        "detail": "before=3000 after=3000"
+      },
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "escalation_gate",
+        "outcome": "fail",
+        "detail": "score=3000 threshold=8500 countervailing=0 blockers=1 maximum=investigate"
+      },
+      {
+        "schema_version": "policy-rule-trace/v1alpha1",
+        "rule": "clear_gate",
+        "outcome": "fail",
+        "detail": "score=3000 threshold=2500 release_support=0 route_hint=investigate"
+      }
+    ]
+  },
+  "citation_package": {
+    "schema_version": "rag-citation-package/v1alpha1",
+    "citation_package_id": "citation_package_a4be3f2115e49a83562694a8",
+    "query": {
+      "schema_version": "rag-retrieval-query/v1alpha1",
+      "query_id": "rag_query_1955e0d1091037213c115095",
+      "task": "explain_policy_route",
+      "tenant_id": "tenant-a",
+      "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "reason_codes": [
+        "blocker_entity_type_conflict",
+        "fp_entity_type_mismatch",
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "blockers": [
+        "entity_type_conflict"
+      ],
+      "message_type": "pacs.008.001.08",
+      "semantic_role": "creditor.name",
+      "policy_id": "transaction-screening-r1",
+      "effective_at": "2026-07-14T12:00:00Z",
+      "query_text": "Explain why investigate was routed to standard_review for creditor.name. Candidate entity type vessel. Input EXAMPLE VESSEL. Watchlist value EXAMPLE VESSEL."
+    },
+    "retriever_version": "deterministic-hybrid-retriever/v0.1.0",
+    "retrieval_policy": {
+      "policy_id": "transaction-review-rag-r1",
+      "policy_version": "1.0.0",
+      "policy_checksum": "32e213fa2f6c2f9e3d1a291ed4dfd61cf184ec6a9a9dae36fd4d31edec722276"
+    },
+    "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+    "summary": {
+      "documents_considered": 7,
+      "chunks_considered": 11,
+      "citations_returned": 5,
+      "excluded_tenant_or_scope": 0,
+      "excluded_unapproved_or_ineffective": 3,
+      "excluded_instruction_like_chunks": 1,
+      "excluded_below_minimum_score": 0
+    },
+    "citations": [
+      {
+        "citation_id": "citation_b689932cf275976152135ace",
+        "source_id": "validated-cases-r1",
+        "source_tier": "C",
+        "title": "Validated Regression Cases",
+        "publisher": "OpenWatchlist Labs",
+        "document_type": "validated_case",
+        "jurisdiction": "US",
+        "effective_from": "2026-07-14",
+        "approval_status": "validated",
+        "tenant_id": "tenant-a",
+        "locator": "section:Validated Regression Cases > Entity type mismatch fixture#block:1",
+        "excerpt": "A creditor name of EXAMPLE VESSEL matched an OFAC-shaped vessel record with a perfect textual score. The candidate was suppressed because creditor.name permits individual and organization candidates but not vessels. The validated outcome was investigate with entity_type_conflict.",
+        "content_checksum": "173b85cd020b1ceb4e79975935ff263b10a1cc9014aedfb8635ce665751aa631",
+        "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+        "retrieval_methods": [
+          "metadata",
+          "lexical",
+          "vector"
+        ],
+        "score": {
+          "metadata_basis_points": 3000,
+          "lexical_basis_points": 3235,
+          "vector_basis_points": 5894,
+          "total_basis_points": 3695
+        }
+      },
+      {
+        "citation_id": "citation_014dba35f31be7bade6025d5",
+        "source_id": "institution-policy-r1",
+        "source_tier": "B",
+        "title": "Transaction Screening Policy",
+        "publisher": "OpenWatchlist Labs Synthetic Institution",
+        "document_type": "institution_policy",
+        "jurisdiction": "US",
+        "effective_from": "2026-07-01",
+        "approval_status": "approved",
+        "tenant_id": "tenant-a",
+        "locator": "section:Transaction Screening Policy > Entity-type conflicts#block:2",
+        "excerpt": "When a candidate entity type is incompatible with the screened ISO 20022 field, the case remains investigate unless an independently qualifying primary identifier resolves the conflict. The blocker entity_type_conflict prevents escalation while the conflict remains unresolved.",
+        "content_checksum": "7c4b1fafda53604663b5415a7ac59f2d7cec30365c2b060672582aac5e92b7cb",
+        "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+        "retrieval_methods": [
+          "metadata",
+          "lexical",
+          "vector"
+        ],
+        "score": {
+          "metadata_basis_points": 3000,
+          "lexical_basis_points": 2647,
+          "vector_basis_points": 5454,
+          "total_basis_points": 3313
+        }
+      },
+      {
+        "citation_id": "citation_8dcb2ce9196fa6b6028a5eee",
+        "source_id": "screening-guidance-r1",
+        "source_tier": "A",
+        "title": "Screening Review Guidance",
+        "publisher": "OpenWatchlist Labs Synthetic Authority",
+        "document_type": "regulatory_guidance",
+        "jurisdiction": "US",
+        "effective_from": "2026-06-15",
+        "approval_status": "published",
+        "locator": "section:Screening Review Guidance > Wrong-field and entity-type review#block:1",
+        "excerpt": "Reviewers should compare the semantic role of the payment field with the watchlist entity type. A vessel name retrieved from a party-name field is not automatically a true match; the analyst should verify whether the field permits vessel candidates and document the conflict.",
+        "content_checksum": "3f9faf28f986690aab0b7f84505cbfc6a26fb276670ff2676c9e1c4e850adef2",
+        "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+        "retrieval_methods": [
+          "lexical",
+          "vector"
+        ],
+        "score": {
+          "metadata_basis_points": 0,
+          "lexical_basis_points": 2352,
+          "vector_basis_points": 6024,
+          "total_basis_points": 2380
+        }
+      },
+      {
+        "citation_id": "citation_a75bac5d60be263265e88d44",
+        "source_id": "institution-policy-r1",
+        "source_tier": "B",
+        "title": "Transaction Screening Policy",
+        "publisher": "OpenWatchlist Labs Synthetic Institution",
+        "document_type": "institution_policy",
+        "jurisdiction": "US",
+        "effective_from": "2026-07-01",
+        "approval_status": "approved",
+        "tenant_id": "tenant-a",
+        "locator": "section:Transaction Screening Policy > Primary identifiers#block:4",
+        "excerpt": "An exact LEI or exact BIC on a candidate-alert field may support escalation when the score threshold is met and no escalation blocker remains.",
+        "content_checksum": "9798852db7b06581870f5ee08cbec018cffeb370e153dc3f85e8369e2fc0204a",
+        "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+        "retrieval_methods": [
+          "lexical",
+          "vector"
+        ],
+        "score": {
+          "metadata_basis_points": 0,
+          "lexical_basis_points": 1764,
+          "vector_basis_points": 5316,
+          "total_basis_points": 1945
+        }
+      },
+      {
+        "citation_id": "citation_7fe477added82f1230b72497",
+        "source_id": "compromised-guidance-r1",
+        "source_tier": "A",
+        "title": "Published Guidance With Embedded Attack",
+        "publisher": "OpenWatchlist Labs Red Team",
+        "document_type": "regulatory_guidance",
+        "jurisdiction": "US",
+        "effective_from": "2026-07-14",
+        "approval_status": "published",
+        "locator": "section:Published Guidance With Embedded Attack > Legitimate screening guidance#block:1",
+        "excerpt": "Entity-type conflicts should be documented and reviewed against the permitted semantic roles for the payment field.",
+        "content_checksum": "d4e472077b2f64e5c488d5898bb3370f9576b7336b7e7bb75bd5dfa7460a8739",
+        "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+        "retrieval_methods": [
+          "metadata",
+          "lexical",
+          "vector"
+        ],
+        "score": {
+          "metadata_basis_points": 1500,
+          "lexical_basis_points": 1176,
+          "vector_basis_points": 3809,
+          "total_basis_points": 1799
+        }
+      }
+    ]
+  },
+  "profile": {
+    "profile_id": "granite-analyst-note-r1",
+    "profile_version": "1.0.0",
+    "profile_checksum": "dcf174b121ce60900d48af9cd705af817bef743de7490bca2fc15953fe92eea8",
+    "prompt_version": "analyst-note-prompt/v1.0.0"
+  },
+  "model": {
+    "provider": "fixture",
+    "model_id": "ibm/granite4:tiny-h"
+  },
+  "prompt_checksum": "074b3a0cc43e7213f142fa7d85a4e93dafc74f014c5b7867be20fc147ab7cc5f",
+  "note": {
+    "schema_version": "analyst-note/v1alpha1",
+    "note_id": "analyst_note_4ec53dfe8c6b87fcfa86b16f",
+    "status": "draft",
+    "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+    "deterministic_disposition": "investigate",
+    "review_route": "standard_review",
+    "summary": "Draft analyst context for deterministic investigate disposition.",
+    "claims": [
+      {
+        "schema_version": "analyst-note-claim/v1alpha1",
+        "claim_id": "analyst_claim_e1ec09f53f11c1257e913429",
+        "text": "The deterministic policy route is investigate through standard_review and remains authoritative.",
+        "citation_ids": [
+          "citation_b689932cf275976152135ace"
+        ]
+      },
+      {
+        "schema_version": "analyst-note-claim/v1alpha1",
+        "claim_id": "analyst_claim_ee52f14bc6782611974408cb",
+        "text": "The available policy context supports review of reason codes [blocker_entity_type_conflict fp_entity_type_mismatch policy_investigate policy_threshold_evaluation route_investigate] and blockers [entity_type_conflict].",
+        "citation_ids": [
+          "citation_014dba35f31be7bade6025d5"
+        ]
+      }
+    ],
+    "citation_ids": [
+      "citation_014dba35f31be7bade6025d5",
+      "citation_b689932cf275976152135ace"
+    ],
+    "model": {
+      "provider": "fixture",
+      "model_id": "ibm/granite4:tiny-h"
+    },
+    "profile": {
+      "profile_id": "granite-analyst-note-r1",
+      "profile_version": "1.0.0",
+      "profile_checksum": "dcf174b121ce60900d48af9cd705af817bef743de7490bca2fc15953fe92eea8",
+      "prompt_version": "analyst-note-prompt/v1.0.0"
+    }
+  }
+}

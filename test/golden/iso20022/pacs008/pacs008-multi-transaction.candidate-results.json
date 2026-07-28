@@ -1,0 +1,1466 @@
+{
+  "schema_version": "candidate-result-batch/v1alpha1",
+  "result_batch_id": "candidate_result_batch_285fb9f2bc5b5e2a81508386",
+  "input_request_batch_id": "request_batch_c13127e009cad0c59e50fc45",
+  "message_id": "OWP-PACS008-MULTI-0001",
+  "runner_version": "matcher-provider-runner/v0.1.0",
+  "provider": {
+    "schema_version": "matcher-provider-descriptor/v1alpha1",
+    "provider_id": "synthetic-provider",
+    "provider_version": "v0.1.0",
+    "catalog": {
+      "catalog_id": "synthetic-watchlist-catalog",
+      "catalog_version": "2026-07-13.1",
+      "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+      "catalog_mode": "provider_entity"
+    },
+    "capabilities": {
+      "supported_routes": [
+        "alias",
+        "contextual_address",
+        "contextual_phrase_window",
+        "exact_account",
+        "exact_bic",
+        "exact_date",
+        "exact_lei",
+        "jurisdiction_policy",
+        "normalized_name",
+        "transliteration"
+      ],
+      "supported_entity_types": [
+        "aircraft",
+        "financial_institution",
+        "government_entity",
+        "individual",
+        "jurisdiction",
+        "organization",
+        "vessel"
+      ],
+      "max_candidates_per_request": 25,
+      "deterministic": true,
+      "source_assertions_included": true
+    }
+  },
+  "summary": {
+    "total_requests": 15,
+    "matched_requests": 3,
+    "no_candidate_requests": 12,
+    "total_candidates": 3,
+    "candidate_type_counts": [
+      {
+        "name": "financial_institution",
+        "count": 1
+      },
+      {
+        "name": "jurisdiction",
+        "count": 2
+      }
+    ],
+    "match_route_counts": [
+      {
+        "name": "exact_bic",
+        "count": 1
+      },
+      {
+        "name": "jurisdiction_policy",
+        "count": 2
+      }
+    ]
+  },
+  "results": [
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_8184efbb70f28a54025a9871",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_afb5a45dc5698045190c51b6",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "debtor.name",
+        "party_role": "debtor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "First Debtor Ltd",
+          "normalized_value": "FIRST DEBTOR LTD"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "debtor.address.country",
+          "debtor.identification.lei",
+          "debtor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_226896e00ef5e4685e1050d9",
+          "element_id": "elem_4f0b5df5e9e95a5431e2099f",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_1a2e2544ea6fada39981e6d3",
+      "status": "matched",
+      "request": {
+        "request_id": "request_5aba3bef409f11c299fb66ea",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "debtor.address.country",
+        "party_role": "debtor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "US",
+          "normalized_value": "US"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_b7442f8ae674fb3fa1832674",
+          "element_id": "elem_dbbd8df3417fa9c9103d7489",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "candidate_id": "candidate_b8da1a632db3596f84f06bc2",
+          "provider_record_id": "record-jurisdiction-us",
+          "provider_entity_id": "entity-jurisdiction-us",
+          "entity_type": "jurisdiction",
+          "primary_name": "UNITED STATES",
+          "matched_value": "US",
+          "normalized_matched_value": "US",
+          "match_route": "jurisdiction_policy",
+          "score_basis_points": 10000,
+          "exact": true,
+          "attributes": {
+            "fixture_class": "synthetic_jurisdiction",
+            "iso_alpha_2": "US"
+          },
+          "source_assertions": [
+            {
+              "source_id": "synthetic-authority",
+              "authority": "OpenWatchlist Labs Test Authority",
+              "list_id": "SYNTHETIC-JURISDICTIONS",
+              "source_record_id": "SRC-JURISDICTION-US",
+              "programs": [
+                "DEMO"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_7fd5307a296d64827726d0c1",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_88b65c937070ac548206526a",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.bic",
+        "party_role": "debtor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "CITIUS33XXX",
+          "normalized_value": "CITIUS33XXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_f62242ccdd4d82efdfd28ce9",
+          "element_id": "elem_c08bd1a7d924384005b3fafb",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_f4e933b5be7932a5abd99068",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_ad25797517d82ab950bbbe84",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.bic",
+        "party_role": "creditor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "BARCGB22XXX",
+          "normalized_value": "BARCGB22XXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_3c7be11b7b0a58cd7320b34a",
+          "element_id": "elem_6ddbe77a1d0909e0d42d77b9",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_4ce1cdeefe91d849882e2300",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_ac3c701beb5c2e9a292077f9",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "creditor.name",
+        "party_role": "creditor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "First Creditor Ltd",
+          "normalized_value": "FIRST CREDITOR LTD"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "creditor.address.country",
+          "creditor.identification.lei",
+          "creditor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_5fe6d15e237015d1a9ccbbe2",
+          "element_id": "elem_6729939f01cc98d7a99362cd",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_536b6eb28d2d30e3a56edecd",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_0581127a93675d0fee3f518d",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "creditor.address.country",
+        "party_role": "creditor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "GB",
+          "normalized_value": "GB"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_139ba9b08200158b130de8ce",
+          "element_id": "elem_88a5e8cdbdb03b11f4e0952b",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_07c8594d2d031372ed0e0f40",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_c1bac99d954136d3c7781bb6",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-1",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[0]",
+        "occurrence": 0,
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "First transaction narrative",
+          "normalized_value": "FIRST TRANSACTION NARRATIVE"
+        },
+        "match_routes": [
+          "contextual_phrase_window"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity",
+          "financial_institution",
+          "vessel",
+          "aircraft",
+          "jurisdiction"
+        ],
+        "normalization_profile": "text_context_v1",
+        "threshold_profile": "narrative_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_4bd9be7e873c28482f72c20e",
+          "element_id": "elem_3adfdcda8938e570b5edcd68",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_94c6b699675b17424869d5da",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_c1bd79525d8c9422f28fd674",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/Dbtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "debtor.name",
+        "party_role": "debtor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Second Debtor SARL",
+          "normalized_value": "SECOND DEBTOR SARL"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "debtor.address.country",
+          "debtor.identification.lei",
+          "debtor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_80bc22a141c06d28726f34e7",
+          "element_id": "elem_4f3e2366f61b1b35ba97dcf1",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_a3fc7e6babfa275e1b6c4944",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_09606e9532191c6af9f5791d",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/Dbtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "debtor.address.country",
+        "party_role": "debtor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "FR",
+          "normalized_value": "FR"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_5c6372f4a87ea366e8d7635c",
+          "element_id": "elem_7d4f77592cf0effc60b366c5",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_43af93418c536e8a00f14983",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_73c7da3e28e66b2dfa39d703",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/DbtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.bic",
+        "party_role": "debtor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "BNPAFRPPXXX",
+          "normalized_value": "BNPAFRPPXXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_9f785876f7f6f7b402a70021",
+          "element_id": "elem_1db433efe53d31f6f91d80e6",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_5d993494916581ae8d0e14e2",
+      "status": "matched",
+      "request": {
+        "request_id": "request_35dfc98690e3ac3033c2cfa2",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/CdtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.bic",
+        "party_role": "creditor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "DEUTDEFFXXX",
+          "normalized_value": "DEUTDEFFXXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_8945ea7da43cb0168a412234",
+          "element_id": "elem_9d562de96e5b9839a2c306d0",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "candidate_id": "candidate_dbb79d2300adebdf249b58e9",
+          "provider_record_id": "record-receiving-bank",
+          "provider_entity_id": "entity-receiving-bank",
+          "entity_type": "financial_institution",
+          "primary_name": "EXAMPLE RECEIVING BANK AG",
+          "matched_value": "DEUTDEFFXXX",
+          "normalized_matched_value": "DEUTDEFFXXX",
+          "match_route": "exact_bic",
+          "score_basis_points": 10000,
+          "exact": true,
+          "attributes": {
+            "fixture_class": "synthetic_financial_institution"
+          },
+          "source_assertions": [
+            {
+              "source_id": "synthetic-authority",
+              "authority": "OpenWatchlist Labs Test Authority",
+              "list_id": "SYNTHETIC-TEST",
+              "source_record_id": "SRC-BANK-DE-001",
+              "programs": [
+                "DEMO"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_1291209593c46551f3e27438",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_22f29bf96094f16052a0c2cd",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/Cdtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "creditor.name",
+        "party_role": "creditor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Second Creditor GmbH",
+          "normalized_value": "SECOND CREDITOR GMBH"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "creditor.address.country",
+          "creditor.identification.lei",
+          "creditor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_c565566b6b600dc2e546c764",
+          "element_id": "elem_006d13e67a0b96420bf7048f",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_febe1a8efbf251f43b514012",
+      "status": "matched",
+      "request": {
+        "request_id": "request_21c13422cd437c707968f07f",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/Cdtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "creditor.address.country",
+        "party_role": "creditor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "DE",
+          "normalized_value": "DE"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_cfca1fff197958348557f108",
+          "element_id": "elem_9405f515328ae463c48a8b21",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 1,
+      "candidates": [
+        {
+          "candidate_id": "candidate_8018214822a4beb451d9869d",
+          "provider_record_id": "record-jurisdiction-de",
+          "provider_entity_id": "entity-jurisdiction-de",
+          "entity_type": "jurisdiction",
+          "primary_name": "GERMANY",
+          "matched_value": "DE",
+          "normalized_matched_value": "DE",
+          "match_route": "jurisdiction_policy",
+          "score_basis_points": 10000,
+          "exact": true,
+          "attributes": {
+            "fixture_class": "synthetic_jurisdiction",
+            "iso_alpha_2": "DE"
+          },
+          "source_assertions": [
+            {
+              "source_id": "synthetic-authority",
+              "authority": "OpenWatchlist Labs Test Authority",
+              "list_id": "SYNTHETIC-JURISDICTIONS",
+              "source_record_id": "SRC-JURISDICTION-DE",
+              "programs": [
+                "DEMO"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_48720fec56c55a70171a0adc",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_192782bbbdc3485c5eb4297a",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/RmtInf/Ustrd[0]",
+        "occurrence": 0,
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Second transaction narrative line one",
+          "normalized_value": "SECOND TRANSACTION NARRATIVE LINE ONE"
+        },
+        "match_routes": [
+          "contextual_phrase_window"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity",
+          "financial_institution",
+          "vessel",
+          "aircraft",
+          "jurisdiction"
+        ],
+        "normalization_profile": "text_context_v1",
+        "threshold_profile": "narrative_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_102768347b2342611f409ae9",
+          "element_id": "elem_8481b62269a91dc848c812da",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    },
+    {
+      "schema_version": "candidate-search-result/v1alpha1",
+      "result_id": "candidate_result_9aaf479970712f82a8d0494c",
+      "status": "no_candidates",
+      "request": {
+        "request_id": "request_7d503525d0682ebf0f642ca2",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-MULTI-0001",
+        "transaction_id": "TX-MULTI-2",
+        "transaction_index": 1,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[1]/RmtInf/Ustrd[1]",
+        "occurrence": 1,
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Second transaction narrative line two",
+          "normalized_value": "SECOND TRANSACTION NARRATIVE LINE TWO"
+        },
+        "match_routes": [
+          "contextual_phrase_window"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity",
+          "financial_institution",
+          "vessel",
+          "aircraft",
+          "jurisdiction"
+        ],
+        "normalization_profile": "text_context_v1",
+        "threshold_profile": "narrative_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-multi-transaction.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_f0f2cf184fff888645881c8a",
+          "evidence_id": "evidence_56af87d203be5e7359f7c6b0",
+          "element_id": "elem_63a97543f7e5df77780f8ec9",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      "provider": {
+        "schema_version": "matcher-provider-descriptor/v1alpha1",
+        "provider_id": "synthetic-provider",
+        "provider_version": "v0.1.0",
+        "catalog": {
+          "catalog_id": "synthetic-watchlist-catalog",
+          "catalog_version": "2026-07-13.1",
+          "catalog_checksum": "5efbafdd2c470b8f022779962b9a1203469620a6b8b1a1e0564289b958efbad9",
+          "catalog_mode": "provider_entity"
+        },
+        "capabilities": {
+          "supported_routes": [
+            "alias",
+            "contextual_address",
+            "contextual_phrase_window",
+            "exact_account",
+            "exact_bic",
+            "exact_date",
+            "exact_lei",
+            "jurisdiction_policy",
+            "normalized_name",
+            "transliteration"
+          ],
+          "supported_entity_types": [
+            "aircraft",
+            "financial_institution",
+            "government_entity",
+            "individual",
+            "jurisdiction",
+            "organization",
+            "vessel"
+          ],
+          "max_candidates_per_request": 25,
+          "deterministic": true,
+          "source_assertions_included": true
+        }
+      },
+      "candidate_count": 0,
+      "candidates": []
+    }
+  ]
+}

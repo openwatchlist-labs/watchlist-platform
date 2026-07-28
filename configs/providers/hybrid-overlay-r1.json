@@ -1,0 +1,21 @@
+{
+  "schema_version": "hybrid-overlay-catalog/v1alpha1",
+  "catalog_id": "provider-entity-opensanctions-demo+ofac-sdn-direct",
+  "catalog_version": "2026-07-14-b5f60f3c45f6+07/13/2026-c33e134053cc",
+  "catalog_checksum": "161fc02fae2a03ed8b164091d422722f091cb3dd7a172b81531436d3124a0db2",
+  "catalog_mode": "hybrid_overlay",
+  "base_catalog": {
+    "catalog_id": "provider-entity-opensanctions-demo",
+    "catalog_version": "2026-07-14-b5f60f3c45f6",
+    "catalog_checksum": "813ac1057704ffe96b88194da8280d16e9a06f06ec2da9df8a278e590bc4a4ab",
+    "catalog_mode": "provider_entity"
+  },
+  "official_overlay": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/13/2026-c33e134053cc",
+    "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+    "catalog_mode": "direct_list"
+  },
+  "link_policy": "source_id_list_id_source_record_id",
+  "unlinked_record_policy": "retain_official_record"
+}

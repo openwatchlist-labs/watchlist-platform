@@ -1,0 +1,4 @@
+{"id":"NK-PROGRAM-ONE","schema":"Organization","caption":"Program Taxonomy Example","datasets":["us_ofac_sdn"],"referents":["ofac-54742"],"properties":{"name":["Program Taxonomy Example"]}}
+{"id":"NK-PROGRAM-TWO","schema":"Person","caption":"Program Fallback Example","datasets":["us_ofac_sdn"],"referents":["ofac-49834"],"properties":{"name":["Program Fallback Example"]}}
+{"id":"ofac-sanction-hash-one","schema":"Sanction","caption":"Global Magnitsky designation","datasets":["us_ofac_sdn"],"properties":{"entity":["ofac-54742"],"recordId":["54742"],"program":["GLOMAG"],"programId":["US-GLOMAG"]}}
+{"id":"ofac-sanction-hash-two","schema":"Sanction","caption":"Russia designation","datasets":["us_ofac_sdn"],"properties":{"entity":["ofac-49834"],"recordId":["ofac-37562c455d76b8773a9b28ec9fdf925a6ccbc3ba"],"program":["RUSSIA-EO14024"],"programId":["US-RUSHAR"]}}

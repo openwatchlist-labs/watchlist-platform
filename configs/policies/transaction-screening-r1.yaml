@@ -1,0 +1,119 @@
+schema_version: transaction-screening-policy/v1alpha1
+policy_id: transaction-screening-r1
+policy_version: 1.0.0
+policy_checksum: 91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591
+weights_basis_points:
+  screening_score: 4500
+  countervailing_support: 4000
+  release_support: 5000
+thresholds_basis_points:
+  clear_maximum: 2500
+  escalate_minimum: 8500
+  minimum_release_support_for_clear: 7000
+  minimum_countervailing_for_escalate: 9000
+controls:
+  allow_auto_clear: true
+  allow_escalation: true
+pattern_rules:
+  acronym_collision:
+    score_adjustment_basis_points: -1500
+    maximum_disposition: clear
+    reason_code: fp_acronym_collision
+  entity_type_mismatch:
+    score_adjustment_basis_points: -1500
+    maximum_disposition: investigate
+    reason_code: fp_entity_type_mismatch
+  legal_control_context:
+    score_adjustment_basis_points: 0
+    maximum_disposition: investigate
+    reason_code: fp_legal_control_context
+  missing_qualifier:
+    score_adjustment_basis_points: -1000
+    maximum_disposition: investigate
+    reason_code: fp_missing_qualifier
+  narrative_denial_context:
+    score_adjustment_basis_points: -2500
+    maximum_disposition: clear
+    reason_code: fp_narrative_denial_context
+  phonetic_transliteration_only:
+    score_adjustment_basis_points: -500
+    maximum_disposition: investigate
+    reason_code: fp_phonetic_transliteration_only
+  routing_bic_collision:
+    score_adjustment_basis_points: -1500
+    maximum_disposition: clear
+    reason_code: fp_routing_bic_collision
+  substring_containment:
+    score_adjustment_basis_points: -1500
+    maximum_disposition: clear
+    reason_code: fp_substring_containment
+  technical_system_artifact:
+    score_adjustment_basis_points: -2500
+    maximum_disposition: clear
+    reason_code: fp_technical_system_artifact
+  wrong_field_data_type:
+    score_adjustment_basis_points: -1500
+    maximum_disposition: clear
+    reason_code: fp_wrong_field_data_type
+blocker_rules:
+  acronym_field_collision:
+    maximum_disposition: clear
+    reason_code: blocker_acronym_field_collision
+  denial_context:
+    maximum_disposition: clear
+    reason_code: blocker_denial_context
+  entity_type_conflict:
+    maximum_disposition: investigate
+    reason_code: blocker_entity_type_conflict
+  legal_control_evidence_required:
+    maximum_disposition: investigate
+    reason_code: blocker_legal_control_documentation
+  missing_critical_watchlist_terms:
+    maximum_disposition: investigate
+    reason_code: blocker_missing_qualifier
+  primary_identifier_required:
+    maximum_disposition: investigate
+    reason_code: blocker_primary_identifier_required
+  routing_code_collision:
+    maximum_disposition: clear
+    reason_code: blocker_routing_code_collision
+  secondary_identifier_missing:
+    maximum_disposition: investigate
+    reason_code: blocker_secondary_identifier_missing
+  substring_only_match:
+    maximum_disposition: clear
+    reason_code: blocker_substring_only
+  supporting_evidence_cannot_escalate:
+    maximum_disposition: investigate
+    reason_code: blocker_supporting_evidence
+  technical_artifact:
+    maximum_disposition: clear
+    reason_code: blocker_technical_artifact
+  wrong_field_context:
+    maximum_disposition: clear
+    reason_code: blocker_wrong_field_context
+route_hint_rules:
+  clear_or_auto_release_eligible:
+    review_route: auto_release
+    maximum_disposition: escalate
+    reason_code: route_clear_eligible
+  escalation_candidate:
+    review_route: escalation_review
+    maximum_disposition: escalate
+    reason_code: route_escalation_candidate
+  investigate:
+    review_route: standard_review
+    maximum_disposition: investigate
+    reason_code: route_investigate
+  manual_review:
+    review_route: manual_review
+    maximum_disposition: investigate
+    reason_code: route_manual_review
+reason_codes:
+  clear: policy_clear_release_support
+  investigate: policy_investigate
+  escalate: policy_escalate_primary_identifier
+  auto_clear_disabled: policy_auto_clear_disabled
+  escalation_disabled: policy_escalation_disabled
+  threshold_score: policy_threshold_evaluation
+  supporting_evidence_non_escalation: policy_supporting_evidence_non_escalation

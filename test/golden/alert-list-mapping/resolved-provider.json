@@ -1,0 +1,23 @@
+{
+  "schema_version": "alert-list-resolution/v1alpha1",
+  "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "source_system_id": "fircosoft-prod",
+  "raw_list_name": "WLS_OFAC_001",
+  "resolved_at": "2026-08-02T12:00:00Z",
+  "status": "resolved",
+  "available": true,
+  "exact_match": true,
+  "mapping_id": "alert_list_mapping_a1a60bda01c577f1b04254c1",
+  "mapping_version_id": "alert_list_mapping_version_92b61dbd033f3e4ed7fa589a",
+  "mapping_effective_from": "2026-08-01T00:00:00Z",
+  "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+  "component_key": "provider.sanctions.primary",
+  "component_display_name": "Primary provider sanctions catalog",
+  "catalog_mode": "provider",
+  "active_catalog_version_id": "catalog_version_8676897321509071fcccbcb2",
+  "active_catalog_id": "licensed-provider-primary",
+  "active_catalog_version": "provider-release-2026-07-14",
+  "active_catalog_checksum": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "active_artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-14/catalog.json"
+}

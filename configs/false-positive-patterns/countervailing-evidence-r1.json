@@ -1,0 +1,58 @@
+{
+  "schema_version": "countervailing-evidence-policy/v1alpha1",
+  "policy_id": "countervailing-evidence-baseline-r1",
+  "policy_version": "1.0.0",
+  "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4",
+  "exact_route_rules": [
+    {
+      "match_route": "exact_account",
+      "evidence_class": "secondary_attribute",
+      "signal_code": "exact_secondary_attribute_match",
+      "strength_basis_points": 8000,
+      "escalation_eligible": false,
+      "allowed_trigger_policies": [
+        "candidate_alert",
+        "supporting_evidence"
+      ]
+    },
+    {
+      "match_route": "exact_bic",
+      "evidence_class": "primary_identifier",
+      "signal_code": "exact_primary_identifier_match",
+      "strength_basis_points": 10000,
+      "escalation_eligible": true,
+      "allowed_trigger_policies": [
+        "candidate_alert",
+        "supporting_evidence"
+      ]
+    },
+    {
+      "match_route": "exact_date",
+      "evidence_class": "secondary_attribute",
+      "signal_code": "exact_secondary_attribute_match",
+      "strength_basis_points": 7000,
+      "escalation_eligible": false,
+      "allowed_trigger_policies": [
+        "candidate_alert",
+        "supporting_evidence"
+      ]
+    },
+    {
+      "match_route": "exact_lei",
+      "evidence_class": "primary_identifier",
+      "signal_code": "exact_primary_identifier_match",
+      "strength_basis_points": 10000,
+      "escalation_eligible": true,
+      "allowed_trigger_policies": [
+        "candidate_alert",
+        "supporting_evidence"
+      ]
+    }
+  ],
+  "secondary_identifier_support_rule": {
+    "evidence_class": "secondary_support",
+    "signal_code": "secondary_identifier_support",
+    "strength_basis_points": 9000,
+    "escalation_eligible": false
+  }
+}

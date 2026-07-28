@@ -1,0 +1,11 @@
+{
+  "listen_address": "127.0.0.1:18091",
+  "state_directory": "../../test/fixtures/alert-case/runtime-state",
+  "policy_path": "../../test/fixtures/alert-case/policy.json",
+  "stream_id": "alert-case-api-phase9ab-example",
+  "postgres_dsn": "postgres://phase9ab-fixture",
+  "psql_path": "../../test/fixtures/alert-case/fake-psql.sh",
+  "postgres_required": true,
+  "max_body_bytes": 1048576,
+  "timeout_seconds": 10
+}

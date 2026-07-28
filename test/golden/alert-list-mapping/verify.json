@@ -1,0 +1,12 @@
+{
+  "audit_head": "350830731b724a2574ec6bfce0cf53240811c557fd62770694574db669d1dc36",
+  "catalog_registry_checksum": "b4ebc9a27bf9ad852f3f245046c194a3bbdc45e22a5f4d6bebd6f608059c3276",
+  "catalog_registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+  "last_sequence": 6,
+  "mapping_key_count": 4,
+  "mapping_registry_checksum": "c4d1f4a8134461f4262ee13010e0946587acfc2b98c86000ca235c8cfd23408b",
+  "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+  "mapping_version_count": 6,
+  "namespace": "demo-bank",
+  "valid": true
+}

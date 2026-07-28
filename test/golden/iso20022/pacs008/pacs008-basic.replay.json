@@ -1,0 +1,1432 @@
+{
+  "schema_version": "matcher-replay-envelope/v1alpha1",
+  "replay_id": "replay_11e07ef28206ab982c3c67cd",
+  "projector_version": "matcher-request-projector/v0.1.0",
+  "projection_contract": {
+    "selection_policy": "eligible_for_matching_only",
+    "ordering_policy": "evidence_order",
+    "identity_policy": "content_addressed",
+    "lineage_policy": "full_source_and_plan_lineage"
+  },
+  "input": {
+    "evidence_schema_version": "screening-evidence-bundle/v1alpha1",
+    "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+    "source_payload_reference": "fixture:pacs008-basic.xml",
+    "parser_version": "iso20022-pacs008-parser/v0.1.0",
+    "executor_version": "screening-plan-executor/v0.1.0",
+    "screening_plan": {
+      "plan_id": "iso20022-pacs008-cbprplus",
+      "plan_version": "1.0.0",
+      "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+    }
+  },
+  "request_batch": {
+    "schema_version": "candidate-search-request-batch/v1alpha1",
+    "batch_id": "request_batch_f4ac254bd62c0f3cffa304f1",
+    "input_evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+    "message_id": "OWP-PACS008-0001",
+    "message_definition": "pacs.008.001.08",
+    "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+    "source_payload_reference": "fixture:pacs008-basic.xml",
+    "parser_version": "iso20022-pacs008-parser/v0.1.0",
+    "executor_version": "screening-plan-executor/v0.1.0",
+    "projector_version": "matcher-request-projector/v0.1.0",
+    "screening_plan": {
+      "plan_id": "iso20022-pacs008-cbprplus",
+      "plan_version": "1.0.0",
+      "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+    },
+    "summary": {
+      "total_requests": 30,
+      "transaction_count": 1,
+      "candidate_alert_requests": 14,
+      "supporting_evidence_requests": 16,
+      "route_counts": [
+        {
+          "name": "alias",
+          "count": 6
+        },
+        {
+          "name": "contextual_address",
+          "count": 7
+        },
+        {
+          "name": "contextual_phrase_window",
+          "count": 2
+        },
+        {
+          "name": "exact_account",
+          "count": 2
+        },
+        {
+          "name": "exact_bic",
+          "count": 2
+        },
+        {
+          "name": "exact_date",
+          "count": 1
+        },
+        {
+          "name": "exact_lei",
+          "count": 4
+        },
+        {
+          "name": "jurisdiction_policy",
+          "count": 6
+        },
+        {
+          "name": "normalized_name",
+          "count": 6
+        },
+        {
+          "name": "transliteration",
+          "count": 4
+        }
+      ],
+      "target_entity_type_counts": [
+        {
+          "name": "aircraft",
+          "count": 2
+        },
+        {
+          "name": "financial_institution",
+          "count": 12
+        },
+        {
+          "name": "government_entity",
+          "count": 14
+        },
+        {
+          "name": "individual",
+          "count": 14
+        },
+        {
+          "name": "jurisdiction",
+          "count": 8
+        },
+        {
+          "name": "organization",
+          "count": 22
+        },
+        {
+          "name": "vessel",
+          "count": 2
+        }
+      ]
+    },
+    "requests": [
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_de09cd52a40ba0b7c3464266",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "debtor.name",
+        "party_role": "debtor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Acme Imports LLC",
+          "normalized_value": "ACME IMPORTS LLC"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "debtor.address.country",
+          "debtor.identification.lei",
+          "debtor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_aa342dab91481e2da05bf0da",
+          "element_id": "elem_bf4757e1e47740df11e0b9e3",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_117701825dce1acb1fea1a7e",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/Id/OrgId/LEI",
+        "occurrence": 0,
+        "semantic_role": "debtor.identification.lei",
+        "party_role": "debtor",
+        "value_type": "lei",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "5493001KJTIIGC8Y1R12",
+          "normalized_value": "5493001KJTIIGC8Y1R12"
+        },
+        "match_routes": [
+          "exact_lei"
+        ],
+        "target_entity_types": [
+          "organization",
+          "financial_institution"
+        ],
+        "normalization_profile": "lei_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_5948a5393d983316d6e973ae",
+          "element_id": "elem_0091fa42f2d4b91e9cb25e62",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_bcc0fc6fd2fcd24723315624",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/TwnNm",
+        "occurrence": 0,
+        "semantic_role": "debtor.address.town",
+        "party_role": "debtor",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "New York",
+          "normalized_value": "NEW YORK"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_8429fe577b7806128230635d",
+          "element_id": "elem_76256874aa47b0a50ce387f5",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_2ba868189b064a201acae9fa",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "debtor.address.country",
+        "party_role": "debtor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "US",
+          "normalized_value": "US"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_c2375463c227a799a92e1df5",
+          "element_id": "elem_f822700e144f978e6415a13a",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_9fdca003f32ef022b7716cea",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/AdrLine[0]",
+        "occurrence": 0,
+        "semantic_role": "debtor.address.line",
+        "party_role": "debtor",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "100 Example Avenue",
+          "normalized_value": "100 EXAMPLE AVENUE"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_a65903c1675067aeab6293e8",
+          "element_id": "elem_486ebdf2eca1ad917c539a33",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_de9803c6d49bcbc88f8276cc",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/AdrLine[1]",
+        "occurrence": 1,
+        "semantic_role": "debtor.address.line",
+        "party_role": "debtor",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "Suite 200",
+          "normalized_value": "SUITE 200"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_d68de02d4b79e35f8eab8622",
+          "element_id": "elem_5697e78d8a342fb746bae77d",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_a39805cd41d4c180bef603e1",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtDbtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "ultimate_debtor.name",
+        "party_role": "ultimate_debtor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Jordan Example",
+          "normalized_value": "JORDAN EXAMPLE"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "ultimate_debtor.address.country",
+          "ultimate_debtor.identification.lei",
+          "ultimate_debtor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_126aea09615fa8cc159afe10",
+          "element_id": "elem_da52f1916d475135d9190b4c",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_07d25a8fa39fffeca834415b",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtDbtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+        "occurrence": 0,
+        "semantic_role": "ultimate_debtor.identification.birth_date",
+        "party_role": "ultimate_debtor",
+        "value_type": "date",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "1980-05-20",
+          "normalized_value": "1980-05-20"
+        },
+        "match_routes": [
+          "exact_date"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "date_v1",
+        "threshold_profile": "supporting_identity_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_0ccd223443c999c7220430bb",
+          "element_id": "elem_fbca0deaf04e008f48ee708f",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_c7c747f0c654c0dce90e36fa",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtDbtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "ultimate_debtor.address.country",
+        "party_role": "ultimate_debtor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "US",
+          "normalized_value": "US"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_3d22a401ced53c66d001d046",
+          "element_id": "elem_8a42a6a2bc9a236260b0b4ef",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_6a8f169e90a19a890dd4f68e",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAcct/Id/Othr/Id",
+        "occurrence": 0,
+        "semantic_role": "debtor_account.other_id",
+        "party_role": "debtor",
+        "value_type": "account_identifier",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "ACME-OPERATING-001",
+          "normalized_value": "ACME-OPERATING-001"
+        },
+        "match_routes": [
+          "exact_account"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "identifier_v1",
+        "threshold_profile": "typed_account_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_311195f765acc482cfea8ce9",
+          "element_id": "elem_01df95f228d14a7cbda77c2c",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_ff7f70f4209bcb7cb2e69c44",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/Nm",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.name",
+        "party_role": "debtor_agent",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Example Sending Bank NA",
+          "normalized_value": "EXAMPLE SENDING BANK NA"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "financial_institution_name_r1",
+        "supporting_fields": [
+          "debtor_agent.bic",
+          "debtor_agent.lei",
+          "debtor_agent.address.country"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_65ee49ec84829739f9eeafc9",
+          "element_id": "elem_703df3eeb91e7a1e850f5a72",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_bed8d9184354cbb4ad676c3b",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.bic",
+        "party_role": "debtor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "BOFAUS3NXXX",
+          "normalized_value": "BOFAUS3NXXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_0f365deeb00fa9f9306006d4",
+          "element_id": "elem_2d59276d6a9c9478476804df",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_b1f24ad82e56285037be0cca",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/LEI",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.lei",
+        "party_role": "debtor_agent",
+        "value_type": "lei",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "B4TYDEB6GKMZO031MB27",
+          "normalized_value": "B4TYDEB6GKMZO031MB27"
+        },
+        "match_routes": [
+          "exact_lei"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "lei_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_61fd39e0c89bc7c04534a332",
+          "element_id": "elem_eb143e2d7f6f23f0173ebc58",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_09b26e85afd5a501c7da1f32",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/PstlAdr/TwnNm",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.address.town",
+        "party_role": "debtor_agent",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "New York",
+          "normalized_value": "NEW YORK"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_754cb5d72ab84d2f8a340899",
+          "element_id": "elem_21a734e0c941b1df97a54a00",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_d67751d43e3fe317c54934d7",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "debtor_agent.address.country",
+        "party_role": "debtor_agent",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "US",
+          "normalized_value": "US"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_ff2236c09dd1b13752e116ca",
+          "element_id": "elem_9e1125d9ac15f387ece08a4c",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_a8998576f712405524d9db8a",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/Nm",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.name",
+        "party_role": "creditor_agent",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Example Receiving Bank AG",
+          "normalized_value": "EXAMPLE RECEIVING BANK AG"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "financial_institution_name_r1",
+        "supporting_fields": [
+          "creditor_agent.bic",
+          "creditor_agent.lei",
+          "creditor_agent.address.country"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_8a50b369b705661e0c973d4c",
+          "element_id": "elem_c4e226d2e5db379bba830783",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_155447e7e05ba3400470b76b",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/BICFI",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.bic",
+        "party_role": "creditor_agent",
+        "value_type": "bic",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "DEUTDEFFXXX",
+          "normalized_value": "DEUTDEFFXXX"
+        },
+        "match_routes": [
+          "exact_bic"
+        ],
+        "target_entity_types": [
+          "financial_institution"
+        ],
+        "normalization_profile": "bic_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_023d9cd68d2fcb13a52c40f5",
+          "element_id": "elem_3cbf69b9cdf5772d1edbf279",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_dcb87e5f06db83aa7766e052",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/LEI",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.lei",
+        "party_role": "creditor_agent",
+        "value_type": "lei",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "7LTWFZYICNSX8D621K86",
+          "normalized_value": "7LTWFZYICNSX8D621K86"
+        },
+        "match_routes": [
+          "exact_lei"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "lei_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_34b67d6703e922ccc59a7e3b",
+          "element_id": "elem_ba2b34084bc2681ed537a849",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_7bab7fa5e225bc4b83bf194d",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/PstlAdr/TwnNm",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.address.town",
+        "party_role": "creditor_agent",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "Frankfurt",
+          "normalized_value": "FRANKFURT"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_81dabc26e490c1186695bfca",
+          "element_id": "elem_9e3fd1e7d0569f4324c1ec6f",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_e9b1fe9a95db60cc3fa402ef",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAgt/FinInstnId/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "creditor_agent.address.country",
+        "party_role": "creditor_agent",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "DE",
+          "normalized_value": "DE"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_c36d9c92ed99df15cf54ff76",
+          "element_id": "elem_fdbada9db989b36fe198003e",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_0df27fc747c1e38702295875",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "creditor.name",
+        "party_role": "creditor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Orion Trading GmbH",
+          "normalized_value": "ORION TRADING GMBH"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "creditor.address.country",
+          "creditor.identification.lei",
+          "creditor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_c0c4fd7aadcd30c48acee3ee",
+          "element_id": "elem_30a9b49ad17d9cdeba8d174b",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_379619928d71c68cf15b73f5",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/Id/OrgId/LEI",
+        "occurrence": 0,
+        "semantic_role": "creditor.identification.lei",
+        "party_role": "creditor",
+        "value_type": "lei",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "529900T8BM49AURSDO55",
+          "normalized_value": "529900T8BM49AURSDO55"
+        },
+        "match_routes": [
+          "exact_lei"
+        ],
+        "target_entity_types": [
+          "organization",
+          "financial_institution"
+        ],
+        "normalization_profile": "lei_v1",
+        "threshold_profile": "exact_identifier_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_68aca43d7502c8fe56c9d960",
+          "element_id": "elem_d6d63dcf1ab9e960af6bac0a",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_574b95581a273719f16ef2f3",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/PstlAdr/TwnNm",
+        "occurrence": 0,
+        "semantic_role": "creditor.address.town",
+        "party_role": "creditor",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "Berlin",
+          "normalized_value": "BERLIN"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_4d9a4a9e5ab6fc630b39cfaf",
+          "element_id": "elem_6b8efe13e5f8d91920b35551",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_54c773996a5f111a2aeedefb",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "creditor.address.country",
+        "party_role": "creditor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "DE",
+          "normalized_value": "DE"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_9edb63f28cbb83a7c8cc30fd",
+          "element_id": "elem_d902bf891ca9623401926aad",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_636ec2353dfb2d0772cc6163",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Cdtr/PstlAdr/AdrLine[0]",
+        "occurrence": 0,
+        "semantic_role": "creditor.address.line",
+        "party_role": "creditor",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "20 Musterstrasse",
+          "normalized_value": "20 MUSTERSTRASSE"
+        },
+        "match_routes": [
+          "contextual_address"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "address_v1",
+        "threshold_profile": "supporting_address_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_1c7dd4f1124a585d45c9f777",
+          "element_id": "elem_262a306231b94eea7dd48223",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_aa48d6b992a96cc5e36f6dad",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtCdtr/Nm",
+        "occurrence": 0,
+        "semantic_role": "ultimate_creditor.name",
+        "party_role": "ultimate_creditor",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Orion Holdings GmbH",
+          "normalized_value": "ORION HOLDINGS GMBH"
+        },
+        "match_routes": [
+          "normalized_name",
+          "alias",
+          "transliteration"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "party_name_v1",
+        "threshold_profile": "party_name_r1",
+        "supporting_fields": [
+          "ultimate_creditor.address.country",
+          "ultimate_creditor.identification.lei",
+          "ultimate_creditor.identification.birth_date"
+        ],
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_4bb0154ada0153fce4667d05",
+          "element_id": "elem_06c1b00cc6518d1dcd34a6f2",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_f480553a5c5595913280e8da",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtCdtr/PstlAdr/Ctry",
+        "occurrence": 0,
+        "semantic_role": "ultimate_creditor.address.country",
+        "party_role": "ultimate_creditor",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "DE",
+          "normalized_value": "DE"
+        },
+        "match_routes": [
+          "jurisdiction_policy"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "normalization_profile": "country_code_v1",
+        "threshold_profile": "jurisdiction_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_136da72cc215c5dcd9455bba",
+          "element_id": "elem_09ff9ac3bafef10de48df3eb",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_eb49e44a42d28334ec85f5cd",
+        "request_kind": "supporting_evidence_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/CdtrAcct/Id/IBAN",
+        "occurrence": 0,
+        "semantic_role": "creditor_account.iban",
+        "party_role": "creditor",
+        "value_type": "iban",
+        "trigger_policy": "supporting_evidence",
+        "query": {
+          "original_value": "DE89370400440532013000",
+          "normalized_value": "DE89370400440532013000"
+        },
+        "match_routes": [
+          "exact_account"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity"
+        ],
+        "normalization_profile": "iban_v1",
+        "threshold_profile": "typed_account_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_a70e1d8f42a50ad2cbcd36a3",
+          "element_id": "elem_1d62889773d12f133b43ab7a",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_0422779ad64612d4dd87bbb8",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[0]",
+        "occurrence": 0,
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Invoice 2026-0713 for industrial components",
+          "normalized_value": "INVOICE 2026-0713 FOR INDUSTRIAL COMPONENTS"
+        },
+        "match_routes": [
+          "contextual_phrase_window"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity",
+          "financial_institution",
+          "vessel",
+          "aircraft",
+          "jurisdiction"
+        ],
+        "normalization_profile": "text_context_v1",
+        "threshold_profile": "narrative_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_712aa09d1ea7432fa8d81968",
+          "element_id": "elem_954c027ebdb34bcf68a127bf",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      },
+      {
+        "schema_version": "candidate-search-request/v1alpha1",
+        "request_id": "request_49d8dc200b0c78751e47ad84",
+        "request_kind": "candidate_alert_lookup",
+        "message_id": "OWP-PACS008-0001",
+        "transaction_id": "TX-0001",
+        "transaction_index": 0,
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[1]",
+        "occurrence": 1,
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "query": {
+          "original_value": "Customer reference ORION-7788",
+          "normalized_value": "CUSTOMER REFERENCE ORION-7788"
+        },
+        "match_routes": [
+          "contextual_phrase_window"
+        ],
+        "target_entity_types": [
+          "individual",
+          "organization",
+          "government_entity",
+          "financial_institution",
+          "vessel",
+          "aircraft",
+          "jurisdiction"
+        ],
+        "normalization_profile": "text_context_v1",
+        "threshold_profile": "narrative_context_r1",
+        "source_lineage": {
+          "source_payload_reference": "fixture:pacs008-basic.xml",
+          "parser_version": "iso20022-pacs008-parser/v0.1.0",
+          "executor_version": "screening-plan-executor/v0.1.0",
+          "evidence_bundle_id": "bundle_145c6c751b9f3e09408c6652",
+          "evidence_id": "evidence_56965a17a36ef2a3d475c33d",
+          "element_id": "elem_065ae4399332c09d03731174",
+          "message_definition": "pacs.008.001.08",
+          "message_namespace": "urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08",
+          "screening_plan": {
+            "plan_id": "iso20022-pacs008-cbprplus",
+            "plan_version": "1.0.0",
+            "plan_checksum": "sha256:e73d9e0265aa5b8633515e58910851c6cca1f15d4e7c19f638dd4e36c16238b2"
+          }
+        }
+      }
+    ]
+  }
+}

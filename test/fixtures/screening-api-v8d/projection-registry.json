@@ -1,0 +1,36 @@
+{
+  "schema_version": "openwatchlist.candidate-projection-registry.v1",
+  "candidates": [
+    {
+      "candidate_id": "a-tie",
+      "names": ["JANE DOE"],
+      "entity_type": "PERSON"
+    },
+    {
+      "candidate_id": "candidate-exact-lei",
+      "names": ["ACME TRADING LIMITED", "ACME TRADING LLC"],
+      "identifiers": [
+        {"type": "LEI", "value": "5493001KJTIIGC8Y1R12"}
+      ],
+      "countries": ["GB"],
+      "entity_type": "ORGANIZATION"
+    },
+    {
+      "candidate_id": "candidate-exact-name",
+      "names": ["ACME TRADING LLC"],
+      "countries": ["US"],
+      "entity_type": "ORGANIZATION"
+    },
+    {
+      "candidate_id": "candidate-weak",
+      "names": ["ACME TRADING"],
+      "countries": ["US"],
+      "entity_type": "ORGANIZATION"
+    },
+    {
+      "candidate_id": "z-tie",
+      "names": ["JANE DOE"],
+      "entity_type": "PERSON"
+    }
+  ]
+}

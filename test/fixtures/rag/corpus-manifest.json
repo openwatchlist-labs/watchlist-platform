@@ -1,0 +1,124 @@
+{
+  "schema_version": "rag-corpus-manifest/v1alpha1",
+  "corpus_id": "openwatchlist-policy-fixture-r1",
+  "corpus_version": "1.0.0",
+  "snapshot_at": "2026-07-14T12:00:00Z",
+  "corpus_checksum": "5c2aa4ba6f9f6e8830c4b475af665ffc81dfdb1787f0d9e932905676bbae8bb8",
+  "documents": [
+    {
+      "source_id": "institution-policy-r1",
+      "path": "documents/approved-policy.md",
+      "title": "Transaction Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "source_tier": "B",
+      "document_type": "institution_policy",
+      "jurisdiction": "US",
+      "publication_date": "2026-07-01",
+      "effective_from": "2026-07-01",
+      "approval_status": "approved",
+      "tenant_id": "tenant-a",
+      "access_scope": [
+        "transaction_screening",
+        "analyst_note"
+      ]
+    },
+    {
+      "source_id": "screening-guidance-r1",
+      "path": "documents/approved-guidance.md",
+      "title": "Screening Review Guidance",
+      "publisher": "OpenWatchlist Labs Synthetic Authority",
+      "source_tier": "A",
+      "document_type": "regulatory_guidance",
+      "jurisdiction": "US",
+      "publication_date": "2026-06-15",
+      "effective_from": "2026-06-15",
+      "approval_status": "published",
+      "access_scope": [
+        "transaction_screening",
+        "analyst_note"
+      ]
+    },
+    {
+      "source_id": "validated-cases-r1",
+      "path": "documents/validated-case.md",
+      "title": "Validated Regression Cases",
+      "publisher": "OpenWatchlist Labs",
+      "source_tier": "C",
+      "document_type": "validated_case",
+      "jurisdiction": "US",
+      "publication_date": "2026-07-14",
+      "effective_from": "2026-07-14",
+      "approval_status": "validated",
+      "tenant_id": "tenant-a",
+      "access_scope": [
+        "transaction_screening",
+        "analyst_note"
+      ]
+    },
+    {
+      "source_id": "institution-policy-old",
+      "path": "documents/superseded-policy.md",
+      "title": "Superseded Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "source_tier": "B",
+      "document_type": "institution_policy",
+      "jurisdiction": "US",
+      "publication_date": "2025-01-01",
+      "effective_from": "2025-01-01",
+      "effective_to": "2025-12-31",
+      "approval_status": "approved",
+      "tenant_id": "tenant-a",
+      "access_scope": [
+        "transaction_screening"
+      ]
+    },
+    {
+      "source_id": "draft-policy-r1",
+      "path": "documents/draft-policy.md",
+      "title": "Draft Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "source_tier": "B",
+      "document_type": "institution_policy_draft",
+      "jurisdiction": "US",
+      "publication_date": "2026-07-10",
+      "effective_from": "2026-07-10",
+      "approval_status": "draft",
+      "tenant_id": "tenant-a",
+      "access_scope": [
+        "research_only"
+      ]
+    },
+    {
+      "source_id": "hostile-content-r1",
+      "path": "documents/hostile-content.md",
+      "title": "Exploratory Hostile Content",
+      "publisher": "OpenWatchlist Labs Red Team",
+      "source_tier": "D",
+      "document_type": "synthetic_attack_fixture",
+      "jurisdiction": "US",
+      "publication_date": "2026-07-14",
+      "effective_from": "2026-07-14",
+      "approval_status": "exploratory",
+      "tenant_id": "tenant-a",
+      "access_scope": [
+        "red_team"
+      ]
+    },
+    {
+      "source_id": "compromised-guidance-r1",
+      "path": "documents/compromised-guidance.md",
+      "title": "Published Guidance With Embedded Attack",
+      "publisher": "OpenWatchlist Labs Red Team",
+      "source_tier": "A",
+      "document_type": "regulatory_guidance",
+      "jurisdiction": "US",
+      "publication_date": "2026-07-14",
+      "effective_from": "2026-07-14",
+      "approval_status": "published",
+      "access_scope": [
+        "transaction_screening",
+        "analyst_note"
+      ]
+    }
+  ]
+}

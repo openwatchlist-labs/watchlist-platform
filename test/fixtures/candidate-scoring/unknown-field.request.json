@@ -1,0 +1,17 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-request.v1",
+  "request_id": "invalid-unknown-field",
+  "subject": {"names": ["Jane Doe"]},
+  "lineage": {
+    "provider": "ofac-direct",
+    "catalog_id": "catalog",
+    "component_id": "sdn",
+    "component_version": "v1",
+    "activation_id": "active",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "candidates": [
+    {"candidate": {"candidate_id": "candidate-1", "names": ["Jane Doe"]}}
+  ],
+  "regulatory_disposition": "clear"
+}

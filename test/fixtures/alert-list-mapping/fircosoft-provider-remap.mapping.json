@@ -1,0 +1,10 @@
+{
+  "source_system_id": "fircosoft-prod",
+  "raw_list_name": "WLS_OFAC_001",
+  "action": "bind",
+  "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+  "effective_from": "2026-08-01T00:00:00Z",
+  "reason": "Approved future cutover from official-list mode to the organization provider component",
+  "created_at": "2026-07-14T18:51:00Z",
+  "created_by": "phase7cc-fixture"
+}

@@ -1,0 +1,182 @@
+{
+  "schema_version": "fixture-provider-catalog/v1alpha1",
+  "provider_id": "synthetic-provider",
+  "provider_version": "v0.1.0",
+  "catalog_id": "synthetic-watchlist-catalog",
+  "catalog_version": "2026-07-13.1",
+  "catalog_mode": "provider_entity",
+  "records": [
+    {
+      "provider_record_id": "record-acme-imports",
+      "provider_entity_id": "entity-acme-imports",
+      "entity_type": "organization",
+      "primary_name": "ACME IMPORTS LLC",
+      "aliases": ["ACME IMPORTS"],
+      "identifiers": {
+        "exact_lei": ["5493001KJTIIGC8Y1R12"],
+        "exact_account": ["ACME-OPERATING-001"]
+      },
+      "addresses": ["NEW YORK", "100 EXAMPLE AVENUE"],
+      "attributes": {
+        "fixture_class": "synthetic_organization"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-ACME-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-jordan-example",
+      "provider_entity_id": "entity-jordan-example",
+      "entity_type": "individual",
+      "primary_name": "JORDAN EXAMPLE",
+      "dates": ["1980-05-20"],
+      "attributes": {
+        "fixture_class": "synthetic_individual"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-JORDAN-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-sending-bank",
+      "provider_entity_id": "entity-sending-bank",
+      "entity_type": "financial_institution",
+      "primary_name": "EXAMPLE SENDING BANK NA",
+      "identifiers": {
+        "exact_bic": ["BOFAUS3NXXX"],
+        "exact_lei": ["B4TYDEB6GKMZO031MB27"]
+      },
+      "addresses": ["NEW YORK"],
+      "attributes": {
+        "fixture_class": "synthetic_financial_institution"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-BANK-US-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-receiving-bank",
+      "provider_entity_id": "entity-receiving-bank",
+      "entity_type": "financial_institution",
+      "primary_name": "EXAMPLE RECEIVING BANK AG",
+      "identifiers": {
+        "exact_bic": ["DEUTDEFFXXX"],
+        "exact_lei": ["7LTWFZYICNSX8D621K86"]
+      },
+      "addresses": ["FRANKFURT"],
+      "attributes": {
+        "fixture_class": "synthetic_financial_institution"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-BANK-DE-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-orion-trading",
+      "provider_entity_id": "entity-orion-trading",
+      "entity_type": "organization",
+      "primary_name": "ORION TRADING GMBH",
+      "identifiers": {
+        "exact_lei": ["529900T8BM49AURSDO55"],
+        "exact_account": ["DE89370400440532013000"]
+      },
+      "addresses": ["BERLIN", "20 MUSTERSTRASSE"],
+      "phrases": ["INDUSTRIAL COMPONENTS"],
+      "attributes": {
+        "fixture_class": "synthetic_organization"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-ORION-TRADING-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-orion-holdings",
+      "provider_entity_id": "entity-orion-holdings",
+      "entity_type": "organization",
+      "primary_name": "ORION HOLDINGS GMBH",
+      "phrases": ["ORION-7788"],
+      "attributes": {
+        "fixture_class": "synthetic_organization"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-ORION-HOLDINGS-001",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-jurisdiction-us",
+      "provider_entity_id": "entity-jurisdiction-us",
+      "entity_type": "jurisdiction",
+      "primary_name": "UNITED STATES",
+      "jurisdictions": ["US"],
+      "attributes": {
+        "iso_alpha_2": "US",
+        "fixture_class": "synthetic_jurisdiction"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-JURISDICTIONS",
+          "source_record_id": "SRC-JURISDICTION-US",
+          "programs": ["DEMO"]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-jurisdiction-de",
+      "provider_entity_id": "entity-jurisdiction-de",
+      "entity_type": "jurisdiction",
+      "primary_name": "GERMANY",
+      "jurisdictions": ["DE"],
+      "attributes": {
+        "iso_alpha_2": "DE",
+        "fixture_class": "synthetic_jurisdiction"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-JURISDICTIONS",
+          "source_record_id": "SRC-JURISDICTION-DE",
+          "programs": ["DEMO"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": "openwatchlist.vendor-adapter-profile.v1",
+  "adapter_id": "fircosoft-reference-json-v1",
+  "version": "2026-07-15-r1",
+  "vendor": "fircosoft-reference",
+  "description": "Reference JSON mapping for Fircosoft-style alert exports; not a certified proprietary wire format",
+  "input_format": "json-object",
+  "max_source_bytes": 4194304,
+  "required_paths": [
+    "message.customer",
+    "message.alertReference",
+    "message.source",
+    "message.list",
+    "message.created",
+    "request.correlation",
+    "request.dedupe"
+  ],
+  "mappings": {
+    "tenant_id": "message.customer",
+    "source_system_id": "message.source",
+    "source_alert_id": "message.alertReference",
+    "raw_list_name": "message.list",
+    "occurred_at": "message.created",
+    "external_score": "message.riskScore",
+    "external_reason_codes": "message.hitReasons",
+    "matched_fields": "message.fields",
+    "candidate_references": "message.hitIds",
+    "message_references": "message.paymentRefs",
+    "attachment_references": "message.attachments",
+    "subject": "message.party",
+    "correlation_id": "request.correlation",
+    "idempotency_key": "request.dedupe"
+  },
+  "additional_evidence": {
+    "matched_name": "message.details.matchedName",
+    "screened_name": "message.details.screenedName",
+    "vendor_status": "message.status"
+  },
+  "constants": {},
+  "list_mappings": {
+    "OFAC SDN": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-sdn",
+      "mapping_version": "r1",
+      "status": "active"
+    },
+    "OFAC": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-alias",
+      "mapping_version": "r1",
+      "status": "active"
+    }
+  },
+  "profile_sha256": "16c535a3250dd3e9d2220776429ca38ecd19a3a29894fd3b481e2dcf85dc6728"
+}

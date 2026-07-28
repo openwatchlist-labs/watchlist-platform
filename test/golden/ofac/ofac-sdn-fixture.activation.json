@@ -1,0 +1,20 @@
+{
+  "schema_version": "catalog-activation-record/v1alpha1",
+  "activation_id": "activation_3eba27d9e194110a25a4df99",
+  "action": "activate",
+  "readiness_report_id": "readiness_3ff42b726e67dc62c9824c2e",
+  "activated_at": "2026-07-13T17:02:00Z",
+  "active_generation": {
+    "schema_version": "catalog-generation-stamp/v1alpha1",
+    "generation_id": "generation_c7ef8acf9f75d26cee6a4556",
+    "activation_epoch": 1,
+    "package_id": "runtime_package_797518260b5ac360d6eed2a4",
+    "package_checksum": "9d105d3750025f715195e55b35935094cd7d4014af7e6f0fbfe66d17807bc760",
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/13/2026-c33e134053cc",
+    "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+    "source_manifest_id": "ofac_source_8b1e79fe355457d4e1ee2f73",
+    "compiled_at": "2026-07-13T17:00:00Z",
+    "activated_at": "2026-07-13T17:02:00Z"
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "schema_version": "rag-citation-package/v1alpha1",
+  "citation_package_id": "citation_package_13c037a6cbf2a56ed63364ee",
+  "query": {
+    "schema_version": "rag-retrieval-query/v1alpha1",
+    "query_id": "rag_query_5d0ea8d53047e592927f4608",
+    "task": "explain_policy_route",
+    "tenant_id": "tenant-a",
+    "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+    "disposition": "investigate",
+    "review_route": "standard_review",
+    "reason_codes": [
+      "blocker_entity_type_conflict",
+      "fp_entity_type_mismatch",
+      "policy_investigate",
+      "policy_threshold_evaluation",
+      "route_investigate"
+    ],
+    "blockers": [
+      "entity_type_conflict"
+    ],
+    "message_type": "pacs.008.001.08",
+    "semantic_role": "creditor.name",
+    "policy_id": "transaction-screening-r1",
+    "effective_at": "2026-07-14T12:00:00Z",
+    "query_text": "Explain why a vessel candidate matched in creditor.name remains investigate because of an entity type conflict."
+  },
+  "retriever_version": "deterministic-hybrid-retriever/v0.1.0",
+  "retrieval_policy": {
+    "policy_id": "transaction-review-rag-r1",
+    "policy_version": "1.0.0",
+    "policy_checksum": "32e213fa2f6c2f9e3d1a291ed4dfd61cf184ec6a9a9dae36fd4d31edec722276"
+  },
+  "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+  "summary": {
+    "documents_considered": 7,
+    "chunks_considered": 11,
+    "citations_returned": 5,
+    "excluded_tenant_or_scope": 0,
+    "excluded_unapproved_or_ineffective": 3,
+    "excluded_instruction_like_chunks": 1,
+    "excluded_below_minimum_score": 0
+  },
+  "citations": [
+    {
+      "citation_id": "citation_87dfe9dc0615f96c9df5c38e",
+      "source_id": "validated-cases-r1",
+      "source_tier": "C",
+      "title": "Validated Regression Cases",
+      "publisher": "OpenWatchlist Labs",
+      "document_type": "validated_case",
+      "jurisdiction": "US",
+      "effective_from": "2026-07-14",
+      "approval_status": "validated",
+      "tenant_id": "tenant-a",
+      "locator": "section:Validated Regression Cases > Entity type mismatch fixture#block:1",
+      "excerpt": "A creditor name of EXAMPLE VESSEL matched an OFAC-shaped vessel record with a perfect textual score. The candidate was suppressed because creditor.name permits individual and organization candidates but not vessels. The validated outcome was investigate with entity_type_conflict.",
+      "content_checksum": "173b85cd020b1ceb4e79975935ff263b10a1cc9014aedfb8635ce665751aa631",
+      "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+      "retrieval_methods": [
+        "metadata",
+        "lexical",
+        "vector"
+      ],
+      "score": {
+        "metadata_basis_points": 3000,
+        "lexical_basis_points": 4062,
+        "vector_basis_points": 5656,
+        "total_basis_points": 4062
+      }
+    },
+    {
+      "citation_id": "citation_59b6fee8cacc8255f9ba5d86",
+      "source_id": "institution-policy-r1",
+      "source_tier": "B",
+      "title": "Transaction Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "document_type": "institution_policy",
+      "jurisdiction": "US",
+      "effective_from": "2026-07-01",
+      "approval_status": "approved",
+      "tenant_id": "tenant-a",
+      "locator": "section:Transaction Screening Policy > Entity-type conflicts#block:2",
+      "excerpt": "When a candidate entity type is incompatible with the screened ISO 20022 field, the case remains investigate unless an independently qualifying primary identifier resolves the conflict. The blocker entity_type_conflict prevents escalation while the conflict remains unresolved.",
+      "content_checksum": "7c4b1fafda53604663b5415a7ac59f2d7cec30365c2b060672582aac5e92b7cb",
+      "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+      "retrieval_methods": [
+        "metadata",
+        "lexical",
+        "vector"
+      ],
+      "score": {
+        "metadata_basis_points": 3000,
+        "lexical_basis_points": 3437,
+        "vector_basis_points": 5869,
+        "total_basis_points": 3791
+      }
+    },
+    {
+      "citation_id": "citation_cf868130902480669fbc6ec9",
+      "source_id": "institution-policy-r1",
+      "source_tier": "B",
+      "title": "Transaction Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "document_type": "institution_policy",
+      "jurisdiction": "US",
+      "effective_from": "2026-07-01",
+      "approval_status": "approved",
+      "tenant_id": "tenant-a",
+      "locator": "section:Transaction Screening Policy > Primary identifiers#block:4",
+      "excerpt": "An exact LEI or exact BIC on a candidate-alert field may support escalation when the score threshold is met and no escalation blocker remains.",
+      "content_checksum": "9798852db7b06581870f5ee08cbec018cffeb370e153dc3f85e8369e2fc0204a",
+      "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+      "retrieval_methods": [
+        "lexical",
+        "vector"
+      ],
+      "score": {
+        "metadata_basis_points": 0,
+        "lexical_basis_points": 2500,
+        "vector_basis_points": 5783,
+        "total_basis_points": 2406
+      }
+    },
+    {
+      "citation_id": "citation_bfdeea88e5631b0678da3ce2",
+      "source_id": "screening-guidance-r1",
+      "source_tier": "A",
+      "title": "Screening Review Guidance",
+      "publisher": "OpenWatchlist Labs Synthetic Authority",
+      "document_type": "regulatory_guidance",
+      "jurisdiction": "US",
+      "effective_from": "2026-06-15",
+      "approval_status": "published",
+      "locator": "section:Screening Review Guidance > Wrong-field and entity-type review#block:1",
+      "excerpt": "Reviewers should compare the semantic role of the payment field with the watchlist entity type. A vessel name retrieved from a party-name field is not automatically a true match; the analyst should verify whether the field permits vessel candidates and document the conflict.",
+      "content_checksum": "3f9faf28f986690aab0b7f84505cbfc6a26fb276670ff2676c9e1c4e850adef2",
+      "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+      "retrieval_methods": [
+        "lexical",
+        "vector"
+      ],
+      "score": {
+        "metadata_basis_points": 0,
+        "lexical_basis_points": 2500,
+        "vector_basis_points": 5747,
+        "total_basis_points": 2399
+      }
+    },
+    {
+      "citation_id": "citation_aa1186ee45db7cc48c09326c",
+      "source_id": "institution-policy-r1",
+      "source_tier": "B",
+      "title": "Transaction Screening Policy",
+      "publisher": "OpenWatchlist Labs Synthetic Institution",
+      "document_type": "institution_policy",
+      "jurisdiction": "US",
+      "effective_from": "2026-07-01",
+      "approval_status": "approved",
+      "tenant_id": "tenant-a",
+      "locator": "section:Transaction Screening Policy > Decision ownership#block:1",
+      "excerpt": "The deterministic policy engine owns the clear, investigate, and escalate disposition. Retrieved material and generated analyst notes provide context only and must not change the authoritative decision or review route.",
+      "content_checksum": "0eecc202746ea84ca5e3d22e3dfbba26cb97c1c5dc535a8ec172cea1d247213f",
+      "corpus_snapshot_id": "rag_snapshot_9bc10f108e27aa3439236042",
+      "retrieval_methods": [
+        "lexical",
+        "vector"
+      ],
+      "score": {
+        "metadata_basis_points": 0,
+        "lexical_basis_points": 1875,
+        "vector_basis_points": 4444,
+        "total_basis_points": 1825
+      }
+    }
+  ]
+}

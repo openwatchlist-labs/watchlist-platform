@@ -1,0 +1,17 @@
+{
+  "schema_version": "analyst-note-profile/v1alpha1",
+  "profile_id": "granite-analyst-note-r1",
+  "profile_version": "1.0.0",
+  "profile_checksum": "dcf174b121ce60900d48af9cd705af817bef743de7490bca2fc15953fe92eea8",
+  "prompt_version": "analyst-note-prompt/v1.0.0",
+  "default_model_id": "ibm/granite4:tiny-h",
+  "temperature_basis_points": 0,
+  "maximum_citations": 5,
+  "prohibited_phrases": [
+    "final legal determination",
+    "override the deterministic decision",
+    "ignore previous instructions",
+    "reveal system prompt",
+    "call a tool"
+  ]
+}

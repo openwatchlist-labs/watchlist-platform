@@ -1,0 +1,118 @@
+{
+  "schema_version": "false-positive-pattern-library/v1alpha1",
+  "library_id": "false-positive-baseline-r1",
+  "library_version": "1.0.0",
+  "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9",
+  "patterns": [
+    {
+      "code": "acronym_collision",
+      "default_strength_basis_points": 8500,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "acronym_field_collision"
+      ],
+      "reason_codes": [
+        "short_watchlist_token_in_non_party_field"
+      ]
+    },
+    {
+      "code": "entity_type_mismatch",
+      "default_strength_basis_points": 9000,
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "entity_type_conflict"
+      ],
+      "reason_codes": [
+        "candidate_type_not_allowed_for_field"
+      ]
+    },
+    {
+      "code": "legal_control_context",
+      "default_strength_basis_points": 8500,
+      "route_hint": "manual_review",
+      "escalation_blockers": [
+        "legal_control_evidence_required"
+      ],
+      "reason_codes": [
+        "trustee_receiver_or_liquidator_context"
+      ]
+    },
+    {
+      "code": "missing_qualifier",
+      "default_strength_basis_points": 7000,
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "missing_critical_watchlist_terms"
+      ],
+      "reason_codes": [
+        "watchlist_qualifier_absent"
+      ]
+    },
+    {
+      "code": "narrative_denial_context",
+      "default_strength_basis_points": 10000,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "denial_context"
+      ],
+      "reason_codes": [
+        "explicit_non_relationship_language"
+      ]
+    },
+    {
+      "code": "phonetic_transliteration_only",
+      "default_strength_basis_points": 7500,
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "secondary_identifier_missing"
+      ],
+      "reason_codes": [
+        "name_similarity_without_secondary_support"
+      ]
+    },
+    {
+      "code": "routing_bic_collision",
+      "default_strength_basis_points": 9000,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "routing_code_collision"
+      ],
+      "reason_codes": [
+        "non_exact_bic_token_collision"
+      ]
+    },
+    {
+      "code": "substring_containment",
+      "default_strength_basis_points": 9500,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "substring_only_match"
+      ],
+      "reason_codes": [
+        "watchlist_value_not_whole_token"
+      ]
+    },
+    {
+      "code": "technical_system_artifact",
+      "default_strength_basis_points": 10000,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "technical_artifact"
+      ],
+      "reason_codes": [
+        "migration_test_or_padding_marker"
+      ]
+    },
+    {
+      "code": "wrong_field_data_type",
+      "default_strength_basis_points": 9500,
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "wrong_field_context"
+      ],
+      "reason_codes": [
+        "candidate_route_incompatible_with_field_type"
+      ]
+    }
+  ]
+}

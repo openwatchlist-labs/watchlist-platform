@@ -1,0 +1,23 @@
+{
+  "catalog_registry_checksum": "5d1891c3d582726541d7b35cb5bb544fa48f215d69bdc754ab0a99a98646b8d6",
+  "execution": {
+    "schema_version": "provider-refresh-execution/v1alpha1",
+    "execution_id": "provider_refresh_execution_e46dc93b8140d8ecc9f84f9f",
+    "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+    "sequence": 2,
+    "action": "promote",
+    "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+    "decision_id": "provider_refresh_decision_7398a8f97afc7bbdcc71211a",
+    "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+    "previous_version_id": "catalog_version_8676897321509071fcccbcb2",
+    "target_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+    "catalog_activation_id": "catalog_activation_590f146c93933b9c04528964",
+    "reason": "activate approved provider release",
+    "executed_at": "2026-07-20T12:10:00Z",
+    "executed_by": "phase7cd-operator",
+    "previous_event_hash": "d93f45e9a9dfa48230b522d3207836b7f4f7158817dc4c87c55adf26ade4c620",
+    "event_hash": "56eef705c0d9bb12bcbb19ea07c64411d9bf1378920cdfa5ab4249f7a5f90108",
+    "execution_checksum": "5ed85d07dd4b099084d755ca143885ef0933b636612fc00265b6840aa040c567"
+  },
+  "refresh_registry_checksum": "a7b7e3bf4aab51bf2f7181e40a8242955f8139913292ec027324f936e234e8cf"
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": "screening-request/v1alpha1",
+  "request_id": "api-identifier-match-001",
+  "source_system_id": "fircosoft-prod",
+  "raw_list_name": "WLS_OFAC_001",
+  "effective_at": "2026-07-20T12:00:00Z",
+  "query": {
+    "kind": "identifier",
+    "value": "5493-001K-JTIIGC8Y1R12",
+    "identifier_type": "Legal Entity Identifier",
+    "target_entity_types": [
+      "organization"
+    ],
+    "limit": 20
+  }
+}

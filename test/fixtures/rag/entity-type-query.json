@@ -1,0 +1,22 @@
+{
+  "schema_version": "rag-retrieval-query/v1alpha1",
+  "query_id": "",
+  "task": "explain_policy_route",
+  "tenant_id": "tenant-a",
+  "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+  "disposition": "investigate",
+  "review_route": "standard_review",
+  "reason_codes": [
+    "blocker_entity_type_conflict",
+    "fp_entity_type_mismatch",
+    "policy_investigate",
+    "policy_threshold_evaluation",
+    "route_investigate"
+  ],
+  "blockers": ["entity_type_conflict"],
+  "message_type": "pacs.008.001.08",
+  "semantic_role": "creditor.name",
+  "policy_id": "transaction-screening-r1",
+  "effective_at": "2026-07-14T12:00:00Z",
+  "query_text": "Explain why a vessel candidate matched in creditor.name remains investigate because of an entity type conflict."
+}

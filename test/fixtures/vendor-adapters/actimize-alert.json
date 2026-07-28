@@ -1,0 +1,39 @@
+{
+  "caseAlert": {
+    "tenant": "tenant-a",
+    "alertKey": "ACT-1001",
+    "product": "actimize-reference",
+    "eventTime": "2026-07-15T14:32:00Z",
+    "watchlistName": "OFAC SDN",
+    "matchScore": 84,
+    "reasonCodes": [
+      "name_exact"
+    ],
+    "matchedAttributes": [
+      "beneficiary.name"
+    ],
+    "entities": [
+      "sdn:67890"
+    ],
+    "transactionIds": [
+      "MSG-9E-3"
+    ],
+    "documentIds": [
+      "doc:ghi"
+    ],
+    "subject": {
+      "name": "GAMMA IMPORTS INC",
+      "country": "US",
+      "entity_type": "organization"
+    },
+    "attributes": {
+      "screenedName": "GAMMA IMPORTS INC",
+      "matchedName": "GAMMA IMPORTS"
+    },
+    "workflowStatus": "NEW"
+  },
+  "transport": {
+    "correlationId": "corr-phase9e-act",
+    "idempotencyKey": "idem-phase9e-act"
+  }
+}

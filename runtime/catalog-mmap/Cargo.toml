@@ -1,0 +1,15 @@
+[package]
+name = "openwatchlist-catalog-mmap"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Dependency-free compiler and memory-mapped candidate retrieval runtime for OpenWatchlist catalogs"
+publish = false
+
+[lib]
+name = "openwatchlist_catalog_mmap"
+path = "src/lib.rs"
+
+[[bin]]
+name = "catalog-mmap"
+path = "src/bin/catalog-mmap.rs"

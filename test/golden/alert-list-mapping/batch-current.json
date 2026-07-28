@@ -1,0 +1,93 @@
+{
+  "schema_version": "alert-list-resolution-batch/v1alpha1",
+  "resolved_at": "2026-07-21T12:00:00Z",
+  "summary": {
+    "total": 4,
+    "resolved": 1,
+    "unmapped": 1,
+    "not_effective": 1,
+    "expired": 1,
+    "retired": 0,
+    "component_missing": 0,
+    "component_retired": 0,
+    "catalog_not_active": 0
+  },
+  "results": [
+    {
+      "alert_id": "alert-fircosoft-1",
+      "resolution": {
+        "schema_version": "alert-list-resolution/v1alpha1",
+        "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+        "namespace": "demo-bank",
+        "source_system_id": "fircosoft-prod",
+        "raw_list_name": "WLS_OFAC_001",
+        "resolved_at": "2026-07-21T12:00:00Z",
+        "status": "resolved",
+        "available": true,
+        "exact_match": true,
+        "mapping_id": "alert_list_mapping_a1a60bda01c577f1b04254c1",
+        "mapping_version_id": "alert_list_mapping_version_f301d9cddb412d1a0a318292",
+        "mapping_effective_from": "2026-07-14T19:00:00Z",
+        "component_id": "catalog_component_ed835720fdb2b3a505927488",
+        "component_key": "official.ofac.sdn",
+        "component_display_name": "OFAC SDN official catalog",
+        "catalog_mode": "official_list",
+        "active_catalog_version_id": "catalog_version_10c16906983641525bcc85a4",
+        "active_catalog_id": "ofac-sdn-direct",
+        "active_catalog_version": "2026-07-13-427847835cb4",
+        "active_catalog_checksum": "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582",
+        "active_artifact_uri": "file:///catalogs/ofac-sdn/2026-07-13/ofac-sdn-catalog.json"
+      }
+    },
+    {
+      "alert_id": "alert-unmapped-1",
+      "resolution": {
+        "schema_version": "alert-list-resolution/v1alpha1",
+        "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+        "namespace": "demo-bank",
+        "source_system_id": "fircosoft-prod",
+        "raw_list_name": "UNKNOWN_LIST",
+        "resolved_at": "2026-07-21T12:00:00Z",
+        "status": "unmapped",
+        "available": false,
+        "exact_match": false,
+        "review_blocker": "ALERT_LIST_MAPPING_REQUIRED"
+      }
+    },
+    {
+      "alert_id": "alert-expired-1",
+      "resolution": {
+        "schema_version": "alert-list-resolution/v1alpha1",
+        "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+        "namespace": "demo-bank",
+        "source_system_id": "legacy-batch",
+        "raw_list_name": "TEMP_OFAC",
+        "resolved_at": "2026-07-21T12:00:00Z",
+        "status": "expired",
+        "available": false,
+        "exact_match": true,
+        "review_blocker": "ALERT_LIST_MAPPING_EXPIRED",
+        "mapping_id": "alert_list_mapping_2dc3fbe718a054060dc9e497",
+        "mapping_version_id": "alert_list_mapping_version_954abee303d5fa704ddf3242",
+        "mapping_effective_from": "2026-07-01T00:00:00Z",
+        "mapping_effective_to": "2026-07-20T00:00:00Z"
+      }
+    },
+    {
+      "alert_id": "alert-future-1",
+      "resolution": {
+        "schema_version": "alert-list-resolution/v1alpha1",
+        "mapping_registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+        "namespace": "demo-bank",
+        "source_system_id": "future-screening",
+        "raw_list_name": "OFAC_NEXT",
+        "resolved_at": "2026-07-21T12:00:00Z",
+        "status": "not_effective",
+        "available": false,
+        "exact_match": true,
+        "review_blocker": "ALERT_LIST_MAPPING_NOT_EFFECTIVE",
+        "mapping_id": "alert_list_mapping_b052c58019cde277758b5f94"
+      }
+    }
+  ]
+}

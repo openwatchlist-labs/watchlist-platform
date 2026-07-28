@@ -1,0 +1,20 @@
+{
+  "schema_version": "memory-mapped-catalog/v1alpha1",
+  "compiler_version": "catalog-mmap-compiler/v0.1.0",
+  "format_version": 1,
+  "component_id": "catalog_component_ed835720fdb2b3a505927488",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "2026-07-13-427847835cb4",
+  "catalog_checksum": "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582",
+  "catalog_mode": "official_list",
+  "source_manifest_id": "ofac_source_ffced0d479e0bed9eb1804ca",
+  "source_schema_version": "ofac-direct-list-catalog/v1alpha1",
+  "normalization_profile": "openwatchlist-runtime-normalization/ascii-v1",
+  "input_sha256": "17559b75fef7e34c1c37dca7192113fb5632b5248255cbb20a9e0ea35803bb21",
+  "payload_sha256": "0b94819c2a7b5c5a63db1a0e17df99462ec8f02a93f59c828c1a754b0c9cf682",
+  "package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+  "package_length": 1552,
+  "record_count": 3,
+  "name_count": 8,
+  "identifier_count": 3
+}

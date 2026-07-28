@@ -1,0 +1,151 @@
+{
+  "schema_version": "catalog-component-registry/v1alpha1",
+  "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "engine_version": "catalog-component-registry/v0.1.0",
+  "last_sequence": 3,
+  "audit_head": "47ac18a8fe1fb11630951b4485b152e6221bec0f211c9d5e4ca310cad5382b85",
+  "components": [
+    {
+      "schema_version": "catalog-component/v1alpha1",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "namespace": "demo-bank",
+      "component_key": "provider.sanctions.primary",
+      "display_name": "Primary provider sanctions catalog",
+      "catalog_mode": "provider",
+      "status": "active",
+      "description": "Provider-neutral stable component. Provider dataset references are version metadata, not component identity.",
+      "labels": {
+        "risk_domain": "sanctions",
+        "source_policy": "provider_managed"
+      },
+      "created_at": "2026-07-14T18:30:00Z",
+      "created_by": "phase7cb-fixture",
+      "component_checksum": "98e88031580593bae57b2470394485d7862b4b83f78da82dd598f1a4acb52bfe"
+    }
+  ],
+  "versions": [
+    {
+      "schema_version": "catalog-component-version/v1alpha1",
+      "version_id": "catalog_version_3701e998ad9c1d06832ed140",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "catalog_id": "licensed-provider-primary",
+      "catalog_version": "provider-release-2026-07-15",
+      "catalog_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalog_schema": "provider-entity-catalog/v1alpha1",
+      "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-15/catalog.json",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_manifest_id": "provider_source_manifest_demo_v2",
+      "source_manifest_checksum": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "record_count": 20200,
+      "producer_version": "provider-neutral-adapter/v0.2.0",
+      "source": {
+        "kind": "provider",
+        "provider": {
+          "provider_id": "licensed-provider",
+          "provider_component_ref": "provider-defined-component-84",
+          "provider_title": "Renamed provider sanctions component",
+          "provider_version": "provider-release-2026-07-15"
+        }
+      },
+      "metadata": {
+        "fixture": "true"
+      },
+      "registered_at": "2026-07-20T12:10:00Z",
+      "registered_by": "phase7cd-operator",
+      "version_checksum": "22cd788d8988b80d3df76e4dedaa05dbaf2f31200691375d89ab2b60ee8dd81f"
+    },
+    {
+      "schema_version": "catalog-component-version/v1alpha1",
+      "version_id": "catalog_version_8676897321509071fcccbcb2",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "catalog_id": "licensed-provider-primary",
+      "catalog_version": "provider-release-2026-07-14",
+      "catalog_checksum": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "catalog_schema": "provider-entity-catalog/v1alpha1",
+      "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-14/catalog.json",
+      "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "source_manifest_id": "provider_source_manifest_demo",
+      "source_manifest_checksum": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "record_count": 20000,
+      "producer_version": "provider-neutral-adapter/v0.1.0",
+      "source": {
+        "kind": "provider",
+        "provider": {
+          "provider_id": "licensed-provider",
+          "provider_component_ref": "provider-defined-component-42",
+          "provider_title": "Provider-defined sanctions component",
+          "provider_version": "provider-release-2026-07-14"
+        }
+      },
+      "metadata": {
+        "fixture": "true",
+        "mapping_policy": "provider-reference-is-version-metadata"
+      },
+      "registered_at": "2026-07-14T18:33:00Z",
+      "registered_by": "phase7cb-fixture",
+      "version_checksum": "8688eb7af58a58e273d936530780d8d85d0550bd9a606fe1ad6abc46a975fdcb"
+    }
+  ],
+  "activations": [
+    {
+      "schema_version": "catalog-component-activation/v1alpha1",
+      "activation_id": "catalog_activation_b5257accc276f25c4c9719fc",
+      "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 1,
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "action": "activate",
+      "target_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "component_epoch": 1,
+      "reason": "activate provider fixture",
+      "activated_at": "2026-07-14T18:41:00Z",
+      "activated_by": "phase7cd-fixture",
+      "previous_event_hash": "",
+      "event_hash": "8a280629920d81f4492ac3bb3b5fef7104c4a56f015fbd5ff3eaafaa276b968f"
+    },
+    {
+      "schema_version": "catalog-component-activation/v1alpha1",
+      "activation_id": "catalog_activation_590f146c93933b9c04528964",
+      "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 2,
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "action": "activate",
+      "target_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+      "previous_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "component_epoch": 2,
+      "reason": "activate approved provider release",
+      "activated_at": "2026-07-20T12:10:00Z",
+      "activated_by": "phase7cd-operator",
+      "previous_event_hash": "8a280629920d81f4492ac3bb3b5fef7104c4a56f015fbd5ff3eaafaa276b968f",
+      "event_hash": "a048d761cf67214719f106e9dd26dfcb978bd2850d8b3d04674ef4bde43b1a4e"
+    },
+    {
+      "schema_version": "catalog-component-activation/v1alpha1",
+      "activation_id": "catalog_activation_9b8a118e9bea87c0fbc909fc",
+      "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 3,
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "action": "rollback",
+      "target_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "previous_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+      "component_epoch": 3,
+      "reason": "rollback qualification proof",
+      "activated_at": "2026-07-20T12:15:00Z",
+      "activated_by": "phase7cd-operator",
+      "previous_event_hash": "a048d761cf67214719f106e9dd26dfcb978bd2850d8b3d04674ef4bde43b1a4e",
+      "event_hash": "47ac18a8fe1fb11630951b4485b152e6221bec0f211c9d5e4ca310cad5382b85"
+    }
+  ],
+  "active": [
+    {
+      "schema_version": "catalog-component-active-pointer/v1alpha1",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "version_id": "catalog_version_8676897321509071fcccbcb2",
+      "activation_id": "catalog_activation_9b8a118e9bea87c0fbc909fc",
+      "epoch": 3,
+      "activated_at": "2026-07-20T12:15:00Z",
+      "activated_by": "phase7cd-operator"
+    }
+  ],
+  "registry_checksum": "b8573e198034928428525d268dab5538f3e8c3450644cfca96cb5205a0421b1c"
+}

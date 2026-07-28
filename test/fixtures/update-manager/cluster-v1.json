@@ -1,0 +1,15 @@
+{
+  "schema_version": "screening-worker-cluster/v1alpha1",
+  "workers": [
+    {"worker_id": "worker-a", "zone": "zone-a", "required": true},
+    {"worker_id": "worker-b", "zone": "zone-b", "required": true},
+    {"worker_id": "worker-c", "zone": "zone-c", "required": true}
+  ],
+  "rollout_policy": {
+    "readiness_policy": "all_required_workers",
+    "canary_policy": "explicit_worker_set",
+    "activation_policy": "reserved_fleet_epoch_then_durable_ack",
+    "failure_policy": "no_fleet_pointer_advance_and_compensating_rollback",
+    "audit_policy": "append_only_hash_chain"
+  }
+}

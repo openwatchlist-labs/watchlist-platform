@@ -1,0 +1,29 @@
+{
+  "schema_version": "openwatchlist.tenant-quota-registry.v1",
+  "registry_id": "phase9g-tenant-quotas",
+  "version": "2026-07-15-r1",
+  "default": {
+    "tenant_id": "*",
+    "requests_per_minute": 600,
+    "burst": 40,
+    "max_concurrent": 8,
+    "max_body_bytes": 1048576
+  },
+  "tenants": [
+    {
+      "tenant_id": "tenant-a",
+      "requests_per_minute": 1200,
+      "burst": 80,
+      "max_concurrent": 12,
+      "max_body_bytes": 1048576
+    },
+    {
+      "tenant_id": "tenant-b",
+      "requests_per_minute": 300,
+      "burst": 20,
+      "max_concurrent": 4,
+      "max_body_bytes": 524288
+    }
+  ],
+  "registry_sha256": "5f1bc527259fb2a11bf71e2f26e7de230213f12b4a9d3b6c286e6cb710de97fa"
+}

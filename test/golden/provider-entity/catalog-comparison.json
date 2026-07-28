@@ -1,0 +1,62 @@
+{
+  "schema_version": "catalog-comparison/v1alpha1",
+  "comparison_id": "catalog_comparison_71ec96f467d4f26143a74889",
+  "comparison_checksum": "b8426bb7f78e4384ffd7d23c656559e30477db77b40ec40a86bcc9bb53095fb9",
+  "provider_catalog": {
+    "catalog_id": "provider-entity-opensanctions-demo",
+    "catalog_version": "2026-07-14-b5f60f3c45f6",
+    "catalog_checksum": "813ac1057704ffe96b88194da8280d16e9a06f06ec2da9df8a278e590bc4a4ab",
+    "catalog_mode": "provider_entity"
+  },
+  "direct_catalog": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/13/2026-c33e134053cc",
+    "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+    "catalog_mode": "direct_list"
+  },
+  "summary": {
+    "provider_entities": 4,
+    "direct_records": 3,
+    "linked_records": 3,
+    "provider_only": 1,
+    "direct_only": 0,
+    "name_differences": 0,
+    "entity_type_differences": 0,
+    "program_differences": 1
+  },
+  "links": [
+    {
+      "provider_entity_id": "Q1001",
+      "provider_record_id": "provider:opensanctions-demo:Q1001",
+      "direct_record_id": "ofac:sdn:1001",
+      "source_key": "ofac-sls\u001fSDN\u001f1001",
+      "status": "linked_different",
+      "name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": false
+    },
+    {
+      "provider_entity_id": "Q2002",
+      "provider_record_id": "provider:opensanctions-demo:Q2002",
+      "direct_record_id": "ofac:sdn:2002",
+      "source_key": "ofac-sls\u001fSDN\u001f2002",
+      "status": "linked_equal",
+      "name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": true
+    },
+    {
+      "provider_entity_id": "Q3003",
+      "provider_record_id": "provider:opensanctions-demo:Q3003",
+      "direct_record_id": "ofac:sdn:3003",
+      "source_key": "ofac-sls\u001fSDN\u001f3003",
+      "status": "linked_equal",
+      "name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": true
+    }
+  ],
+  "provider_only_ids": [
+    "Q9001"
+  ]
+}

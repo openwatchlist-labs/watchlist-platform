@@ -1,0 +1,79 @@
+{
+  "alert_id": "alert_38eb8343f30c2e07a2378206a8c33638",
+  "candidate_summary": [
+    {
+      "candidate_id": "sdn-1001",
+      "reason_codes": [
+        "country_exact",
+        "name_exact"
+      ],
+      "score": 930
+    }
+  ],
+  "classification": {
+    "classification_id": "b202cc4383902ec77f597cf1a3e31d1a3437535ca95ddf19b6629055677911bc",
+    "countervailing_codes": [
+      "country_exact",
+      "name_exact"
+    ],
+    "pattern_codes": [],
+    "route_hint": "escalate",
+    "schema_version": "openwatchlist.false-positive-classification.phase9ab.v1",
+    "score_basis": 930
+  },
+  "correlation_id_hash": "a5c78ab2c25078f19c28383dd2f1c4495bfe7cc23b195116ed1cd4297f09f476",
+  "created_at": "2026-07-15T12:00:00Z",
+  "policy_decision": {
+    "decision_id": "4b4c2dc4cd1bcfa0fe60d908dbe404a9319e85113dd8a637f8eebccac7e9b7f3",
+    "ordered_rule_trace": [
+      "load_checksum_addressed_policy",
+      "evaluate_phase4_pattern_evidence",
+      "apply_missing_evidence_blockers",
+      "apply_score_thresholds",
+      "emit_non_analyst_policy_route"
+    ],
+    "policy_id": "phase9ab-alert-policy",
+    "policy_sha256": "a82299ef70541804a820d08369fc3c41bd69d70ff0bf240a44c6cb7f6b394cc5",
+    "policy_version": "r1",
+    "reason_codes": [
+      "country_exact",
+      "name_exact"
+    ],
+    "route": "escalate",
+    "schema_version": "openwatchlist.policy-decision.phase9ab.v1",
+    "score": 930,
+    "threshold": 850
+  },
+  "record_sha256": "6c4821f6591e0b53a4a2eef2b6591dfcf308e4ab6c23e3662d3fa82425d9bb03",
+  "schema_version": "openwatchlist.alert-record.v1",
+  "screening_lineage": {
+    "activation_lineage": {
+      "activation_id": "activation-phase8f-candidate",
+      "catalog_package_sha256": "e872179ea01ebce24b976947c4955dd4dbdf80c714111362fa3b9c5af67d542a",
+      "component_id": "sdn",
+      "component_version": "2026-07-14T00:00:00Z",
+      "normalization_profile": "unicode-upper-alnum-space-v1",
+      "projection_package_sha256": "b652a63ffd2c8ed73dd40e8fb3530670ad49798fb3140fe3de8ac02ec12f7167",
+      "scoring_policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913"
+    },
+    "event_id": "9c15117914fe574d9af9b89279417f1312537b55f8f7462d320e1179515b2236",
+    "event_sha256": "855cf134fb8eb40dff54559a6cc62834e1c861fab73f00f327e5c8048f9176cc",
+    "ledger_id": "screening-api-v8g-example",
+    "promotion_lineage": {
+      "intent_id": "promotion-phase8f-fixture",
+      "phase": "promoted",
+      "revision": 6
+    },
+    "request_sha256": "f18e56ccef3a63debd3fe735ea04b39794c3064df520e5a04ac9aba21b182311",
+    "request_snapshot_sha256": "b27a67f0540f72eb32392b9d73dbc56467e8d3fe59a2b2754f70c5a462c74596",
+    "response_sha256": "55663efe6e3c58cd41f6f2cac041215bbbf0030d4a673d43fc15d6ffa6f450da",
+    "response_snapshot_sha256": "7eee2afa9aa9552b3996989a62e58c55f08ca822e1b56de850962c21c794fd21"
+  },
+  "source_identity": "9c15117914fe574d9af9b89279417f1312537b55f8f7462d320e1179515b2236:855cf134fb8eb40dff54559a6cc62834e1c861fab73f00f327e5c8048f9176cc",
+  "source_type": "screening_ledger",
+  "subject": {
+    "field_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+    "message_id": "msg-001"
+  },
+  "tenant_id": "tenant-a"
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-batch-request.v1",
+  "batch_id": "batch-fixture-001",
+  "items": [
+    {
+      "schema_version": "openwatchlist.candidate-scoring-request.v1",
+      "request_id": "batch-item-first",
+      "subject": {
+        "names": ["Alpha Holdings"],
+        "entity_type": "organization"
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-fixture-catalog",
+        "component_id": "ofac-sdn",
+        "component_version": "2026-07-14-fixture",
+        "activation_id": "activation-fixture-001",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      },
+      "candidates": [
+        {
+          "candidate": {
+            "candidate_id": "z-tie",
+            "names": ["Alpha Holdings"],
+            "entity_type": "organization"
+          },
+          "retrieval": {"routes": ["name_exact"]}
+        },
+        {
+          "candidate": {
+            "candidate_id": "a-tie",
+            "names": ["Alpha Holdings"],
+            "entity_type": "organization"
+          },
+          "retrieval": {"routes": ["name_exact"]}
+        }
+      ]
+    },
+    {
+      "schema_version": "openwatchlist.candidate-scoring-request.v1",
+      "request_id": "batch-item-second",
+      "subject": {
+        "identifiers": [
+          {"type": "BIC", "value": "AAAAUS33XXX"}
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-fixture-catalog",
+        "component_id": "ofac-sdn",
+        "component_version": "2026-07-14-fixture",
+        "activation_id": "activation-fixture-001",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      },
+      "candidates": [
+        {
+          "candidate": {
+            "candidate_id": "bic-match",
+            "identifiers": [
+              {"type": "bic", "value": "AAAAUS33XXX"}
+            ]
+          },
+          "retrieval": {"routes": ["typed_identifier"]}
+        }
+      ]
+    }
+  ]
+}

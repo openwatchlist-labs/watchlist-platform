@@ -1,0 +1,7 @@
+{
+  "request_id": "phase8f-screening-1",
+  "field": {
+    "path": "Document/FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+    "original_value": "Acme Trading LLC"
+  }
+}

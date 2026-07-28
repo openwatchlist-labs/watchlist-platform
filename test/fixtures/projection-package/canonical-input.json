@@ -1,0 +1,55 @@
+{
+  "schema_version": "openwatchlist.canonical-projection-input.v1",
+  "provider": "ofac-direct",
+  "catalog_id": "ofac-production",
+  "component_id": "sdn",
+  "component_version": "2026-07-14T00:00:00Z",
+  "catalog_package_sha256": "e872179ea01ebce24b976947c4955dd4dbdf80c714111362fa3b9c5af67d542a",
+  "normalization_profile": "unicode-upper-alnum-space-v1",
+  "records": [
+    {
+      "candidate_id": "candidate-weak",
+      "retrievable": true,
+      "names": ["Acme Trading"],
+      "countries": ["us"],
+      "entity_type": "company"
+    },
+    {
+      "candidate_id": "hidden-record",
+      "retrievable": false,
+      "names": ["Hidden Full Catalog Record"],
+      "countries": ["US"],
+      "entity_type": "organization"
+    },
+    {
+      "candidate_id": "z-tie",
+      "retrievable": true,
+      "names": ["Jane Doe"],
+      "entity_type": "individual"
+    },
+    {
+      "candidate_id": "candidate-exact-lei",
+      "retrievable": true,
+      "names": ["Acme Trading LLC", "ACME Trading Limited"],
+      "identifiers": [
+        {"type": "lei", "value": "5493 001KJTIIGC8Y1R12"},
+        {"type": "LEI", "value": "5493001KJTIIGC8Y1R12"}
+      ],
+      "countries": ["gb"],
+      "entity_type": "organisation"
+    },
+    {
+      "candidate_id": "a-tie",
+      "retrievable": true,
+      "names": ["JANE DOE"],
+      "entity_type": "person"
+    },
+    {
+      "candidate_id": "candidate-exact-name",
+      "retrievable": true,
+      "names": ["ACME TRADING LLC"],
+      "countries": ["US"],
+      "entity_type": "organization"
+    }
+  ]
+}

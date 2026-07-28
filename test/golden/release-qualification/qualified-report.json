@@ -1,0 +1,231 @@
+{
+  "schema_version": "openwatchlist.release-qualification-report.v1",
+  "qualification_id": "qualification_4f7691ea9e6ddb2edd0d0f3a",
+  "gate_set_id": "phase10-release-gates",
+  "gate_set_sha256": "4f252d209a3154a29bf2a2e4b6af3c3d73ef2d005cefbcc526a6e071d5d01021",
+  "suite_id": "phase10-end-to-end-evaluation",
+  "suite_sha256": "4f7691ea9e6ddb2edd0d0f3a8f2b91d9450d3d9c174fb09bc1d2eccf6a1ae841",
+  "status": "qualified",
+  "metrics": {
+    "scenario_count": 24,
+    "true_positive": 11,
+    "true_negative": 13,
+    "false_positive": 0,
+    "false_negative": 0,
+    "precision": 1,
+    "recall": 1,
+    "false_positive_reduction": 1,
+    "functional_pass_rate": 1,
+    "replay_match_rate": 1,
+    "policy_stability_rate": 1,
+    "rag_relevance_rate": 1,
+    "citation_correctness_rate": 1,
+    "unsupported_claim_rejection_rate": 1,
+    "durability_pass_rate": 1,
+    "tenant_isolation_pass_rate": 1,
+    "multi_instance_consistency_rate": 1,
+    "security_scan_pass_rate": 1,
+    "documentation_pass_rate": 1,
+    "rollback_pass_rate": 1,
+    "benchmarks": {
+      "p50_latency_ms": 42,
+      "p95_latency_ms": 118,
+      "p99_latency_ms": 184,
+      "throughput_rps": 240,
+      "batch_capacity": 5000
+    }
+  },
+  "gates": [
+    {
+      "gate_id": "functional_regression",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "scenario_matrix"
+      ]
+    },
+    {
+      "gate_id": "deterministic_replay",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "historical_and_duplicate_replay"
+      ]
+    },
+    {
+      "gate_id": "matcher_precision",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 0.9,
+      "evidence": [
+        "truth_labels"
+      ]
+    },
+    {
+      "gate_id": "matcher_recall",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "truth_labels"
+      ]
+    },
+    {
+      "gate_id": "false_negative_protection",
+      "status": "pass",
+      "observed": 0,
+      "operator": "\u003c=",
+      "threshold": 0,
+      "evidence": [
+        "truth_labels"
+      ]
+    },
+    {
+      "gate_id": "false_positive_reduction",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 0.5,
+      "evidence": [
+        "baseline_comparison"
+      ]
+    },
+    {
+      "gate_id": "policy_stability",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "policy_change_scenarios"
+      ]
+    },
+    {
+      "gate_id": "p95_latency_ms",
+      "status": "pass",
+      "observed": 118,
+      "operator": "\u003c=",
+      "threshold": 250,
+      "evidence": [
+        "benchmark_fixture"
+      ]
+    },
+    {
+      "gate_id": "throughput_rps",
+      "status": "pass",
+      "observed": 240,
+      "operator": "\u003e=",
+      "threshold": 100,
+      "evidence": [
+        "benchmark_fixture"
+      ]
+    },
+    {
+      "gate_id": "batch_capacity",
+      "status": "pass",
+      "observed": 5000,
+      "operator": "\u003e=",
+      "threshold": 1000,
+      "evidence": [
+        "benchmark_fixture"
+      ]
+    },
+    {
+      "gate_id": "rag_relevance",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 0.95,
+      "evidence": [
+        "rag_scenarios"
+      ]
+    },
+    {
+      "gate_id": "citation_correctness",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "rag_scenarios"
+      ]
+    },
+    {
+      "gate_id": "unsupported_claim_governance",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "guardian_scenarios"
+      ]
+    },
+    {
+      "gate_id": "postgres_and_backup_durability",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "durability_scenarios"
+      ]
+    },
+    {
+      "gate_id": "tenant_isolation",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "authz_scenarios"
+      ]
+    },
+    {
+      "gate_id": "multi_instance_consistency",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "idempotency_scenarios"
+      ]
+    },
+    {
+      "gate_id": "dependency_container_scanning",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "scan_results"
+      ]
+    },
+    {
+      "gate_id": "operational_rollback",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "rollback_scenarios"
+      ]
+    },
+    {
+      "gate_id": "documentation_completeness",
+      "status": "pass",
+      "observed": 1,
+      "operator": "\u003e=",
+      "threshold": 1,
+      "evidence": [
+        "documentation_scenarios"
+      ]
+    }
+  ],
+  "report_sha256": "5ada541c436d11b162a1aa76285c98fd84e424166d049d2310001de7d0204e72"
+}

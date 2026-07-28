@@ -1,0 +1,21 @@
+{
+  "catalog_registry_checksum": "b8573e198034928428525d268dab5538f3e8c3450644cfca96cb5205a0421b1c",
+  "execution": {
+    "schema_version": "provider-refresh-execution/v1alpha1",
+    "execution_id": "provider_refresh_execution_75c5653e446dc61acab093aa",
+    "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+    "sequence": 3,
+    "action": "rollback",
+    "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+    "previous_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+    "target_version_id": "catalog_version_8676897321509071fcccbcb2",
+    "catalog_activation_id": "catalog_activation_9b8a118e9bea87c0fbc909fc",
+    "reason": "rollback qualification proof",
+    "executed_at": "2026-07-20T12:15:00Z",
+    "executed_by": "phase7cd-operator",
+    "previous_event_hash": "56eef705c0d9bb12bcbb19ea07c64411d9bf1378920cdfa5ab4249f7a5f90108",
+    "event_hash": "8ffb83315ce3634569710beca39b41b0125a1b63600554109b2ef62413707d2d",
+    "execution_checksum": "d39cb572f63828caa306df3b6252ca119ee1bee400e5cf0f85396d57400ef9c2"
+  },
+  "refresh_registry_checksum": "0876bb06f00de597ae943a8ee68203ba6b8ad7172270c87bdb29d02a415b4c5e"
+}

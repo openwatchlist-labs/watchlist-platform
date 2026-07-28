@@ -1,0 +1,28 @@
+{
+  "component_id": "catalog_component_ed835720fdb2b3a505927488",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "2026-07-14-demo-refresh",
+  "catalog_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "catalog_schema": "ofac-direct-list-catalog/v1alpha1",
+  "artifact_uri": "file:///catalogs/ofac-sdn/2026-07-14/ofac-sdn-catalog.json",
+  "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "source_manifest_id": "ofac_source_fixture_advanced_v3_refresh",
+  "source_manifest_checksum": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "record_count": 4,
+  "producer_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+  "source": {
+    "kind": "official",
+    "official": {
+      "authority": "US_TREASURY_OFAC",
+      "list_key": "us.ofac.sdn",
+      "source_format": "ofac_advanced_xml",
+      "xml_version": "3"
+    }
+  },
+  "metadata": {
+    "fixture": "true",
+    "provenance": "synthetic-refresh"
+  },
+  "registered_at": "2026-07-14T18:32:00Z",
+  "registered_by": "phase7cb-fixture"
+}

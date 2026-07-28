@@ -1,0 +1,1252 @@
+{
+  "schema_version": "distributed-update-replay/v1alpha1",
+  "manager_version": "watchlist-update-manager/v0.1.0",
+  "updates": [
+    {
+      "schema_version": "watchlist-update-record/v1alpha1",
+      "update_id": "update_e85a3b2f103afaacab1526b8",
+      "manager_version": "watchlist-update-manager/v0.1.0",
+      "status": "compiled",
+      "spec": {
+        "schema_version": "watchlist-update-spec/v1alpha1",
+        "update_id": "update_e85a3b2f103afaacab1526b8",
+        "source_path": "test/fixtures/ofac/sdn/sdn-fixture.xml",
+        "source_url": "fixture:sdn-v1",
+        "scheduled_for": "2026-07-13T19:00:00Z",
+        "requested_at": "2026-07-13T18:00:00Z",
+        "canary_workers": [
+          "worker-a"
+        ],
+        "required_workers": [
+          "worker-a",
+          "worker-b",
+          "worker-c"
+        ]
+      },
+      "staged": {
+        "source_manifest": {
+          "schema_version": "ofac-source-manifest/v1alpha1",
+          "manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "dataset_id": "ofac-sdn",
+          "source_url": "fixture:sdn-v1",
+          "acquisition_method": "local_fixture",
+          "acquired_at": "2026-07-13T19:00:00Z",
+          "media_type": "application/xml",
+          "content_length": 3235,
+          "content_sha256": "c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+          "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML",
+          "publish_date": "07/13/2026",
+          "declared_record_count": 3,
+          "parser_version": "ofac-sdn-legacy-xml-parser/v0.1.0"
+        },
+        "package_info": {
+          "schema_version": "compiled-catalog-package-info/v1alpha1",
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "artifact_size": 18520,
+          "manifest": {
+            "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+            "package_format": "owpcat/1",
+            "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+            "compiler_version": "ofac-runtime-compiler/v0.1.0",
+            "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+            "provider": {
+              "schema_version": "matcher-provider-descriptor/v1alpha1",
+              "provider_id": "ofac-direct-list",
+              "provider_version": "v0.1.0",
+              "catalog": {
+                "catalog_id": "ofac-sdn-direct",
+                "catalog_version": "07/13/2026-c33e134053cc",
+                "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+                "catalog_mode": "direct_list"
+              },
+              "capabilities": {
+                "supported_routes": [
+                  "alias",
+                  "contextual_address",
+                  "contextual_phrase_window",
+                  "exact_account",
+                  "exact_bic",
+                  "exact_date",
+                  "exact_lei",
+                  "jurisdiction_policy",
+                  "normalized_name",
+                  "transliteration"
+                ],
+                "supported_entity_types": [
+                  "aircraft",
+                  "financial_institution",
+                  "government_entity",
+                  "individual",
+                  "jurisdiction",
+                  "organization",
+                  "vessel"
+                ],
+                "max_candidates_per_request": 25,
+                "deterministic": true,
+                "source_assertions_included": true
+              }
+            },
+            "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+            "source_content_sha256": "c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+            "record_count": 3,
+            "entry_count": 29,
+            "payload_sha256": "662671c6aec6f8a5108bca6aef42e956dba66e477cae41fbeb5548a65f510f4f",
+            "payload_size": 17193
+          }
+        },
+        "package_path": "/tmp/openwatchlist-phase2c-state/packages/runtime_package_29afe5ff163562a9ce5ffa33.owpcat",
+        "source_archive_path": "/tmp/openwatchlist-phase2c-archive/ofac-sdn/c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+        "compiled_at": "2026-07-13T19:00:00Z"
+      },
+      "updated_at": "2026-07-13T19:00:00Z"
+    },
+    {
+      "schema_version": "watchlist-update-record/v1alpha1",
+      "update_id": "update_9d3560bb62947ecea61c347b",
+      "manager_version": "watchlist-update-manager/v0.1.0",
+      "status": "compiled",
+      "spec": {
+        "schema_version": "watchlist-update-spec/v1alpha1",
+        "update_id": "update_9d3560bb62947ecea61c347b",
+        "source_path": "test/fixtures/ofac/sdn/sdn-fixture-v2.xml",
+        "source_url": "fixture:sdn-v2",
+        "scheduled_for": "2026-07-13T21:00:00Z",
+        "requested_at": "2026-07-13T18:00:00Z",
+        "canary_workers": [
+          "worker-b"
+        ],
+        "required_workers": [
+          "worker-a",
+          "worker-b",
+          "worker-c"
+        ]
+      },
+      "staged": {
+        "source_manifest": {
+          "schema_version": "ofac-source-manifest/v1alpha1",
+          "manifest_id": "ofac_source_84b9abc464804335486aeb36",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "dataset_id": "ofac-sdn",
+          "source_url": "fixture:sdn-v2",
+          "acquisition_method": "local_fixture",
+          "acquired_at": "2026-07-13T21:00:00Z",
+          "media_type": "application/xml",
+          "content_length": 3234,
+          "content_sha256": "64751cbe85a0dc44708af0d5091e440f1ba2f9e191f7de9e6aff903101dc616c",
+          "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML",
+          "publish_date": "07/14/2026",
+          "declared_record_count": 3,
+          "parser_version": "ofac-sdn-legacy-xml-parser/v0.1.0"
+        },
+        "package_info": {
+          "schema_version": "compiled-catalog-package-info/v1alpha1",
+          "package_id": "runtime_package_08131169704014114f957302",
+          "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+          "artifact_size": 18514,
+          "manifest": {
+            "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+            "package_format": "owpcat/1",
+            "package_id": "runtime_package_08131169704014114f957302",
+            "compiler_version": "ofac-runtime-compiler/v0.1.0",
+            "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+            "provider": {
+              "schema_version": "matcher-provider-descriptor/v1alpha1",
+              "provider_id": "ofac-direct-list",
+              "provider_version": "v0.1.0",
+              "catalog": {
+                "catalog_id": "ofac-sdn-direct",
+                "catalog_version": "07/14/2026-64751cbe85a0",
+                "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+                "catalog_mode": "direct_list"
+              },
+              "capabilities": {
+                "supported_routes": [
+                  "alias",
+                  "contextual_address",
+                  "contextual_phrase_window",
+                  "exact_account",
+                  "exact_bic",
+                  "exact_date",
+                  "exact_lei",
+                  "jurisdiction_policy",
+                  "normalized_name",
+                  "transliteration"
+                ],
+                "supported_entity_types": [
+                  "aircraft",
+                  "financial_institution",
+                  "government_entity",
+                  "individual",
+                  "jurisdiction",
+                  "organization",
+                  "vessel"
+                ],
+                "max_candidates_per_request": 25,
+                "deterministic": true,
+                "source_assertions_included": true
+              }
+            },
+            "source_manifest_id": "ofac_source_84b9abc464804335486aeb36",
+            "source_content_sha256": "64751cbe85a0dc44708af0d5091e440f1ba2f9e191f7de9e6aff903101dc616c",
+            "record_count": 3,
+            "entry_count": 29,
+            "payload_sha256": "a75aae2f552a24134eb9d0277c7822098ca2ad4f01853f9d8831d546a96a60e3",
+            "payload_size": 17187
+          }
+        },
+        "package_path": "/tmp/openwatchlist-phase2c-state/packages/runtime_package_08131169704014114f957302.owpcat",
+        "source_archive_path": "/tmp/openwatchlist-phase2c-archive/ofac-sdn/64751cbe85a0dc44708af0d5091e440f1ba2f9e191f7de9e6aff903101dc616c",
+        "compiled_at": "2026-07-13T21:00:00Z"
+      },
+      "updated_at": "2026-07-13T21:00:00Z"
+    }
+  ],
+  "activations": [
+    {
+      "schema_version": "fleet-activation-record/v1alpha1",
+      "activation_id": "fleet_activation_066bb9c2b5511c0d746ecfe9",
+      "update_id": "update_e85a3b2f103afaacab1526b8",
+      "fleet_epoch": 1,
+      "state": "complete",
+      "package_info": {
+        "schema_version": "compiled-catalog-package-info/v1alpha1",
+        "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+        "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+        "artifact_size": 18520,
+        "manifest": {
+          "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+          "package_format": "owpcat/1",
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "compiler_version": "ofac-runtime-compiler/v0.1.0",
+          "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+          "provider": {
+            "schema_version": "matcher-provider-descriptor/v1alpha1",
+            "provider_id": "ofac-direct-list",
+            "provider_version": "v0.1.0",
+            "catalog": {
+              "catalog_id": "ofac-sdn-direct",
+              "catalog_version": "07/13/2026-c33e134053cc",
+              "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+              "catalog_mode": "direct_list"
+            },
+            "capabilities": {
+              "supported_routes": [
+                "alias",
+                "contextual_address",
+                "contextual_phrase_window",
+                "exact_account",
+                "exact_bic",
+                "exact_date",
+                "exact_lei",
+                "jurisdiction_policy",
+                "normalized_name",
+                "transliteration"
+              ],
+              "supported_entity_types": [
+                "aircraft",
+                "financial_institution",
+                "government_entity",
+                "individual",
+                "jurisdiction",
+                "organization",
+                "vessel"
+              ],
+              "max_candidates_per_request": 25,
+              "deterministic": true,
+              "source_assertions_included": true
+            }
+          },
+          "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+          "source_content_sha256": "c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+          "record_count": 3,
+          "entry_count": 29,
+          "payload_sha256": "662671c6aec6f8a5108bca6aef42e956dba66e477cae41fbeb5548a65f510f4f",
+          "payload_size": 17193
+        }
+      },
+      "canary_workers": [
+        "worker-a"
+      ],
+      "required_workers": [
+        "worker-a",
+        "worker-b",
+        "worker-c"
+      ],
+      "readiness_acks": [
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_a5da2d34824aebadd0217b2e",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-a",
+            "zone": "zone-a",
+            "required": true
+          },
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "checked_at": "2026-07-13T19:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        },
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_a88d541a4d7fa4797a4b6806",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-b",
+            "zone": "zone-b",
+            "required": true
+          },
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "checked_at": "2026-07-13T19:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        },
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_a8ef0a961fbe87843d75c7be",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-c",
+            "zone": "zone-c",
+            "required": true
+          },
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "checked_at": "2026-07-13T19:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        }
+      ],
+      "activation_acks": [
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_fd331fb345239745eb437cc6",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-a",
+            "zone": "zone-a",
+            "required": true
+          },
+          "fleet_epoch": 1,
+          "phase": "canary",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_74119097faa431d3de0f94d2",
+            "activation_epoch": 1,
+            "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+            "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/13/2026-c33e134053cc",
+            "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+            "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+            "compiled_at": "2026-07-13T19:00:00Z",
+            "activated_at": "2026-07-13T19:02:00Z"
+          },
+          "activated_at": "2026-07-13T19:02:00Z"
+        },
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_c682fe5c95900cc0a3d036af",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-b",
+            "zone": "zone-b",
+            "required": true
+          },
+          "fleet_epoch": 1,
+          "phase": "broad",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_d7f74a659d218ec88c6d8eeb",
+            "activation_epoch": 1,
+            "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+            "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/13/2026-c33e134053cc",
+            "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+            "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+            "compiled_at": "2026-07-13T19:00:00Z",
+            "activated_at": "2026-07-13T19:02:00Z"
+          },
+          "activated_at": "2026-07-13T19:02:00Z"
+        },
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_f6af0c4cd951ccc47e48f67b",
+          "update_id": "update_e85a3b2f103afaacab1526b8",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-c",
+            "zone": "zone-c",
+            "required": true
+          },
+          "fleet_epoch": 1,
+          "phase": "broad",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_c0406d693dc6cce19e129d4e",
+            "activation_epoch": 1,
+            "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+            "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/13/2026-c33e134053cc",
+            "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+            "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+            "compiled_at": "2026-07-13T19:00:00Z",
+            "activated_at": "2026-07-13T19:02:00Z"
+          },
+          "activated_at": "2026-07-13T19:02:00Z"
+        }
+      ],
+      "started_at": "2026-07-13T19:02:00Z",
+      "completed_at": "2026-07-13T19:02:00Z"
+    },
+    {
+      "schema_version": "fleet-activation-record/v1alpha1",
+      "activation_id": "fleet_activation_1d12249ca0ff770bd2afd5bf",
+      "update_id": "update_9d3560bb62947ecea61c347b",
+      "fleet_epoch": 2,
+      "state": "complete",
+      "package_info": {
+        "schema_version": "compiled-catalog-package-info/v1alpha1",
+        "package_id": "runtime_package_08131169704014114f957302",
+        "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+        "artifact_size": 18514,
+        "manifest": {
+          "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+          "package_format": "owpcat/1",
+          "package_id": "runtime_package_08131169704014114f957302",
+          "compiler_version": "ofac-runtime-compiler/v0.1.0",
+          "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+          "provider": {
+            "schema_version": "matcher-provider-descriptor/v1alpha1",
+            "provider_id": "ofac-direct-list",
+            "provider_version": "v0.1.0",
+            "catalog": {
+              "catalog_id": "ofac-sdn-direct",
+              "catalog_version": "07/14/2026-64751cbe85a0",
+              "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+              "catalog_mode": "direct_list"
+            },
+            "capabilities": {
+              "supported_routes": [
+                "alias",
+                "contextual_address",
+                "contextual_phrase_window",
+                "exact_account",
+                "exact_bic",
+                "exact_date",
+                "exact_lei",
+                "jurisdiction_policy",
+                "normalized_name",
+                "transliteration"
+              ],
+              "supported_entity_types": [
+                "aircraft",
+                "financial_institution",
+                "government_entity",
+                "individual",
+                "jurisdiction",
+                "organization",
+                "vessel"
+              ],
+              "max_candidates_per_request": 25,
+              "deterministic": true,
+              "source_assertions_included": true
+            }
+          },
+          "source_manifest_id": "ofac_source_84b9abc464804335486aeb36",
+          "source_content_sha256": "64751cbe85a0dc44708af0d5091e440f1ba2f9e191f7de9e6aff903101dc616c",
+          "record_count": 3,
+          "entry_count": 29,
+          "payload_sha256": "a75aae2f552a24134eb9d0277c7822098ca2ad4f01853f9d8831d546a96a60e3",
+          "payload_size": 17187
+        }
+      },
+      "canary_workers": [
+        "worker-b"
+      ],
+      "required_workers": [
+        "worker-a",
+        "worker-b",
+        "worker-c"
+      ],
+      "readiness_acks": [
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_50cdc67732be8366e0f0a2eb",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-a",
+            "zone": "zone-a",
+            "required": true
+          },
+          "package_id": "runtime_package_08131169704014114f957302",
+          "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+          "checked_at": "2026-07-13T21:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        },
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_163cd0c5e1bbf694f8eb6568",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-b",
+            "zone": "zone-b",
+            "required": true
+          },
+          "package_id": "runtime_package_08131169704014114f957302",
+          "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+          "checked_at": "2026-07-13T21:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        },
+        {
+          "schema_version": "worker-readiness-ack/v1alpha1",
+          "ack_id": "worker_readiness_945ea0104fd471c36dbefb02",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-c",
+            "zone": "zone-c",
+            "required": true
+          },
+          "package_id": "runtime_package_08131169704014114f957302",
+          "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+          "checked_at": "2026-07-13T21:01:00Z",
+          "ready": true,
+          "checks": [
+            {
+              "name": "artifact_integrity",
+              "status": "pass",
+              "detail": "package artifact checksum and framing verified"
+            },
+            {
+              "name": "manifest_contract",
+              "status": "pass",
+              "detail": "package manifest schema, identity, and lineage verified"
+            },
+            {
+              "name": "payload_integrity",
+              "status": "pass",
+              "detail": "compiled payload checksum and size verified"
+            },
+            {
+              "name": "runtime_index",
+              "status": "pass",
+              "detail": "compiled exact index contains 29 entries"
+            },
+            {
+              "name": "provider_descriptor",
+              "status": "pass",
+              "detail": "provider capabilities and catalog reference verified"
+            },
+            {
+              "name": "source_lineage",
+              "status": "pass",
+              "detail": "source manifest and catalog lineage verified"
+            },
+            {
+              "name": "record_count",
+              "status": "pass",
+              "detail": "runtime package covers 3 direct-list records"
+            }
+          ]
+        }
+      ],
+      "activation_acks": [
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_04fb234c43e430abc3618851",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-a",
+            "zone": "zone-a",
+            "required": true
+          },
+          "fleet_epoch": 2,
+          "phase": "broad",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_735e71133d101d1effe2094f",
+            "activation_epoch": 2,
+            "package_id": "runtime_package_08131169704014114f957302",
+            "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/14/2026-64751cbe85a0",
+            "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+            "source_manifest_id": "ofac_source_84b9abc464804335486aeb36",
+            "compiled_at": "2026-07-13T21:00:00Z",
+            "activated_at": "2026-07-13T21:02:00Z"
+          },
+          "activated_at": "2026-07-13T21:02:00Z"
+        },
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_e0fc79f288e65737d286dc52",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-b",
+            "zone": "zone-b",
+            "required": true
+          },
+          "fleet_epoch": 2,
+          "phase": "canary",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_b9a4051857c311262cc06f6a",
+            "activation_epoch": 2,
+            "package_id": "runtime_package_08131169704014114f957302",
+            "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/14/2026-64751cbe85a0",
+            "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+            "source_manifest_id": "ofac_source_84b9abc464804335486aeb36",
+            "compiled_at": "2026-07-13T21:00:00Z",
+            "activated_at": "2026-07-13T21:02:00Z"
+          },
+          "activated_at": "2026-07-13T21:02:00Z"
+        },
+        {
+          "schema_version": "worker-activation-ack/v1alpha1",
+          "ack_id": "worker_activation_9ee736b7bf4cccec096617fd",
+          "update_id": "update_9d3560bb62947ecea61c347b",
+          "worker": {
+            "schema_version": "screening-worker-descriptor/v1alpha1",
+            "worker_id": "worker-c",
+            "zone": "zone-c",
+            "required": true
+          },
+          "fleet_epoch": 2,
+          "phase": "broad",
+          "status": "pass",
+          "probe_passed": true,
+          "detail": "package activated and local smoke probe passed",
+          "generation": {
+            "schema_version": "catalog-generation-stamp/v1alpha1",
+            "generation_id": "generation_ae13038cefadd27ea3c8edfd",
+            "activation_epoch": 2,
+            "package_id": "runtime_package_08131169704014114f957302",
+            "package_checksum": "8c0d938ef56d2cfc8a8e58f1d0f8932f88347d93d32f39968ef6937c79ae7965",
+            "catalog_id": "ofac-sdn-direct",
+            "catalog_version": "07/14/2026-64751cbe85a0",
+            "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+            "source_manifest_id": "ofac_source_84b9abc464804335486aeb36",
+            "compiled_at": "2026-07-13T21:00:00Z",
+            "activated_at": "2026-07-13T21:02:00Z"
+          },
+          "activated_at": "2026-07-13T21:02:00Z"
+        }
+      ],
+      "previous": {
+        "schema_version": "fleet-active-pointer/v1alpha1",
+        "activation_id": "fleet_activation_066bb9c2b5511c0d746ecfe9",
+        "update_id": "update_e85a3b2f103afaacab1526b8",
+        "fleet_epoch": 1,
+        "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+        "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+        "catalog_id": "ofac-sdn-direct",
+        "catalog_version": "07/13/2026-c33e134053cc",
+        "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+        "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+        "activated_at": "2026-07-13T19:02:00Z"
+      },
+      "started_at": "2026-07-13T21:02:00Z",
+      "completed_at": "2026-07-13T21:02:00Z"
+    }
+  ],
+  "rollback": {
+    "schema_version": "fleet-rollback-record/v1alpha1",
+    "rollback_id": "fleet_rollback_2f3cf6bd9e8a363d9793acd7",
+    "from_activation_id": "fleet_activation_1d12249ca0ff770bd2afd5bf",
+    "to_package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+    "reason": "fixture canary quality regression",
+    "fleet_epoch": 3,
+    "activation_acks": [
+      {
+        "schema_version": "worker-activation-ack/v1alpha1",
+        "ack_id": "worker_activation_2ec8f28dc00342dc0c9fe28d",
+        "update_id": "update_e85a3b2f103afaacab1526b8",
+        "worker": {
+          "schema_version": "screening-worker-descriptor/v1alpha1",
+          "worker_id": "worker-a",
+          "zone": "zone-a",
+          "required": true
+        },
+        "fleet_epoch": 3,
+        "phase": "rollback",
+        "status": "pass",
+        "probe_passed": true,
+        "detail": "package activated and local smoke probe passed",
+        "generation": {
+          "schema_version": "catalog-generation-stamp/v1alpha1",
+          "generation_id": "generation_d07c2da6d7f3f0d2311d24b9",
+          "activation_epoch": 3,
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "catalog_id": "ofac-sdn-direct",
+          "catalog_version": "07/13/2026-c33e134053cc",
+          "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+          "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+          "compiled_at": "2026-07-13T19:00:00Z",
+          "activated_at": "2026-07-13T22:00:00Z"
+        },
+        "activated_at": "2026-07-13T22:00:00Z"
+      },
+      {
+        "schema_version": "worker-activation-ack/v1alpha1",
+        "ack_id": "worker_activation_870efb8a2402215e5bb14d7c",
+        "update_id": "update_e85a3b2f103afaacab1526b8",
+        "worker": {
+          "schema_version": "screening-worker-descriptor/v1alpha1",
+          "worker_id": "worker-b",
+          "zone": "zone-b",
+          "required": true
+        },
+        "fleet_epoch": 3,
+        "phase": "rollback",
+        "status": "pass",
+        "probe_passed": true,
+        "detail": "package activated and local smoke probe passed",
+        "generation": {
+          "schema_version": "catalog-generation-stamp/v1alpha1",
+          "generation_id": "generation_aa5cb23ce5a819fabcf45e95",
+          "activation_epoch": 3,
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "catalog_id": "ofac-sdn-direct",
+          "catalog_version": "07/13/2026-c33e134053cc",
+          "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+          "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+          "compiled_at": "2026-07-13T19:00:00Z",
+          "activated_at": "2026-07-13T22:00:00Z"
+        },
+        "activated_at": "2026-07-13T22:00:00Z"
+      },
+      {
+        "schema_version": "worker-activation-ack/v1alpha1",
+        "ack_id": "worker_activation_7298c8d83d5ab11b0d8b5f97",
+        "update_id": "update_e85a3b2f103afaacab1526b8",
+        "worker": {
+          "schema_version": "screening-worker-descriptor/v1alpha1",
+          "worker_id": "worker-c",
+          "zone": "zone-c",
+          "required": true
+        },
+        "fleet_epoch": 3,
+        "phase": "rollback",
+        "status": "pass",
+        "probe_passed": true,
+        "detail": "package activated and local smoke probe passed",
+        "generation": {
+          "schema_version": "catalog-generation-stamp/v1alpha1",
+          "generation_id": "generation_a6afbee6b6231ab93d52d2db",
+          "activation_epoch": 3,
+          "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+          "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+          "catalog_id": "ofac-sdn-direct",
+          "catalog_version": "07/13/2026-c33e134053cc",
+          "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+          "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+          "compiled_at": "2026-07-13T19:00:00Z",
+          "activated_at": "2026-07-13T22:00:00Z"
+        },
+        "activated_at": "2026-07-13T22:00:00Z"
+      }
+    ],
+    "requested_at": "2026-07-13T22:00:00Z",
+    "completed_at": "2026-07-13T22:00:00Z"
+  },
+  "active": {
+    "schema_version": "fleet-active-pointer/v1alpha1",
+    "activation_id": "fleet_rollback_2f3cf6bd9e8a363d9793acd7",
+    "update_id": "update_e85a3b2f103afaacab1526b8",
+    "fleet_epoch": 3,
+    "package_id": "runtime_package_29afe5ff163562a9ce5ffa33",
+    "package_checksum": "cbf096aed46540e6102d02b1fa107e0586865ec14b99f74c4d772c6b90f8b2a1",
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/13/2026-c33e134053cc",
+    "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+    "source_manifest_id": "ofac_source_44c973969f1e1be452010ca8",
+    "activated_at": "2026-07-13T22:00:00Z"
+  },
+  "audit": {
+    "schema_version": "update-audit-history/v1alpha1",
+    "head_hash": "9057aa26af6179e58cae3a5df9b9e139d330826b96955e4db020801a956a8f66",
+    "events": [
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 1,
+        "event_id": "audit_0a9eef39420e2ece2b6be492",
+        "previous_hash": "",
+        "event_hash": "0a9eef39420e2ece2b6be492f91c5a22691720c8d702c0311cb295de859d67fc",
+        "event_type": "update_due",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:00:00Z",
+        "payload_sha256": "55371a06525e26b4be80a1d021da99488dacf83b996a19cb42b5a562e194647d"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 2,
+        "event_id": "audit_1ea05495f71c23483b8f686e",
+        "previous_hash": "0a9eef39420e2ece2b6be492f91c5a22691720c8d702c0311cb295de859d67fc",
+        "event_hash": "1ea05495f71c23483b8f686ea44c2fa4501477eb50d71cb888706e95fcb5175a",
+        "event_type": "source_staged",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:00:00Z",
+        "payload_sha256": "8b0ca7b0b83b5fd4f558b6f2d5720b9b158e49e633a6157502c7d384186ca5cb"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 3,
+        "event_id": "audit_00c507ba489299a24ff52828",
+        "previous_hash": "1ea05495f71c23483b8f686ea44c2fa4501477eb50d71cb888706e95fcb5175a",
+        "event_hash": "00c507ba489299a24ff52828964f73758cd959084aa3c9445d75589df7dc8fde",
+        "event_type": "package_compiled",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:00:00Z",
+        "payload_sha256": "c853992324886b85fd7f75966f2285b4bca6ab193802f0817187f08b839de66d"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 4,
+        "event_id": "audit_da04b06bc72512e23b659036",
+        "previous_hash": "00c507ba489299a24ff52828964f73758cd959084aa3c9445d75589df7dc8fde",
+        "event_hash": "da04b06bc72512e23b65903602c0126e8a407d6ccaa055a61787544599ef2963",
+        "event_type": "worker_readiness",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:01:00Z",
+        "payload_sha256": "6cc6de3bab8d63693893d27ba699828b959221c48285c36124b554e50347980c"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 5,
+        "event_id": "audit_d8a499a2356978cc6a64b850",
+        "previous_hash": "da04b06bc72512e23b65903602c0126e8a407d6ccaa055a61787544599ef2963",
+        "event_hash": "d8a499a2356978cc6a64b85065692cdaa365c1934f68454eebccc4a01cd46175",
+        "event_type": "worker_readiness",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:01:00Z",
+        "payload_sha256": "04d51b8ab292c4dca970798ccaff684becc94e3db9d296dfe886a230af161425"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 6,
+        "event_id": "audit_be3b14f7a9c2e6da720f8540",
+        "previous_hash": "d8a499a2356978cc6a64b85065692cdaa365c1934f68454eebccc4a01cd46175",
+        "event_hash": "be3b14f7a9c2e6da720f854085718813867bd4a6c911ec94943cc81576e77698",
+        "event_type": "worker_readiness",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:01:00Z",
+        "payload_sha256": "a1aa761d1c5fab90451340e675098978b17f022690dff4833410a2fcfd44e174"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 7,
+        "event_id": "audit_b02e573a4ab9e53ec1d01ba3",
+        "previous_hash": "be3b14f7a9c2e6da720f854085718813867bd4a6c911ec94943cc81576e77698",
+        "event_hash": "b02e573a4ab9e53ec1d01ba3fe79ca5832edb6565b5e2f2f386cefd86f58a18a",
+        "event_type": "canary_activation",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:02:00Z",
+        "payload_sha256": "54bc0bcd6d73ca67e67b7d8f39b94b9073b3e7a80242e9b1da7c4998aeb33c66"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 8,
+        "event_id": "audit_f4d56b07c317588e6c590568",
+        "previous_hash": "b02e573a4ab9e53ec1d01ba3fe79ca5832edb6565b5e2f2f386cefd86f58a18a",
+        "event_hash": "f4d56b07c317588e6c5905681e38e4b55df5767aabb47686a4be87884372d7f6",
+        "event_type": "worker_activation",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:02:00Z",
+        "payload_sha256": "378924da08d9410667dbdf5fd2ea62adb5574f37c6682e43cd269926173a9bcb"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 9,
+        "event_id": "audit_15f76b85e28bea69f89cce8e",
+        "previous_hash": "f4d56b07c317588e6c5905681e38e4b55df5767aabb47686a4be87884372d7f6",
+        "event_hash": "15f76b85e28bea69f89cce8e6ed0b2e82ac9b3fe042439392e6bf9787eda9f14",
+        "event_type": "worker_activation",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:02:00Z",
+        "payload_sha256": "4d7f4d0c6aa2b9860593008bc68190ce92b5a702bf795026587141a60d1f330c"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 10,
+        "event_id": "audit_85fb4beab989a0d0b8b6585f",
+        "previous_hash": "15f76b85e28bea69f89cce8e6ed0b2e82ac9b3fe042439392e6bf9787eda9f14",
+        "event_hash": "85fb4beab989a0d0b8b6585f0dc85efa932fd44f75c49b391b66d517f907e7ab",
+        "event_type": "fleet_active",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T19:02:00Z",
+        "payload_sha256": "8a749dadec92a6ac1aa88beab85b4ea24a862a786b558295766c5f0a0fef9dc0"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 11,
+        "event_id": "audit_e1565a86ef04e77e72d8587f",
+        "previous_hash": "85fb4beab989a0d0b8b6585f0dc85efa932fd44f75c49b391b66d517f907e7ab",
+        "event_hash": "e1565a86ef04e77e72d8587ff51f8303bc7ea5bcd204756d342fc6637c53b9fa",
+        "event_type": "update_due",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:00:00Z",
+        "payload_sha256": "c973081a49ac0db4de2263dc530faf90c247cfe852bc2e7b1157f53af1697611"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 12,
+        "event_id": "audit_0046f80d62a1c77919197cf5",
+        "previous_hash": "e1565a86ef04e77e72d8587ff51f8303bc7ea5bcd204756d342fc6637c53b9fa",
+        "event_hash": "0046f80d62a1c77919197cf5bc022c76280bbc6cee7405d8a9985a2053a044aa",
+        "event_type": "source_staged",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:00:00Z",
+        "payload_sha256": "7a2426336d49579c267c9cb29b12d4e02fc5bb85b65b980e753adcfded26ca60"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 13,
+        "event_id": "audit_a4c6bbf898dbf5e9f113ca0a",
+        "previous_hash": "0046f80d62a1c77919197cf5bc022c76280bbc6cee7405d8a9985a2053a044aa",
+        "event_hash": "a4c6bbf898dbf5e9f113ca0ad2cd4873e4f5288afdb1a2d0ee1d42a808438154",
+        "event_type": "package_compiled",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:00:00Z",
+        "payload_sha256": "c1e8febd61f2fc994ad8fcbf5c051dcff821effbd1666568ae862105ed2cdbdb"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 14,
+        "event_id": "audit_00b6e32cb4954245e038981c",
+        "previous_hash": "a4c6bbf898dbf5e9f113ca0ad2cd4873e4f5288afdb1a2d0ee1d42a808438154",
+        "event_hash": "00b6e32cb4954245e038981c3f84d2c5cee7a86e9dcf2303a3d91a58c9b1f78f",
+        "event_type": "worker_readiness",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:01:00Z",
+        "payload_sha256": "60068b945c7d755c37ad1e9eef1c0e5539d0c0ed8fdf65aa64182794378e3139"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 15,
+        "event_id": "audit_902be98d92a7715d0ee69e24",
+        "previous_hash": "00b6e32cb4954245e038981c3f84d2c5cee7a86e9dcf2303a3d91a58c9b1f78f",
+        "event_hash": "902be98d92a7715d0ee69e24026af7e4486873a8fcd8a3f49dc68c153ca3f138",
+        "event_type": "worker_readiness",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:01:00Z",
+        "payload_sha256": "420c25645ab67726311c5e0039ef43ec97c72f44c927a2d27a4ccf94157829d0"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 16,
+        "event_id": "audit_b97a2ccb6c9f84ac6f12b770",
+        "previous_hash": "902be98d92a7715d0ee69e24026af7e4486873a8fcd8a3f49dc68c153ca3f138",
+        "event_hash": "b97a2ccb6c9f84ac6f12b7701a06ab565e563ef0717a390961bf4cbdf893459d",
+        "event_type": "worker_readiness",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:01:00Z",
+        "payload_sha256": "2edfac7963be02c0de1f7dfbd914fe6237bddd3dfd97ab66e1ba58d6ce5e34bb"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 17,
+        "event_id": "audit_bdfe88c91412537ae8f03d19",
+        "previous_hash": "b97a2ccb6c9f84ac6f12b7701a06ab565e563ef0717a390961bf4cbdf893459d",
+        "event_hash": "bdfe88c91412537ae8f03d19b960a68c4d0188c901c2cc96734ebca866c76d2b",
+        "event_type": "canary_activation",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:02:00Z",
+        "payload_sha256": "7e8adcf5ebe5a1c38f07a78bf455ad3c9dd252d77daee0210ef5644cfb0503a1"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 18,
+        "event_id": "audit_aa7b091ff5ef940cac2c1c9b",
+        "previous_hash": "bdfe88c91412537ae8f03d19b960a68c4d0188c901c2cc96734ebca866c76d2b",
+        "event_hash": "aa7b091ff5ef940cac2c1c9b54e36b52053e2e489d22276a8a4076582088df4a",
+        "event_type": "worker_activation",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:02:00Z",
+        "payload_sha256": "0cb921ee7bf59e67714c7a65a8f3d4c66f8b9fb153fa08c00d2e8259405e9312"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 19,
+        "event_id": "audit_d409eb287db612a12da93893",
+        "previous_hash": "aa7b091ff5ef940cac2c1c9b54e36b52053e2e489d22276a8a4076582088df4a",
+        "event_hash": "d409eb287db612a12da9389395b41a76c594f0998d3af7223437c51d93f57e0c",
+        "event_type": "worker_activation",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:02:00Z",
+        "payload_sha256": "9229dea559df40b92767dd7cc520604cd2cf041f845096d82ce486494178c0db"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 20,
+        "event_id": "audit_980d7d8eae3d5f1ee156deb0",
+        "previous_hash": "d409eb287db612a12da9389395b41a76c594f0998d3af7223437c51d93f57e0c",
+        "event_hash": "980d7d8eae3d5f1ee156deb0d3e74be0176304573228739fd09682e456e556d0",
+        "event_type": "fleet_active",
+        "subject_id": "update_9d3560bb62947ecea61c347b",
+        "occurred_at": "2026-07-13T21:02:00Z",
+        "payload_sha256": "35d9e43ea54c2d7530287f0dafca86083cd64e1662b3a0e637ac0e2a61777b2f"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 21,
+        "event_id": "audit_38470c86d5c1e0cba60bed23",
+        "previous_hash": "980d7d8eae3d5f1ee156deb0d3e74be0176304573228739fd09682e456e556d0",
+        "event_hash": "38470c86d5c1e0cba60bed2316ca70af751a7d016b7d617f6aad66bb8265b7d1",
+        "event_type": "worker_rollback",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T22:00:00Z",
+        "payload_sha256": "5023a874e83f6074f4e577af555ab636c7210d01902a7d2f991b5e1710cc0957"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 22,
+        "event_id": "audit_f6ecac9e09644f872e17f7b8",
+        "previous_hash": "38470c86d5c1e0cba60bed2316ca70af751a7d016b7d617f6aad66bb8265b7d1",
+        "event_hash": "f6ecac9e09644f872e17f7b8877fff9a47f9e4bcad2ec1f5bcc73ffba023eb73",
+        "event_type": "worker_rollback",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T22:00:00Z",
+        "payload_sha256": "72c93a524d0cacb18c28e01d68cad40a48e6bcbbc2015ad3c7f26a47e91aa05e"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 23,
+        "event_id": "audit_e0b9efaad383c54521f33591",
+        "previous_hash": "f6ecac9e09644f872e17f7b8877fff9a47f9e4bcad2ec1f5bcc73ffba023eb73",
+        "event_hash": "e0b9efaad383c54521f33591940a1ee312a95f0cf32a295539fb64d8baabc0af",
+        "event_type": "worker_rollback",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T22:00:00Z",
+        "payload_sha256": "8e9c2ad6de09af9c8f13260164cb73833086fcfac9e134f2d8f79dd2cba2789f"
+      },
+      {
+        "schema_version": "update-audit-event/v1alpha1",
+        "sequence": 24,
+        "event_id": "audit_9057aa26af6179e58cae3a5d",
+        "previous_hash": "e0b9efaad383c54521f33591940a1ee312a95f0cf32a295539fb64d8baabc0af",
+        "event_hash": "9057aa26af6179e58cae3a5df9b9e139d330826b96955e4db020801a956a8f66",
+        "event_type": "fleet_rollback",
+        "subject_id": "update_e85a3b2f103afaacab1526b8",
+        "occurred_at": "2026-07-13T22:00:00Z",
+        "payload_sha256": "e59969b5bd5986a5ef95a4387ed7086b845f2af090a2612c71967151a6ddfd55"
+      }
+    ]
+  }
+}

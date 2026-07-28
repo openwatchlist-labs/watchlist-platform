@@ -1,0 +1,262 @@
+{
+  "schema_version": "openwatchlist.screening-response.v2",
+  "request_id": "screening-phase8d-realtime-1",
+  "correlation_id": "corr-phase8d-golden",
+  "request_sha256": "bbb2e301d37116975c2911cd8d57b2f55c32a19f388647c22d34b81d36de8fb9",
+  "status": "candidates_retrieved",
+  "blockers": [],
+  "field": {
+    "path": "Document/FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+    "original_value": "Acme Trading LLC",
+    "normalized_value": "ACME TRADING LLC"
+  },
+  "policy": {
+    "policy_id": "candidate-scoring-r1",
+    "policy_version": "1.0.0",
+    "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "lineage": {
+    "provider": "ofac-direct",
+    "catalog_id": "ofac-production",
+    "component_id": "sdn",
+    "component_version": "2026-07-14T00:00:00Z",
+    "activation_id": "activation-phase8d-fixture",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "candidates": [
+    {
+      "candidate_id": "candidate-exact-lei",
+      "score": 930,
+      "similarity_band": "high_similarity",
+      "exact_identifier_matched": true,
+      "exact_name_matched": true,
+      "reason_codes": [
+        "country_conflict",
+        "entity_type_exact",
+        "name_exact",
+        "retrieval_name_exact_candidate",
+        "retrieval_typed_identifier_candidate",
+        "typed_identifier_exact"
+      ],
+      "components": [
+        {
+          "component": "typed_identifier",
+          "points": 550,
+          "reason_code": "typed_identifier_exact"
+        },
+        {
+          "component": "name",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "component": "country",
+          "points": -60,
+          "reason_code": "country_conflict"
+        },
+        {
+          "component": "entity_type",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "identifier",
+          "outcome": "support",
+          "subject_value": "LEI:5493001KJTIIGC8Y1R12",
+          "candidate_value": "LEI:5493001KJTIIGC8Y1R12",
+          "points": 550,
+          "reason_code": "typed_identifier_exact"
+        },
+        {
+          "kind": "name",
+          "outcome": "support",
+          "subject_value": "ACME TRADING LLC",
+          "candidate_value": "ACME TRADING LLC",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "kind": "country",
+          "outcome": "contradiction",
+          "subject_value": "US",
+          "candidate_value": "GB",
+          "points": -60,
+          "reason_code": "country_conflict"
+        },
+        {
+          "kind": "entity_type",
+          "outcome": "support",
+          "subject_value": "ORGANIZATION",
+          "candidate_value": "ORGANIZATION",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "retrieval": {
+        "routes": [
+          "name_exact",
+          "typed_identifier_exact"
+        ],
+        "reason_codes": [
+          "name_exact_candidate",
+          "typed_identifier_candidate"
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-production",
+        "component_id": "sdn",
+        "component_version": "2026-07-14T00:00:00Z",
+        "activation_id": "activation-phase8d-fixture",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      }
+    },
+    {
+      "candidate_id": "candidate-exact-name",
+      "score": 500,
+      "similarity_band": "possible_similarity",
+      "exact_identifier_matched": false,
+      "exact_name_matched": true,
+      "reason_codes": [
+        "country_exact",
+        "entity_type_exact",
+        "name_exact",
+        "retrieval_name_exact_candidate"
+      ],
+      "components": [
+        {
+          "component": "name",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "component": "country",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "component": "entity_type",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "name",
+          "outcome": "support",
+          "subject_value": "ACME TRADING LLC",
+          "candidate_value": "ACME TRADING LLC",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "kind": "country",
+          "outcome": "support",
+          "subject_value": "US",
+          "candidate_value": "US",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "kind": "entity_type",
+          "outcome": "support",
+          "subject_value": "ORGANIZATION",
+          "candidate_value": "ORGANIZATION",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "retrieval": {
+        "routes": [
+          "name_exact"
+        ],
+        "reason_codes": [
+          "name_exact_candidate"
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-production",
+        "component_id": "sdn",
+        "component_version": "2026-07-14T00:00:00Z",
+        "activation_id": "activation-phase8d-fixture",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      }
+    },
+    {
+      "candidate_id": "candidate-weak",
+      "score": 350,
+      "similarity_band": "low_similarity",
+      "exact_identifier_matched": false,
+      "exact_name_matched": false,
+      "reason_codes": [
+        "country_exact",
+        "entity_type_exact",
+        "name_prefix",
+        "retrieval_name_prefix_candidate"
+      ],
+      "components": [
+        {
+          "component": "name",
+          "points": 250,
+          "reason_code": "name_prefix"
+        },
+        {
+          "component": "country",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "component": "entity_type",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "name",
+          "outcome": "support",
+          "subject_value": "ACME TRADING LLC",
+          "candidate_value": "ACME TRADING",
+          "points": 250,
+          "reason_code": "name_prefix"
+        },
+        {
+          "kind": "country",
+          "outcome": "support",
+          "subject_value": "US",
+          "candidate_value": "US",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "kind": "entity_type",
+          "outcome": "support",
+          "subject_value": "ORGANIZATION",
+          "candidate_value": "ORGANIZATION",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "retrieval": {
+        "routes": [
+          "name_prefix"
+        ],
+        "reason_codes": [
+          "name_prefix_candidate"
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-production",
+        "component_id": "sdn",
+        "component_version": "2026-07-14T00:00:00Z",
+        "activation_id": "activation-phase8d-fixture",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      }
+    }
+  ]
+}

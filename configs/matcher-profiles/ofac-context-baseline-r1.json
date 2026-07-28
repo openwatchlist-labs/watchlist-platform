@@ -1,0 +1,60 @@
+{
+  "schema_version": "matcher-context-profile-set/v1alpha1",
+  "profile_set_id": "ofac-context-baseline-r1",
+  "profile_set_version": "1.0.0",
+  "profile_set_checksum": "4142156d443d412c2c30bcc2a9e3ecfd074bdc029c0c0105376c319e8bd612b2",
+  "matcher_version": "deterministic-context-matcher/v0.1.0",
+  "profiles": [
+    {
+      "profile_id": "jurisdiction_context_r1",
+      "context_kind": "jurisdiction",
+      "threshold_basis_points": 10000,
+      "diagnostic_floor_basis_points": 10000,
+      "feature_weights": [
+        {
+          "name": "country_equivalence",
+          "weight_basis_points": 6000
+        },
+        {
+          "name": "policy_status",
+          "weight_basis_points": 4000
+        }
+      ]
+    },
+    {
+      "profile_id": "narrative_context_r1",
+      "context_kind": "narrative",
+      "threshold_basis_points": 8500,
+      "diagnostic_floor_basis_points": 3000,
+      "feature_weights": [
+        {
+          "name": "boundary_phrase_match",
+          "weight_basis_points": 5000
+        },
+        {
+          "name": "source_quality",
+          "weight_basis_points": 2000
+        },
+        {
+          "name": "window_compactness",
+          "weight_basis_points": 3000
+        }
+      ],
+      "ordered_window_score_basis_points": 9000,
+      "max_window_extra_tokens": 3,
+      "min_single_token_length": 6,
+      "weak_alias_penalty_basis_points": 500,
+      "denial_penalty_basis_points": 6000,
+      "denial_window_tokens": 6,
+      "denial_markers": [
+        "DECLINED",
+        "DENIED",
+        "NO",
+        "NO BUSINESS RELATIONSHIP",
+        "NOT",
+        "REJECTED",
+        "WITHOUT"
+      ]
+    }
+  ]
+}

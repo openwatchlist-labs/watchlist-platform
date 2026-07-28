@@ -1,0 +1,37 @@
+{
+  "tenant_id": "tenant-a",
+  "alert_id": "GEN-1001",
+  "system": "generic-upstream",
+  "list_name": "OFAC SDN",
+  "occurred_at": "2026-07-15T14:30:00Z",
+  "score": 92,
+  "reasons": [
+    "name_exact",
+    "identifier_exact"
+  ],
+  "matched_fields": [
+    "debtor.name",
+    "debtor.lei"
+  ],
+  "candidates": [
+    "sdn:12345"
+  ],
+  "message_refs": [
+    "MSG-9E-1"
+  ],
+  "attachments": [
+    "doc:abc"
+  ],
+  "subject": {
+    "name": "ALPHA TRADING LTD",
+    "country": "GB",
+    "entity_type": "organization"
+  },
+  "evidence": {
+    "screened_name": "ALPHA TRADING LTD",
+    "matched_name": "ALPHA TRADING LIMITED"
+  },
+  "status": "OPEN",
+  "correlation_id": "corr-phase9e-generic",
+  "idempotency_key": "idem-phase9e-shared"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "openwatchlist.screening-ready.v1",
+  "ready": true,
+  "policy": {
+    "policy_id": "candidate-scoring-r1",
+    "policy_version": "1.0.0",
+    "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "upstream": "http://127.0.0.1:18090",
+  "projection_set_sha256": "c60b60554cce753c73aecbdba6105c759dd0b9429790ebe2e49d9c5e4861b345",
+  "blockers": []
+}

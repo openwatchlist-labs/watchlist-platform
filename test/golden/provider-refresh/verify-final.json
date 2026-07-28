@@ -1,0 +1,12 @@
+{
+  "audit_head": "8ffb83315ce3634569710beca39b41b0125a1b63600554109b2ef62413707d2d",
+  "candidate_count": 2,
+  "catalog_registry_checksum": "b8573e198034928428525d268dab5538f3e8c3450644cfca96cb5205a0421b1c",
+  "decision_count": 1,
+  "execution_count": 2,
+  "last_sequence": 3,
+  "namespace": "demo-bank",
+  "registry_checksum": "0876bb06f00de597ae943a8ee68203ba6b8ad7172270c87bdb29d02a415b4c5e",
+  "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+  "valid": true
+}

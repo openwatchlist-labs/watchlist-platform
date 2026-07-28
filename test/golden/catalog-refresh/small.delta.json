@@ -1,0 +1,70 @@
+{
+  "schema_version": "ofac-catalog-delta/v1alpha1",
+  "delta_id": "catalog_delta_dc3fcc62ffa5615ef0b49e6c",
+  "sequence": 1,
+  "base": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/15/2026-474abc628e6c",
+    "catalog_checksum": "323d87b36857ccc81fc76abcb0dacdad6558a7bddec020fec4aea9806632949b",
+    "record_count": 10
+  },
+  "target": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/16/2026-e0524130c4b2",
+    "catalog_checksum": "7dda7f711e763ace1124694cdc20bef98aae57a16f63190105b9f8440eb8c729",
+    "record_count": 10
+  },
+  "target_source_manifest": {
+    "schema_version": "ofac-source-manifest/v1alpha1",
+    "manifest_id": "ofac_source_a8f52214486936b539b80d75",
+    "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+    "dataset_id": "ofac-sdn",
+    "source_url": "fixture:delta-small",
+    "acquisition_method": "local_fixture",
+    "acquired_at": "2026-07-13T19:01:00Z",
+    "media_type": "application/xml",
+    "content_length": 3904,
+    "content_sha256": "e0524130c4b2b6feffff5ee6fd3b05e82df1a2f4726c506cd4602ca95637dee7",
+    "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML",
+    "publish_date": "07/16/2026",
+    "declared_record_count": 10,
+    "parser_version": "ofac-sdn-legacy-xml-parser/v0.1.0"
+  },
+  "generated_at": "2026-07-13T19:03:00Z",
+  "operations": [
+    {
+      "operation": "replace",
+      "provider_record_id": "ofac:sdn:4005",
+      "before_record_sha256": "9f31c9a80e16d4c98948afc7972466dd86d26233e3fb1399856f17b143f54eca",
+      "after": {
+        "provider_record_id": "ofac:sdn:4005",
+        "source_uid": "4005",
+        "entity_type": "organization",
+        "sdn_type": "Entity",
+        "primary_name": "Delta Fixture Entity 05",
+        "remarks": "Synthetic delta updated record 05. Not an actual OFAC designation.",
+        "programs": [
+          "DEMO-DELTA"
+        ],
+        "aliases": [
+          {
+            "source_uid": "5005",
+            "type": "a.k.a.",
+            "strength": "strong",
+            "name": "DFE 05"
+          }
+        ],
+        "source_assertion": {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "4005",
+          "programs": [
+            "DEMO-DELTA"
+          ]
+        }
+      }
+    }
+  ],
+  "delta_checksum": "393343caa0c3fc8699ac0df1b90a2f3e4f86d85ffe4d549c2e2243972ff1eed7"
+}

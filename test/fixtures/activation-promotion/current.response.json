@@ -1,0 +1,10 @@
+{
+  "schema_version": "openwatchlist.screening-response.v2",
+  "request_id": "phase8f-screening-1",
+  "backend_marker": "current",
+  "blockers": [],
+  "candidates": [
+    {"candidate_id": "candidate-a", "score": 900, "similarity_band": "high_similarity"},
+    {"candidate_id": "candidate-b", "score": 700, "similarity_band": "possible_similarity"}
+  ]
+}

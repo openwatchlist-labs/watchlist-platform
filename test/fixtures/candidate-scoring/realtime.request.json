@@ -1,0 +1,65 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-request.v1",
+  "request_id": "screening-fixture-name-001",
+  "field_path": "Document/FIToFICstmrCdtTrf/CdtTrfTxInf/Dbtr/Nm",
+  "original_value": "Acme Trading LLC",
+  "normalized_value": "ACME TRADING LLC",
+  "subject": {
+    "names": ["Acme Trading LLC"],
+    "identifiers": [
+      {"type": "LEI", "value": "5493001KJTIIGC8Y1R12"}
+    ],
+    "countries": ["US"],
+    "dates_of_birth": [],
+    "entity_type": "organization"
+  },
+  "lineage": {
+    "provider": "ofac-direct",
+    "catalog_id": "ofac-fixture-catalog",
+    "component_id": "ofac-sdn",
+    "component_version": "2026-07-14-fixture",
+    "activation_id": "activation-fixture-001",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "candidates": [
+    {
+      "candidate": {
+        "candidate_id": "candidate-exact-name",
+        "names": ["ACME TRADING LLC"],
+        "countries": ["US"],
+        "entity_type": "entity"
+      },
+      "retrieval": {
+        "routes": ["name_exact"],
+        "reason_codes": ["runtime_name_exact_candidate"]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "candidate-exact-lei",
+        "names": ["ACME TRADING"],
+        "identifiers": [
+          {"type": "lei", "value": "5493001KJTIIGC8Y1R12"}
+        ],
+        "countries": ["GB"],
+        "entity_type": "organization"
+      },
+      "retrieval": {
+        "routes": ["typed_identifier", "name_prefix"],
+        "reason_codes": ["runtime_typed_identifier_candidate", "runtime_name_prefix_candidate"]
+      }
+    },
+    {
+      "candidate": {
+        "candidate_id": "candidate-weak",
+        "names": ["ACME"],
+        "countries": ["CA"],
+        "entity_type": "person"
+      },
+      "retrieval": {
+        "routes": ["name_prefix"],
+        "reason_codes": ["runtime_name_prefix_candidate"]
+      }
+    }
+  ]
+}

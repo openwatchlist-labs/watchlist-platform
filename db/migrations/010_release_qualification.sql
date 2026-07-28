@@ -1,0 +1,9 @@
+BEGIN;
+CREATE OR REPLACE FUNCTION openwatchlist_reject_mutation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'immutable relation %', TG_TABLE_NAME; END $$;
+CREATE TABLE IF NOT EXISTS release_qualification_report (report_sha256 text PRIMARY KEY, qualification_id text NOT NULL UNIQUE, gate_set_sha256 text NOT NULL, suite_sha256 text NOT NULL, status text NOT NULL CHECK(status IN ('qualified','blocked')), report_json jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS release_qualification_gate (report_sha256 text NOT NULL REFERENCES release_qualification_report(report_sha256), gate_id text NOT NULL, status text NOT NULL CHECK(status IN ('pass','block')), observed numeric NOT NULL, threshold numeric NOT NULL, evidence_json jsonb NOT NULL, PRIMARY KEY(report_sha256,gate_id));
+CREATE TABLE IF NOT EXISTS release_qualification_audit (sequence bigint PRIMARY KEY, previous_sha256 text NOT NULL, event_sha256 text NOT NULL UNIQUE, action text NOT NULL, report_sha256 text NOT NULL, occurred_at timestamptz NOT NULL, details jsonb NOT NULL);
+DROP TRIGGER IF EXISTS release_qualification_report_immutable ON release_qualification_report; CREATE TRIGGER release_qualification_report_immutable BEFORE UPDATE OR DELETE ON release_qualification_report FOR EACH ROW EXECUTE FUNCTION openwatchlist_reject_mutation();
+DROP TRIGGER IF EXISTS release_qualification_gate_immutable ON release_qualification_gate; CREATE TRIGGER release_qualification_gate_immutable BEFORE UPDATE OR DELETE ON release_qualification_gate FOR EACH ROW EXECUTE FUNCTION openwatchlist_reject_mutation();
+DROP TRIGGER IF EXISTS release_qualification_audit_immutable ON release_qualification_audit; CREATE TRIGGER release_qualification_audit_immutable BEFORE UPDATE OR DELETE ON release_qualification_audit FOR EACH ROW EXECUTE FUNCTION openwatchlist_reject_mutation();
+COMMIT;

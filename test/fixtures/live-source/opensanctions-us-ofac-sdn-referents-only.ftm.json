@@ -1,0 +1,2 @@
+{"id":"NK-REFERENT-ONE","schema":"Organization","caption":"Referent Only Example","datasets":["us_ofac_sdn"],"referents":["ofac-54742","ofac-54742","ofac-3f0569b9445849c2dd647f54ab6ed4a3f5d58fb7","wikidata-Q1"],"properties":{"name":["Referent Only Example"]}}
+{"id":"NK-REFERENT-TWO","schema":"Person","caption":"Merged Source Example","datasets":["us_ofac_sdn"],"referents":["OFAC-40950","ofac-16033"],"properties":{"name":["Merged Source Example"]}}

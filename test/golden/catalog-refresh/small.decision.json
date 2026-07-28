@@ -1,0 +1,75 @@
+{
+  "schema_version": "catalog-promotion-decision/v1alpha1",
+  "decision_id": "promotion_decision_29b65dcb2c21245ac9088c97",
+  "engine_version": "catalog-refresh-engine/v0.1.0",
+  "outcome": "promote_delta",
+  "policy": {
+    "schema_version": "catalog-promotion-policy/v1alpha1",
+    "policy_id": "ofac-delta-promotion",
+    "policy_version": "1.0.0",
+    "max_change_ratio_basis_points": 2000,
+    "max_deletion_ratio_basis_points": 1000,
+    "max_operations": 1000,
+    "force_full_at_or_above_threshold": true,
+    "require_contiguous_sequence": true,
+    "require_base_checksum_match": true,
+    "require_target_checksum_match": true,
+    "full_rebuild_verification_interval": 10
+  },
+  "delta_id": "catalog_delta_dc3fcc62ffa5615ef0b49e6c",
+  "sequence": 1,
+  "expected_sequence": 1,
+  "base": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/15/2026-474abc628e6c",
+    "catalog_checksum": "323d87b36857ccc81fc76abcb0dacdad6558a7bddec020fec4aea9806632949b",
+    "record_count": 10
+  },
+  "target": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/16/2026-e0524130c4b2",
+    "catalog_checksum": "7dda7f711e763ace1124694cdc20bef98aae57a16f63190105b9f8440eb8c729",
+    "record_count": 10
+  },
+  "diff": {
+    "schema_version": "catalog-diff-report/v1alpha1",
+    "report_id": "catalog_diff_b2a4b27fe4779a32615b6e66",
+    "base": {
+      "catalog_id": "ofac-sdn-direct",
+      "catalog_version": "07/15/2026-474abc628e6c",
+      "catalog_checksum": "323d87b36857ccc81fc76abcb0dacdad6558a7bddec020fec4aea9806632949b",
+      "record_count": 10
+    },
+    "target": {
+      "catalog_id": "ofac-sdn-direct",
+      "catalog_version": "07/16/2026-e0524130c4b2",
+      "catalog_checksum": "7dda7f711e763ace1124694cdc20bef98aae57a16f63190105b9f8440eb8c729",
+      "record_count": 10
+    },
+    "added": 0,
+    "modified": 1,
+    "removed": 0,
+    "unchanged": 9,
+    "total_changes": 1,
+    "change_ratio_basis_points": 1000,
+    "deletion_ratio_basis_points": 0,
+    "modified_record_ids": [
+      "ofac:sdn:4005"
+    ],
+    "modified_field_counts": [
+      {
+        "name": "remarks",
+        "count": 1
+      }
+    ]
+  },
+  "reasons": [
+    {
+      "code": "delta_within_policy",
+      "detail": "delta reconstructed a complete catalog within configured promotion thresholds"
+    }
+  ],
+  "reconstructed_catalog_checksum": "7dda7f711e763ace1124694cdc20bef98aae57a16f63190105b9f8440eb8c729",
+  "full_rebuild_verified": true,
+  "evaluated_at": "2026-07-13T19:04:00Z"
+}

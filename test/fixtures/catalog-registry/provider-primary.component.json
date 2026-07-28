@@ -1,0 +1,13 @@
+{
+  "namespace": "demo-bank",
+  "component_key": "provider.sanctions.primary",
+  "display_name": "Primary provider sanctions catalog",
+  "catalog_mode": "provider",
+  "description": "Provider-neutral stable component. Provider dataset references are version metadata, not component identity.",
+  "labels": {
+    "risk_domain": "sanctions",
+    "source_policy": "provider_managed"
+  },
+  "created_at": "2026-07-14T18:30:00Z",
+  "created_by": "phase7cb-fixture"
+}

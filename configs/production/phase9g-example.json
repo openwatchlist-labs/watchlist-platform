@@ -1,0 +1,43 @@
+{
+  "schema_version": "openwatchlist.production-runtime-config.v1",
+  "config_id": "phase9g-fixture-runtime",
+  "version": "2026-07-15-r1",
+  "environment": "fixture",
+  "listen_address": "127.0.0.1:18094",
+  "review_console_config_path": "../review-console/phase9f-example.json",
+  "quota_registry_path": "tenant-quotas-r1.json",
+  "runtime_state_directory": "../../test/fixtures/production/runtime-state",
+  "outbox_directory": "../../test/fixtures/production/runtime-state/outbox",
+  "backup_directory": "../../test/fixtures/production/runtime-state/backups",
+  "shutdown_grace_seconds": 10,
+  "request_timeout_seconds": 30,
+  "read_header_timeout_seconds": 5,
+  "read_timeout_seconds": 35,
+  "write_timeout_seconds": 35,
+  "idle_timeout_seconds": 30,
+  "max_header_bytes": 1048576,
+  "max_body_bytes": 1048576,
+  "global_concurrency": 16,
+  "default_tenant_concurrency": 4,
+  "default_requests_per_minute": 600,
+  "default_burst": 40,
+  "tls": {
+    "required": false,
+    "trusted_proxy": false,
+    "forwarded_proto_header": "X-Forwarded-Proto"
+  },
+  "readiness": {
+    "required_paths": [
+      "../review-console/phase9f-example.json",
+      "../review-console/identity-registry-r1.json",
+      "../../test/fixtures/alert-case/policy.json",
+      "../../test/fixtures/case-assistance/corpus/snapshot.json"
+    ],
+    "min_free_bytes": 1,
+    "postgresql_required": false,
+    "postgresql_dsn_env": "PHASE9G_POSTGRES_DSN",
+    "psql_path": "psql",
+    "verify_outbox": true
+  },
+  "config_sha256": "e186f31ca2c6fe699697f8bd8f2020dc81dd2565e022715ce1814381e0547746"
+}

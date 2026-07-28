@@ -1,0 +1,1 @@
+<?xml version="1.0"?><sdnList xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML"><publishInformation><Publish_Date>07/13/2026</Publish_Date><Record_Count>2</Record_Count></publishInformation><sdnEntry><uid>1</uid><lastName>ONE</lastName><sdnType>Entity</sdnType><programList><program>DEMO</program></programList></sdnEntry></sdnList>

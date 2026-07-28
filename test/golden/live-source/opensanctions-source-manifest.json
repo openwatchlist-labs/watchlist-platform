@@ -1,0 +1,22 @@
+{
+  "schema_version": "catalog-source-manifest/v1alpha1",
+  "manifest_id": "catalog_source_manifest_030f43631491e5215a06a77e",
+  "manifest_checksum": "4ab5f3af1b65271a0d880a782b6f71868f6f151f239f66e3922efae0ea00011c",
+  "source_kind": "opensanctions_ftm",
+  "authority": "OpenSanctions",
+  "dataset_id": "us_ofac_sdn",
+  "source_url": "https://data.opensanctions.org/datasets/latest/us_ofac_sdn/entities.ftm.json",
+  "metadata_url": "https://data.opensanctions.org/datasets/latest/us_ofac_sdn/index.json",
+  "acquisition_method": "local_fixture",
+  "acquired_at": "2026-07-14T12:30:00Z",
+  "media_type": "application/x-ndjson",
+  "content_length": 2023,
+  "content_sha256": "4e30279839422db3bffc6d5a163c5934c01523a035c64a5b6585ebc59236adfe",
+  "upstream_version": "2026-07-14",
+  "upstream_checksum_algorithm": "sha256",
+  "upstream_checksum": "4e30279839422db3bffc6d5a163c5934c01523a035c64a5b6585ebc59236adfe",
+  "license_mode": "cc_by_nc_4_0_noncommercial",
+  "license_reference": "https://www.opensanctions.org/licensing/",
+  "local_data_file": "source/entities.ftm.json",
+  "acquirer_version": "catalog-source-acquirer/v0.1.0"
+}

@@ -1,0 +1,9 @@
+{
+  "source_system_id": "actimize-prod",
+  "raw_list_name": "OFAC_SDN",
+  "action": "retire",
+  "effective_from": "2026-09-01T00:00:00Z",
+  "reason": "Retire the old Actimize list code after source-system decommission",
+  "created_at": "2026-07-14T18:55:00Z",
+  "created_by": "phase7cc-fixture"
+}

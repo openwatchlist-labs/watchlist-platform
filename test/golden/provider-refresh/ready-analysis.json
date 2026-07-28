@@ -1,0 +1,78 @@
+{
+  "candidate": {
+    "schema_version": "provider-refresh-candidate/v1alpha1",
+    "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+    "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+    "namespace": "demo-bank",
+    "status": "ready",
+    "target_component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+    "previous_inventory_checksum": "4813256a36af2aefbc6f61b644f95ab16da2ed9e094d5d16741159304f317e91",
+    "candidate_inventory_checksum": "1c92fba7c9566b403a788369da5b330c4b8523fc8f79dc273e3b539a8a215ff7",
+    "policy": {
+      "schema_version": "provider-refresh-policy/v1alpha1",
+      "max_added_components": 1,
+      "max_removed_components": 1,
+      "max_renamed_components": 1,
+      "max_record_count_delta_percent": 5,
+      "require_all_mapped_components_available": true,
+      "require_target_component_available": true,
+      "require_provider_id_unchanged": true
+    },
+    "changes": [
+      {
+        "change_type": "added",
+        "to_provider_component_ref": "provider-new-screening"
+      },
+      {
+        "change_type": "removed",
+        "from_provider_component_ref": "provider-unused-legacy"
+      },
+      {
+        "change_type": "renamed",
+        "from_provider_component_ref": "provider-defined-component-42",
+        "to_provider_component_ref": "provider-defined-component-84",
+        "reason": "Provider metadata declares an exact component rename"
+      }
+    ],
+    "mapping_impacts": [
+      {
+        "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+        "component_key": "provider.sanctions.primary",
+        "current_version_id": "catalog_version_8676897321509071fcccbcb2",
+        "current_provider_component_ref": "provider-defined-component-42",
+        "candidate_provider_component_ref": "provider-defined-component-84",
+        "status": "renamed",
+        "active_mapping_count": 1,
+        "current_record_count": 20000,
+        "candidate_record_count": 20200,
+        "record_count_delta_percent": 1
+      }
+    ],
+    "candidate_version": {
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "expected_current_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "catalog_id": "licensed-provider-primary",
+      "catalog_version": "provider-release-2026-07-15",
+      "catalog_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "catalog_schema": "provider-entity-catalog/v1alpha1",
+      "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-15/catalog.json",
+      "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source_manifest_id": "provider_source_manifest_demo_v2",
+      "source_manifest_checksum": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "record_count": 20200,
+      "producer_version": "provider-neutral-adapter/v0.2.0",
+      "provider_id": "licensed-provider",
+      "provider_component_ref": "provider-defined-component-84",
+      "provider_title": "Renamed provider sanctions component",
+      "provider_version": "provider-release-2026-07-15",
+      "metadata": {
+        "fixture": "true"
+      }
+    },
+    "analyzed_at": "2026-07-20T12:00:00Z",
+    "analyzed_by": "phase7cd-fixture",
+    "reason": "Qualify the provider release before promotion",
+    "candidate_checksum": "6d6423493aefa3e5f99bd78f2a7ca72369dbd50804698aa7fe52ed8f06fe39b9"
+  },
+  "refresh_registry_checksum": "1ca29234c768da14a36a346696a4bba2fc8c1bf6df9d45e0b343263dd3ec3869"
+}

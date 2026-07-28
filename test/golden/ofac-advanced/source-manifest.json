@@ -1,0 +1,20 @@
+{
+  "schema_version": "ofac-source-manifest/v1alpha1",
+  "manifest_id": "ofac_source_ffced0d479e0bed9eb1804ca",
+  "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+  "dataset_id": "ofac-sdn",
+  "source_url": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.XML",
+  "acquisition_method": "local_fixture",
+  "acquired_at": "2026-07-14T15:00:00Z",
+  "media_type": "application/xml",
+  "content_length": 14225,
+  "content_sha256": "427847835cb449fbaf67e60748e696ee1e3249924b7b6b149e0e6d16e9f7e13e",
+  "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML",
+  "publish_date": "2026-07-13",
+  "declared_record_count": 3,
+  "parser_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+  "source_format": "ofac_advanced_xml",
+  "xml_schema_version": "3",
+  "schema_location": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd",
+  "source_filename": "SDN_ADVANCED.XML"
+}

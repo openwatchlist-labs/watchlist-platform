@@ -1,0 +1,13 @@
+{
+  "schema_version": "catalog-promotion-policy/v1alpha1",
+  "policy_id": "ofac-delta-promotion",
+  "policy_version": "1.0.0",
+  "max_change_ratio_basis_points": 2000,
+  "max_deletion_ratio_basis_points": 1000,
+  "max_operations": 1000,
+  "force_full_at_or_above_threshold": true,
+  "require_contiguous_sequence": true,
+  "require_base_checksum_match": true,
+  "require_target_checksum_match": true,
+  "full_rebuild_verification_interval": 10
+}

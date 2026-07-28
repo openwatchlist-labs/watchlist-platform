@@ -1,0 +1,89 @@
+{
+  "schema_version": "catalog-component-registry/v1alpha1",
+  "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "engine_version": "catalog-component-registry/v0.1.0",
+  "last_sequence": 1,
+  "audit_head": "40d68f920c4c862117f7c4230a090755bbf8293800435084d5b5ee133fba0e4c",
+  "components": [
+    {
+      "schema_version": "catalog-component/v1alpha1",
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "namespace": "demo-bank",
+      "component_key": "official.ofac.sdn",
+      "display_name": "OFAC SDN official catalog",
+      "catalog_mode": "official_list",
+      "status": "active",
+      "description": "Stable platform component for the OFAC SDN regulatory scope.",
+      "labels": {
+        "authority": "US_TREASURY_OFAC",
+        "risk_domain": "sanctions"
+      },
+      "created_at": "2026-07-14T18:30:00Z",
+      "created_by": "phase7cb-fixture",
+      "component_checksum": "aa2c2941e14465885487bfc0028fe587870e08ce18102fea6dcc1590ceb13e53"
+    }
+  ],
+  "versions": [
+    {
+      "schema_version": "catalog-component-version/v1alpha1",
+      "version_id": "catalog_version_10c16906983641525bcc85a4",
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "catalog_id": "ofac-sdn-direct",
+      "catalog_version": "2026-07-13-427847835cb4",
+      "catalog_checksum": "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582",
+      "catalog_schema": "ofac-direct-list-catalog/v1alpha1",
+      "artifact_uri": "file:///catalogs/ofac-sdn/2026-07-13/ofac-sdn-catalog.json",
+      "artifact_sha256": "f1ce56f9dd087161bfbe6d784cdd824576d89136a35d76816a65aff013e5a6df",
+      "source_manifest_id": "ofac_source_fixture_advanced_v3",
+      "source_manifest_checksum": "94ac3f6245ef7554c66fabec4c306424869c6a198bfceb10f724e08843d9340e",
+      "record_count": 3,
+      "producer_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+      "source": {
+        "kind": "official",
+        "official": {
+          "authority": "US_TREASURY_OFAC",
+          "list_key": "us.ofac.sdn",
+          "source_format": "ofac_advanced_xml",
+          "xml_version": "3"
+        }
+      },
+      "metadata": {
+        "fixture": "true",
+        "provenance": "synthetic"
+      },
+      "registered_at": "2026-07-14T18:31:00Z",
+      "registered_by": "phase7cb-fixture",
+      "version_checksum": "f237d441f4373ccd7760d48ce05e12e9376b5ed7b4135cd18f6f506b94992155"
+    }
+  ],
+  "activations": [
+    {
+      "schema_version": "catalog-component-activation/v1alpha1",
+      "activation_id": "catalog_activation_75a36f82ed92b7065b671dba",
+      "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 1,
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "action": "activate",
+      "target_version_id": "catalog_version_10c16906983641525bcc85a4",
+      "component_epoch": 1,
+      "reason": "activate runtime API fixture",
+      "activated_at": "2026-07-14T19:30:00Z",
+      "activated_by": "phase8b-fixture",
+      "previous_event_hash": "",
+      "event_hash": "40d68f920c4c862117f7c4230a090755bbf8293800435084d5b5ee133fba0e4c"
+    }
+  ],
+  "active": [
+    {
+      "schema_version": "catalog-component-active-pointer/v1alpha1",
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "version_id": "catalog_version_10c16906983641525bcc85a4",
+      "activation_id": "catalog_activation_75a36f82ed92b7065b671dba",
+      "epoch": 1,
+      "activated_at": "2026-07-14T19:30:00Z",
+      "activated_by": "phase8b-fixture"
+    }
+  ],
+  "registry_checksum": "47536c71d46b88d63206bece0a88c9ede97b3756b15d00f7c212a113165917d6"
+}

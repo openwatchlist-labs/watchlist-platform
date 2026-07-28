@@ -1,0 +1,190 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-response.v1",
+  "request_id": "screening-fixture-dob-001",
+  "request_sha256": "5121757158833ac02905e3d09b758135b7cf1aa3b71d7b194c249d5f557c0f92",
+  "field": {
+    "path": "subject.name",
+    "original_value": "Jane Doe",
+    "normalized_value": "JANE DOE"
+  },
+  "policy": {
+    "policy_id": "candidate-scoring-r1",
+    "policy_version": "1.0.0",
+    "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "candidates": [
+    {
+      "candidate_id": "candidate-dob-support",
+      "score": 560,
+      "strength_band": "review_candidate",
+      "exact_identifier_matched": false,
+      "exact_name_matched": false,
+      "reason_codes": [
+        "country_exact",
+        "date_of_birth_exact",
+        "entity_type_exact",
+        "name_token_set_exact",
+        "retrieval_runtime_name_exact_candidate"
+      ],
+      "components": [
+        {
+          "component": "name",
+          "points": 340,
+          "reason_code": "name_token_set_exact"
+        },
+        {
+          "component": "date_of_birth",
+          "points": 120,
+          "reason_code": "date_of_birth_exact"
+        },
+        {
+          "component": "country",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "component": "entity_type",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "name",
+          "outcome": "support",
+          "subject_value": "JANE DOE",
+          "candidate_value": "DOE JANE",
+          "points": 340,
+          "reason_code": "name_token_set_exact"
+        },
+        {
+          "kind": "date_of_birth",
+          "outcome": "support",
+          "subject_value": "1980-04-12",
+          "candidate_value": "1980-04-12",
+          "points": 120,
+          "reason_code": "date_of_birth_exact"
+        },
+        {
+          "kind": "country",
+          "outcome": "support",
+          "subject_value": "US",
+          "candidate_value": "US",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "kind": "entity_type",
+          "outcome": "support",
+          "subject_value": "PERSON",
+          "candidate_value": "PERSON",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "retrieval": {
+        "routes": [
+          "name_exact"
+        ],
+        "reason_codes": [
+          "runtime_name_exact_candidate"
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-fixture-catalog",
+        "component_id": "ofac-sdn",
+        "component_version": "2026-07-14-fixture",
+        "activation_id": "activation-fixture-001",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      }
+    },
+    {
+      "candidate_id": "candidate-dob-conflict",
+      "score": 320,
+      "strength_band": "weak_candidate",
+      "exact_identifier_matched": false,
+      "exact_name_matched": true,
+      "reason_codes": [
+        "country_exact",
+        "date_of_birth_conflict",
+        "entity_type_exact",
+        "name_exact",
+        "retrieval_runtime_name_exact_candidate"
+      ],
+      "components": [
+        {
+          "component": "name",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "component": "date_of_birth",
+          "points": -180,
+          "reason_code": "date_of_birth_conflict"
+        },
+        {
+          "component": "country",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "component": "entity_type",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "name",
+          "outcome": "support",
+          "subject_value": "JANE DOE",
+          "candidate_value": "JANE DOE",
+          "points": 400,
+          "reason_code": "name_exact"
+        },
+        {
+          "kind": "date_of_birth",
+          "outcome": "contradiction",
+          "subject_value": "1980-04-12",
+          "candidate_value": "1991-09-30",
+          "points": -180,
+          "reason_code": "date_of_birth_conflict"
+        },
+        {
+          "kind": "country",
+          "outcome": "support",
+          "subject_value": "US",
+          "candidate_value": "US",
+          "points": 60,
+          "reason_code": "country_exact"
+        },
+        {
+          "kind": "entity_type",
+          "outcome": "support",
+          "subject_value": "PERSON",
+          "candidate_value": "PERSON",
+          "points": 40,
+          "reason_code": "entity_type_exact"
+        }
+      ],
+      "retrieval": {
+        "routes": [
+          "name_exact"
+        ],
+        "reason_codes": [
+          "runtime_name_exact_candidate"
+        ]
+      },
+      "lineage": {
+        "provider": "ofac-direct",
+        "catalog_id": "ofac-fixture-catalog",
+        "component_id": "ofac-sdn",
+        "component_version": "2026-07-14-fixture",
+        "activation_id": "activation-fixture-001",
+        "normalization_profile": "unicode-upper-alnum-space-v1"
+      }
+    }
+  ]
+}

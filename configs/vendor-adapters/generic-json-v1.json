@@ -1,0 +1,55 @@
+{
+  "schema_version": "openwatchlist.vendor-adapter-profile.v1",
+  "adapter_id": "generic-json-v1",
+  "version": "2026-07-15-r1",
+  "vendor": "generic",
+  "description": "Strict generic external-alert JSON interchange",
+  "input_format": "json-object",
+  "max_source_bytes": 4194304,
+  "required_paths": [
+    "tenant_id",
+    "alert_id",
+    "system",
+    "list_name",
+    "occurred_at",
+    "correlation_id",
+    "idempotency_key"
+  ],
+  "mappings": {
+    "tenant_id": "tenant_id",
+    "source_system_id": "system",
+    "source_alert_id": "alert_id",
+    "raw_list_name": "list_name",
+    "occurred_at": "occurred_at",
+    "external_score": "score",
+    "external_reason_codes": "reasons",
+    "matched_fields": "matched_fields",
+    "candidate_references": "candidates",
+    "message_references": "message_refs",
+    "attachment_references": "attachments",
+    "subject": "subject",
+    "correlation_id": "correlation_id",
+    "idempotency_key": "idempotency_key"
+  },
+  "additional_evidence": {
+    "matched_name": "evidence.matched_name",
+    "screened_name": "evidence.screened_name",
+    "vendor_status": "status"
+  },
+  "constants": {},
+  "list_mappings": {
+    "OFAC SDN": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-sdn",
+      "mapping_version": "r1",
+      "status": "active"
+    },
+    "OFAC": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-alias",
+      "mapping_version": "r1",
+      "status": "active"
+    }
+  },
+  "profile_sha256": "5f08ef117cfafc81e0d44c46bc53e01933f639be68ac5ac62e0196e4e6edf237"
+}

@@ -1,0 +1,2852 @@
+{
+  "schema_version": "transaction-screening-decision-batch/v1alpha1",
+  "decision_batch_id": "policy_decision_batch_43f299aa5b9054ab3348043d",
+  "input_classification_batch_id": "fp_classification_batch_4a84d9a5a0fed561c7e622c1",
+  "engine_version": "transaction-policy-engine/v0.1.0",
+  "policy": {
+    "policy_id": "transaction-screening-r1",
+    "policy_version": "1.0.0",
+    "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+  },
+  "summary": {
+    "total_decisions": 16,
+    "disposition_counts": [
+      {
+        "name": "clear",
+        "count": 6
+      },
+      {
+        "name": "escalate",
+        "count": 2
+      },
+      {
+        "name": "investigate",
+        "count": 8
+      }
+    ],
+    "review_route_counts": [
+      {
+        "name": "auto_release",
+        "count": 6
+      },
+      {
+        "name": "escalation_review",
+        "count": 2
+      },
+      {
+        "name": "manual_review",
+        "count": 1
+      },
+      {
+        "name": "standard_review",
+        "count": 7
+      }
+    ],
+    "reason_code_counts": [
+      {
+        "name": "blocker_acronym_field_collision",
+        "count": 1
+      },
+      {
+        "name": "blocker_denial_context",
+        "count": 1
+      },
+      {
+        "name": "blocker_entity_type_conflict",
+        "count": 3
+      },
+      {
+        "name": "blocker_legal_control_documentation",
+        "count": 1
+      },
+      {
+        "name": "blocker_missing_qualifier",
+        "count": 1
+      },
+      {
+        "name": "blocker_routing_code_collision",
+        "count": 1
+      },
+      {
+        "name": "blocker_secondary_identifier_missing",
+        "count": 1
+      },
+      {
+        "name": "blocker_substring_only",
+        "count": 1
+      },
+      {
+        "name": "blocker_supporting_evidence",
+        "count": 2
+      },
+      {
+        "name": "blocker_technical_artifact",
+        "count": 1
+      },
+      {
+        "name": "blocker_wrong_field_context",
+        "count": 3
+      },
+      {
+        "name": "fp_acronym_collision",
+        "count": 1
+      },
+      {
+        "name": "fp_entity_type_mismatch",
+        "count": 3
+      },
+      {
+        "name": "fp_legal_control_context",
+        "count": 1
+      },
+      {
+        "name": "fp_missing_qualifier",
+        "count": 1
+      },
+      {
+        "name": "fp_narrative_denial_context",
+        "count": 1
+      },
+      {
+        "name": "fp_phonetic_transliteration_only",
+        "count": 1
+      },
+      {
+        "name": "fp_routing_bic_collision",
+        "count": 1
+      },
+      {
+        "name": "fp_substring_containment",
+        "count": 1
+      },
+      {
+        "name": "fp_technical_system_artifact",
+        "count": 1
+      },
+      {
+        "name": "fp_wrong_field_data_type",
+        "count": 3
+      },
+      {
+        "name": "policy_clear_release_support",
+        "count": 6
+      },
+      {
+        "name": "policy_escalate_primary_identifier",
+        "count": 2
+      },
+      {
+        "name": "policy_investigate",
+        "count": 8
+      },
+      {
+        "name": "policy_supporting_evidence_non_escalation",
+        "count": 3
+      },
+      {
+        "name": "policy_threshold_evaluation",
+        "count": 8
+      },
+      {
+        "name": "route_clear_eligible",
+        "count": 6
+      },
+      {
+        "name": "route_escalation_candidate",
+        "count": 2
+      },
+      {
+        "name": "route_investigate",
+        "count": 7
+      },
+      {
+        "name": "route_manual_review",
+        "count": 1
+      }
+    ],
+    "blocker_counts": [
+      {
+        "name": "acronym_field_collision",
+        "count": 1
+      },
+      {
+        "name": "denial_context",
+        "count": 1
+      },
+      {
+        "name": "entity_type_conflict",
+        "count": 3
+      },
+      {
+        "name": "legal_control_evidence_required",
+        "count": 1
+      },
+      {
+        "name": "missing_critical_watchlist_terms",
+        "count": 1
+      },
+      {
+        "name": "routing_code_collision",
+        "count": 1
+      },
+      {
+        "name": "secondary_identifier_missing",
+        "count": 1
+      },
+      {
+        "name": "substring_only_match",
+        "count": 1
+      },
+      {
+        "name": "supporting_evidence_cannot_escalate",
+        "count": 2
+      },
+      {
+        "name": "technical_artifact",
+        "count": 1
+      },
+      {
+        "name": "wrong_field_context",
+        "count": 3
+      }
+    ]
+  },
+  "decisions": [
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_3aefac8043e9f4b95c0f7311",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_ccf08e0a26b41004e5d03a68",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_2ea3e03a447656fa49074eb8",
+          "case_id": "fp-01-substring-scuba-cuba",
+          "message_id": "FP-MSG-001",
+          "message_type": "pacs.008.001.08",
+          "source_system": "fixture-screener",
+          "matched_field": "remittance.unstructured",
+          "semantic_role": "remittance.unstructured",
+          "value_type": "narrative",
+          "trigger_policy": "candidate_alert",
+          "input_value": "SCUBA EQUIPMENT PURCHASE",
+          "normalized_input_value": "SCUBA EQUIPMENT PURCHASE",
+          "watchlist_value": "CUBA",
+          "normalized_watchlist_value": "CUBA",
+          "watchlist_entity_type": "jurisdiction",
+          "match_route": "contextual_phrase_window",
+          "screening_score_basis_points": 7800,
+          "exact": false,
+          "target_entity_types": [
+            "jurisdiction"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "substring_containment",
+            "strength_basis_points": 9500,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "substring_only_match"
+            ],
+            "reason_codes": [
+              "watchlist_value_not_whole_token"
+            ],
+            "detail": "watchlist value \"CUBA\" occurs only as a strict substring of input \"SCUBA EQUIPMENT PURCHASE\""
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "substring_only_match"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 9500,
+          "release_support_basis_points": 9500,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 7800,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3510,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -4750,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:substring_containment",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -2740,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "substring_only_match"
+      ],
+      "reason_codes": [
+        "blocker_substring_only",
+        "fp_substring_containment",
+        "policy_clear_release_support",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:substring_containment",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:substring_only_match",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-2740 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=1 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_28946742f552d9361091de01",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_9dd48c921ae8f9445cd892df",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_77a669d1a49e3069c5a22aa2",
+          "case_id": "fp-02-wrong-field-account-vessel",
+          "message_id": "FP-MSG-002",
+          "message_type": "pacs.008.001.08",
+          "source_system": "fixture-screener",
+          "matched_field": "creditor_account.other_id",
+          "semantic_role": "creditor_account.other_id",
+          "value_type": "account_identifier",
+          "trigger_policy": "supporting_evidence",
+          "input_value": "9387421",
+          "normalized_input_value": "9387421",
+          "watchlist_value": "MV EXAMPLE",
+          "normalized_watchlist_value": "MV EXAMPLE",
+          "watchlist_entity_type": "vessel",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 8800,
+          "exact": false,
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "entity_type_mismatch",
+            "strength_basis_points": 9000,
+            "route_hint": "investigate",
+            "escalation_blockers": [
+              "entity_type_conflict"
+            ],
+            "reason_codes": [
+              "candidate_type_not_allowed_for_field"
+            ],
+            "detail": "candidate entity type \"vessel\" is outside target entity types"
+          },
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "wrong_field_data_type",
+            "strength_basis_points": 9500,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "wrong_field_context"
+            ],
+            "reason_codes": [
+              "candidate_route_incompatible_with_field_type"
+            ],
+            "detail": "account_identifier field \"creditor_account.other_id\" is incompatible with vessel candidate retrieval through normalized_name"
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "entity_type_conflict",
+          "wrong_field_context"
+        ],
+        "summary": {
+          "pattern_count": 2,
+          "strongest_pattern_basis_points": 9500,
+          "release_support_basis_points": 9500,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 8800,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3960,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -4750,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:entity_type_mismatch",
+          "input_basis_points": 9000,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:wrong_field_data_type",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -3790,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "entity_type_conflict",
+        "wrong_field_context"
+      ],
+      "reason_codes": [
+        "blocker_entity_type_conflict",
+        "blocker_wrong_field_context",
+        "fp_entity_type_mismatch",
+        "fp_wrong_field_data_type",
+        "policy_clear_release_support",
+        "policy_supporting_evidence_non_escalation",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:entity_type_mismatch",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:wrong_field_data_type",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:entity_type_conflict",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:wrong_field_context",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-3790 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=2 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_f61c701005d071f4d7890732",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_aba1dff2c818ecb839607ad3",
+          "case_id": "fp-03-entity-type-mismatch",
+          "message_id": "FP-MSG-003",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "creditor.name",
+          "semantic_role": "creditor.name",
+          "value_type": "name",
+          "trigger_policy": "candidate_alert",
+          "input_value": "EXAMPLE VESSEL",
+          "normalized_input_value": "EXAMPLE VESSEL",
+          "watchlist_value": "EXAMPLE VESSEL",
+          "normalized_watchlist_value": "EXAMPLE VESSEL",
+          "watchlist_entity_type": "vessel",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "matcher_diagnostic_codes": [
+            "entity_type_mismatch"
+          ],
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "entity_type_mismatch",
+            "strength_basis_points": 9000,
+            "route_hint": "investigate",
+            "escalation_blockers": [
+              "entity_type_conflict"
+            ],
+            "reason_codes": [
+              "candidate_type_not_allowed_for_field"
+            ],
+            "detail": "candidate entity type \"vessel\" is outside target entity types"
+          }
+        ],
+        "route_hint": "investigate",
+        "escalation_blockers": [
+          "entity_type_conflict"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 9000,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:entity_type_mismatch",
+          "input_basis_points": 9000,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": 3000,
+      "policy_score_basis_points": 3000,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "escalation_blockers": [
+        "entity_type_conflict"
+      ],
+      "reason_codes": [
+        "blocker_entity_type_conflict",
+        "fp_entity_type_mismatch",
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:entity_type_mismatch",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:entity_type_conflict",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=3000 after=3000"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=3000 threshold=8500 countervailing=0 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=3000 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_d745c2b83f647cee02f3ea52",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_524c2121d344ae2fa5074109",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_5f1318d427710258954f14e7",
+          "case_id": "fp-04-missing-bank-qualifier",
+          "message_id": "FP-MSG-004",
+          "message_type": "pacs.008.001.08",
+          "source_system": "fixture-screener",
+          "matched_field": "debtor_agent.name",
+          "semantic_role": "debtor_agent.name",
+          "value_type": "name",
+          "trigger_policy": "candidate_alert",
+          "input_value": "NATIONAL DEVELOPMENT",
+          "normalized_input_value": "NATIONAL DEVELOPMENT",
+          "watchlist_value": "NATIONAL DEVELOPMENT BANK",
+          "normalized_watchlist_value": "NATIONAL DEVELOPMENT BANK",
+          "watchlist_entity_type": "financial_institution",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 8400,
+          "exact": false,
+          "target_entity_types": [
+            "financial_institution",
+            "organization"
+          ],
+          "required_qualifiers": [
+            "BANK"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "missing_qualifier",
+            "strength_basis_points": 7000,
+            "route_hint": "investigate",
+            "escalation_blockers": [
+              "missing_critical_watchlist_terms"
+            ],
+            "reason_codes": [
+              "watchlist_qualifier_absent"
+            ],
+            "detail": "input is missing watchlist qualifier tokens: BANK"
+          }
+        ],
+        "route_hint": "investigate",
+        "escalation_blockers": [
+          "missing_critical_watchlist_terms"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 7000,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 8400,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3780,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:missing_qualifier",
+          "input_basis_points": 7000,
+          "weight_or_adjustment_basis_points": -1000,
+          "delta_basis_points": -1000,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": 2780,
+      "policy_score_basis_points": 2780,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "escalation_blockers": [
+        "missing_critical_watchlist_terms"
+      ],
+      "reason_codes": [
+        "blocker_missing_qualifier",
+        "fp_missing_qualifier",
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:missing_qualifier",
+          "outcome": "applied",
+          "detail": "adjustment=-1000 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:missing_critical_watchlist_terms",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=2780 after=2780"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=2780 threshold=8500 countervailing=0 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=2780 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_3227c9ba8347997a6dd8fdf0",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_1940dbee97661a02a79365b9",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_d96851acfc23b1370b2f8741",
+          "case_id": "fp-05-routing-bic-collision",
+          "message_id": "FP-MSG-005",
+          "message_type": "pacs.008.001.08",
+          "source_system": "fixture-screener",
+          "matched_field": "debtor_agent.bic",
+          "semantic_role": "debtor_agent.bic",
+          "value_type": "bic",
+          "trigger_policy": "candidate_alert",
+          "input_value": "ABCDKPX1XXX",
+          "normalized_input_value": "ABCDKPX1XXX",
+          "watchlist_value": "KP",
+          "normalized_watchlist_value": "KP",
+          "watchlist_entity_type": "jurisdiction",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 7300,
+          "exact": false,
+          "target_entity_types": [
+            "financial_institution"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "entity_type_mismatch",
+            "strength_basis_points": 9000,
+            "route_hint": "investigate",
+            "escalation_blockers": [
+              "entity_type_conflict"
+            ],
+            "reason_codes": [
+              "candidate_type_not_allowed_for_field"
+            ],
+            "detail": "candidate entity type \"jurisdiction\" is outside target entity types"
+          },
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "routing_bic_collision",
+            "strength_basis_points": 9000,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "routing_code_collision"
+            ],
+            "reason_codes": [
+              "non_exact_bic_token_collision"
+            ],
+            "detail": "BIC value \"ABCDKPX1XXX\" produced a non-exact identifier/name collision with \"KP\""
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "entity_type_conflict",
+          "routing_code_collision"
+        ],
+        "summary": {
+          "pattern_count": 2,
+          "strongest_pattern_basis_points": 9000,
+          "release_support_basis_points": 9000,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 7300,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3285,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 9000,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -4500,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:entity_type_mismatch",
+          "input_basis_points": 9000,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:routing_bic_collision",
+          "input_basis_points": 9000,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -4215,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "entity_type_conflict",
+        "routing_code_collision"
+      ],
+      "reason_codes": [
+        "blocker_entity_type_conflict",
+        "blocker_routing_code_collision",
+        "fp_entity_type_mismatch",
+        "fp_routing_bic_collision",
+        "policy_clear_release_support",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:entity_type_mismatch",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:routing_bic_collision",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:entity_type_conflict",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:routing_code_collision",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-4215 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=2 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_90943ecabb91bf3e7d7c66e1",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_44eb3bd06befc12fcb4a0c9f",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_3a3ebe7d0f2be705ded47f92",
+          "case_id": "fp-06-acronym-reference",
+          "message_id": "FP-MSG-006",
+          "message_type": "MT103",
+          "source_system": "fixture-screener",
+          "matched_field": ":20:",
+          "semantic_role": "payment.identification.instruction_id",
+          "value_type": "payment_reference",
+          "trigger_policy": "candidate_alert",
+          "input_value": "FARC-2026-001",
+          "normalized_input_value": "FARC 2026 001",
+          "watchlist_value": "FARC",
+          "normalized_watchlist_value": "FARC",
+          "watchlist_entity_type": "organization",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 8200,
+          "exact": false,
+          "target_entity_types": [
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "acronym_collision",
+            "strength_basis_points": 8500,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "acronym_field_collision"
+            ],
+            "reason_codes": [
+              "short_watchlist_token_in_non_party_field"
+            ],
+            "detail": "short watchlist token \"FARC\" collides with non-party field \":20:\""
+          },
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "wrong_field_data_type",
+            "strength_basis_points": 9500,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "wrong_field_context"
+            ],
+            "reason_codes": [
+              "candidate_route_incompatible_with_field_type"
+            ],
+            "detail": "payment_reference field \":20:\" is incompatible with organization candidate retrieval through normalized_name"
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "acronym_field_collision",
+          "wrong_field_context"
+        ],
+        "summary": {
+          "pattern_count": 2,
+          "strongest_pattern_basis_points": 9500,
+          "release_support_basis_points": 10000,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 8200,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3690,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -5000,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:acronym_collision",
+          "input_basis_points": 8500,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:wrong_field_data_type",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -4310,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "acronym_field_collision",
+        "wrong_field_context"
+      ],
+      "reason_codes": [
+        "blocker_acronym_field_collision",
+        "blocker_wrong_field_context",
+        "fp_acronym_collision",
+        "fp_wrong_field_data_type",
+        "policy_clear_release_support",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:acronym_collision",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:wrong_field_data_type",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:acronym_field_collision",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:wrong_field_context",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-4310 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=2 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_eea9fcd47290cdef860db0e6",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_f27400ff918caabb04f12c32",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_0a3912796901a4600859fc7d",
+          "case_id": "fp-07-phonetic-only",
+          "message_id": "FP-MSG-007",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "debtor.name",
+          "semantic_role": "debtor.name",
+          "value_type": "name",
+          "trigger_policy": "candidate_alert",
+          "input_value": "BECHIR",
+          "normalized_input_value": "BECHIR",
+          "watchlist_value": "BASHIR",
+          "normalized_watchlist_value": "BASHIR",
+          "watchlist_entity_type": "individual",
+          "match_route": "transliteration",
+          "screening_score_basis_points": 8100,
+          "exact": false,
+          "matcher_reason_codes": [
+            "name_fuzzy_phonetic"
+          ],
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "phonetic_transliteration_only",
+            "strength_basis_points": 7500,
+            "route_hint": "investigate",
+            "escalation_blockers": [
+              "secondary_identifier_missing"
+            ],
+            "reason_codes": [
+              "name_similarity_without_secondary_support"
+            ],
+            "detail": "candidate is supported only by phonetic/transliteration evidence and lacks a secondary identifier"
+          }
+        ],
+        "route_hint": "investigate",
+        "escalation_blockers": [
+          "secondary_identifier_missing"
+        ],
+        "requires_evidence": [
+          "secondary_identifier"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 7500,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 8100,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3645,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:phonetic_transliteration_only",
+          "input_basis_points": 7500,
+          "weight_or_adjustment_basis_points": -500,
+          "delta_basis_points": -500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": 3145,
+      "policy_score_basis_points": 3145,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "escalation_blockers": [
+        "secondary_identifier_missing"
+      ],
+      "required_evidence": [
+        "secondary_identifier"
+      ],
+      "reason_codes": [
+        "blocker_secondary_identifier_missing",
+        "fp_phonetic_transliteration_only",
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:phonetic_transliteration_only",
+          "outcome": "applied",
+          "detail": "adjustment=-500 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:secondary_identifier_missing",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=3145 after=3145"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=3145 threshold=8500 countervailing=0 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=3145 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_f9330f8a434508ec711a26f4",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_f9aaabbf65ef7670c393b4ed",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_6f8eae62e50dce4fc73bb1a0",
+          "case_id": "fp-08-narrative-denial",
+          "message_id": "FP-MSG-008",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "remittance.unstructured",
+          "semantic_role": "remittance.unstructured",
+          "value_type": "narrative",
+          "trigger_policy": "candidate_alert",
+          "input_value": "NO BUSINESS RELATIONSHIP WITH JORDAN EXAMPLE",
+          "normalized_input_value": "NO BUSINESS RELATIONSHIP WITH JORDAN EXAMPLE",
+          "watchlist_value": "JORDAN EXAMPLE",
+          "normalized_watchlist_value": "JORDAN EXAMPLE",
+          "watchlist_entity_type": "individual",
+          "match_route": "contextual_phrase_window",
+          "screening_score_basis_points": 4000,
+          "exact": false,
+          "matcher_diagnostic_codes": [
+            "narrative_denial_context"
+          ],
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "narrative_denial_context",
+            "strength_basis_points": 10000,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "denial_context"
+            ],
+            "reason_codes": [
+              "explicit_non_relationship_language"
+            ],
+            "detail": "matched narrative is inside explicit denial or non-relationship language"
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "denial_context"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 10000,
+          "release_support_basis_points": 10000,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 4000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 1800,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -5000,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:narrative_denial_context",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": -2500,
+          "delta_basis_points": -2500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -5700,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "denial_context"
+      ],
+      "reason_codes": [
+        "blocker_denial_context",
+        "fp_narrative_denial_context",
+        "policy_clear_release_support",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:narrative_denial_context",
+          "outcome": "applied",
+          "detail": "adjustment=-2500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:denial_context",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-5700 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=1 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_2e3b27f8b63753757fb53cdf",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_dfddf5c66d1f2cffc01bfb4e",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_7bd8d76baa19d2a20ccf0e9e",
+          "case_id": "fp-09-technical-artifact",
+          "message_id": "FP-MSG-009",
+          "message_type": "MT103",
+          "source_system": "fixture-screener",
+          "matched_field": ":20:",
+          "semantic_role": "payment.identification.instruction_id",
+          "value_type": "payment_reference",
+          "trigger_policy": "candidate_alert",
+          "input_value": "MIGRATION-0000000000",
+          "normalized_input_value": "MIGRATION 0000000000",
+          "watchlist_value": "JORDAN EXAMPLE",
+          "normalized_watchlist_value": "JORDAN EXAMPLE",
+          "watchlist_entity_type": "individual",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 7000,
+          "exact": false,
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ],
+          "technical_markers": [
+            "legacy_migration_padding"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "technical_system_artifact",
+            "strength_basis_points": 10000,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "technical_artifact"
+            ],
+            "reason_codes": [
+              "migration_test_or_padding_marker"
+            ],
+            "detail": "matched value carries a migration, test, padding, or system-artifact marker"
+          },
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "wrong_field_data_type",
+            "strength_basis_points": 9500,
+            "route_hint": "clear_or_auto_release_eligible",
+            "escalation_blockers": [
+              "wrong_field_context"
+            ],
+            "reason_codes": [
+              "candidate_route_incompatible_with_field_type"
+            ],
+            "detail": "payment_reference field \":20:\" is incompatible with individual candidate retrieval through normalized_name"
+          }
+        ],
+        "route_hint": "clear_or_auto_release_eligible",
+        "escalation_blockers": [
+          "technical_artifact",
+          "wrong_field_context"
+        ],
+        "summary": {
+          "pattern_count": 2,
+          "strongest_pattern_basis_points": 10000,
+          "release_support_basis_points": 10000,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 7000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 3150,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": -5000,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:technical_system_artifact",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": -2500,
+          "delta_basis_points": -2500,
+          "detail": "configured false-positive pattern adjustment"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:wrong_field_data_type",
+          "input_basis_points": 9500,
+          "weight_or_adjustment_basis_points": -1500,
+          "delta_basis_points": -1500,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": -5850,
+      "policy_score_basis_points": 0,
+      "disposition": "clear",
+      "review_route": "auto_release",
+      "escalation_blockers": [
+        "technical_artifact",
+        "wrong_field_context"
+      ],
+      "reason_codes": [
+        "blocker_technical_artifact",
+        "blocker_wrong_field_context",
+        "fp_technical_system_artifact",
+        "fp_wrong_field_data_type",
+        "policy_clear_release_support",
+        "route_clear_eligible"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:technical_system_artifact",
+          "outcome": "applied",
+          "detail": "adjustment=-2500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:wrong_field_data_type",
+          "outcome": "applied",
+          "detail": "adjustment=-1500 maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:technical_artifact",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:wrong_field_context",
+          "outcome": "applied",
+          "detail": "maximum_disposition=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:clear_or_auto_release_eligible",
+          "outcome": "applied",
+          "detail": "review_route=auto_release"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=-5850 after=0"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=0 threshold=8500 countervailing=0 blockers=2 maximum=clear"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "pass",
+          "detail": "release support and score requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_02d9d166b81e9d53387621b3",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_1680ec4ff92572d5a10eeb71",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_a6c36ee71e1a8130f23c4e53",
+          "case_id": "fp-10-legal-control-context",
+          "message_id": "FP-MSG-010",
+          "message_type": "pacs.008.001.08",
+          "source_system": "fixture-screener",
+          "matched_field": "remittance.unstructured",
+          "semantic_role": "remittance.unstructured",
+          "value_type": "narrative",
+          "trigger_policy": "candidate_alert",
+          "input_value": "PAYMENT BY BANKRUPTCY TRUSTEE FOR JORDAN EXAMPLE",
+          "normalized_input_value": "PAYMENT BY BANKRUPTCY TRUSTEE FOR JORDAN EXAMPLE",
+          "watchlist_value": "JORDAN EXAMPLE",
+          "normalized_watchlist_value": "JORDAN EXAMPLE",
+          "watchlist_entity_type": "individual",
+          "match_route": "contextual_phrase_window",
+          "screening_score_basis_points": 10000,
+          "exact": false,
+          "target_entity_types": [
+            "individual",
+            "organization"
+          ],
+          "context_markers": [
+            "bankruptcy_trustee"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "patterns": [
+          {
+            "schema_version": "false-positive-pattern-evidence/v1alpha1",
+            "code": "legal_control_context",
+            "strength_basis_points": 8500,
+            "route_hint": "manual_review",
+            "escalation_blockers": [
+              "legal_control_evidence_required"
+            ],
+            "reason_codes": [
+              "trustee_receiver_or_liquidator_context"
+            ],
+            "detail": "matched party appears in trustee, receiver, liquidator, or other legal-control context"
+          }
+        ],
+        "route_hint": "manual_review",
+        "escalation_blockers": [
+          "legal_control_evidence_required"
+        ],
+        "requires_evidence": [
+          "legal_control_documentation"
+        ],
+        "summary": {
+          "pattern_count": 1,
+          "strongest_pattern_basis_points": 8500,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "pattern:legal_control_context",
+          "input_basis_points": 8500,
+          "weight_or_adjustment_basis_points": 0,
+          "delta_basis_points": 0,
+          "detail": "configured false-positive pattern adjustment"
+        }
+      ],
+      "score_before_clamp_basis_points": 4500,
+      "policy_score_basis_points": 4500,
+      "disposition": "investigate",
+      "review_route": "manual_review",
+      "escalation_blockers": [
+        "legal_control_evidence_required"
+      ],
+      "required_evidence": [
+        "legal_control_documentation"
+      ],
+      "reason_codes": [
+        "blocker_legal_control_documentation",
+        "fp_legal_control_context",
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_manual_review"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "pattern_rule:legal_control_context",
+          "outcome": "applied",
+          "detail": "adjustment=0 maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:legal_control_evidence_required",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:manual_review",
+          "outcome": "applied",
+          "detail": "review_route=manual_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=4500 after=4500"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=4500 threshold=8500 countervailing=0 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=4500 threshold=2500 release_support=0 route_hint=manual_review"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_8ab32c836cae5a668b82afb8",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_a9bcb13eb0f17404d5145634",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_0becb4b26bcf6221e6f29712",
+          "case_id": "fp-11-exact-lei-countervailing",
+          "message_id": "FP-MSG-011",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "creditor.identification.lei",
+          "semantic_role": "creditor.identification.lei",
+          "value_type": "lei",
+          "trigger_policy": "candidate_alert",
+          "input_value": "529900T8BM49AURSDO55",
+          "normalized_input_value": "529900T8BM49AURSDO55",
+          "watchlist_value": "529900T8BM49AURSDO55",
+          "normalized_watchlist_value": "529900T8BM49AURSDO55",
+          "watchlist_entity_type": "organization",
+          "match_route": "exact_lei",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "target_entity_types": [
+            "financial_institution",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "countervailing_signals": [
+          {
+            "schema_version": "false-positive-countervailing-signal/v1alpha1",
+            "code": "exact_primary_identifier_match",
+            "evidence_class": "primary_identifier",
+            "strength_basis_points": 10000,
+            "escalation_eligible": true,
+            "detail": "typed exact exact_lei evidence is classified as primary_identifier"
+          }
+        ],
+        "route_hint": "escalation_candidate",
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 10000
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 4000,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 8500,
+      "policy_score_basis_points": 8500,
+      "disposition": "escalate",
+      "review_route": "escalation_review",
+      "reason_codes": [
+        "policy_escalate_primary_identifier",
+        "route_escalation_candidate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:escalation_candidate",
+          "outcome": "applied",
+          "detail": "review_route=escalation_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=8500 after=8500"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "pass",
+          "detail": "score and primary-evidence requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_4cd7200650220aa3b0960062",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_f313a1d9981a76c5237c8ff6",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_48d80b0ce8750e9b590646e3",
+          "case_id": "fp-12-exact-bic-countervailing",
+          "message_id": "FP-MSG-012",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "creditor_agent.bic",
+          "semantic_role": "creditor_agent.bic",
+          "value_type": "bic",
+          "trigger_policy": "candidate_alert",
+          "input_value": "DEUTDEFFXXX",
+          "normalized_input_value": "DEUTDEFFXXX",
+          "watchlist_value": "DEUTDEFFXXX",
+          "normalized_watchlist_value": "DEUTDEFFXXX",
+          "watchlist_entity_type": "financial_institution",
+          "match_route": "exact_bic",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "target_entity_types": [
+            "financial_institution"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "countervailing_signals": [
+          {
+            "schema_version": "false-positive-countervailing-signal/v1alpha1",
+            "code": "exact_primary_identifier_match",
+            "evidence_class": "primary_identifier",
+            "strength_basis_points": 10000,
+            "escalation_eligible": true,
+            "detail": "typed exact exact_bic evidence is classified as primary_identifier"
+          }
+        ],
+        "route_hint": "escalation_candidate",
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 10000
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 4000,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 8500,
+      "policy_score_basis_points": 8500,
+      "disposition": "escalate",
+      "review_route": "escalation_review",
+      "reason_codes": [
+        "policy_escalate_primary_identifier",
+        "route_escalation_candidate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:escalation_candidate",
+          "outcome": "applied",
+          "detail": "review_route=escalation_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=8500 after=8500"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "pass",
+          "detail": "score and primary-evidence requirements satisfied"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_e0cfa5cdf75953d52456e04b",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_46746f1630616b6cfe2d968b",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_904b58534aa7b078fdb78ee3",
+          "case_id": "fp-13-whole-token-geography",
+          "message_id": "FP-MSG-013",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "remittance.unstructured",
+          "semantic_role": "remittance.unstructured",
+          "value_type": "narrative",
+          "trigger_policy": "candidate_alert",
+          "input_value": "SHIPMENT ROUTED VIA CUBA",
+          "normalized_input_value": "SHIPMENT ROUTED VIA CUBA",
+          "watchlist_value": "CUBA",
+          "normalized_watchlist_value": "CUBA",
+          "watchlist_entity_type": "jurisdiction",
+          "match_route": "contextual_phrase_window",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "target_entity_types": [
+            "jurisdiction"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "route_hint": "investigate",
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 4500,
+      "policy_score_basis_points": 4500,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "reason_codes": [
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=4500 after=4500"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=4500 threshold=8500 countervailing=0 blockers=0 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=4500 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_6d9ce443c42fc5b3933b1ae0",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_e40767191f3995e17eaa4994",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_858be57c9c135048923b464f",
+          "case_id": "fp-14-multifeature-fuzzy-name",
+          "message_id": "FP-MSG-014",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "debtor.name",
+          "semantic_role": "debtor.name",
+          "value_type": "name",
+          "trigger_policy": "candidate_alert",
+          "input_value": "ACME IMPORT LLC",
+          "normalized_input_value": "ACME IMPORT LLC",
+          "watchlist_value": "ACME IMPORTS LLC",
+          "normalized_watchlist_value": "ACME IMPORTS LLC",
+          "watchlist_entity_type": "organization",
+          "match_route": "normalized_name",
+          "screening_score_basis_points": 9605,
+          "exact": false,
+          "matcher_reason_codes": [
+            "name_fuzzy_edit",
+            "name_fuzzy_phonetic",
+            "name_fuzzy_token_alignment"
+          ],
+          "target_entity_types": [
+            "government_entity",
+            "individual",
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "route_hint": "investigate",
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 0
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 9605,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4322,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 0,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 4322,
+      "policy_score_basis_points": 4322,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "reason_codes": [
+        "policy_investigate",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=4322 after=4322"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=4322 threshold=8500 countervailing=0 blockers=0 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=4322 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_3e6e04b151e39eea76964c09",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_a3810a4697a0f35b534faa56",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_f907a6e376984af3d3c3a689",
+          "case_id": "fp-15-supporting-exact-date",
+          "message_id": "FP-MSG-015",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "ultimate_debtor.identification.birth_date",
+          "semantic_role": "ultimate_debtor.identification.birth_date",
+          "value_type": "date",
+          "trigger_policy": "supporting_evidence",
+          "input_value": "1980-05-20",
+          "normalized_input_value": "1980 05 20",
+          "watchlist_value": "1980-05-20",
+          "normalized_watchlist_value": "1980 05 20",
+          "watchlist_entity_type": "individual",
+          "match_route": "exact_date",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "target_entity_types": [
+            "individual"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "countervailing_signals": [
+          {
+            "schema_version": "false-positive-countervailing-signal/v1alpha1",
+            "code": "exact_secondary_attribute_match",
+            "evidence_class": "secondary_attribute",
+            "strength_basis_points": 7000,
+            "escalation_eligible": false,
+            "detail": "typed exact exact_date evidence is classified as secondary_attribute"
+          }
+        ],
+        "route_hint": "investigate",
+        "escalation_blockers": [
+          "supporting_evidence_cannot_escalate"
+        ],
+        "requires_evidence": [
+          "qualifying_candidate_alert"
+        ],
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 7000
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 7000,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 2800,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 7300,
+      "policy_score_basis_points": 7300,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "escalation_blockers": [
+        "supporting_evidence_cannot_escalate"
+      ],
+      "required_evidence": [
+        "qualifying_candidate_alert"
+      ],
+      "reason_codes": [
+        "blocker_supporting_evidence",
+        "policy_investigate",
+        "policy_supporting_evidence_non_escalation",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:supporting_evidence_cannot_escalate",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=7300 after=7300"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=7300 threshold=8500 countervailing=7000 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=7300 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-decision/v1alpha1",
+      "decision_id": "policy_decision_78c6f2a198b9136b9edd6234",
+      "classification": {
+        "schema_version": "false-positive-classification/v1alpha2",
+        "classification_id": "fp_classification_9de5d2b9d47b474f690b9db2",
+        "observation": {
+          "schema_version": "transaction-screening-observation/v1alpha1",
+          "observation_id": "fp_observation_87a8e1e164891d0b4466dbe6",
+          "case_id": "fp-16-supporting-exact-account",
+          "message_id": "FP-MSG-016",
+          "message_type": "pacs.008.001.08",
+          "source_system": "openwatchlist-matcher",
+          "matched_field": "debtor_account.other_id",
+          "semantic_role": "debtor_account.other_id",
+          "value_type": "account_identifier",
+          "trigger_policy": "supporting_evidence",
+          "input_value": "ACME-OPERATING-001",
+          "normalized_input_value": "ACME OPERATING 001",
+          "watchlist_value": "ACME-OPERATING-001",
+          "normalized_watchlist_value": "ACME OPERATING 001",
+          "watchlist_entity_type": "organization",
+          "match_route": "exact_account",
+          "screening_score_basis_points": 10000,
+          "exact": true,
+          "target_entity_types": [
+            "organization"
+          ]
+        },
+        "classifier_version": "false-positive-classifier/v0.1.1",
+        "pattern_library": {
+          "library_id": "false-positive-baseline-r1",
+          "library_version": "1.0.0",
+          "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+        },
+        "countervailing_policy": {
+          "policy_id": "countervailing-evidence-baseline-r1",
+          "policy_version": "1.0.0",
+          "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+        },
+        "countervailing_signals": [
+          {
+            "schema_version": "false-positive-countervailing-signal/v1alpha1",
+            "code": "exact_secondary_attribute_match",
+            "evidence_class": "secondary_attribute",
+            "strength_basis_points": 8000,
+            "escalation_eligible": false,
+            "detail": "typed exact exact_account evidence is classified as secondary_attribute"
+          }
+        ],
+        "route_hint": "investigate",
+        "escalation_blockers": [
+          "supporting_evidence_cannot_escalate"
+        ],
+        "requires_evidence": [
+          "qualifying_candidate_alert"
+        ],
+        "summary": {
+          "pattern_count": 0,
+          "strongest_pattern_basis_points": 0,
+          "release_support_basis_points": 0,
+          "countervailing_support_basis_points": 8000
+        }
+      },
+      "engine_version": "transaction-policy-engine/v0.1.0",
+      "policy": {
+        "policy_id": "transaction-screening-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "91bd439264bd827f4d16e534ce862581c37b4992b8fadcad2562d3cac1df5591"
+      },
+      "score_components": [
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "screening_score",
+          "input_basis_points": 10000,
+          "weight_or_adjustment_basis_points": 4500,
+          "delta_basis_points": 4500,
+          "detail": "weighted matcher screening score"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "countervailing_support",
+          "input_basis_points": 8000,
+          "weight_or_adjustment_basis_points": 4000,
+          "delta_basis_points": 3200,
+          "detail": "weighted primary or secondary countervailing evidence"
+        },
+        {
+          "schema_version": "policy-score-component/v1alpha1",
+          "code": "release_support",
+          "input_basis_points": 0,
+          "weight_or_adjustment_basis_points": -5000,
+          "delta_basis_points": 0,
+          "detail": "weighted false-positive release support"
+        }
+      ],
+      "score_before_clamp_basis_points": 7700,
+      "policy_score_basis_points": 7700,
+      "disposition": "investigate",
+      "review_route": "standard_review",
+      "escalation_blockers": [
+        "supporting_evidence_cannot_escalate"
+      ],
+      "required_evidence": [
+        "qualifying_candidate_alert"
+      ],
+      "reason_codes": [
+        "blocker_supporting_evidence",
+        "policy_investigate",
+        "policy_supporting_evidence_non_escalation",
+        "policy_threshold_evaluation",
+        "route_investigate"
+      ],
+      "thresholds_applied_basis_points": {
+        "clear_maximum": 2500,
+        "escalate_minimum": 8500,
+        "minimum_release_support_for_clear": 7000,
+        "minimum_countervailing_for_escalate": 9000
+      },
+      "rule_trace": [
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "blocker_rule:supporting_evidence_cannot_escalate",
+          "outcome": "applied",
+          "detail": "maximum_disposition=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "route_hint:investigate",
+          "outcome": "applied",
+          "detail": "review_route=standard_review"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "score_clamp",
+          "outcome": "applied",
+          "detail": "before=7700 after=7700"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "escalation_gate",
+          "outcome": "fail",
+          "detail": "score=7700 threshold=8500 countervailing=8000 blockers=1 maximum=investigate"
+        },
+        {
+          "schema_version": "policy-rule-trace/v1alpha1",
+          "rule": "clear_gate",
+          "outcome": "fail",
+          "detail": "score=7700 threshold=2500 release_support=0 route_hint=investigate"
+        }
+      ]
+    }
+  ]
+}

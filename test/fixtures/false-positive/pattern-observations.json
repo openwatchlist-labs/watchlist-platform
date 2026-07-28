@@ -1,0 +1,408 @@
+{
+  "schema_version": "transaction-screening-observation-batch/v1alpha1",
+  "batch_id": "",
+  "source_reference": "fixture:false-positive-pattern-observations",
+  "observations": [
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-01-substring-scuba-cuba",
+      "message_id": "FP-MSG-001",
+      "message_type": "pacs.008.001.08",
+      "source_system": "fixture-screener",
+      "matched_field": "remittance.unstructured",
+      "semantic_role": "remittance.unstructured",
+      "value_type": "narrative",
+      "trigger_policy": "candidate_alert",
+      "input_value": "SCUBA EQUIPMENT PURCHASE",
+      "normalized_input_value": "",
+      "watchlist_value": "CUBA",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "jurisdiction",
+      "match_route": "contextual_phrase_window",
+      "screening_score_basis_points": 7800,
+      "exact": false,
+      "target_entity_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-02-wrong-field-account-vessel",
+      "message_id": "FP-MSG-002",
+      "message_type": "pacs.008.001.08",
+      "source_system": "fixture-screener",
+      "matched_field": "creditor_account.other_id",
+      "semantic_role": "creditor_account.other_id",
+      "value_type": "account_identifier",
+      "trigger_policy": "supporting_evidence",
+      "input_value": "9387421",
+      "normalized_input_value": "",
+      "watchlist_value": "MV EXAMPLE",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "vessel",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 8800,
+      "exact": false,
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-03-entity-type-mismatch",
+      "message_id": "FP-MSG-003",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "creditor.name",
+      "semantic_role": "creditor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "input_value": "EXAMPLE VESSEL",
+      "normalized_input_value": "",
+      "watchlist_value": "EXAMPLE VESSEL",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "vessel",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "matcher_diagnostic_codes": [
+        "entity_type_mismatch"
+      ],
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-04-missing-bank-qualifier",
+      "message_id": "FP-MSG-004",
+      "message_type": "pacs.008.001.08",
+      "source_system": "fixture-screener",
+      "matched_field": "debtor_agent.name",
+      "semantic_role": "debtor_agent.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "input_value": "NATIONAL DEVELOPMENT",
+      "normalized_input_value": "",
+      "watchlist_value": "NATIONAL DEVELOPMENT BANK",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "financial_institution",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 8400,
+      "exact": false,
+      "required_qualifiers": [
+        "BANK"
+      ],
+      "target_entity_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-05-routing-bic-collision",
+      "message_id": "FP-MSG-005",
+      "message_type": "pacs.008.001.08",
+      "source_system": "fixture-screener",
+      "matched_field": "debtor_agent.bic",
+      "semantic_role": "debtor_agent.bic",
+      "value_type": "bic",
+      "trigger_policy": "candidate_alert",
+      "input_value": "ABCDKPX1XXX",
+      "normalized_input_value": "",
+      "watchlist_value": "KP",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "jurisdiction",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 7300,
+      "exact": false,
+      "target_entity_types": [
+        "financial_institution"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-06-acronym-reference",
+      "message_id": "FP-MSG-006",
+      "message_type": "MT103",
+      "source_system": "fixture-screener",
+      "matched_field": ":20:",
+      "semantic_role": "payment.identification.instruction_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "candidate_alert",
+      "input_value": "FARC-2026-001",
+      "normalized_input_value": "",
+      "watchlist_value": "FARC",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "organization",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 8200,
+      "exact": false,
+      "target_entity_types": [
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-07-phonetic-only",
+      "message_id": "FP-MSG-007",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "debtor.name",
+      "semantic_role": "debtor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "input_value": "BECHIR",
+      "normalized_input_value": "",
+      "watchlist_value": "BASHIR",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "individual",
+      "match_route": "transliteration",
+      "screening_score_basis_points": 8100,
+      "exact": false,
+      "matcher_reason_codes": [
+        "name_fuzzy_phonetic"
+      ],
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-08-narrative-denial",
+      "message_id": "FP-MSG-008",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "remittance.unstructured",
+      "semantic_role": "remittance.unstructured",
+      "value_type": "narrative",
+      "trigger_policy": "candidate_alert",
+      "input_value": "NO BUSINESS RELATIONSHIP WITH JORDAN EXAMPLE",
+      "normalized_input_value": "",
+      "watchlist_value": "JORDAN EXAMPLE",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "individual",
+      "match_route": "contextual_phrase_window",
+      "screening_score_basis_points": 4000,
+      "exact": false,
+      "matcher_diagnostic_codes": [
+        "narrative_denial_context"
+      ],
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-09-technical-artifact",
+      "message_id": "FP-MSG-009",
+      "message_type": "MT103",
+      "source_system": "fixture-screener",
+      "matched_field": ":20:",
+      "semantic_role": "payment.identification.instruction_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "candidate_alert",
+      "input_value": "MIGRATION-0000000000",
+      "normalized_input_value": "",
+      "watchlist_value": "JORDAN EXAMPLE",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "individual",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 7000,
+      "exact": false,
+      "technical_markers": [
+        "legacy_migration_padding"
+      ],
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-10-legal-control-context",
+      "message_id": "FP-MSG-010",
+      "message_type": "pacs.008.001.08",
+      "source_system": "fixture-screener",
+      "matched_field": "remittance.unstructured",
+      "semantic_role": "remittance.unstructured",
+      "value_type": "narrative",
+      "trigger_policy": "candidate_alert",
+      "input_value": "PAYMENT BY BANKRUPTCY TRUSTEE FOR JORDAN EXAMPLE",
+      "normalized_input_value": "",
+      "watchlist_value": "JORDAN EXAMPLE",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "individual",
+      "match_route": "contextual_phrase_window",
+      "screening_score_basis_points": 10000,
+      "exact": false,
+      "context_markers": [
+        "bankruptcy_trustee"
+      ],
+      "target_entity_types": [
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-11-exact-lei-countervailing",
+      "message_id": "FP-MSG-011",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "creditor.identification.lei",
+      "semantic_role": "creditor.identification.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "input_value": "529900T8BM49AURSDO55",
+      "normalized_input_value": "",
+      "watchlist_value": "529900T8BM49AURSDO55",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "organization",
+      "match_route": "exact_lei",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "target_entity_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-12-exact-bic-countervailing",
+      "message_id": "FP-MSG-012",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "creditor_agent.bic",
+      "semantic_role": "creditor_agent.bic",
+      "value_type": "bic",
+      "trigger_policy": "candidate_alert",
+      "input_value": "DEUTDEFFXXX",
+      "normalized_input_value": "",
+      "watchlist_value": "DEUTDEFFXXX",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "financial_institution",
+      "match_route": "exact_bic",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "target_entity_types": [
+        "financial_institution"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-13-whole-token-geography",
+      "message_id": "FP-MSG-013",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "remittance.unstructured",
+      "semantic_role": "remittance.unstructured",
+      "value_type": "narrative",
+      "trigger_policy": "candidate_alert",
+      "input_value": "SHIPMENT ROUTED VIA CUBA",
+      "normalized_input_value": "",
+      "watchlist_value": "CUBA",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "jurisdiction",
+      "match_route": "contextual_phrase_window",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "target_entity_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-14-multifeature-fuzzy-name",
+      "message_id": "FP-MSG-014",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "debtor.name",
+      "semantic_role": "debtor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "input_value": "ACME IMPORT LLC",
+      "normalized_input_value": "",
+      "watchlist_value": "ACME IMPORTS LLC",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "organization",
+      "match_route": "normalized_name",
+      "screening_score_basis_points": 9605,
+      "exact": false,
+      "matcher_reason_codes": [
+        "name_fuzzy_edit",
+        "name_fuzzy_phonetic",
+        "name_fuzzy_token_alignment"
+      ],
+      "target_entity_types": [
+        "government_entity",
+        "individual",
+        "organization"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-15-supporting-exact-date",
+      "message_id": "FP-MSG-015",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "ultimate_debtor.identification.birth_date",
+      "semantic_role": "ultimate_debtor.identification.birth_date",
+      "value_type": "date",
+      "trigger_policy": "supporting_evidence",
+      "input_value": "1980-05-20",
+      "normalized_input_value": "",
+      "watchlist_value": "1980-05-20",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "individual",
+      "match_route": "exact_date",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "target_entity_types": [
+        "individual"
+      ]
+    },
+    {
+      "schema_version": "transaction-screening-observation/v1alpha1",
+      "observation_id": "",
+      "case_id": "fp-16-supporting-exact-account",
+      "message_id": "FP-MSG-016",
+      "message_type": "pacs.008.001.08",
+      "source_system": "openwatchlist-matcher",
+      "matched_field": "debtor_account.other_id",
+      "semantic_role": "debtor_account.other_id",
+      "value_type": "account_identifier",
+      "trigger_policy": "supporting_evidence",
+      "input_value": "ACME-OPERATING-001",
+      "normalized_input_value": "",
+      "watchlist_value": "ACME-OPERATING-001",
+      "normalized_watchlist_value": "",
+      "watchlist_entity_type": "organization",
+      "match_route": "exact_account",
+      "screening_score_basis_points": 10000,
+      "exact": true,
+      "target_entity_types": [
+        "organization"
+      ]
+    }
+  ]
+}

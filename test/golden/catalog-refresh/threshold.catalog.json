@@ -1,0 +1,307 @@
+{
+  "schema_version": "ofac-direct-list-catalog/v1alpha1",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "07/16/2026-2da972409d17",
+  "catalog_checksum": "9be1e08ea66bf28e8eb6fde3a0535c4eb5410620f05a8ed4993ad702c0bf2479",
+  "catalog_mode": "direct_list",
+  "projector_version": "ofac-direct-list-projector/v0.1.0",
+  "source_manifest": {
+    "schema_version": "ofac-source-manifest/v1alpha1",
+    "manifest_id": "ofac_source_f45bd59ea94e8d223e137089",
+    "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+    "dataset_id": "ofac-sdn",
+    "source_url": "fixture:delta-threshold",
+    "acquisition_method": "local_fixture",
+    "acquired_at": "2026-07-13T19:02:00Z",
+    "media_type": "application/xml",
+    "content_length": 3907,
+    "content_sha256": "2da972409d1781db700ac82256e4e9f608b48c3736e92665ab57733a18caf4a3",
+    "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML",
+    "publish_date": "07/16/2026",
+    "declared_record_count": 10,
+    "parser_version": "ofac-sdn-legacy-xml-parser/v0.1.0"
+  },
+  "record_count": 10,
+  "records": [
+    {
+      "provider_record_id": "ofac:sdn:4001",
+      "source_uid": "4001",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 01",
+      "remarks": "Synthetic delta base record 01. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5001",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 01"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4001",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4002",
+      "source_uid": "4002",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 02",
+      "remarks": "Synthetic delta base record 02. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5002",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 02"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4002",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4003",
+      "source_uid": "4003",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 03",
+      "remarks": "Synthetic delta updated record 03. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5003",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 03"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4003",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4004",
+      "source_uid": "4004",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 04",
+      "remarks": "Synthetic delta base record 04. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5004",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 04"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4004",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4005",
+      "source_uid": "4005",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 05",
+      "remarks": "Synthetic delta updated record 05. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5005",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 05"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4005",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4006",
+      "source_uid": "4006",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 06",
+      "remarks": "Synthetic delta base record 06. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5006",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 06"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4006",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4007",
+      "source_uid": "4007",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 07",
+      "remarks": "Synthetic delta base record 07. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5007",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 07"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4007",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4008",
+      "source_uid": "4008",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 08",
+      "remarks": "Synthetic delta base record 08. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5008",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 08"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4008",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4009",
+      "source_uid": "4009",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 09",
+      "remarks": "Synthetic delta base record 09. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5009",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 09"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4009",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:4010",
+      "source_uid": "4010",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Delta Fixture Entity 10",
+      "remarks": "Synthetic delta base record 10. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-DELTA"
+      ],
+      "aliases": [
+        {
+          "source_uid": "5010",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "DFE 10"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "4010",
+        "programs": [
+          "DEMO-DELTA"
+        ]
+      }
+    }
+  ]
+}

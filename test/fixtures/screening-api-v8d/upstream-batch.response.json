@@ -1,0 +1,41 @@
+{
+  "schema_version": "openwatchlist.screening-batch-response.v1",
+  "batch_id": "screening-phase8d-batch-1",
+  "items": [
+    {
+      "response": {
+        "request_id": "batch-item-tie",
+        "status": "candidates_retrieved",
+        "lineage": {
+          "provider": "ofac-direct",
+          "catalog_id": "ofac-production",
+          "component_id": "sdn",
+          "component_version": "2026-07-14T00:00:00Z",
+          "activation_id": "activation-phase8d-fixture",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "blockers": [],
+        "candidates": [
+          {"candidate_id": "z-tie", "retrieval": {"routes": ["name_exact"], "reason_codes": ["name_exact_candidate"]}},
+          {"candidate_id": "a-tie", "retrieval": {"routes": ["name_exact"], "reason_codes": ["name_exact_candidate"]}}
+        ]
+      }
+    },
+    {
+      "response": {
+        "request_id": "batch-item-empty",
+        "status": "no_candidates",
+        "lineage": {
+          "provider": "ofac-direct",
+          "catalog_id": "ofac-production",
+          "component_id": "sdn",
+          "component_version": "2026-07-14T00:00:00Z",
+          "activation_id": "activation-phase8d-fixture",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "blockers": [],
+        "candidates": []
+      }
+    }
+  ]
+}

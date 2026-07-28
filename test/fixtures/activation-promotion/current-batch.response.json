@@ -1,0 +1,9 @@
+{
+  "schema_version": "openwatchlist.screening-batch-response.v2",
+  "request_id": "phase8f-batch-1",
+  "backend_marker": "current",
+  "items": [
+    {"request_id": "phase8f-batch-item-1", "response": {"blockers": [], "candidates": [{"candidate_id": "a", "score": 900}]}},
+    {"request_id": "phase8f-batch-item-2", "response": {"blockers": [], "candidates": [{"candidate_id": "b", "score": 800}]}}
+  ]
+}

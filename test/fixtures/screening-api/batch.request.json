@@ -1,0 +1,41 @@
+{
+  "schema_version": "screening-batch-request/v1alpha1",
+  "requests": [
+    {
+      "schema_version": "screening-request/v1alpha1",
+      "request_id": "api-batch-name-001",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "WLS_OFAC_001",
+      "effective_at": "2026-07-20T12:00:00Z",
+      "query": {
+        "kind": "name",
+        "value": "ACME IMPORTS",
+        "limit": 20
+      }
+    },
+    {
+      "schema_version": "screening-request/v1alpha1",
+      "request_id": "api-batch-no-match-002",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "WLS_OFAC_001",
+      "effective_at": "2026-07-20T12:00:00Z",
+      "query": {
+        "kind": "name",
+        "value": "NO SUCH ENTITY",
+        "limit": 20
+      }
+    },
+    {
+      "schema_version": "screening-request/v1alpha1",
+      "request_id": "api-batch-unmapped-003",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "UNKNOWN_OFAC_LIST",
+      "effective_at": "2026-07-20T12:00:00Z",
+      "query": {
+        "kind": "name",
+        "value": "ACME IMPORTS",
+        "limit": 20
+      }
+    }
+  ]
+}

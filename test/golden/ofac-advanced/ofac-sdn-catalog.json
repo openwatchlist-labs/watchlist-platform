@@ -1,0 +1,195 @@
+{
+  "schema_version": "ofac-direct-list-catalog/v1alpha1",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "2026-07-13-427847835cb4",
+  "catalog_checksum": "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582",
+  "catalog_mode": "direct_list",
+  "projector_version": "ofac-direct-list-projector/v0.1.0",
+  "source_manifest": {
+    "schema_version": "ofac-source-manifest/v1alpha1",
+    "manifest_id": "ofac_source_ffced0d479e0bed9eb1804ca",
+    "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+    "dataset_id": "ofac-sdn",
+    "source_url": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.XML",
+    "acquisition_method": "local_fixture",
+    "acquired_at": "2026-07-14T15:00:00Z",
+    "media_type": "application/xml",
+    "content_length": 14225,
+    "content_sha256": "427847835cb449fbaf67e60748e696ee1e3249924b7b6b149e0e6d16e9f7e13e",
+    "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML",
+    "publish_date": "2026-07-13",
+    "declared_record_count": 3,
+    "parser_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+    "source_format": "ofac_advanced_xml",
+    "xml_schema_version": "3",
+    "schema_location": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd",
+    "source_filename": "SDN_ADVANCED.XML"
+  },
+  "record_count": 3,
+  "records": [
+    {
+      "provider_record_id": "ofac:sdn:1001",
+      "source_uid": "1001",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Acme Imports LLC",
+      "title": "Trading Company",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO",
+        "DEMO-SECONDARY"
+      ],
+      "aliases": [
+        {
+          "source_uid": "1001001",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "ACME IMPORTS"
+        },
+        {
+          "source_uid": "1001002",
+          "type": "f.k.a.",
+          "strength": "weak",
+          "name": "ACME GLOBAL"
+        }
+      ],
+      "addresses": [
+        {
+          "source_uid": "1201",
+          "address1": "100 Example Avenue",
+          "address2": "Suite 200",
+          "city": "New York",
+          "state": "NY",
+          "postal_code": "10001",
+          "country": "United States"
+        }
+      ],
+      "identifiers": [
+        {
+          "source_uid": "1301",
+          "type": "Legal Entity Identifier",
+          "number": "5493001KJTIIGC8Y1R12",
+          "country": "United States"
+        },
+        {
+          "source_uid": "1302",
+          "type": "Account Number",
+          "number": "ACME-OPERATING-001"
+        }
+      ],
+      "nationalities": [
+        "United States"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "1001",
+        "programs": [
+          "DEMO",
+          "DEMO-SECONDARY"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:2002",
+      "source_uid": "2002",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Jordan Example",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO"
+      ],
+      "aliases": [
+        {
+          "source_uid": "2002001",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "Джордан Экзампл"
+        },
+        {
+          "source_uid": "2002002",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "J. Example"
+        }
+      ],
+      "addresses": [
+        {
+          "source_uid": "2201",
+          "city": "New York",
+          "country": "United States"
+        }
+      ],
+      "dates_of_birth": [
+        "1980-05-20"
+      ],
+      "places_of_birth": [
+        "New York, United States"
+      ],
+      "citizenships": [
+        "United States"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "2002",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:3003",
+      "source_uid": "3003",
+      "entity_type": "vessel",
+      "sdn_type": "Vessel",
+      "primary_name": "Example Vessel",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-MARITIME"
+      ],
+      "aliases": [
+        {
+          "source_uid": "3003001",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "MV EXAMPLE"
+        }
+      ],
+      "addresses": [
+        {
+          "source_uid": "3201",
+          "country": "Panama"
+        }
+      ],
+      "identifiers": [
+        {
+          "source_uid": "3301",
+          "type": "Vessel Registration Identification",
+          "number": "IMO 1234567",
+          "country": "Panama"
+        }
+      ],
+      "vessel_attributes": {
+        "call_sign": "EXMP",
+        "flag": "Panama",
+        "grt": "7000",
+        "owner": "Example Maritime Ltd",
+        "tonnage": "10000",
+        "vessel_type": "Bulk Carrier"
+      },
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+        "list_id": "SDN",
+        "source_record_id": "3003",
+        "programs": [
+          "DEMO-MARITIME"
+        ]
+      }
+    }
+  ]
+}

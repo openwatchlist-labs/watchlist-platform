@@ -1,0 +1,43 @@
+{
+  "schema_version": "alert-list-mapping-registry/v1alpha1",
+  "registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "engine_version": "alert-list-mapping/v0.1.0",
+  "last_sequence": 1,
+  "audit_head": "1732947feaa737ed50aed0cf4b96123507859b194cfcd43d047f1848461fb3cd",
+  "keys": [
+    {
+      "schema_version": "alert-list-mapping-key/v1alpha1",
+      "mapping_id": "alert_list_mapping_a1a60bda01c577f1b04254c1",
+      "registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+      "namespace": "demo-bank",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "WLS_OFAC_001",
+      "created_at": "2026-07-14T18:50:00Z",
+      "created_by": "phase7cc-fixture",
+      "key_checksum": "1f6e66a43782da2a32991b9d3148fbca4feb5b363de4f66fc99675000b421ad2"
+    }
+  ],
+  "versions": [
+    {
+      "schema_version": "alert-list-mapping-version/v1alpha1",
+      "mapping_version_id": "alert_list_mapping_version_f301d9cddb412d1a0a318292",
+      "mapping_id": "alert_list_mapping_a1a60bda01c577f1b04254c1",
+      "registry_id": "alert_list_mapping_registry_fd23fcd87ad22abcf931c0b9",
+      "namespace": "demo-bank",
+      "sequence": 1,
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "WLS_OFAC_001",
+      "action": "bind",
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "effective_from": "2026-07-14T19:00:00Z",
+      "reason": "Map the production Fircosoft OFAC list code to the official OFAC component",
+      "created_at": "2026-07-14T18:50:00Z",
+      "created_by": "phase7cc-fixture",
+      "previous_event_hash": "",
+      "event_hash": "1732947feaa737ed50aed0cf4b96123507859b194cfcd43d047f1848461fb3cd",
+      "version_checksum": "a7c4bbda11031d2734fd287388ff9eabc15420df0336d47e36ead2eab639ac05"
+    }
+  ],
+  "registry_checksum": "0f9311a1732182d80256d833b052f09ffbaa9c652faa82618d1662518ebb9b58"
+}

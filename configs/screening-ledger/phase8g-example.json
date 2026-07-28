@@ -1,0 +1,23 @@
+{
+  "listen_address": "127.0.0.1:18094",
+  "upstream_base_url": "http://127.0.0.1:18093",
+  "ledger_directory": "../../test/fixtures/screening-ledger/state",
+  "idempotency_directory": "../../test/fixtures/screening-ledger/idempotency",
+  "instance_id": "screening-api-v8g-example",
+  "snapshot_key_file": "../../test/fixtures/screening-ledger/snapshot-key.hex",
+  "snapshot_key_env": "",
+  "max_body_bytes": 2097152,
+  "request_timeout_millis": 5000,
+  "retention": {
+    "class": "screening-standard",
+    "retention_days": 2555,
+    "redact_keys": ["account_number", "iban", "bic", "passport_number", "tax_id"],
+    "hash_keys": ["name", "address", "original_value"],
+    "max_snapshot_bytes": 2097152
+  },
+  "postgres_dsn": "postgres://phase8g-fixture",
+  "postgres_dsn_env": "",
+  "psql_path": "../../test/fixtures/screening-ledger/fake-psql.sh",
+  "require_postgres": true,
+  "auto_migrate": true
+}

@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Sanctions xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  Version="3"
+  xsi:schemaLocation="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd">
+  <DateOfIssue CalendarTypeID="1"><Year>2026</Year><Month>7</Month><Day>13</Day></DateOfIssue>
+  <ReferenceValueSets>
+    <CalendarTypeValues><CalendarType ID="1">Gregorian</CalendarType></CalendarTypeValues>
+    <PartySubTypeValues>
+      <PartySubType ID="1">Individual</PartySubType>
+      <PartySubType ID="2">Entity</PartySubType>
+      <PartySubType ID="3">Vessel</PartySubType>
+      <PartySubType ID="4">Aircraft</PartySubType>
+    </PartySubTypeValues>
+    <NamePartTypeValues>
+      <NamePartType ID="10">First Name</NamePartType>
+      <NamePartType ID="11">Last Name</NamePartType>
+      <NamePartType ID="12">Whole Name</NamePartType>
+    </NamePartTypeValues>
+    <ScriptValues><Script ID="215">Latin</Script><Script ID="216">Cyrillic</Script></ScriptValues>
+    <ScriptStatusValues><ScriptStatus ID="1">Primary</ScriptStatus></ScriptStatusValues>
+    <AliasTypeValues><AliasType ID="1">a.k.a.</AliasType><AliasType ID="2">f.k.a.</AliasType></AliasTypeValues>
+    <FeatureTypeValues>
+      <FeatureType ID="100">Title</FeatureType>
+      <FeatureType ID="101">Nationality</FeatureType>
+      <FeatureType ID="102">Citizenship</FeatureType>
+      <FeatureType ID="103">Date of Birth</FeatureType>
+      <FeatureType ID="104">Place of Birth</FeatureType>
+      <FeatureType ID="105">Address</FeatureType>
+      <FeatureType ID="106">Vessel Call Sign</FeatureType>
+      <FeatureType ID="107">Vessel Type</FeatureType>
+      <FeatureType ID="108">Vessel Flag</FeatureType>
+      <FeatureType ID="109">Vessel Owner</FeatureType>
+      <FeatureType ID="110">Tonnage</FeatureType>
+      <FeatureType ID="111">Gross Registered Tonnage</FeatureType>
+      <FeatureType ID="112">Digital Currency Address - XBT</FeatureType>
+    </FeatureTypeValues>
+    <DetailTypeValues><DetailType ID="1">Value</DetailType></DetailTypeValues>
+    <LocPartTypeValues>
+      <LocPartType ID="1">Address</LocPartType>
+      <LocPartType ID="2">Address</LocPartType>
+      <LocPartType ID="3">City</LocPartType>
+      <LocPartType ID="4">State or Province</LocPartType>
+      <LocPartType ID="5">Postal Code</LocPartType>
+    </LocPartTypeValues>
+    <CountryRelevanceValues><CountryRelevance ID="1">Primary</CountryRelevance></CountryRelevanceValues>
+    <LocPartValueStatusValues><LocPartValueStatus ID="1">Known</LocPartValueStatus></LocPartValueStatusValues>
+    <LocPartValueTypeValues><LocPartValueType ID="1">Current</LocPartValueType></LocPartValueTypeValues>
+    <CountryValues><Country ID="840">United States</Country><Country ID="591">Panama</Country></CountryValues>
+    <IDRegDocTypeValues><IDRegDocType ID="200">Legal Entity Identifier</IDRegDocType><IDRegDocType ID="201">Account Number</IDRegDocType><IDRegDocType ID="202">Vessel Registration Identification</IDRegDocType></IDRegDocTypeValues>
+    <IDRegDocDateTypeValues><IDRegDocDateType ID="1">Issue Date</IDRegDocDateType><IDRegDocDateType ID="2">Expiry Date</IDRegDocDateType></IDRegDocDateTypeValues>
+    <ListValues><List ID="1550">SDN List</List></ListValues>
+    <SanctionsTypeValues><SanctionsType ID="1704">Block</SanctionsType><SanctionsType ID="1705">Program</SanctionsType></SanctionsTypeValues>
+    <LegalBasisValues><LegalBasis ID="300">Synthetic authority for regression testing</LegalBasis></LegalBasisValues>
+    <EntryEventTypeValues><EntryEventType ID="301">List</EntryEventType></EntryEventTypeValues>
+    <RelationTypeValues><RelationType ID="400">Owned or controlled by</RelationType></RelationTypeValues>
+    <RelationQualityValues><RelationQuality ID="401">High</RelationQuality></RelationQualityValues>
+  </ReferenceValueSets>
+  <Locations>
+    <Location ID="1201"><LocationCountry CountryID="840" CountryRelevanceID="1"/><LocationPart LocPartTypeID="1"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>100 Example Avenue</Value></LocationPartValue></LocationPart><LocationPart LocPartTypeID="2"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>Suite 200</Value></LocationPartValue></LocationPart><LocationPart LocPartTypeID="3"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>New York</Value></LocationPartValue></LocationPart><LocationPart LocPartTypeID="4"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>NY</Value></LocationPartValue></LocationPart><LocationPart LocPartTypeID="5"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>10001</Value></LocationPartValue></LocationPart></Location>
+    <Location ID="2201"><LocationCountry CountryID="840" CountryRelevanceID="1"/><LocationPart LocPartTypeID="3"><LocationPartValue Primary="true" LocPartValueTypeID="1" LocPartValueStatusID="1"><Value>New York</Value></LocationPartValue></LocationPart></Location>
+    <Location ID="3201"><LocationCountry CountryID="591" CountryRelevanceID="1"/></Location>
+  </Locations>
+  <IDRegDocuments>
+    <IDRegDocument ID="1301" IDRegDocTypeID="200" IdentityID="11001" IssuedBy-CountryID="840"><IDRegistrationNo>5493001KJTIIGC8Y1R12</IDRegistrationNo><IssuedBy CountryID="840" CountryRelevanceID="1"/></IDRegDocument>
+    <IDRegDocument ID="1302" IDRegDocTypeID="201" IdentityID="11001"><IDRegistrationNo>ACME-OPERATING-001</IDRegistrationNo></IDRegDocument>
+    <IDRegDocument ID="3301" IDRegDocTypeID="202" IdentityID="13003" IssuedBy-CountryID="591"><IDRegistrationNo>IMO 1234567</IDRegistrationNo><IssuedBy CountryID="591" CountryRelevanceID="1"/></IDRegDocument>
+  </IDRegDocuments>
+  <DistinctParties>
+    <DistinctParty FixedRef="1001">
+      <Comment>Synthetic fixture record. Not an actual OFAC designation.</Comment>
+      <Profile ID="1001" PartySubTypeID="2">
+        <Identity ID="11001">
+          <Alias FixedRef="100100" ID="100100" AliasTypeID="1" Primary="true" LowQuality="false"><DocumentedName FixedRef="100100" ID="100100"><DocumentedNamePart><NamePartValue NamePartGroupID="21001" ScriptID="215" ScriptStatusID="1" Acronym="false">Acme Imports LLC</NamePartValue></DocumentedNamePart><IDRegDocumentReference IDRegDocumentID="1301"/><IDRegDocumentReference IDRegDocumentID="1302"/></DocumentedName></Alias>
+          <Alias FixedRef="1101" ID="1101" AliasTypeID="1" Primary="false" LowQuality="false"><DocumentedName FixedRef="1101" ID="1101"><DocumentedNamePart><NamePartValue NamePartGroupID="21001" ScriptID="215" ScriptStatusID="1" Acronym="false">ACME IMPORTS</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <Alias FixedRef="1102" ID="1102" AliasTypeID="2" Primary="false" LowQuality="true"><DocumentedName FixedRef="1102" ID="1102"><DocumentedNamePart><NamePartValue NamePartGroupID="21001" ScriptID="215" ScriptStatusID="1" Acronym="false">ACME GLOBAL</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <NamePartGroups><MasterNamePartGroup><NamePartGroup ID="21001" NamePartTypeID="12"/></MasterNamePartGroup></NamePartGroups>
+        </Identity>
+        <Feature ID="1001-F1" FeatureTypeID="100"><FeatureVersion><VersionDetail DetailTypeID="1">Trading Company</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="1001-F2" FeatureTypeID="101"><FeatureVersion><VersionDetail DetailTypeID="1">United States</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="1001-F3" FeatureTypeID="105"><FeatureVersion><VersionLocation LocationID="1201"/></FeatureVersion></Feature>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="2002">
+      <Comment>Synthetic fixture record. Not an actual OFAC designation.</Comment>
+      <Profile ID="2002" PartySubTypeID="1">
+        <Identity ID="12002">
+          <Alias FixedRef="200200" ID="200200" AliasTypeID="1" Primary="true" LowQuality="false"><DocumentedName FixedRef="200200" ID="200200"><DocumentedNamePart><NamePartValue NamePartGroupID="22001" ScriptID="215" ScriptStatusID="1" Acronym="false">Jordan</NamePartValue></DocumentedNamePart><DocumentedNamePart><NamePartValue NamePartGroupID="22002" ScriptID="215" ScriptStatusID="1" Acronym="false">Example</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <Alias FixedRef="2101" ID="2101" AliasTypeID="1" Primary="false" LowQuality="false"><DocumentedName FixedRef="2101" ID="2101"><DocumentedNamePart><NamePartValue NamePartGroupID="22001" ScriptID="215" ScriptStatusID="1" Acronym="true">J.</NamePartValue></DocumentedNamePart><DocumentedNamePart><NamePartValue NamePartGroupID="22002" ScriptID="215" ScriptStatusID="1" Acronym="false">Example</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <Alias FixedRef="2102" ID="2102" AliasTypeID="1" Primary="true" LowQuality="false"><DocumentedName FixedRef="2102" ID="2102"><DocumentedNamePart><NamePartValue NamePartGroupID="22001" ScriptID="216" ScriptStatusID="1" Acronym="false">Джордан</NamePartValue></DocumentedNamePart><DocumentedNamePart><NamePartValue NamePartGroupID="22002" ScriptID="216" ScriptStatusID="1" Acronym="false">Экзампл</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <NamePartGroups><MasterNamePartGroup><NamePartGroup ID="22001" NamePartTypeID="10"/><NamePartGroup ID="22002" NamePartTypeID="11"/></MasterNamePartGroup></NamePartGroups>
+        </Identity>
+        <Feature ID="2002-F1" FeatureTypeID="103"><FeatureVersion><DatePeriod><Start><From><Year>1980</Year><Month>5</Month><Day>20</Day></From><To><Year>1980</Year><Month>5</Month><Day>20</Day></To></Start><End><From><Year>1980</Year><Month>5</Month><Day>20</Day></From><To><Year>1980</Year><Month>5</Month><Day>20</Day></To></End></DatePeriod></FeatureVersion></Feature>
+        <Feature ID="2002-F2" FeatureTypeID="104"><FeatureVersion><VersionDetail DetailTypeID="1">New York, United States</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="2002-F3" FeatureTypeID="102"><FeatureVersion><VersionDetail DetailTypeID="1">United States</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="2002-F4" FeatureTypeID="105"><FeatureVersion><VersionLocation LocationID="2201"/></FeatureVersion></Feature>
+      </Profile>
+    </DistinctParty>
+    <DistinctParty FixedRef="3003">
+      <Comment>Synthetic fixture record. Not an actual OFAC designation.</Comment>
+      <Profile ID="3003" PartySubTypeID="3">
+        <Identity ID="13003">
+          <Alias FixedRef="300300" ID="300300" AliasTypeID="1" Primary="true" LowQuality="false"><DocumentedName FixedRef="300300" ID="300300"><DocumentedNamePart><NamePartValue NamePartGroupID="23001" ScriptID="215" ScriptStatusID="1" Acronym="false">Example Vessel</NamePartValue></DocumentedNamePart><IDRegDocumentReference IDRegDocumentID="3301"/></DocumentedName></Alias>
+          <Alias FixedRef="3101" ID="3101" AliasTypeID="1" Primary="false" LowQuality="false"><DocumentedName FixedRef="3101" ID="3101"><DocumentedNamePart><NamePartValue NamePartGroupID="23001" ScriptID="215" ScriptStatusID="1" Acronym="false">MV EXAMPLE</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <NamePartGroups><MasterNamePartGroup><NamePartGroup ID="23001" NamePartTypeID="12"/></MasterNamePartGroup></NamePartGroups>
+        </Identity>
+        <Feature ID="3003-F1" FeatureTypeID="105"><FeatureVersion><VersionLocation LocationID="3201"/></FeatureVersion></Feature>
+        <Feature ID="3003-F2" FeatureTypeID="106"><FeatureVersion><VersionDetail DetailTypeID="1">EXMP</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="3003-F3" FeatureTypeID="107"><FeatureVersion><VersionDetail DetailTypeID="1">Bulk Carrier</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="3003-F4" FeatureTypeID="108"><FeatureVersion><VersionDetail DetailTypeID="1">Panama</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="3003-F5" FeatureTypeID="109"><FeatureVersion><VersionDetail DetailTypeID="1">Example Maritime Ltd</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="3003-F6" FeatureTypeID="110"><FeatureVersion><VersionDetail DetailTypeID="1">10000</VersionDetail></FeatureVersion></Feature>
+        <Feature ID="3003-F7" FeatureTypeID="111"><FeatureVersion><VersionDetail DetailTypeID="1">7000</VersionDetail></FeatureVersion></Feature>
+      </Profile>
+    </DistinctParty>
+  </DistinctParties>
+  <ProfileRelationships><ProfileRelationship ID="5001" From-ProfileID="1001" To-ProfileID="3003" RelationTypeID="400" RelationQualityID="401" Former="false" SanctionsEntryID="6001"><Comment>Synthetic relationship.</Comment></ProfileRelationship></ProfileRelationships>
+  <SanctionsEntries>
+    <SanctionsEntry ID="6001" ProfileID="1001" ListID="1550"><EntryEvent ID="6101" LegalBasisID="300" EntryEventTypeID="301"><Date CalendarTypeID="1"><Year>2026</Year><Month>7</Month><Day>13</Day></Date></EntryEvent><SanctionsMeasure SanctionsTypeID="1704"/><SanctionsMeasure SanctionsTypeID="1705"><Comment>DEMO</Comment></SanctionsMeasure><SanctionsMeasure SanctionsTypeID="1705"><Comment>DEMO-SECONDARY</Comment></SanctionsMeasure></SanctionsEntry>
+    <SanctionsEntry ID="6002" ProfileID="2002" ListID="1550"><EntryEvent ID="6102" LegalBasisID="300" EntryEventTypeID="301"><Date CalendarTypeID="1"><Year>2026</Year><Month>7</Month><Day>13</Day></Date></EntryEvent><SanctionsMeasure SanctionsTypeID="1704"/><SanctionsMeasure SanctionsTypeID="1705"><Comment>DEMO</Comment></SanctionsMeasure></SanctionsEntry>
+    <SanctionsEntry ID="6003" ProfileID="3003" ListID="1550"><EntryEvent ID="6103" LegalBasisID="300" EntryEventTypeID="301"><Date CalendarTypeID="1"><Year>2026</Year><Month>7</Month><Day>13</Day></Date></EntryEvent><SanctionsMeasure SanctionsTypeID="1704"/><SanctionsMeasure SanctionsTypeID="1705"><Comment>DEMO-MARITIME</Comment></SanctionsMeasure></SanctionsEntry>
+  </SanctionsEntries>
+  <SanctionsEntryLinks/>
+</Sanctions>

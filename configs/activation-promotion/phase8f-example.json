@@ -1,0 +1,11 @@
+{
+  "listen_address": "127.0.0.1:18093",
+  "current_base_url": "http://127.0.0.1:18091",
+  "candidate_base_url": "http://127.0.0.1:18092",
+  "activation_state_directory": "../../test/fixtures/scoring-activation/state",
+  "promotion_state_directory": "../../test/fixtures/activation-promotion/state",
+  "idempotency_directory": "../../var/screening-api-v8f/idempotency",
+  "instance_id": "screening-api-v8f-example",
+  "max_body_bytes": 1048576,
+  "request_timeout_millis": 5000
+}

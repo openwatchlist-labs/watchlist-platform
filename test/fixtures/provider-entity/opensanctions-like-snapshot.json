@@ -1,0 +1,197 @@
+{
+  "schema_version": "opensanctions-like-snapshot/v1alpha1",
+  "snapshot_id": "opensanctions_snapshot_demo_20260714",
+  "snapshot_version": "2026-07-14",
+  "snapshot_checksum": "b5f60f3c45f64332df76e3c4a9cfc40b5b1d6512b46a22f7239d1614a6553170",
+  "provider_name": "opensanctions-demo",
+  "entity_count": 4,
+  "entities": [
+    {
+      "entity_id": "Q1001",
+      "schema": "Company",
+      "entity_type": "organization",
+      "primary_name": "Acme Imports LLC",
+      "aliases": [
+        {
+          "name": "ACME GLOBAL",
+          "type": "previous_name",
+          "strength": "weak"
+        },
+        {
+          "name": "ACME IMPORTS",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "addresses": [
+        {
+          "line1": "100 Example Avenue",
+          "line2": "Suite 200",
+          "city": "New York",
+          "region": "NY",
+          "postal_code": "10001",
+          "country": "United States"
+        }
+      ],
+      "identifiers": [
+        {
+          "type": "Account Number",
+          "value": "ACME-OPERATING-001"
+        },
+        {
+          "type": "Legal Entity Identifier",
+          "value": "5493001KJTIIGC8Y1R12"
+        }
+      ],
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "1001",
+          "programs": [
+            "DEMO"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions-demo",
+          "authority": "OpenWatchlist Labs Synthetic Provider",
+          "list_id": "SANCTIONS",
+          "source_record_id": "Q1001",
+          "programs": [
+            "DEMO"
+          ],
+          "active": true
+        }
+      ],
+      "attributes": {
+        "provider_schema": "Company"
+      }
+    },
+    {
+      "entity_id": "Q2002",
+      "schema": "Person",
+      "entity_type": "individual",
+      "primary_name": "Jordan Example",
+      "aliases": [
+        {
+          "name": "J. Example",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "addresses": [
+        {
+          "city": "New York",
+          "country": "United States"
+        }
+      ],
+      "dates_of_birth": [
+        "1980-05-20"
+      ],
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "2002",
+          "programs": [
+            "DEMO"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions-demo",
+          "authority": "OpenWatchlist Labs Synthetic Provider",
+          "list_id": "SANCTIONS",
+          "source_record_id": "Q2002",
+          "programs": [
+            "DEMO"
+          ],
+          "active": true
+        }
+      ],
+      "attributes": {
+        "provider_schema": "Person"
+      }
+    },
+    {
+      "entity_id": "Q3003",
+      "schema": "Vessel",
+      "entity_type": "vessel",
+      "primary_name": "Example Vessel",
+      "aliases": [
+        {
+          "name": "MV EXAMPLE",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "addresses": [
+        {
+          "country": "Panama"
+        }
+      ],
+      "identifiers": [
+        {
+          "type": "IMO Number",
+          "value": "IMO 1234567"
+        }
+      ],
+      "source_memberships": [
+        {
+          "source_id": "ofac-sls",
+          "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+          "list_id": "SDN",
+          "source_record_id": "3003",
+          "programs": [
+            "DEMO-MARITIME"
+          ],
+          "active": true
+        },
+        {
+          "source_id": "opensanctions-demo",
+          "authority": "OpenWatchlist Labs Synthetic Provider",
+          "list_id": "SANCTIONS",
+          "source_record_id": "Q3003",
+          "programs": [
+            "DEMO-MARITIME"
+          ],
+          "active": true
+        }
+      ],
+      "attributes": {
+        "provider_schema": "Vessel"
+      }
+    },
+    {
+      "entity_id": "Q9001",
+      "schema": "Company",
+      "entity_type": "organization",
+      "primary_name": "Provider Only Example",
+      "aliases": [
+        {
+          "name": "POE Holdings",
+          "type": "alias",
+          "strength": "strong"
+        }
+      ],
+      "source_memberships": [
+        {
+          "source_id": "opensanctions-demo",
+          "authority": "OpenWatchlist Labs Synthetic Provider",
+          "list_id": "SANCTIONS",
+          "source_record_id": "Q9001",
+          "programs": [
+            "PROVIDER-ONLY"
+          ],
+          "active": true
+        }
+      ],
+      "attributes": {
+        "provider_schema": "Company"
+      }
+    }
+  ]
+}

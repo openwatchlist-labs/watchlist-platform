@@ -1,0 +1,25 @@
+{
+  "at": "2026-07-21T12:00:00Z",
+  "alerts": [
+    {
+      "alert_id": "alert-fircosoft-1",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "WLS_OFAC_001"
+    },
+    {
+      "alert_id": "alert-unmapped-1",
+      "source_system_id": "fircosoft-prod",
+      "raw_list_name": "UNKNOWN_LIST"
+    },
+    {
+      "alert_id": "alert-expired-1",
+      "source_system_id": "legacy-batch",
+      "raw_list_name": "TEMP_OFAC"
+    },
+    {
+      "alert_id": "alert-future-1",
+      "source_system_id": "future-screening",
+      "raw_list_name": "OFAC_NEXT"
+    }
+  ]
+}

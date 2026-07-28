@@ -1,0 +1,13 @@
+{
+  "models": [
+    "granite4.1:8b",
+    "qwen3:14b",
+    "granite4.1-guardian:8b"
+  ],
+  "responses": {
+    "granite4.1:8b": "{\"schema_version\":\"openwatchlist.analyst-assistance-draft.v1\",\"summary\":\"The verified case contains an exact name signal and countervailing country evidence. Additional identity evidence remains appropriate before a human decision.\",\"evidence_findings\":[{\"statement\":\"Exact name evidence is treated as a strong investigation signal by the retrieved policy.\",\"citation_ids\":[\"passage_4d26af70e42f0565cd2ce0a2\"]},{\"statement\":\"Country contradictions must remain visible as countervailing evidence.\",\"citation_ids\":[\"passage_3e82d8f4938503740f64e3ab\"]}],\"missing_evidence_questions\":[\"Is an independently verified date of birth or government identifier available?\"],\"suggested_next_steps\":[\"Review the cited policy and obtain the missing identity evidence.\"]}",
+    "qwen3:14b": "{\"schema_version\":\"openwatchlist.analyst-assistance-draft.v1\",\"summary\":\"The case evidence should be reviewed together because the exact name signal and country contradiction point in different directions.\",\"evidence_findings\":[{\"statement\":\"The retrieved policy requires exact name evidence and contradictions to be considered together.\",\"citation_ids\":[\"passage_4d26af70e42f0565cd2ce0a2\",\"passage_3e82d8f4938503740f64e3ab\"]}],\"missing_evidence_questions\":[\"Which authoritative identity documents are available for comparison?\"],\"suggested_next_steps\":[\"Collect bounded identity evidence for analyst review.\"]}",
+    "granite4.1-guardian:8b": "{\"schema_version\":\"openwatchlist.guardian-assessment.v1\",\"grounded\":true,\"relevant\":true,\"safe\":true,\"citations_valid\":true,\"unsupported_claims\":[],\"notes\":\"The draft is bounded, cited, and non-dispositive.\"}"
+  },
+  "errors": {}
+}

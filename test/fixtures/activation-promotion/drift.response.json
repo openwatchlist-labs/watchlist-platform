@@ -1,0 +1,9 @@
+{
+  "schema_version": "openwatchlist.screening-response.v2",
+  "request_id": "phase8f-screening-1",
+  "backend_marker": "candidate-drift",
+  "blockers": [{"code": "projection_coverage_loss"}],
+  "candidates": [
+    {"candidate_id": "candidate-b", "score": 760, "similarity_band": "possible_similarity"}
+  ]
+}

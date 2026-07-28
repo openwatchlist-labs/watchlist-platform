@@ -1,0 +1,6 @@
+{
+  "schema_version": "openwatchlist.phase9g-delivery-fixture.v1",
+  "tenant_id": "tenant-a",
+  "case_id": "case-phase9g-fixture",
+  "operation": "case_projection_delivery"
+}

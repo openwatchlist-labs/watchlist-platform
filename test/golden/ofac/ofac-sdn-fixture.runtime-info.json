@@ -1,0 +1,56 @@
+{
+  "schema_version": "compiled-catalog-package-info/v1alpha1",
+  "package_id": "runtime_package_797518260b5ac360d6eed2a4",
+  "package_checksum": "9d105d3750025f715195e55b35935094cd7d4014af7e6f0fbfe66d17807bc760",
+  "artifact_size": 18520,
+  "manifest": {
+    "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+    "package_format": "owpcat/1",
+    "package_id": "runtime_package_797518260b5ac360d6eed2a4",
+    "compiler_version": "ofac-runtime-compiler/v0.1.0",
+    "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+    "provider": {
+      "schema_version": "matcher-provider-descriptor/v1alpha1",
+      "provider_id": "ofac-direct-list",
+      "provider_version": "v0.1.0",
+      "catalog": {
+        "catalog_id": "ofac-sdn-direct",
+        "catalog_version": "07/13/2026-c33e134053cc",
+        "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+        "catalog_mode": "direct_list"
+      },
+      "capabilities": {
+        "supported_routes": [
+          "alias",
+          "contextual_address",
+          "contextual_phrase_window",
+          "exact_account",
+          "exact_bic",
+          "exact_date",
+          "exact_lei",
+          "jurisdiction_policy",
+          "normalized_name",
+          "transliteration"
+        ],
+        "supported_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "max_candidates_per_request": 25,
+        "deterministic": true,
+        "source_assertions_included": true
+      }
+    },
+    "source_manifest_id": "ofac_source_8b1e79fe355457d4e1ee2f73",
+    "source_content_sha256": "c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+    "record_count": 3,
+    "entry_count": 29,
+    "payload_sha256": "f4726dbb399c29464ec8b1912cbc1d38317fd20d6af803895fae5aa26dfe5cb3",
+    "payload_size": 17193
+  }
+}

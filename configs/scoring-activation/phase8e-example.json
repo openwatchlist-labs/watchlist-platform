@@ -1,0 +1,9 @@
+{
+  "listen_address": "127.0.0.1:18091",
+  "upstream_base_url": "http://127.0.0.1:18090",
+  "activation_state_directory": "../../test/fixtures/scoring-activation/state",
+  "idempotency_directory": "../../var/screening-api-v8e/idempotency",
+  "max_body_bytes": 1048576,
+  "max_batch_items": 100,
+  "request_timeout_millis": 5000
+}

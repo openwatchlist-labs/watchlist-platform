@@ -1,0 +1,22 @@
+{
+  "schema_version": "rag-retrieval-policy/v1alpha1",
+  "policy_id": "transaction-review-rag-r1",
+  "policy_version": "1.0.0",
+  "policy_checksum": "32e213fa2f6c2f9e3d1a291ed4dfd61cf184ec6a9a9dae36fd4d31edec722276",
+  "allowed_source_tiers": [
+    "A",
+    "B",
+    "C"
+  ],
+  "allowed_approval_statuses": [
+    "approved",
+    "published",
+    "validated"
+  ],
+  "max_results": 5,
+  "minimum_score_basis_points": 800,
+  "metadata_weight_basis_points": 3000,
+  "lexical_weight_basis_points": 5000,
+  "vector_weight_basis_points": 2000,
+  "exclude_instruction_like_text": true
+}

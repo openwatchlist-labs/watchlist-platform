@@ -1,0 +1,49 @@
+{
+  "schema_version": "catalog-readiness-report/v1alpha1",
+  "report_id": "readiness_3ff42b726e67dc62c9824c2e",
+  "package_id": "runtime_package_797518260b5ac360d6eed2a4",
+  "package_checksum": "9d105d3750025f715195e55b35935094cd7d4014af7e6f0fbfe66d17807bc760",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "07/13/2026-c33e134053cc",
+  "catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+  "source_manifest_id": "ofac_source_8b1e79fe355457d4e1ee2f73",
+  "checked_at": "2026-07-13T17:01:00Z",
+  "ready": true,
+  "checks": [
+    {
+      "name": "artifact_integrity",
+      "status": "pass",
+      "detail": "package artifact checksum and framing verified"
+    },
+    {
+      "name": "manifest_contract",
+      "status": "pass",
+      "detail": "package manifest schema, identity, and lineage verified"
+    },
+    {
+      "name": "payload_integrity",
+      "status": "pass",
+      "detail": "compiled payload checksum and size verified"
+    },
+    {
+      "name": "runtime_index",
+      "status": "pass",
+      "detail": "compiled exact index contains 29 entries"
+    },
+    {
+      "name": "provider_descriptor",
+      "status": "pass",
+      "detail": "provider capabilities and catalog reference verified"
+    },
+    {
+      "name": "source_lineage",
+      "status": "pass",
+      "detail": "source manifest and catalog lineage verified"
+    },
+    {
+      "name": "record_count",
+      "status": "pass",
+      "detail": "runtime package covers 3 direct-list records"
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "schema_version": "openwatchlist.screening-batch-response.v2",
+  "batch_id": "screening-phase8d-batch-1",
+  "correlation_id": "corr-phase8d-batch-golden",
+  "request_sha256": "a5d92d532cfe51ba944e833e8e08b8ddea27ee0e1f5b96d082649fa71442d7c2",
+  "policy": {
+    "policy_id": "candidate-scoring-r1",
+    "policy_version": "1.0.0",
+    "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+    "normalization_profile": "unicode-upper-alnum-space-v1"
+  },
+  "items": [
+    {
+      "index": 0,
+      "response": {
+        "schema_version": "openwatchlist.screening-response.v2",
+        "request_id": "batch-item-tie",
+        "correlation_id": "corr-phase8d-batch-golden",
+        "request_sha256": "10a32a2947fa9979e44234dfbf93b19dcc15fa560f27028de12f2b3e7260c280",
+        "status": "candidates_retrieved",
+        "blockers": [],
+        "field": {},
+        "policy": {
+          "policy_id": "candidate-scoring-r1",
+          "policy_version": "1.0.0",
+          "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "lineage": {
+          "provider": "ofac-direct",
+          "catalog_id": "ofac-production",
+          "component_id": "sdn",
+          "component_version": "2026-07-14T00:00:00Z",
+          "activation_id": "activation-phase8d-fixture",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "candidates": [
+          {
+            "candidate_id": "a-tie",
+            "score": 440,
+            "similarity_band": "possible_similarity",
+            "exact_identifier_matched": false,
+            "exact_name_matched": true,
+            "reason_codes": [
+              "entity_type_exact",
+              "name_exact",
+              "retrieval_name_exact_candidate"
+            ],
+            "components": [
+              {
+                "component": "name",
+                "points": 400,
+                "reason_code": "name_exact"
+              },
+              {
+                "component": "entity_type",
+                "points": 40,
+                "reason_code": "entity_type_exact"
+              }
+            ],
+            "evidence": [
+              {
+                "kind": "name",
+                "outcome": "support",
+                "subject_value": "JANE DOE",
+                "candidate_value": "JANE DOE",
+                "points": 400,
+                "reason_code": "name_exact"
+              },
+              {
+                "kind": "entity_type",
+                "outcome": "support",
+                "subject_value": "PERSON",
+                "candidate_value": "PERSON",
+                "points": 40,
+                "reason_code": "entity_type_exact"
+              }
+            ],
+            "retrieval": {
+              "routes": [
+                "name_exact"
+              ],
+              "reason_codes": [
+                "name_exact_candidate"
+              ]
+            },
+            "lineage": {
+              "provider": "ofac-direct",
+              "catalog_id": "ofac-production",
+              "component_id": "sdn",
+              "component_version": "2026-07-14T00:00:00Z",
+              "activation_id": "activation-phase8d-fixture",
+              "normalization_profile": "unicode-upper-alnum-space-v1"
+            }
+          },
+          {
+            "candidate_id": "z-tie",
+            "score": 440,
+            "similarity_band": "possible_similarity",
+            "exact_identifier_matched": false,
+            "exact_name_matched": true,
+            "reason_codes": [
+              "entity_type_exact",
+              "name_exact",
+              "retrieval_name_exact_candidate"
+            ],
+            "components": [
+              {
+                "component": "name",
+                "points": 400,
+                "reason_code": "name_exact"
+              },
+              {
+                "component": "entity_type",
+                "points": 40,
+                "reason_code": "entity_type_exact"
+              }
+            ],
+            "evidence": [
+              {
+                "kind": "name",
+                "outcome": "support",
+                "subject_value": "JANE DOE",
+                "candidate_value": "JANE DOE",
+                "points": 400,
+                "reason_code": "name_exact"
+              },
+              {
+                "kind": "entity_type",
+                "outcome": "support",
+                "subject_value": "PERSON",
+                "candidate_value": "PERSON",
+                "points": 40,
+                "reason_code": "entity_type_exact"
+              }
+            ],
+            "retrieval": {
+              "routes": [
+                "name_exact"
+              ],
+              "reason_codes": [
+                "name_exact_candidate"
+              ]
+            },
+            "lineage": {
+              "provider": "ofac-direct",
+              "catalog_id": "ofac-production",
+              "component_id": "sdn",
+              "component_version": "2026-07-14T00:00:00Z",
+              "activation_id": "activation-phase8d-fixture",
+              "normalization_profile": "unicode-upper-alnum-space-v1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "response": {
+        "schema_version": "openwatchlist.screening-response.v2",
+        "request_id": "batch-item-empty",
+        "correlation_id": "corr-phase8d-batch-golden",
+        "request_sha256": "a529bc21e1c366dbe3d4606517fa8e44611c0c1af191344421d99e307f6e38c9",
+        "status": "no_candidates",
+        "blockers": [],
+        "field": {},
+        "policy": {
+          "policy_id": "candidate-scoring-r1",
+          "policy_version": "1.0.0",
+          "policy_sha256": "b71fadc6ff597d9c173676f41e8b8838ac14c8e7bb6af504dd3991f359803913",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "lineage": {
+          "provider": "ofac-direct",
+          "catalog_id": "ofac-production",
+          "component_id": "sdn",
+          "component_version": "2026-07-14T00:00:00Z",
+          "activation_id": "activation-phase8d-fixture",
+          "normalization_profile": "unicode-upper-alnum-space-v1"
+        },
+        "candidates": []
+      }
+    }
+  ]
+}

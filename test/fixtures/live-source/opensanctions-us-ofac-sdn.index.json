@@ -1,0 +1,18 @@
+{
+  "dataset": {
+    "name": "us_ofac_sdn",
+    "title": "Synthetic OpenSanctions OFAC SDN fixture",
+    "version": "2026-07-14",
+    "last_export": "2026-07-14T12:30:00Z",
+    "resources": [
+      {
+        "name": "entities.ftm.json",
+        "url": "https://data.opensanctions.org/datasets/latest/us_ofac_sdn/entities.ftm.json",
+        "mime_type": "application/x-ndjson",
+        "size": 2023,
+        "sha1": "df9f4f53ca16eab65df60b50ce38b32c6e204049",
+        "sha256": "4e30279839422db3bffc6d5a163c5934c01523a035c64a5b6585ebc59236adfe"
+      }
+    ]
+  }
+}

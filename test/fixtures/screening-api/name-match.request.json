@@ -1,0 +1,15 @@
+{
+  "schema_version": "screening-request/v1alpha1",
+  "request_id": "api-name-match-001",
+  "source_system_id": "fircosoft-prod",
+  "raw_list_name": "WLS_OFAC_001",
+  "effective_at": "2026-07-20T12:00:00Z",
+  "query": {
+    "kind": "name",
+    "value": "ACME IMPORTS",
+    "target_entity_types": [
+      "organization"
+    ],
+    "limit": 20
+  }
+}

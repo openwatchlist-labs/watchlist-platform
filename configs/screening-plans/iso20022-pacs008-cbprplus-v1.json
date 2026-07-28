@@ -1,0 +1,845 @@
+{
+  "schema_version": "screening-plan/v1alpha1",
+  "id": "iso20022-pacs008-cbprplus",
+  "version": "1.0.0",
+  "description": "Initial field-aware pacs.008.001.08 screening plan for OpenWatchlist Phase 1.",
+  "message_definitions": [
+    "pacs.008.001.08"
+  ],
+  "entries": [
+    {
+      "id": "grp-msg-id",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/GrpHdr/MsgId",
+      "semantic_role": "message.message_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "reference_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "grp-created-at",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/GrpHdr/CreDtTm",
+      "semantic_role": "message.creation_datetime",
+      "value_type": "datetime",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "datetime_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "grp-number-of-transactions",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/GrpHdr/NbOfTxs",
+      "semantic_role": "message.number_of_transactions",
+      "value_type": "count",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "reference_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-instrid",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/PmtId/InstrId",
+      "semantic_role": "payment.instruction_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "reference_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-endtoendid",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/PmtId/EndToEndId",
+      "semantic_role": "payment.end_to_end_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "reference_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-txid",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/PmtId/TxId",
+      "semantic_role": "payment.transaction_id",
+      "value_type": "payment_reference",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "reference_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-uetr",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/PmtId/UETR",
+      "semantic_role": "payment.uetr",
+      "value_type": "uetr",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "identifier_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-settlement-amount",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/IntrBkSttlmAmt",
+      "semantic_role": "payment.interbank_settlement_amount",
+      "value_type": "amount",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "amount_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "payment-settlement-date",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/IntrBkSttlmDt",
+      "semantic_role": "payment.interbank_settlement_date",
+      "value_type": "date",
+      "trigger_policy": "retain_only",
+      "normalization_profile": "date_v1",
+      "threshold_profile": "none"
+    },
+    {
+      "id": "debtor-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/Nm",
+      "semantic_role": "debtor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "party_name_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "normalized_name",
+        "alias",
+        "transliteration"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ],
+      "supporting_fields": [
+        "debtor.address.country",
+        "debtor.identification.lei",
+        "debtor.identification.birth_date"
+      ]
+    },
+    {
+      "id": "debtor-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/Id/OrgId/LEI",
+      "semantic_role": "debtor.identification.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "organization",
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "debtor-birth-date",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+      "semantic_role": "debtor.identification.birth_date",
+      "value_type": "date",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "date_v1",
+      "threshold_profile": "supporting_identity_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "exact_date"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "debtor-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/PstlAdr/TwnNm",
+      "semantic_role": "debtor.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "debtor-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/PstlAdr/Ctry",
+      "semantic_role": "debtor.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "debtor-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Dbtr/PstlAdr/AdrLine[*]",
+      "semantic_role": "debtor.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/Nm",
+      "semantic_role": "ultimate_debtor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "party_name_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "normalized_name",
+        "alias",
+        "transliteration"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ],
+      "supporting_fields": [
+        "ultimate_debtor.address.country",
+        "ultimate_debtor.identification.lei",
+        "ultimate_debtor.identification.birth_date"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/Id/OrgId/LEI",
+      "semantic_role": "ultimate_debtor.identification.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "organization",
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-birth-date",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+      "semantic_role": "ultimate_debtor.identification.birth_date",
+      "value_type": "date",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "date_v1",
+      "threshold_profile": "supporting_identity_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "exact_date"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/PstlAdr/TwnNm",
+      "semantic_role": "ultimate_debtor.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/PstlAdr/Ctry",
+      "semantic_role": "ultimate_debtor.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "ultimate-debtor-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtDbtr/PstlAdr/AdrLine[*]",
+      "semantic_role": "ultimate_debtor.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "ultimate_debtor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "debtor-account-iban",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAcct/Id/IBAN",
+      "semantic_role": "debtor_account.iban",
+      "value_type": "iban",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "iban_v1",
+      "threshold_profile": "typed_account_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "exact_account"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "debtor-account-other-id",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAcct/Id/Othr/Id",
+      "semantic_role": "debtor_account.other_id",
+      "value_type": "account_identifier",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "identifier_v1",
+      "threshold_profile": "typed_account_r1",
+      "party_role": "debtor",
+      "match_routes": [
+        "exact_account"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "debtor-agent-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/Nm",
+      "semantic_role": "debtor_agent.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "financial_institution_name_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "normalized_name",
+        "alias"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ],
+      "supporting_fields": [
+        "debtor_agent.bic",
+        "debtor_agent.lei",
+        "debtor_agent.address.country"
+      ]
+    },
+    {
+      "id": "debtor-agent-bic",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/BICFI",
+      "semantic_role": "debtor_agent.bic",
+      "value_type": "bic",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "bic_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "exact_bic"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "debtor-agent-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/LEI",
+      "semantic_role": "debtor_agent.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "debtor-agent-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/PstlAdr/TwnNm",
+      "semantic_role": "debtor_agent.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "debtor-agent-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/PstlAdr/Ctry",
+      "semantic_role": "debtor_agent.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "debtor-agent-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/DbtrAgt/FinInstnId/PstlAdr/AdrLine[*]",
+      "semantic_role": "debtor_agent.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "debtor_agent",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "creditor-agent-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/Nm",
+      "semantic_role": "creditor_agent.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "financial_institution_name_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "normalized_name",
+        "alias"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ],
+      "supporting_fields": [
+        "creditor_agent.bic",
+        "creditor_agent.lei",
+        "creditor_agent.address.country"
+      ]
+    },
+    {
+      "id": "creditor-agent-bic",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/BICFI",
+      "semantic_role": "creditor_agent.bic",
+      "value_type": "bic",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "bic_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "exact_bic"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "creditor-agent-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/LEI",
+      "semantic_role": "creditor_agent.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "creditor-agent-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/PstlAdr/TwnNm",
+      "semantic_role": "creditor_agent.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "creditor-agent-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/PstlAdr/Ctry",
+      "semantic_role": "creditor_agent.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "creditor-agent-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAgt/FinInstnId/PstlAdr/AdrLine[*]",
+      "semantic_role": "creditor_agent.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "creditor_agent",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "financial_institution",
+        "organization"
+      ]
+    },
+    {
+      "id": "creditor-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/Nm",
+      "semantic_role": "creditor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "party_name_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "normalized_name",
+        "alias",
+        "transliteration"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ],
+      "supporting_fields": [
+        "creditor.address.country",
+        "creditor.identification.lei",
+        "creditor.identification.birth_date"
+      ]
+    },
+    {
+      "id": "creditor-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/Id/OrgId/LEI",
+      "semantic_role": "creditor.identification.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "organization",
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "creditor-birth-date",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+      "semantic_role": "creditor.identification.birth_date",
+      "value_type": "date",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "date_v1",
+      "threshold_profile": "supporting_identity_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "exact_date"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "creditor-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/PstlAdr/TwnNm",
+      "semantic_role": "creditor.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "creditor-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/PstlAdr/Ctry",
+      "semantic_role": "creditor.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "creditor-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/Cdtr/PstlAdr/AdrLine[*]",
+      "semantic_role": "creditor.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-name",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/Nm",
+      "semantic_role": "ultimate_creditor.name",
+      "value_type": "name",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "party_name_v1",
+      "threshold_profile": "party_name_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "normalized_name",
+        "alias",
+        "transliteration"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ],
+      "supporting_fields": [
+        "ultimate_creditor.address.country",
+        "ultimate_creditor.identification.lei",
+        "ultimate_creditor.identification.birth_date"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-lei",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/Id/OrgId/LEI",
+      "semantic_role": "ultimate_creditor.identification.lei",
+      "value_type": "lei",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "lei_v1",
+      "threshold_profile": "exact_identifier_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "exact_lei"
+      ],
+      "allowed_candidate_types": [
+        "organization",
+        "financial_institution"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-birth-date",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+      "semantic_role": "ultimate_creditor.identification.birth_date",
+      "value_type": "date",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "date_v1",
+      "threshold_profile": "supporting_identity_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "exact_date"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-town",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/PstlAdr/TwnNm",
+      "semantic_role": "ultimate_creditor.address.town",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-country",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/PstlAdr/Ctry",
+      "semantic_role": "ultimate_creditor.address.country",
+      "value_type": "country_code",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "country_code_v1",
+      "threshold_profile": "jurisdiction_context_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "jurisdiction_policy"
+      ],
+      "allowed_candidate_types": [
+        "jurisdiction"
+      ]
+    },
+    {
+      "id": "ultimate-creditor-address-line",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/UltmtCdtr/PstlAdr/AdrLine[*]",
+      "semantic_role": "ultimate_creditor.address.line",
+      "value_type": "address_text",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "address_v1",
+      "threshold_profile": "supporting_address_r1",
+      "party_role": "ultimate_creditor",
+      "match_routes": [
+        "contextual_address"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "creditor-account-iban",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAcct/Id/IBAN",
+      "semantic_role": "creditor_account.iban",
+      "value_type": "iban",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "iban_v1",
+      "threshold_profile": "typed_account_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "exact_account"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "creditor-account-other-id",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/CdtrAcct/Id/Othr/Id",
+      "semantic_role": "creditor_account.other_id",
+      "value_type": "account_identifier",
+      "trigger_policy": "supporting_evidence",
+      "normalization_profile": "identifier_v1",
+      "threshold_profile": "typed_account_r1",
+      "party_role": "creditor",
+      "match_routes": [
+        "exact_account"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity"
+      ]
+    },
+    {
+      "id": "remittance-unstructured",
+      "path_pattern": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[*]/RmtInf/Ustrd[*]",
+      "semantic_role": "remittance.unstructured",
+      "value_type": "narrative",
+      "trigger_policy": "candidate_alert",
+      "normalization_profile": "text_context_v1",
+      "threshold_profile": "narrative_context_r1",
+      "match_routes": [
+        "contextual_phrase_window"
+      ],
+      "allowed_candidate_types": [
+        "individual",
+        "organization",
+        "government_entity",
+        "financial_institution",
+        "vessel",
+        "aircraft",
+        "jurisdiction"
+      ]
+    }
+  ]
+}

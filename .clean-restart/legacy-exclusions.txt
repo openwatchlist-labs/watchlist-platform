@@ -1,0 +1,18 @@
+# Extended regular expressions matched against repository-relative tracked paths.
+(^|/)\.phase[^/]*/
+(^|/)\.h1[^/]*/
+(^|/)(archive|artifacts|backups|build|dist|evidence|generated|legacy|materialized|results|target|tmp|var)(/|$)
+(^|/)homelab/evidence(/|$)
+^cmd/homelab[^/]*/
+^internal/homelab[^/]*/
+^deploy/homelab/
+^scripts/(h1|homelab)[^/]*/
+(^|/)provider-activation-r[^/]*/
+(^|/)materialized/selector(/|$)
+(^|/)test-plan-[^/]*/
+(^|/)binding-candidates_[^/]*/
+(^|/)node_modules(/|$)
+(^|/)vendor(/|$)
+(^|/)\.env($|\.)
+\.(key|p12|pem)$
+-private-evidence

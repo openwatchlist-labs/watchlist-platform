@@ -1,0 +1,33 @@
+{
+  "schema_version": "matcher-threshold-profile-set/v1alpha1",
+  "profile_set_id": "ofac-name-baseline-r1",
+  "profile_set_version": "1.0.0",
+  "profile_set_checksum": "f91a69f092b248f4236cec73c027b1136a8356c8dae9493dc98b390b4ebcd1d1",
+  "matcher_version": "deterministic-name-matcher/v0.1.0",
+  "profiles": [
+    {
+      "profile_id": "financial_institution_name_r1",
+      "threshold_basis_points": 8200,
+      "diagnostic_floor_basis_points": 7000,
+      "token_alignment_weight_basis_points": 3000,
+      "edit_similarity_weight_basis_points": 3000,
+      "ordered_token_weight_basis_points": 1500,
+      "phonetic_weight_basis_points": 1500,
+      "length_weight_basis_points": 1000,
+      "single_token_penalty_basis_points": 900,
+      "weak_alias_penalty_basis_points": 500
+    },
+    {
+      "profile_id": "party_name_r1",
+      "threshold_basis_points": 7800,
+      "diagnostic_floor_basis_points": 6800,
+      "token_alignment_weight_basis_points": 3000,
+      "edit_similarity_weight_basis_points": 3000,
+      "ordered_token_weight_basis_points": 1500,
+      "phonetic_weight_basis_points": 1500,
+      "length_weight_basis_points": 1000,
+      "single_token_penalty_basis_points": 700,
+      "weak_alias_penalty_basis_points": 500
+    }
+  ]
+}

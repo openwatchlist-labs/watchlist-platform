@@ -1,0 +1,10 @@
+BEGIN;
+CREATE TABLE IF NOT EXISTS review_identity_registry_snapshot(registry_sha256 text PRIMARY KEY,registry_id text NOT NULL,version text NOT NULL,registry_json jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS review_security_audit_event(stream_id text NOT NULL,sequence bigint NOT NULL,previous_event_sha256 text NOT NULL,event_sha256 text NOT NULL UNIQUE,occurred_at timestamptz NOT NULL,request_id text NOT NULL,token_id_hash text,subject_id text,tenant_id text,permission text,method text NOT NULL,path text NOT NULL,resource_type text,resource_id text,outcome text NOT NULL CHECK(outcome IN('allowed','denied')),status_code integer NOT NULL,detail jsonb,PRIMARY KEY(stream_id,sequence));
+CREATE INDEX IF NOT EXISTS review_security_audit_tenant_time_idx ON review_security_audit_event(tenant_id,occurred_at DESC);
+CREATE OR REPLACE FUNCTION openwatchlist_reject_mutation() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'immutable table % rejects %',TG_TABLE_NAME,TG_OP; END; $$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS review_identity_registry_snapshot_immutable ON review_identity_registry_snapshot;
+CREATE TRIGGER review_identity_registry_snapshot_immutable BEFORE UPDATE OR DELETE ON review_identity_registry_snapshot FOR EACH ROW EXECUTE FUNCTION openwatchlist_reject_mutation();
+DROP TRIGGER IF EXISTS review_security_audit_event_immutable ON review_security_audit_event;
+CREATE TRIGGER review_security_audit_event_immutable BEFORE UPDATE OR DELETE ON review_security_audit_event FOR EACH ROW EXECUTE FUNCTION openwatchlist_reject_mutation();
+COMMIT;

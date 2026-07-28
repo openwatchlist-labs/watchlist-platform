@@ -1,0 +1,596 @@
+{
+  "schema_version": "ofac-advanced-canonical/v1alpha1",
+  "snapshot_id": "ofac_advanced_snapshot_5d0609d7abce8cf38fdea1f1",
+  "snapshot_checksum": "5d0609d7abce8cf38fdea1f1afb94bd35ca244621a9750e765a752d2f10c8fd8",
+  "parser_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+  "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML",
+  "xml_version": "3",
+  "schema_location": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd",
+  "date_of_issue": "2026-07-13",
+  "source_manifest": {
+    "schema_version": "ofac-source-manifest/v1alpha1",
+    "manifest_id": "ofac_source_ffced0d479e0bed9eb1804ca",
+    "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+    "dataset_id": "ofac-sdn",
+    "source_url": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN_ADVANCED.XML",
+    "acquisition_method": "local_fixture",
+    "acquired_at": "2026-07-14T15:00:00Z",
+    "media_type": "application/xml",
+    "content_length": 14225,
+    "content_sha256": "427847835cb449fbaf67e60748e696ee1e3249924b7b6b149e0e6d16e9f7e13e",
+    "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML",
+    "publish_date": "2026-07-13",
+    "declared_record_count": 3,
+    "parser_version": "ofac-sdn-advanced-xml-parser/v0.2.0",
+    "source_format": "ofac_advanced_xml",
+    "xml_schema_version": "3",
+    "schema_location": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd",
+    "source_filename": "SDN_ADVANCED.XML"
+  },
+  "source_stats": {
+    "distinct_party_count": 3,
+    "profile_count": 3,
+    "sanctions_entry_count": 3,
+    "selected_sdn_entry_count": 3,
+    "filtered_non_sdn_entry_count": 0
+  },
+  "record_count": 3,
+  "parties": [
+    {
+      "uid": 1001,
+      "profile_id": "1001",
+      "profile_ids": [
+        "1001"
+      ],
+      "identity_id": "11001",
+      "identity_ids": [
+        "11001"
+      ],
+      "entity_type": "Entity",
+      "entity_type_id": "2",
+      "primary_name": "Acme Imports LLC",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO",
+        "DEMO-SECONDARY"
+      ],
+      "names": [
+        {
+          "source_alias_id": "100100",
+          "source_documented_name_id": "100100",
+          "value": "Acme Imports LLC",
+          "primary": true,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "Acme Imports LLC",
+              "part_type": "Whole Name",
+              "part_type_id": "12",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "21001"
+            }
+          ]
+        },
+        {
+          "source_alias_id": "1101",
+          "source_documented_name_id": "1101",
+          "value": "ACME IMPORTS",
+          "primary": false,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "ACME IMPORTS",
+              "part_type": "Whole Name",
+              "part_type_id": "12",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "21001"
+            }
+          ]
+        },
+        {
+          "source_alias_id": "1102",
+          "source_documented_name_id": "1102",
+          "value": "ACME GLOBAL",
+          "primary": false,
+          "low_quality": true,
+          "alias_type": "f.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "ACME GLOBAL",
+              "part_type": "Whole Name",
+              "part_type_id": "12",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "21001"
+            }
+          ]
+        }
+      ],
+      "addresses": [
+        {
+          "source_location_id": "1201",
+          "address1": "100 Example Avenue",
+          "address2": "Suite 200",
+          "city": "New York",
+          "state": "NY",
+          "postal_code": "10001",
+          "country": "United States",
+          "country_id": "840",
+          "components": [
+            {
+              "type": "Address",
+              "type_id": "1",
+              "value": "100 Example Avenue"
+            },
+            {
+              "type": "Address",
+              "type_id": "2",
+              "value": "Suite 200"
+            },
+            {
+              "type": "City",
+              "type_id": "3",
+              "value": "New York"
+            },
+            {
+              "type": "State or Province",
+              "type_id": "4",
+              "value": "NY"
+            },
+            {
+              "type": "Postal Code",
+              "type_id": "5",
+              "value": "10001"
+            }
+          ]
+        }
+      ],
+      "identifiers": [
+        {
+          "source_document_id": "1301",
+          "source_identity_id": "11001",
+          "type": "Legal Entity Identifier",
+          "type_id": "200",
+          "number": "5493001KJTIIGC8Y1R12",
+          "country": "United States",
+          "country_id": "840"
+        },
+        {
+          "source_document_id": "1302",
+          "source_identity_id": "11001",
+          "type": "Account Number",
+          "type_id": "201",
+          "number": "ACME-OPERATING-001"
+        }
+      ],
+      "features": [
+        {
+          "source_feature_id": "1001-F1",
+          "type": "Title",
+          "type_id": "100",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "Trading Company"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "1001-F2",
+          "type": "Nationality",
+          "type_id": "101",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "United States"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "1001-F3",
+          "type": "Address",
+          "type_id": "105",
+          "details": [
+            {
+              "location_id": "1201"
+            }
+          ]
+        }
+      ],
+      "legal_authorities": [
+        {
+          "source_event_id": "6101",
+          "authority": "Synthetic authority for regression testing",
+          "authority_id": "300",
+          "event_type": "List",
+          "event_type_id": "301",
+          "date": "2026-07-13"
+        }
+      ],
+      "relationships": [
+        {
+          "sanctions_entry_id": "6001",
+          "source_relationship_id": "5001",
+          "from_profile_id": "1001",
+          "to_profile_id": "3003",
+          "type": "Owned or controlled by",
+          "type_id": "400",
+          "quality": "High",
+          "quality_id": "401",
+          "comment": "Synthetic relationship."
+        }
+      ]
+    },
+    {
+      "uid": 2002,
+      "profile_id": "2002",
+      "profile_ids": [
+        "2002"
+      ],
+      "identity_id": "12002",
+      "identity_ids": [
+        "12002"
+      ],
+      "entity_type": "Individual",
+      "entity_type_id": "1",
+      "primary_name": "Jordan Example",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO"
+      ],
+      "names": [
+        {
+          "source_alias_id": "200200",
+          "source_documented_name_id": "200200",
+          "value": "Jordan Example",
+          "primary": true,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "Jordan",
+              "part_type": "First Name",
+              "part_type_id": "10",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "22001"
+            },
+            {
+              "value": "Example",
+              "part_type": "Last Name",
+              "part_type_id": "11",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "22002"
+            }
+          ]
+        },
+        {
+          "source_alias_id": "2102",
+          "source_documented_name_id": "2102",
+          "value": "Джордан Экзампл",
+          "primary": true,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Cyrillic",
+          "script_id": "216",
+          "parts": [
+            {
+              "value": "Джордан",
+              "part_type": "First Name",
+              "part_type_id": "10",
+              "script": "Cyrillic",
+              "script_id": "216",
+              "script_status": "Primary",
+              "source_group_id": "22001"
+            },
+            {
+              "value": "Экзампл",
+              "part_type": "Last Name",
+              "part_type_id": "11",
+              "script": "Cyrillic",
+              "script_id": "216",
+              "script_status": "Primary",
+              "source_group_id": "22002"
+            }
+          ]
+        },
+        {
+          "source_alias_id": "2101",
+          "source_documented_name_id": "2101",
+          "value": "J. Example",
+          "primary": false,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "J.",
+              "part_type": "First Name",
+              "part_type_id": "10",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "acronym": true,
+              "source_group_id": "22001"
+            },
+            {
+              "value": "Example",
+              "part_type": "Last Name",
+              "part_type_id": "11",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "22002"
+            }
+          ]
+        }
+      ],
+      "addresses": [
+        {
+          "source_location_id": "2201",
+          "city": "New York",
+          "country": "United States",
+          "country_id": "840",
+          "components": [
+            {
+              "type": "City",
+              "type_id": "3",
+              "value": "New York"
+            }
+          ]
+        }
+      ],
+      "features": [
+        {
+          "source_feature_id": "2002-F1",
+          "type": "Date of Birth",
+          "type_id": "103",
+          "details": [
+            {
+              "date_period": "1980-05-20"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "2002-F2",
+          "type": "Place of Birth",
+          "type_id": "104",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "New York, United States"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "2002-F3",
+          "type": "Citizenship",
+          "type_id": "102",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "United States"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "2002-F4",
+          "type": "Address",
+          "type_id": "105",
+          "details": [
+            {
+              "location_id": "2201"
+            }
+          ]
+        }
+      ],
+      "legal_authorities": [
+        {
+          "source_event_id": "6102",
+          "authority": "Synthetic authority for regression testing",
+          "authority_id": "300",
+          "event_type": "List",
+          "event_type_id": "301",
+          "date": "2026-07-13"
+        }
+      ]
+    },
+    {
+      "uid": 3003,
+      "profile_id": "3003",
+      "profile_ids": [
+        "3003"
+      ],
+      "identity_id": "13003",
+      "identity_ids": [
+        "13003"
+      ],
+      "entity_type": "Vessel",
+      "entity_type_id": "3",
+      "primary_name": "Example Vessel",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation.",
+      "programs": [
+        "DEMO-MARITIME"
+      ],
+      "names": [
+        {
+          "source_alias_id": "300300",
+          "source_documented_name_id": "300300",
+          "value": "Example Vessel",
+          "primary": true,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "Example Vessel",
+              "part_type": "Whole Name",
+              "part_type_id": "12",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "23001"
+            }
+          ]
+        },
+        {
+          "source_alias_id": "3101",
+          "source_documented_name_id": "3101",
+          "value": "MV EXAMPLE",
+          "primary": false,
+          "low_quality": false,
+          "alias_type": "a.k.a.",
+          "script": "Latin",
+          "script_id": "215",
+          "parts": [
+            {
+              "value": "MV EXAMPLE",
+              "part_type": "Whole Name",
+              "part_type_id": "12",
+              "script": "Latin",
+              "script_id": "215",
+              "script_status": "Primary",
+              "source_group_id": "23001"
+            }
+          ]
+        }
+      ],
+      "addresses": [
+        {
+          "source_location_id": "3201",
+          "country": "Panama",
+          "country_id": "591"
+        }
+      ],
+      "identifiers": [
+        {
+          "source_document_id": "3301",
+          "source_identity_id": "13003",
+          "type": "Vessel Registration Identification",
+          "type_id": "202",
+          "number": "IMO 1234567",
+          "country": "Panama",
+          "country_id": "591"
+        }
+      ],
+      "features": [
+        {
+          "source_feature_id": "3003-F1",
+          "type": "Address",
+          "type_id": "105",
+          "details": [
+            {
+              "location_id": "3201"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F2",
+          "type": "Vessel Call Sign",
+          "type_id": "106",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "EXMP"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F3",
+          "type": "Vessel Type",
+          "type_id": "107",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "Bulk Carrier"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F4",
+          "type": "Vessel Flag",
+          "type_id": "108",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "Panama"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F5",
+          "type": "Vessel Owner",
+          "type_id": "109",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "Example Maritime Ltd"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F6",
+          "type": "Tonnage",
+          "type_id": "110",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "10000"
+            }
+          ]
+        },
+        {
+          "source_feature_id": "3003-F7",
+          "type": "Gross Registered Tonnage",
+          "type_id": "111",
+          "details": [
+            {
+              "type": "Value",
+              "type_id": "1",
+              "value": "7000"
+            }
+          ]
+        }
+      ],
+      "legal_authorities": [
+        {
+          "source_event_id": "6103",
+          "authority": "Synthetic authority for regression testing",
+          "authority_id": "300",
+          "event_type": "List",
+          "event_type_id": "301",
+          "date": "2026-07-13"
+        }
+      ]
+    }
+  ]
+}

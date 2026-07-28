@@ -1,0 +1,1145 @@
+{
+  "schema_version": "false-positive-classification-batch/v1alpha2",
+  "classification_batch_id": "fp_classification_batch_9b20c74905a8ad0559b1f5fe",
+  "input_observation_batch_id": "fp_observation_batch_44861c807d12304f19b158cc",
+  "classifier_version": "false-positive-classifier/v0.1.1",
+  "pattern_library": {
+    "library_id": "false-positive-baseline-r1",
+    "library_version": "1.0.0",
+    "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+  },
+  "countervailing_policy": {
+    "policy_id": "countervailing-evidence-baseline-r1",
+    "policy_version": "1.0.0",
+    "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+  },
+  "summary": {
+    "total_observations": 16,
+    "pattern_counts": [
+      {
+        "name": "narrative_denial_context",
+        "count": 1
+      },
+      {
+        "name": "phonetic_transliteration_only",
+        "count": 1
+      }
+    ],
+    "route_hint_counts": [
+      {
+        "name": "clear_or_auto_release_eligible",
+        "count": 1
+      },
+      {
+        "name": "escalation_candidate",
+        "count": 1
+      },
+      {
+        "name": "investigate",
+        "count": 14
+      }
+    ],
+    "blocker_counts": [
+      {
+        "name": "denial_context",
+        "count": 1
+      },
+      {
+        "name": "secondary_identifier_missing",
+        "count": 1
+      },
+      {
+        "name": "supporting_evidence_cannot_escalate",
+        "count": 2
+      }
+    ]
+  },
+  "classifications": [
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_3f19d80b40a15a8fa41cfcdf",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_2c3e21af1c9f0af6ff749815",
+        "case_id": "candidate_result_0f3c118672c116825884eb6d:candidate_b7b8cfa9d10dc73c400f3b86",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "remittance.unstructured",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[4]",
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "input_value": "Shipment routed via CUBA",
+        "normalized_input_value": "SHIPMENT ROUTED VIA CUBA",
+        "watchlist_value": "CUBA",
+        "normalized_watchlist_value": "CUBA",
+        "watchlist_entity_type": "jurisdiction",
+        "match_route": "contextual_phrase_window",
+        "screening_score_basis_points": 10000,
+        "exact": false,
+        "matcher_reason_codes": [
+          "jurisdiction_phrase_context",
+          "narrative_phrase_exact"
+        ],
+        "target_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "openwatchlist-synthetic-policy",
+            "authority": "OpenWatchlist Labs Synthetic Test Authority",
+            "list_id": "SYNTHETIC-JURISDICTIONS",
+            "source_record_id": "synthetic-cu",
+            "programs": [
+              "DEMO-EMBARGO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_16f706c2e905658c364002cd",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_b0c4068a47a676bd05af9e08",
+        "case_id": "candidate_result_164ebaa32f2a0c5fed25f2e3:candidate_639a7c85812ba4165db12f56",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.identification.lei",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/Id/OrgId/LEI",
+        "semantic_role": "debtor.identification.lei",
+        "value_type": "lei",
+        "trigger_policy": "candidate_alert",
+        "input_value": "5493001KJTIIGC8Y1R12",
+        "normalized_input_value": "5493001KJTIIGC8Y1R12",
+        "watchlist_value": "5493001KJTIIGC8Y1R12",
+        "normalized_watchlist_value": "5493001KJTIIGC8Y1R12",
+        "watchlist_entity_type": "organization",
+        "match_route": "exact_lei",
+        "screening_score_basis_points": 10000,
+        "exact": true,
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "countervailing_signals": [
+        {
+          "schema_version": "false-positive-countervailing-signal/v1alpha1",
+          "code": "exact_primary_identifier_match",
+          "evidence_class": "primary_identifier",
+          "strength_basis_points": 10000,
+          "escalation_eligible": true,
+          "detail": "typed exact exact_lei evidence is classified as primary_identifier"
+        }
+      ],
+      "route_hint": "escalation_candidate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 10000
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_f2464cb431e8dba12efc54ec",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_90d47ce21a3a336fd2569b55",
+        "case_id": "candidate_result_1a7095f4f6b8705e7e59063f:candidate_3fdfe155272ba05a8317ae06",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "ultimate_debtor.identification.birth_date",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtDbtr/Id/PrvtId/DtAndPlcOfBirth/BirthDt",
+        "semantic_role": "ultimate_debtor.identification.birth_date",
+        "value_type": "date",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "1980-05-20",
+        "normalized_input_value": "1980 05 20",
+        "watchlist_value": "1980-05-20",
+        "normalized_watchlist_value": "1980 05 20",
+        "watchlist_entity_type": "individual",
+        "match_route": "exact_date",
+        "screening_score_basis_points": 10000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "2002",
+            "programs": [
+              "DEMO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "countervailing_signals": [
+        {
+          "schema_version": "false-positive-countervailing-signal/v1alpha1",
+          "code": "exact_secondary_attribute_match",
+          "evidence_class": "secondary_attribute",
+          "strength_basis_points": 7000,
+          "escalation_eligible": false,
+          "detail": "typed exact exact_date evidence is classified as secondary_attribute"
+        }
+      ],
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "supporting_evidence_cannot_escalate"
+      ],
+      "requires_evidence": [
+        "qualifying_candidate_alert"
+      ],
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 7000
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_1b17241dce3f41eee666affa",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_b917ae2e72d10cc724626763",
+        "case_id": "candidate_result_40a3aa034d4e6096966d12e1:candidate_92468da1f65353a125646945",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor_agent.address.town",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAgt/FinInstnId/PstlAdr/TwnNm",
+        "semantic_role": "debtor_agent.address.town",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "New York",
+        "normalized_input_value": "NEW YORK",
+        "watchlist_value": "New York",
+        "normalized_watchlist_value": "NEW YORK",
+        "watchlist_entity_type": "organization",
+        "match_route": "contextual_address",
+        "screening_score_basis_points": 9000,
+        "exact": true,
+        "target_entity_types": [
+          "financial_institution",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_1946d88d83fd8f447bd23075",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_f6d44cd44eef4351d33eed89",
+        "case_id": "candidate_result_52693bcfc6c9afcb079bd3d9:candidate_7f6308ab718614db97ac9b86",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "remittance.unstructured",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[3]",
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "input_value": "Freight charges for MV EXAMPLE",
+        "normalized_input_value": "FREIGHT CHARGES FOR MV EXAMPLE",
+        "watchlist_value": "MV EXAMPLE",
+        "normalized_watchlist_value": "MV EXAMPLE",
+        "watchlist_entity_type": "vessel",
+        "match_route": "contextual_phrase_window",
+        "screening_score_basis_points": 9900,
+        "exact": false,
+        "matcher_reason_codes": [
+          "alias_context",
+          "narrative_phrase_exact"
+        ],
+        "target_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "3003",
+            "programs": [
+              "DEMO-MARITIME"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_7b0e9bb3fa56655ae398f437",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_ae4b863148c26da11818267a",
+        "case_id": "candidate_result_60333fe227c32f741c445ec6:candidate_1788e3caf094732cdd74ff17",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "remittance.unstructured",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[0]",
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "input_value": "Invoice settlement for Acme Imports LLC",
+        "normalized_input_value": "INVOICE SETTLEMENT FOR ACME IMPORTS LLC",
+        "watchlist_value": "Acme Imports LLC",
+        "normalized_watchlist_value": "ACME IMPORTS LLC",
+        "watchlist_entity_type": "organization",
+        "match_route": "contextual_phrase_window",
+        "screening_score_basis_points": 10000,
+        "exact": false,
+        "matcher_reason_codes": [
+          "narrative_phrase_exact",
+          "primary_name_context"
+        ],
+        "target_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_50f8aff66c9d0510319d3b55",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_2663df0714d6bafaf28e455b",
+        "case_id": "candidate_result_950f7c0dae2c83e9048c4aa3:candidate_fa941bcc0c5380636c985f0b",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "ultimate_debtor.name",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtDbtr/Nm",
+        "semantic_role": "ultimate_debtor.name",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "input_value": "Jordon Example",
+        "normalized_input_value": "JORDON EXAMPLE",
+        "watchlist_value": "Jordan Example",
+        "normalized_watchlist_value": "JORDAN EXAMPLE",
+        "watchlist_entity_type": "individual",
+        "match_route": "normalized_name",
+        "screening_score_basis_points": 9534,
+        "exact": false,
+        "matcher_reason_codes": [
+          "name_fuzzy_edit",
+          "name_fuzzy_phonetic",
+          "name_fuzzy_token_alignment"
+        ],
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "2002",
+            "programs": [
+              "DEMO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_0483f56fd459f706e9975b9a",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_071828785fb97e3bbb648a4a",
+        "case_id": "candidate_result_a135231c5993fe4be8d832b7:candidate_58918f88542098ddf4cdc2de",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor_account.other_id",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/DbtrAcct/Id/Othr/Id",
+        "semantic_role": "debtor_account.other_id",
+        "value_type": "account_identifier",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "ACME-OPERATING-001",
+        "normalized_input_value": "ACME OPERATING 001",
+        "watchlist_value": "ACME-OPERATING-001",
+        "normalized_watchlist_value": "ACME OPERATING 001",
+        "watchlist_entity_type": "organization",
+        "match_route": "exact_account",
+        "screening_score_basis_points": 10000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "countervailing_signals": [
+        {
+          "schema_version": "false-positive-countervailing-signal/v1alpha1",
+          "code": "exact_secondary_attribute_match",
+          "evidence_class": "secondary_attribute",
+          "strength_basis_points": 8000,
+          "escalation_eligible": false,
+          "detail": "typed exact exact_account evidence is classified as secondary_attribute"
+        }
+      ],
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "supporting_evidence_cannot_escalate"
+      ],
+      "requires_evidence": [
+        "qualifying_candidate_alert"
+      ],
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 8000
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_349a7ae3c0463a0979d9019d",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_dae6b25b8f31cd5a8904797e",
+        "case_id": "candidate_result_b5f02791a96289bd6069056b:candidate_74a1642e97054134dd5011c4",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.address.line",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/AdrLine[1]",
+        "semantic_role": "debtor.address.line",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "Suite 200",
+        "normalized_input_value": "SUITE 200",
+        "watchlist_value": "Suite 200",
+        "normalized_watchlist_value": "SUITE 200",
+        "watchlist_entity_type": "organization",
+        "match_route": "contextual_address",
+        "screening_score_basis_points": 9000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_02691264ccf0c5a61d957555",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_44653da564e748ea67927d87",
+        "case_id": "candidate_result_b6cbf6a41db16577b779d6bc:candidate_925802ada61271988179a7a2",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "ultimate_creditor.name",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/UltmtCdtr/Nm",
+        "semantic_role": "ultimate_creditor.name",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "input_value": "J Example",
+        "normalized_input_value": "J EXAMPLE",
+        "watchlist_value": "J. Example",
+        "normalized_watchlist_value": "J EXAMPLE",
+        "watchlist_entity_type": "individual",
+        "match_route": "alias",
+        "screening_score_basis_points": 10000,
+        "exact": false,
+        "matcher_reason_codes": [
+          "transliteration_fold_exact"
+        ],
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "2002",
+            "programs": [
+              "DEMO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "patterns": [
+        {
+          "schema_version": "false-positive-pattern-evidence/v1alpha1",
+          "code": "phonetic_transliteration_only",
+          "strength_basis_points": 7500,
+          "route_hint": "investigate",
+          "escalation_blockers": [
+            "secondary_identifier_missing"
+          ],
+          "reason_codes": [
+            "name_similarity_without_secondary_support"
+          ],
+          "detail": "candidate is supported only by phonetic/transliteration evidence and lacks a secondary identifier"
+        }
+      ],
+      "route_hint": "investigate",
+      "escalation_blockers": [
+        "secondary_identifier_missing"
+      ],
+      "requires_evidence": [
+        "secondary_identifier"
+      ],
+      "summary": {
+        "pattern_count": 1,
+        "strongest_pattern_basis_points": 7500,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_27a7b6202974ca79ab58ee85",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_3b34169b59ac031da9d7da9a",
+        "case_id": "candidate_result_bdd7c2c615e5e499be21923e:candidate_0a14550504a6c84ffd303b27",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.address.line",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/AdrLine[0]",
+        "semantic_role": "debtor.address.line",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "100 Example Avenue",
+        "normalized_input_value": "100 EXAMPLE AVENUE",
+        "watchlist_value": "100 Example Avenue",
+        "normalized_watchlist_value": "100 EXAMPLE AVENUE",
+        "watchlist_entity_type": "organization",
+        "match_route": "contextual_address",
+        "screening_score_basis_points": 9000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_34e26092a4c5e4048b3ae78b",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_a3ba96ef234ebff776ec07fb",
+        "case_id": "candidate_result_cef9808927a7e70176f33510:candidate_b51ddabc18ea4d132ad91562",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.name",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/Nm",
+        "semantic_role": "debtor.name",
+        "value_type": "name",
+        "trigger_policy": "candidate_alert",
+        "input_value": "Acme Import LLC",
+        "normalized_input_value": "ACME IMPORT LLC",
+        "watchlist_value": "Acme Imports LLC",
+        "normalized_watchlist_value": "ACME IMPORTS LLC",
+        "watchlist_entity_type": "organization",
+        "match_route": "normalized_name",
+        "screening_score_basis_points": 9605,
+        "exact": false,
+        "matcher_reason_codes": [
+          "name_fuzzy_edit",
+          "name_fuzzy_phonetic",
+          "name_fuzzy_token_alignment"
+        ],
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_c17e0c99b3947cde8cb4aa68",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_4af5f01e608359d032b3de9d",
+        "case_id": "candidate_result_dedd965ae70fc19f6ad6c372:diagnostic:narrative_denial_context:ofac:sdn:2002",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "remittance.unstructured",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/RmtInf/Ustrd[1]",
+        "semantic_role": "remittance.unstructured",
+        "value_type": "narrative",
+        "trigger_policy": "candidate_alert",
+        "input_value": "NO BUSINESS RELATIONSHIP WITH JORDAN EXAMPLE",
+        "normalized_input_value": "NO BUSINESS RELATIONSHIP WITH JORDAN EXAMPLE",
+        "watchlist_value": "Jordan Example",
+        "normalized_watchlist_value": "JORDAN EXAMPLE",
+        "watchlist_entity_type": "individual",
+        "match_route": "contextual_phrase_window",
+        "screening_score_basis_points": 4000,
+        "exact": false,
+        "matcher_reason_codes": [
+          "narrative_denial_context",
+          "narrative_phrase_exact",
+          "primary_name_context"
+        ],
+        "matcher_diagnostic_codes": [
+          "narrative_denial_context"
+        ],
+        "target_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "context_markers": [
+          "NO",
+          "NO BUSINESS RELATIONSHIP"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "2002",
+            "programs": [
+              "DEMO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "patterns": [
+        {
+          "schema_version": "false-positive-pattern-evidence/v1alpha1",
+          "code": "narrative_denial_context",
+          "strength_basis_points": 10000,
+          "route_hint": "clear_or_auto_release_eligible",
+          "escalation_blockers": [
+            "denial_context"
+          ],
+          "reason_codes": [
+            "explicit_non_relationship_language"
+          ],
+          "detail": "matched narrative is inside explicit denial or non-relationship language"
+        }
+      ],
+      "route_hint": "clear_or_auto_release_eligible",
+      "escalation_blockers": [
+        "denial_context"
+      ],
+      "summary": {
+        "pattern_count": 1,
+        "strongest_pattern_basis_points": 10000,
+        "release_support_basis_points": 10000,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_120ddfb1bd189f1210939abf",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_96ad0d7c0b408716d4b450f5",
+        "case_id": "candidate_result_ec5a5d4a0804f05a4ee71166:candidate_5db0eab5683daba4397d13eb",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.address.town",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/TwnNm",
+        "semantic_role": "debtor.address.town",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "New York",
+        "normalized_input_value": "NEW YORK",
+        "watchlist_value": "New York",
+        "normalized_watchlist_value": "NEW YORK",
+        "watchlist_entity_type": "individual",
+        "match_route": "contextual_address",
+        "screening_score_basis_points": 9000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "2002",
+            "programs": [
+              "DEMO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_cd664612829cb632efda4177",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_041f8419abe95d241075b282",
+        "case_id": "candidate_result_ec5a5d4a0804f05a4ee71166:candidate_d8126c20ac39888f6f5a7f52",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.address.town",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/TwnNm",
+        "semantic_role": "debtor.address.town",
+        "value_type": "address_text",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "New York",
+        "normalized_input_value": "NEW YORK",
+        "watchlist_value": "New York",
+        "normalized_watchlist_value": "NEW YORK",
+        "watchlist_entity_type": "organization",
+        "match_route": "contextual_address",
+        "screening_score_basis_points": 9000,
+        "exact": true,
+        "target_entity_types": [
+          "government_entity",
+          "individual",
+          "organization"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "ofac-sls",
+            "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+            "list_id": "SDN",
+            "source_record_id": "1001",
+            "programs": [
+              "DEMO",
+              "DEMO-SECONDARY"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    },
+    {
+      "schema_version": "false-positive-classification/v1alpha2",
+      "classification_id": "fp_classification_42827d2e84c7dd18c0e9467f",
+      "observation": {
+        "schema_version": "transaction-screening-observation/v1alpha1",
+        "observation_id": "fp_observation_c157c95a5eae00ed11e65d29",
+        "case_id": "candidate_result_fe60440ec2afc867a101ac5f:candidate_3b31cfcd1b5f1617b79aa416",
+        "message_id": "OWP-PACS008-CONTEXT-0001",
+        "message_type": "pacs.008.001.08",
+        "source_system": "openwatchlist-matcher",
+        "matched_field": "debtor.address.country",
+        "native_path": "/Document/FIToFICstmrCdtTrf/CdtTrfTxInf[0]/Dbtr/PstlAdr/Ctry",
+        "semantic_role": "debtor.address.country",
+        "value_type": "country_code",
+        "trigger_policy": "supporting_evidence",
+        "input_value": "CU",
+        "normalized_input_value": "CU",
+        "watchlist_value": "CU",
+        "normalized_watchlist_value": "CU",
+        "watchlist_entity_type": "jurisdiction",
+        "match_route": "jurisdiction_policy",
+        "screening_score_basis_points": 10000,
+        "exact": true,
+        "matcher_reason_codes": [
+          "jurisdiction_alpha2_exact",
+          "jurisdiction_policy_restricted"
+        ],
+        "target_entity_types": [
+          "jurisdiction"
+        ],
+        "source_assertions": [
+          {
+            "source_id": "openwatchlist-synthetic-policy",
+            "authority": "OpenWatchlist Labs Synthetic Test Authority",
+            "list_id": "SYNTHETIC-JURISDICTIONS",
+            "source_record_id": "synthetic-cu",
+            "programs": [
+              "DEMO-EMBARGO"
+            ]
+          }
+        ]
+      },
+      "classifier_version": "false-positive-classifier/v0.1.1",
+      "pattern_library": {
+        "library_id": "false-positive-baseline-r1",
+        "library_version": "1.0.0",
+        "library_checksum": "be6b03a37d38c6d9b4972f607678b5139db11b2c6b1a3d5759ee0bb9657f73d9"
+      },
+      "countervailing_policy": {
+        "policy_id": "countervailing-evidence-baseline-r1",
+        "policy_version": "1.0.0",
+        "policy_checksum": "da41546a6f7d7290015022dd4d690509f6b5a1620c98cc358f62369b425f94d4"
+      },
+      "route_hint": "investigate",
+      "summary": {
+        "pattern_count": 0,
+        "strongest_pattern_basis_points": 0,
+        "release_support_basis_points": 0,
+        "countervailing_support_basis_points": 0
+      }
+    }
+  ]
+}

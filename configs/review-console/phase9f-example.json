@@ -1,0 +1,27 @@
+{
+  "listen_address": "127.0.0.1:18093",
+  "alert_case_state_directory": "../../test/fixtures/review-console/runtime-state/alert-case",
+  "assistance_state_directory": "../../test/fixtures/review-console/runtime-state/assistance",
+  "alert_policy_path": "../../test/fixtures/alert-case/policy.json",
+  "corpus_snapshot_path": "../../test/fixtures/case-assistance/corpus/snapshot.json",
+  "model_mode": "fixture",
+  "model_fixture_path": "../../test/fixtures/case-assistance/models/responses.json",
+  "ollama_base_url": "http://ollama:11434",
+  "ollama_required": false,
+  "models": {
+    "primary_model_id": "granite4.1:8b",
+    "reasoning_model_id": "qwen3:14b",
+    "guardian_model_id": "granite4.1-guardian:8b",
+    "context_tokens": 16384,
+    "keep_alive": "0",
+    "max_output_bytes": 65536
+  },
+  "auth_registry_path": "identity-registry-r1.json",
+  "signing_key_path": "../../test/fixtures/review-console/signing-key.hex",
+  "security_audit_directory": "../../test/fixtures/review-console/runtime-state/security-audit",
+  "security_audit_stream_id": "review-console-security-phase9f",
+  "max_token_ttl_minutes": 480,
+  "max_body_bytes": 1048576,
+  "timeout_seconds": 180,
+  "console_enabled": true
+}

@@ -1,0 +1,35 @@
+{
+  "tenant_id": "tenant-a",
+  "source_type": "external_alert",
+  "external_alert": {
+    "schema_version": "openwatchlist.external-alert.v1",
+    "source_system_id": "fircosoft-fixture",
+    "source_alert_id": "ext-001",
+    "raw_list_name": "WLS_OFAC_001",
+    "occurred_at": "2026-07-15T12:01:00Z",
+    "external_score": 905,
+    "external_reason_codes": [
+      "name_exact"
+    ],
+    "matched_fields": [
+      "ordering_customer.name"
+    ],
+    "candidate_references": [
+      "sdn-1001"
+    ],
+    "message_references": [
+      "msg-001"
+    ],
+    "attachment_references": [
+      "evidence://fixture/1"
+    ],
+    "alert_list_resolution": {
+      "mapping_id": "mapping-fixture",
+      "component_id": "sdn",
+      "status": "active"
+    }
+  },
+  "correlation_id": "corr-phase9ab-ext-001",
+  "idempotency_key": "idem-phase9ab-ext-001",
+  "occurred_at": "2026-07-15T12:01:00Z"
+}

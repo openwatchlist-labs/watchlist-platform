@@ -1,0 +1,55 @@
+{
+  "schema_version": "openwatchlist.vendor-adapter-profile.v1",
+  "adapter_id": "actimize-reference-json-v1",
+  "version": "2026-07-15-r1",
+  "vendor": "actimize-reference",
+  "description": "Reference JSON mapping for Actimize-style alert exports; not a certified proprietary wire format",
+  "input_format": "json-object",
+  "max_source_bytes": 4194304,
+  "required_paths": [
+    "caseAlert.tenant",
+    "caseAlert.alertKey",
+    "caseAlert.product",
+    "caseAlert.watchlistName",
+    "caseAlert.eventTime",
+    "transport.correlationId",
+    "transport.idempotencyKey"
+  ],
+  "mappings": {
+    "tenant_id": "caseAlert.tenant",
+    "source_system_id": "caseAlert.product",
+    "source_alert_id": "caseAlert.alertKey",
+    "raw_list_name": "caseAlert.watchlistName",
+    "occurred_at": "caseAlert.eventTime",
+    "external_score": "caseAlert.matchScore",
+    "external_reason_codes": "caseAlert.reasonCodes",
+    "matched_fields": "caseAlert.matchedAttributes",
+    "candidate_references": "caseAlert.entities",
+    "message_references": "caseAlert.transactionIds",
+    "attachment_references": "caseAlert.documentIds",
+    "subject": "caseAlert.subject",
+    "correlation_id": "transport.correlationId",
+    "idempotency_key": "transport.idempotencyKey"
+  },
+  "additional_evidence": {
+    "matched_name": "caseAlert.attributes.matchedName",
+    "screened_name": "caseAlert.attributes.screenedName",
+    "vendor_status": "caseAlert.workflowStatus"
+  },
+  "constants": {},
+  "list_mappings": {
+    "OFAC SDN": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-sdn",
+      "mapping_version": "r1",
+      "status": "active"
+    },
+    "OFAC": {
+      "canonical_list_id": "ofac-sdn",
+      "mapping_id": "phase9e-ofac-alias",
+      "mapping_version": "r1",
+      "status": "active"
+    }
+  },
+  "profile_sha256": "cda4f01c10cbed371c39366ac72ebe504d5136901ea1c966ebecb6df2d812099"
+}

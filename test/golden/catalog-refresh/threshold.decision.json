@@ -1,0 +1,76 @@
+{
+  "schema_version": "catalog-promotion-decision/v1alpha1",
+  "decision_id": "promotion_decision_25b7804b70e4aa4d3b73088d",
+  "engine_version": "catalog-refresh-engine/v0.1.0",
+  "outcome": "force_full_rebuild",
+  "policy": {
+    "schema_version": "catalog-promotion-policy/v1alpha1",
+    "policy_id": "ofac-delta-promotion",
+    "policy_version": "1.0.0",
+    "max_change_ratio_basis_points": 2000,
+    "max_deletion_ratio_basis_points": 1000,
+    "max_operations": 1000,
+    "force_full_at_or_above_threshold": true,
+    "require_contiguous_sequence": true,
+    "require_base_checksum_match": true,
+    "require_target_checksum_match": true,
+    "full_rebuild_verification_interval": 10
+  },
+  "delta_id": "catalog_delta_de96aa3c47d1911d011b23fb",
+  "sequence": 1,
+  "expected_sequence": 1,
+  "base": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/15/2026-474abc628e6c",
+    "catalog_checksum": "323d87b36857ccc81fc76abcb0dacdad6558a7bddec020fec4aea9806632949b",
+    "record_count": 10
+  },
+  "target": {
+    "catalog_id": "ofac-sdn-direct",
+    "catalog_version": "07/16/2026-2da972409d17",
+    "catalog_checksum": "9be1e08ea66bf28e8eb6fde3a0535c4eb5410620f05a8ed4993ad702c0bf2479",
+    "record_count": 10
+  },
+  "diff": {
+    "schema_version": "catalog-diff-report/v1alpha1",
+    "report_id": "catalog_diff_0b18997435c307cc3e625e50",
+    "base": {
+      "catalog_id": "ofac-sdn-direct",
+      "catalog_version": "07/15/2026-474abc628e6c",
+      "catalog_checksum": "323d87b36857ccc81fc76abcb0dacdad6558a7bddec020fec4aea9806632949b",
+      "record_count": 10
+    },
+    "target": {
+      "catalog_id": "ofac-sdn-direct",
+      "catalog_version": "07/16/2026-2da972409d17",
+      "catalog_checksum": "9be1e08ea66bf28e8eb6fde3a0535c4eb5410620f05a8ed4993ad702c0bf2479",
+      "record_count": 10
+    },
+    "added": 0,
+    "modified": 2,
+    "removed": 0,
+    "unchanged": 8,
+    "total_changes": 2,
+    "change_ratio_basis_points": 2000,
+    "deletion_ratio_basis_points": 0,
+    "modified_record_ids": [
+      "ofac:sdn:4003",
+      "ofac:sdn:4005"
+    ],
+    "modified_field_counts": [
+      {
+        "name": "remarks",
+        "count": 2
+      }
+    ]
+  },
+  "reasons": [
+    {
+      "code": "change_ratio_threshold",
+      "detail": "2000 basis points meets or exceeds threshold 2000"
+    }
+  ],
+  "reconstructed_catalog_checksum": "9be1e08ea66bf28e8eb6fde3a0535c4eb5410620f05a8ed4993ad702c0bf2479",
+  "full_rebuild_verified": true,
+  "evaluated_at": "2026-07-13T19:06:00Z"
+}

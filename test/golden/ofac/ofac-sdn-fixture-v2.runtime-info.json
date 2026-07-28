@@ -1,0 +1,56 @@
+{
+  "schema_version": "compiled-catalog-package-info/v1alpha1",
+  "package_id": "runtime_package_2293755107d40ec380ad31c1",
+  "package_checksum": "2f61aedac48e7bdbafbf6ac5d4dc3c929105dc4ea75a53d0ad55ae5dc150bc2c",
+  "artifact_size": 18514,
+  "manifest": {
+    "schema_version": "compiled-catalog-package-manifest/v1alpha1",
+    "package_format": "owpcat/1",
+    "package_id": "runtime_package_2293755107d40ec380ad31c1",
+    "compiler_version": "ofac-runtime-compiler/v0.1.0",
+    "payload_schema_version": "ofac-compiled-runtime/v1alpha1",
+    "provider": {
+      "schema_version": "matcher-provider-descriptor/v1alpha1",
+      "provider_id": "ofac-direct-list",
+      "provider_version": "v0.1.0",
+      "catalog": {
+        "catalog_id": "ofac-sdn-direct",
+        "catalog_version": "07/14/2026-64751cbe85a0",
+        "catalog_checksum": "ce06cf1791a11ffff7c76f2c01e4ccbc3d57cc2e539eff2a876b5689d8e5316b",
+        "catalog_mode": "direct_list"
+      },
+      "capabilities": {
+        "supported_routes": [
+          "alias",
+          "contextual_address",
+          "contextual_phrase_window",
+          "exact_account",
+          "exact_bic",
+          "exact_date",
+          "exact_lei",
+          "jurisdiction_policy",
+          "normalized_name",
+          "transliteration"
+        ],
+        "supported_entity_types": [
+          "aircraft",
+          "financial_institution",
+          "government_entity",
+          "individual",
+          "jurisdiction",
+          "organization",
+          "vessel"
+        ],
+        "max_candidates_per_request": 25,
+        "deterministic": true,
+        "source_assertions_included": true
+      }
+    },
+    "source_manifest_id": "ofac_source_7e0620ae31a05eeac920b917",
+    "source_content_sha256": "64751cbe85a0dc44708af0d5091e440f1ba2f9e191f7de9e6aff903101dc616c",
+    "record_count": 3,
+    "entry_count": 29,
+    "payload_sha256": "ca9e16b3743b2b618be0d3e82735ac5b385a45e6adab05cec2edf51be4c603ae",
+    "payload_size": 17187
+  }
+}

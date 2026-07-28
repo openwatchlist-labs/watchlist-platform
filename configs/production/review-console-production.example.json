@@ -1,0 +1,26 @@
+{
+  "listen_address": "127.0.0.1:18094",
+  "alert_case_state_directory": "/var/lib/openwatchlist/alert-case",
+  "assistance_state_directory": "/var/lib/openwatchlist/assistance",
+  "alert_policy_path": "/etc/openwatchlist/alert-policy.json",
+  "corpus_snapshot_path": "/etc/openwatchlist/corpus-snapshot.json",
+  "model_mode": "ollama",
+  "ollama_base_url": "http://ollama:11434",
+  "ollama_required": true,
+  "models": {
+    "primary_model_id": "granite4.1:8b",
+    "reasoning_model_id": "qwen3:14b",
+    "guardian_model_id": "granite4.1-guardian:8b",
+    "context_tokens": 16384,
+    "keep_alive": "0",
+    "max_output_bytes": 65536
+  },
+  "auth_registry_path": "../review-console/identity-registry-r1.json",
+  "signing_key_path": "/run/secrets/overridden-by-platform-api.hex",
+  "security_audit_directory": "/var/lib/openwatchlist/security-audit",
+  "security_audit_stream_id": "review-console-security-production",
+  "max_token_ttl_minutes": 60,
+  "max_body_bytes": 1048576,
+  "timeout_seconds": 180,
+  "console_enabled": true
+}

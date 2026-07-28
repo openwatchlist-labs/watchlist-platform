@@ -1,0 +1,22 @@
+# Local operating state and generated artifacts
+.DS_Store
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+
+/var/
+/build/
+/dist/
+/coverage/
+/tmp/
+/target/
+**/target/
+/node_modules/
+**/node_modules/
+
+# IDE/editor state
+.idea/
+.vscode/
+*.swp

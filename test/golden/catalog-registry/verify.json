@@ -1,0 +1,11 @@
+{
+  "activation_count": 4,
+  "active_component_count": 2,
+  "audit_head": "a612df738230204657ac8fd7983600990b8103283bb300be06072af4e2abe3de",
+  "component_count": 2,
+  "namespace": "demo-bank",
+  "registry_checksum": "4940172480317305052093773b3b10bbf361438261c47ccd474be2841af1d993",
+  "registry_id": "catalog_registry_fd23fcd87ad22abcf931c0b9",
+  "valid": true,
+  "version_count": 3
+}

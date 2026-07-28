@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.08">
+<BkToCstmrStmt>
+  <GrpHdr><MsgId>MSG-10</MsgId><CreDtTm>2026-07-15T12:00:00Z</CreDtTm><InstgAgt><FinInstnId><BICFI>AAAAGB2LXXX</BICFI></FinInstnId></InstgAgt></GrpHdr>
+  <TxDtls>
+  <PmtId><InstrId>INSTR-10-1</InstrId><EndToEndId>E2E-10-1</EndToEndId><TxId>TX-10-1</TxId></PmtId>
+  <Dbtr><Nm>Debtor 10-1 Trading</Nm><PstlAdr><StrtNm>Main Street</StrtNm><TwnNm>London</TwnNm><Ctry>GB</Ctry></PstlAdr><Id><OrgId><LEI>549300TEST1001</LEI></OrgId></Id></Dbtr>
+  <DbtrAcct><Id><IBAN>GB82WEST12345698765401</IBAN></Id></DbtrAcct>
+  <DbtrAgt><FinInstnId><BICFI>DEUTGB2LXXX</BICFI></FinInstnId></DbtrAgt>
+  <Cdtr><Nm>Creditor 10-1 Imports</Nm><PstlAdr><AdrLine>200 Market Road</AdrLine><TwnNm>New York</TwnNm><Ctry>US</Ctry></PstlAdr></Cdtr>
+  <CdtrAcct><Id><IBAN>DE89370400440532013001</IBAN></Id></CdtrAcct>
+  <CdtrAgt><FinInstnId><BICFI>BOFAUS3NXXX</BICFI></FinInstnId></CdtrAgt>
+  <RmtInf><Ustrd>Invoice 10-1 consulting services</Ustrd></RmtInf>
+  <IntrBkSttlmAmt Ccy="USD">1250.00</IntrBkSttlmAmt>
+  
+</TxDtls>
+</BkToCstmrStmt>
+</Document>

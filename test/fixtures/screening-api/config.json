@@ -1,0 +1,21 @@
+{
+  "schema_version": "screening-api-config/v1alpha1",
+  "listen_address": "127.0.0.1:18090",
+  "catalog_registry_path": "catalog-registry.json",
+  "mapping_registry_path": "mapping-registry.json",
+  "runtime_binary_path": "../../../target/release/catalog-mmap",
+  "idempotency_root": "../../../var/screening-api-fixture/idempotency",
+  "runtime_bindings": [
+    {
+      "component_id": "catalog_component_ed835720fdb2b3a505927488",
+      "version_id": "catalog_version_10c16906983641525bcc85a4",
+      "package_path": "../../golden/runtime-mmap/ofac-fixture.owmmap",
+      "package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+      "worker_count": 2
+    }
+  ],
+  "max_body_bytes": 1048576,
+  "max_batch_items": 100,
+  "max_candidates": 20,
+  "request_timeout_ms": 5000
+}

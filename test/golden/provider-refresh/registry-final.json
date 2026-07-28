@@ -1,0 +1,217 @@
+{
+  "schema_version": "provider-refresh-registry/v1alpha1",
+  "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+  "namespace": "demo-bank",
+  "engine_version": "provider-refresh-governance/v0.1.0",
+  "last_sequence": 3,
+  "audit_head": "8ffb83315ce3634569710beca39b41b0125a1b63600554109b2ef62413707d2d",
+  "candidates": [
+    {
+      "schema_version": "provider-refresh-candidate/v1alpha1",
+      "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+      "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+      "namespace": "demo-bank",
+      "status": "ready",
+      "target_component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "previous_inventory_checksum": "4813256a36af2aefbc6f61b644f95ab16da2ed9e094d5d16741159304f317e91",
+      "candidate_inventory_checksum": "1c92fba7c9566b403a788369da5b330c4b8523fc8f79dc273e3b539a8a215ff7",
+      "policy": {
+        "schema_version": "provider-refresh-policy/v1alpha1",
+        "max_added_components": 1,
+        "max_removed_components": 1,
+        "max_renamed_components": 1,
+        "max_record_count_delta_percent": 5,
+        "require_all_mapped_components_available": true,
+        "require_target_component_available": true,
+        "require_provider_id_unchanged": true
+      },
+      "changes": [
+        {
+          "change_type": "added",
+          "to_provider_component_ref": "provider-new-screening"
+        },
+        {
+          "change_type": "removed",
+          "from_provider_component_ref": "provider-unused-legacy"
+        },
+        {
+          "change_type": "renamed",
+          "from_provider_component_ref": "provider-defined-component-42",
+          "to_provider_component_ref": "provider-defined-component-84",
+          "reason": "Provider metadata declares an exact component rename"
+        }
+      ],
+      "mapping_impacts": [
+        {
+          "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+          "component_key": "provider.sanctions.primary",
+          "current_version_id": "catalog_version_8676897321509071fcccbcb2",
+          "current_provider_component_ref": "provider-defined-component-42",
+          "candidate_provider_component_ref": "provider-defined-component-84",
+          "status": "renamed",
+          "active_mapping_count": 1,
+          "current_record_count": 20000,
+          "candidate_record_count": 20200,
+          "record_count_delta_percent": 1
+        }
+      ],
+      "candidate_version": {
+        "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+        "expected_current_version_id": "catalog_version_8676897321509071fcccbcb2",
+        "catalog_id": "licensed-provider-primary",
+        "catalog_version": "provider-release-2026-07-15",
+        "catalog_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "catalog_schema": "provider-entity-catalog/v1alpha1",
+        "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-15/catalog.json",
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "source_manifest_id": "provider_source_manifest_demo_v2",
+        "source_manifest_checksum": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "record_count": 20200,
+        "producer_version": "provider-neutral-adapter/v0.2.0",
+        "provider_id": "licensed-provider",
+        "provider_component_ref": "provider-defined-component-84",
+        "provider_title": "Renamed provider sanctions component",
+        "provider_version": "provider-release-2026-07-15",
+        "metadata": {
+          "fixture": "true"
+        }
+      },
+      "analyzed_at": "2026-07-20T12:00:00Z",
+      "analyzed_by": "phase7cd-fixture",
+      "reason": "Qualify the provider release before promotion",
+      "candidate_checksum": "6d6423493aefa3e5f99bd78f2a7ca72369dbd50804698aa7fe52ed8f06fe39b9"
+    },
+    {
+      "schema_version": "provider-refresh-candidate/v1alpha1",
+      "candidate_id": "provider_refresh_candidate_ff483e8e5e4bbca9b229b804",
+      "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+      "namespace": "demo-bank",
+      "status": "blocked",
+      "target_component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "previous_inventory_checksum": "4813256a36af2aefbc6f61b644f95ab16da2ed9e094d5d16741159304f317e91",
+      "candidate_inventory_checksum": "1c92fba7c9566b403a788369da5b330c4b8523fc8f79dc273e3b539a8a215ff7",
+      "policy": {
+        "schema_version": "provider-refresh-policy/v1alpha1",
+        "max_added_components": 2,
+        "max_removed_components": 2,
+        "max_renamed_components": 0,
+        "max_record_count_delta_percent": 5,
+        "require_all_mapped_components_available": true,
+        "require_target_component_available": true,
+        "require_provider_id_unchanged": true
+      },
+      "changes": [
+        {
+          "change_type": "added",
+          "to_provider_component_ref": "provider-defined-component-84"
+        },
+        {
+          "change_type": "added",
+          "to_provider_component_ref": "provider-new-screening"
+        },
+        {
+          "change_type": "removed",
+          "from_provider_component_ref": "provider-defined-component-42"
+        },
+        {
+          "change_type": "removed",
+          "from_provider_component_ref": "provider-unused-legacy"
+        }
+      ],
+      "mapping_impacts": [
+        {
+          "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+          "component_key": "provider.sanctions.primary",
+          "current_version_id": "catalog_version_8676897321509071fcccbcb2",
+          "current_provider_component_ref": "provider-defined-component-42",
+          "candidate_provider_component_ref": "provider-defined-component-42",
+          "status": "missing",
+          "active_mapping_count": 1,
+          "current_record_count": 20000,
+          "blockers": [
+            "MAPPED_COMPONENT_UNAVAILABLE"
+          ]
+        }
+      ],
+      "policy_violations": [
+        "MAPPED_COMPONENT_UNAVAILABLE",
+        "TARGET_COMPONENT_UNAVAILABLE"
+      ],
+      "candidate_version": {
+        "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+        "expected_current_version_id": "catalog_version_8676897321509071fcccbcb2",
+        "catalog_id": "",
+        "catalog_version": "",
+        "catalog_checksum": "",
+        "catalog_schema": "",
+        "artifact_uri": "",
+        "artifact_sha256": "",
+        "source_manifest_id": "",
+        "record_count": 0,
+        "producer_version": "",
+        "provider_id": "licensed-provider",
+        "provider_component_ref": "provider-defined-component-42",
+        "provider_version": "provider-release-2026-07-15"
+      },
+      "analyzed_at": "2026-07-20T12:00:00Z",
+      "analyzed_by": "phase7cd-fixture",
+      "reason": "Prove that a mapped component removal is blocked without an explicit rename",
+      "candidate_checksum": "e4c3c5c4e619bc1c49ebb0eb1c1abde99597146445087f1e274cc9d1c30fccd9"
+    }
+  ],
+  "decisions": [
+    {
+      "schema_version": "provider-refresh-decision/v1alpha1",
+      "decision_id": "provider_refresh_decision_7398a8f97afc7bbdcc71211a",
+      "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 1,
+      "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+      "action": "approve",
+      "reason": "provider refresh gates passed",
+      "decided_at": "2026-07-20T12:05:00Z",
+      "decided_by": "phase7cd-approver",
+      "previous_event_hash": "",
+      "event_hash": "d93f45e9a9dfa48230b522d3207836b7f4f7158817dc4c87c55adf26ade4c620",
+      "decision_checksum": "7252bc6f3bd2c4d9d716ac00d17269fb72d09e70aaf10856ff27c82701de35a9"
+    }
+  ],
+  "executions": [
+    {
+      "schema_version": "provider-refresh-execution/v1alpha1",
+      "execution_id": "provider_refresh_execution_e46dc93b8140d8ecc9f84f9f",
+      "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 2,
+      "action": "promote",
+      "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+      "decision_id": "provider_refresh_decision_7398a8f97afc7bbdcc71211a",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "previous_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "target_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+      "catalog_activation_id": "catalog_activation_590f146c93933b9c04528964",
+      "reason": "activate approved provider release",
+      "executed_at": "2026-07-20T12:10:00Z",
+      "executed_by": "phase7cd-operator",
+      "previous_event_hash": "d93f45e9a9dfa48230b522d3207836b7f4f7158817dc4c87c55adf26ade4c620",
+      "event_hash": "56eef705c0d9bb12bcbb19ea07c64411d9bf1378920cdfa5ab4249f7a5f90108",
+      "execution_checksum": "5ed85d07dd4b099084d755ca143885ef0933b636612fc00265b6840aa040c567"
+    },
+    {
+      "schema_version": "provider-refresh-execution/v1alpha1",
+      "execution_id": "provider_refresh_execution_75c5653e446dc61acab093aa",
+      "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+      "sequence": 3,
+      "action": "rollback",
+      "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+      "previous_version_id": "catalog_version_3701e998ad9c1d06832ed140",
+      "target_version_id": "catalog_version_8676897321509071fcccbcb2",
+      "catalog_activation_id": "catalog_activation_9b8a118e9bea87c0fbc909fc",
+      "reason": "rollback qualification proof",
+      "executed_at": "2026-07-20T12:15:00Z",
+      "executed_by": "phase7cd-operator",
+      "previous_event_hash": "56eef705c0d9bb12bcbb19ea07c64411d9bf1378920cdfa5ab4249f7a5f90108",
+      "event_hash": "8ffb83315ce3634569710beca39b41b0125a1b63600554109b2ef62413707d2d",
+      "execution_checksum": "d39cb572f63828caa306df3b6252ca119ee1bee400e5cf0f85396d57400ef9c2"
+    }
+  ],
+  "registry_checksum": "0876bb06f00de597ae943a8ee68203ba6b8ad7172270c87bdb29d02a415b4c5e"
+}

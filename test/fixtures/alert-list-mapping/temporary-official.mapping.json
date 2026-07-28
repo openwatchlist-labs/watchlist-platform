@@ -1,0 +1,11 @@
+{
+  "source_system_id": "legacy-batch",
+  "raw_list_name": "TEMP_OFAC",
+  "action": "bind",
+  "component_id": "catalog_component_ed835720fdb2b3a505927488",
+  "effective_from": "2026-07-01T00:00:00Z",
+  "effective_to": "2026-07-20T00:00:00Z",
+  "reason": "Temporary migration mapping with an explicit end time",
+  "created_at": "2026-07-14T18:53:00Z",
+  "created_by": "phase7cc-fixture"
+}

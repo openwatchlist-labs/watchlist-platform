@@ -1,0 +1,17 @@
+{
+  "decision": {
+    "schema_version": "provider-refresh-decision/v1alpha1",
+    "decision_id": "provider_refresh_decision_7398a8f97afc7bbdcc71211a",
+    "registry_id": "provider_refresh_registry_fd23fcd87ad22abcf931c0b9",
+    "sequence": 1,
+    "candidate_id": "provider_refresh_candidate_cbfbd22a879024471e9e4bb5",
+    "action": "approve",
+    "reason": "provider refresh gates passed",
+    "decided_at": "2026-07-20T12:05:00Z",
+    "decided_by": "phase7cd-approver",
+    "previous_event_hash": "",
+    "event_hash": "d93f45e9a9dfa48230b522d3207836b7f4f7158817dc4c87c55adf26ade4c620",
+    "decision_checksum": "7252bc6f3bd2c4d9d716ac00d17269fb72d09e70aaf10856ff27c82701de35a9"
+  },
+  "refresh_registry_checksum": "fc26770d1b5ed1ddd4de1b6af3941fb0bae3ceb9e3889ac5d99d287eee7d5cd1"
+}

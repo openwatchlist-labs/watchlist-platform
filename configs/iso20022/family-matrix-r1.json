@@ -1,0 +1,21 @@
+{
+  "schema_version": "openwatchlist.iso20022-support-matrix.v1",
+  "matrix_id": "phase9d-supported-message-families",
+  "version": "2026-07-15-r1",
+  "families": [
+    {"profile_id":"pacs.008.001.08","message_definition_id":"pacs.008.001.08","namespace":"urn:iso:std:iso:20022:tech:xsd:pacs.008.001.08","root_element":"FIToFICstmrCdtTrf","transaction_containers":["CdtTrfTxInf"],"support_level":"end_to_end","description":"FI-to-FI customer credit transfer"},
+    {"profile_id":"pacs.009.001.08.cov","message_definition_id":"pacs.009.001.08","variant":"COV","namespace":"urn:iso:std:iso:20022:tech:xsd:pacs.009.001.08","root_element":"FICdtTrf","contains_element":"UndrlygCstmrCdtTrf","transaction_containers":["CdtTrfTxInf"],"support_level":"end_to_end","description":"Financial-institution credit transfer with underlying customer transfer"},
+    {"profile_id":"pacs.009.001.08","message_definition_id":"pacs.009.001.08","namespace":"urn:iso:std:iso:20022:tech:xsd:pacs.009.001.08","root_element":"FICdtTrf","transaction_containers":["CdtTrfTxInf"],"support_level":"end_to_end","description":"Financial-institution credit transfer"},
+    {"profile_id":"pacs.004.001.09","message_definition_id":"pacs.004.001.09","namespace":"urn:iso:std:iso:20022:tech:xsd:pacs.004.001.09","root_element":"PmtRtr","transaction_containers":["TxInf"],"support_level":"end_to_end","description":"Payment return"},
+    {"profile_id":"pacs.002.001.12","message_definition_id":"pacs.002.001.12","namespace":"urn:iso:std:iso:20022:tech:xsd:pacs.002.001.12","root_element":"FIToFIPmtStsRpt","transaction_containers":["TxInfAndSts"],"support_level":"end_to_end","description":"FI-to-FI payment status report"},
+    {"profile_id":"camt.056.001.08","message_definition_id":"camt.056.001.08","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.056.001.08","root_element":"FIToFIPmtCxlReq","transaction_containers":["TxInf"],"support_level":"end_to_end","description":"FI-to-FI payment cancellation request"},
+    {"profile_id":"camt.029.001.09","message_definition_id":"camt.029.001.09","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.029.001.09","root_element":"RsltnOfInvstgtn","transaction_containers":["RsltnRltdInf"],"support_level":"end_to_end","description":"Resolution of investigation"},
+    {"profile_id":"pain.001.001.09","message_definition_id":"pain.001.001.09","namespace":"urn:iso:std:iso:20022:tech:xsd:pain.001.001.09","root_element":"CstmrCdtTrfInitn","transaction_containers":["CdtTrfTxInf"],"support_level":"end_to_end","description":"Customer credit transfer initiation"},
+    {"profile_id":"pain.002.001.10","message_definition_id":"pain.002.001.10","namespace":"urn:iso:std:iso:20022:tech:xsd:pain.002.001.10","root_element":"CstmrPmtStsRpt","transaction_containers":["TxInfAndSts"],"support_level":"end_to_end","description":"Customer payment status report"},
+    {"profile_id":"camt.053.001.08","message_definition_id":"camt.053.001.08","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.053.001.08","root_element":"BkToCstmrStmt","transaction_containers":["TxDtls"],"support_level":"end_to_end","description":"Bank-to-customer statement"},
+    {"profile_id":"camt.054.001.08","message_definition_id":"camt.054.001.08","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.054.001.08","root_element":"BkToCstmrDbtCdtNtfctn","transaction_containers":["TxDtls"],"support_level":"end_to_end","description":"Bank-to-customer debit/credit notification"},
+    {"profile_id":"camt.026.001.09","message_definition_id":"camt.026.001.09","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.026.001.09","root_element":"UblToApply","transaction_containers":["Case"],"support_level":"end_to_end","description":"Unable to apply investigation message"},
+    {"profile_id":"camt.027.001.09","message_definition_id":"camt.027.001.09","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.027.001.09","root_element":"ClmNonRct","transaction_containers":["Case"],"support_level":"end_to_end","description":"Claim non-receipt investigation message"},
+    {"profile_id":"camt.028.001.11","message_definition_id":"camt.028.001.11","namespace":"urn:iso:std:iso:20022:tech:xsd:camt.028.001.11","root_element":"AddtlPmtInf","transaction_containers":["Case"],"support_level":"end_to_end","description":"Additional payment information investigation message"}
+  ]
+}

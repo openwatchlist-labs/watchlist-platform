@@ -1,0 +1,11 @@
+{
+  "listen_address": "127.0.0.1:18093",
+  "profiles_directory": "configs/vendor-adapters",
+  "state_directory": "test/fixtures/vendor-adapters/runtime-state",
+  "stream_id": "phase9e",
+  "postgres_dsn": "",
+  "postgres_required": false,
+  "psql_path": "psql",
+  "max_body_bytes": 4194304,
+  "timeout_seconds": 10
+}

@@ -1,0 +1,28 @@
+{
+  "component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+  "catalog_id": "licensed-provider-primary",
+  "catalog_version": "provider-release-2026-07-14",
+  "catalog_checksum": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "catalog_schema": "provider-entity-catalog/v1alpha1",
+  "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-14/catalog.json",
+  "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "source_manifest_id": "provider_source_manifest_demo",
+  "source_manifest_checksum": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "record_count": 20000,
+  "producer_version": "provider-neutral-adapter/v0.1.0",
+  "source": {
+    "kind": "provider",
+    "provider": {
+      "provider_id": "licensed-provider",
+      "provider_component_ref": "provider-defined-component-42",
+      "provider_title": "Provider-defined sanctions component",
+      "provider_version": "provider-release-2026-07-14"
+    }
+  },
+  "metadata": {
+    "fixture": "true",
+    "mapping_policy": "provider-reference-is-version-metadata"
+  },
+  "registered_at": "2026-07-14T18:33:00Z",
+  "registered_by": "phase7cb-fixture"
+}

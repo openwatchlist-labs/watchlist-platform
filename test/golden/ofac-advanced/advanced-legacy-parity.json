@@ -1,0 +1,49 @@
+{
+  "schema_version": "ofac-advanced-parity/v1alpha1",
+  "report_id": "ofac_advanced_parity_1fb90bbdcb732097ebeb295e",
+  "report_checksum": "1fb90bbdcb732097ebeb295e002bf1dceff0af3102ecd9c9dead223a2423fa85",
+  "advanced_catalog_checksum": "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582",
+  "legacy_catalog_checksum": "d282daf98ff8b6a72606ae94080c4b628528956bb7e24c974a423543f6db343f",
+  "summary": {
+    "advanced_records": 3,
+    "legacy_records": 3,
+    "linked_uids": 3,
+    "advanced_only": 0,
+    "legacy_only": 0,
+    "primary_name_differences": 0,
+    "entity_type_differences": 0,
+    "program_differences": 0,
+    "alias_count_differences": 1,
+    "address_count_differences": 0,
+    "identifier_count_differences": 0
+  },
+  "links": [
+    {
+      "uid": "1001",
+      "primary_name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": true,
+      "alias_count_equal": true,
+      "address_count_equal": true,
+      "identifier_count_equal": true
+    },
+    {
+      "uid": "2002",
+      "primary_name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": true,
+      "alias_count_equal": false,
+      "address_count_equal": true,
+      "identifier_count_equal": true
+    },
+    {
+      "uid": "3003",
+      "primary_name_equal": true,
+      "entity_type_equal": true,
+      "programs_equal": true,
+      "alias_count_equal": true,
+      "address_count_equal": true,
+      "identifier_count_equal": true
+    }
+  ]
+}

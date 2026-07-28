@@ -1,0 +1,39 @@
+{
+  "message": {
+    "customer": "tenant-a",
+    "alertReference": "FIR-1001",
+    "source": "fircosoft-reference",
+    "created": "2026-07-15T14:31:00Z",
+    "list": "OFAC",
+    "riskScore": 88,
+    "hitReasons": [
+      "name_exact"
+    ],
+    "fields": [
+      "OrderingCustomer"
+    ],
+    "hitIds": [
+      "sdn:12345"
+    ],
+    "paymentRefs": [
+      "MSG-9E-2"
+    ],
+    "attachments": [
+      "doc:def"
+    ],
+    "party": {
+      "name": "BETA EXPORTS LLC",
+      "country": "US",
+      "entity_type": "organization"
+    },
+    "details": {
+      "screenedName": "BETA EXPORTS LLC",
+      "matchedName": "BETA EXPORTS"
+    },
+    "status": "PENDING"
+  },
+  "request": {
+    "correlation": "corr-phase9e-fir",
+    "dedupe": "idem-phase9e-fir"
+  }
+}

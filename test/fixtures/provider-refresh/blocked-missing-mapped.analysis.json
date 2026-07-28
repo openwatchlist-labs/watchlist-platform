@@ -1,0 +1,91 @@
+{
+  "namespace": "demo-bank",
+  "target_component_id": "catalog_component_da31b8f413b14c5fcfccdb4a",
+  "previous_inventory": {
+    "provider_id": "licensed-provider",
+    "provider_version": "provider-release-2026-07-14",
+    "generated_at": "2026-07-14T18:33:00Z",
+    "components": [
+      {
+        "provider_component_ref": "provider-defined-component-42",
+        "provider_title": "Provider-defined sanctions component",
+        "catalog_id": "licensed-provider-primary",
+        "catalog_version": "provider-release-2026-07-14",
+        "catalog_checksum": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "catalog_schema": "provider-entity-catalog/v1alpha1",
+        "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-14/catalog.json",
+        "artifact_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "source_manifest_id": "provider_source_manifest_demo",
+        "source_manifest_checksum": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "record_count": 20000,
+        "producer_version": "provider-neutral-adapter/v0.1.0"
+      },
+      {
+        "provider_component_ref": "provider-unused-legacy",
+        "provider_title": "Unmapped legacy component",
+        "catalog_id": "licensed-provider-unused",
+        "catalog_version": "provider-release-2026-07-14",
+        "catalog_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+        "catalog_schema": "provider-entity-catalog/v1alpha1",
+        "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-14/unused.json",
+        "artifact_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "source_manifest_id": "provider_source_manifest_unused",
+        "source_manifest_checksum": "3333333333333333333333333333333333333333333333333333333333333333",
+        "record_count": 100,
+        "producer_version": "provider-neutral-adapter/v0.1.0"
+      }
+    ]
+  },
+  "candidate_inventory": {
+    "provider_id": "licensed-provider",
+    "provider_version": "provider-release-2026-07-15",
+    "generated_at": "2026-07-15T06:00:00Z",
+    "components": [
+      {
+        "provider_component_ref": "provider-defined-component-84",
+        "provider_title": "Renamed provider sanctions component",
+        "catalog_id": "licensed-provider-primary",
+        "catalog_version": "provider-release-2026-07-15",
+        "catalog_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "catalog_schema": "provider-entity-catalog/v1alpha1",
+        "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-15/catalog.json",
+        "artifact_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "source_manifest_id": "provider_source_manifest_demo_v2",
+        "source_manifest_checksum": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "record_count": 20200,
+        "producer_version": "provider-neutral-adapter/v0.2.0",
+        "metadata": {
+          "fixture": "true"
+        }
+      },
+      {
+        "provider_component_ref": "provider-new-screening",
+        "provider_title": "New provider component",
+        "catalog_id": "licensed-provider-new",
+        "catalog_version": "provider-release-2026-07-15",
+        "catalog_checksum": "4444444444444444444444444444444444444444444444444444444444444444",
+        "catalog_schema": "provider-entity-catalog/v1alpha1",
+        "artifact_uri": "s3://watchlist-catalogs/provider/release-2026-07-15/new.json",
+        "artifact_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+        "source_manifest_id": "provider_source_manifest_new",
+        "source_manifest_checksum": "6666666666666666666666666666666666666666666666666666666666666666",
+        "record_count": 250,
+        "producer_version": "provider-neutral-adapter/v0.2.0"
+      }
+    ]
+  },
+  "renames": [],
+  "policy": {
+    "schema_version": "provider-refresh-policy/v1alpha1",
+    "max_added_components": 2,
+    "max_removed_components": 2,
+    "max_renamed_components": 0,
+    "max_record_count_delta_percent": 5,
+    "require_all_mapped_components_available": true,
+    "require_target_component_available": true,
+    "require_provider_id_unchanged": true
+  },
+  "analyzed_at": "2026-07-20T12:00:00Z",
+  "analyzed_by": "phase7cd-fixture",
+  "reason": "Prove that a mapped component removal is blocked without an explicit rename"
+}
