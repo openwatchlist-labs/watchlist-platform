@@ -90,6 +90,9 @@ func (s *Store) Assist(ctx context.Context, req AssistanceRequest) (AssistanceRe
 		if req.CaseID == "" || req.Actor == "" || req.IdempotencyKey == "" {
 			return errors.New("case_id, actor, and idempotency_key are required")
 		}
+		if err := validateCaseID(req.CaseID); err != nil {
+			return err
+		}
 		if req.Task == "" {
 			req.Task = "draft_note"
 		}
@@ -245,7 +248,11 @@ func (s *Store) finalizeRecord(req AssistanceRequest, record *AssistanceRecord) 
 		return err
 	}
 	record.RecordSHA256 = hash
-	if err := WriteJSONAtomic(filepath.Join(s.Dir, "assistance", record.AssistanceID+".json"), record, 0o600); err != nil {
+	path, err := s.assistancePath(record.AssistanceID)
+	if err != nil {
+		return err
+	}
+	if err := WriteJSONAtomic(path, record, 0o600); err != nil {
 		return err
 	}
 	if err := s.saveReceipt("assist:"+req.CaseID, req.IdempotencyKey, req, record, "assistance", record.AssistanceID, req.OccurredAt); err != nil {
@@ -260,7 +267,11 @@ func (s *Store) finalizeRecord(req AssistanceRequest, record *AssistanceRecord) 
 
 func (s *Store) Record(id string) (AssistanceRecord, error) {
 	var record AssistanceRecord
-	if err := ReadStrictJSON(filepath.Join(s.Dir, "assistance", id+".json"), &record); err != nil {
+	path, err := s.assistancePath(id)
+	if err != nil {
+		return record, err
+	}
+	if err := ReadStrictJSON(path, &record); err != nil {
 		return record, err
 	}
 	if err := VerifyRecord(record); err != nil {
@@ -301,6 +312,12 @@ func (s *Store) Review(req ReviewRequest) (ReviewEvent, bool, error) {
 		if req.CaseID == "" || req.AssistanceID == "" || req.Actor == "" || req.IdempotencyKey == "" {
 			return errors.New("case_id, assistance_id, actor, and idempotency_key are required")
 		}
+		if err := validateCaseID(req.CaseID); err != nil {
+			return err
+		}
+		if err := validateAssistanceID(req.AssistanceID); err != nil {
+			return err
+		}
 		if req.Action != "accept" && req.Action != "reject" {
 			return errors.New("review action must be accept or reject")
 		}
@@ -323,7 +340,11 @@ func (s *Store) Review(req ReviewRequest) (ReviewEvent, bool, error) {
 		if record.Status != "completed" && req.Action == "accept" {
 			return fmt.Errorf("only completed assistance can be accepted; status is %s", record.Status)
 		}
-		files, _ := filepath.Glob(filepath.Join(s.Dir, "reviews", req.AssistanceID, "*.json"))
+		pattern, err := s.reviewPath(req.AssistanceID, "*.json")
+		if err != nil {
+			return err
+		}
+		files, _ := filepath.Glob(pattern)
 		sort.Strings(files)
 		sequence := uint64(len(files) + 1)
 		previous := ""
@@ -338,7 +359,10 @@ func (s *Store) Review(req ReviewRequest) (ReviewEvent, bool, error) {
 		hashCopy := out
 		hashCopy.EventSHA256 = ""
 		out.EventSHA256, _ = HashObject(hashCopy)
-		path := filepath.Join(s.Dir, "reviews", req.AssistanceID, fmt.Sprintf("%020d.json", sequence))
+		path, err := s.reviewPath(req.AssistanceID, fmt.Sprintf("%020d.json", sequence))
+		if err != nil {
+			return err
+		}
 		if err := WriteJSONAtomic(path, out, 0o600); err != nil {
 			return err
 		}
@@ -357,7 +381,11 @@ func (s *Store) reviewBySequence(id, sequence string) (ReviewEvent, error) {
 	if err != nil {
 		return out, err
 	}
-	return out, ReadStrictJSON(filepath.Join(s.Dir, "reviews", id, fmt.Sprintf("%020d.json", n)), &out)
+	path, err := s.reviewPath(id, fmt.Sprintf("%020d.json", n))
+	if err != nil {
+		return out, err
+	}
+	return out, ReadStrictJSON(path, &out)
 }
 
 func (s *Store) Receipt(scope, key string) (IdempotencyReceipt, error) {
