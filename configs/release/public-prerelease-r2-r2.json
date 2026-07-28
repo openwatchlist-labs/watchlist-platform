@@ -1,0 +1,37 @@
+{
+  "continuity_from": "v0.1.0-rc.2",
+  "go_commands": [
+    "platform-api",
+    "platform-ops",
+    "release-qualification",
+    "release-benchmark",
+    "release-artifact",
+    "container-healthcheck"
+  ],
+  "go_targets": [
+    "linux/amd64",
+    "linux/arm64",
+    "darwin/arm64"
+  ],
+  "later_publication_requirements": [
+    "explicit publication approval",
+    "signed tag",
+    "GitHub prerelease",
+    "checksummed assets",
+    "SBOMs",
+    "vulnerability scan",
+    "provenance and signatures",
+    "container multi-architecture qualification"
+  ],
+  "native_rust_binary": "catalog-mmap",
+  "publication_permitted": false,
+  "qualification_runs": 2,
+  "required_workflows": [
+    "CI",
+    "CodeQL",
+    "Release Qualification"
+  ],
+  "schema": "openwatchlist.public-prerelease-policy.v2",
+  "tag": "v0.1.0-rc.3",
+  "version": "0.1.0-rc.3"
+}
