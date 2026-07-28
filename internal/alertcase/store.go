@@ -112,7 +112,11 @@ func (s *Store) CreateAlert(req CreateAlertRequest) (AlertRecord, bool, error) {
 			return err
 		}
 		if receipt != nil {
-			if err := readStrictJSON(filepath.Join(s.Dir, "alerts", receipt.ObjectID+".json"), &out); err != nil {
+			path, err := s.alertPath(receipt.ObjectID)
+			if err != nil {
+				return err
+			}
+			if err := readStrictJSON(path, &out); err != nil {
 				return err
 			}
 			replayed = true
@@ -122,7 +126,10 @@ func (s *Store) CreateAlert(req CreateAlertRequest) (AlertRecord, bool, error) {
 		if err != nil {
 			return err
 		}
-		path := filepath.Join(s.Dir, "alerts", alert.AlertID+".json")
+		path, err := s.alertPath(alert.AlertID)
+		if err != nil {
+			return err
+		}
 		if raw, err := os.ReadFile(path); err == nil {
 			var existing AlertRecord
 			if err := json.Unmarshal(raw, &existing); err != nil {
@@ -151,7 +158,11 @@ func (s *Store) CreateAlert(req CreateAlertRequest) (AlertRecord, bool, error) {
 
 func (s *Store) Alert(id string) (AlertRecord, error) {
 	var a AlertRecord
-	err := readStrictJSON(filepath.Join(s.Dir, "alerts", id+".json"), &a)
+	path, err := s.alertPath(id)
+	if err != nil {
+		return a, err
+	}
+	err = readStrictJSON(path, &a)
 	return a, err
 }
 
@@ -192,7 +203,10 @@ func (s *Store) CreateCase(req CreateCaseRequest) (CaseProjection, bool, error) 
 		}{req.TenantID, ids, req.GroupingKey}
 		h, _ := HashObject(identity)
 		caseID := "case_" + h[:32]
-		caseDir := filepath.Join(s.Dir, "cases", caseID)
+		caseDir, err := s.casePath(caseID)
+		if err != nil {
+			return err
+		}
 		if _, err := os.Stat(filepath.Join(caseDir, "head.json")); err == nil {
 			out, err = s.caseProjectionUnlocked(caseID)
 			replayed = true
@@ -233,6 +247,9 @@ func (s *Store) ApplyCaseEvent(req CaseEventRequest) (CaseProjection, CaseEvent,
 	var event CaseEvent
 	var replayed bool
 	err := s.withLock(func() error {
+		if err := validateCaseID(req.CaseID); err != nil {
+			return err
+		}
 		scope := "case-event:" + req.CaseID + ":" + req.Action
 		receipt, err := s.checkReceipt(scope, req.IdempotencyKey, req)
 		if err != nil {
@@ -244,7 +261,11 @@ func (s *Store) ApplyCaseEvent(req CaseEventRequest) (CaseProjection, CaseEvent,
 				return err
 			}
 			var head CaseHead
-			if err := readStrictJSON(filepath.Join(s.Dir, "cases", req.CaseID, "head.json"), &head); err != nil {
+			headPath, err := s.casePath(req.CaseID, "head.json")
+			if err != nil {
+				return err
+			}
+			if err := readStrictJSON(headPath, &head); err != nil {
 				return err
 			}
 			event, err = s.caseEventBySequenceUnlocked(req.CaseID, head.Sequence)
@@ -266,7 +287,11 @@ func (s *Store) ApplyCaseEvent(req CaseEventRequest) (CaseProjection, CaseEvent,
 			return err
 		}
 		var head CaseHead
-		if err := readStrictJSON(filepath.Join(s.Dir, "cases", req.CaseID, "head.json"), &head); err != nil {
+		headPath, err := s.casePath(req.CaseID, "head.json")
+		if err != nil {
+			return err
+		}
+		if err := readStrictJSON(headPath, &head); err != nil {
 			return err
 		}
 		next := projection
@@ -283,10 +308,18 @@ func (s *Store) ApplyCaseEvent(req CaseEventRequest) (CaseProjection, CaseEvent,
 		next.Revision = event.Revision
 		next.UpdatedAt = occurredAt
 		next.HeadEventSHA256 = event.EventSHA256
-		if err := writeJSONAtomic(filepath.Join(s.Dir, "cases", req.CaseID, "projection.json"), next, 0o600); err != nil {
+		projectionPath, err := s.casePath(req.CaseID, "projection.json")
+		if err != nil {
 			return err
 		}
-		if err := writeJSONAtomic(filepath.Join(s.Dir, "cases", req.CaseID, "head.json"), CaseHead{SchemaVersion: CaseHeadSchemaV1, CaseID: req.CaseID, Sequence: event.Sequence, Revision: event.Revision, EventSHA256: event.EventSHA256}, 0o600); err != nil {
+		if err := writeJSONAtomic(projectionPath, next, 0o600); err != nil {
+			return err
+		}
+		headPath, err = s.casePath(req.CaseID, "head.json")
+		if err != nil {
+			return err
+		}
+		if err := writeJSONAtomic(headPath, CaseHead{SchemaVersion: CaseHeadSchemaV1, CaseID: req.CaseID, Sequence: event.Sequence, Revision: event.Revision, EventSHA256: event.EventSHA256}, 0o600); err != nil {
 			return err
 		}
 		projection = next
@@ -417,11 +450,19 @@ func (s *Store) buildCaseEvent(caseID string, sequence, revision uint64, previou
 
 func (s *Store) writeCaseEventUnlocked(e CaseEvent) error {
 	name := fmt.Sprintf("%020d-%s.json", e.Sequence, e.EventSHA256)
-	return writeJSONAtomic(filepath.Join(s.Dir, "cases", e.CaseID, "events", name), e, 0o600)
+	path, err := s.casePath(e.CaseID, "events", name)
+	if err != nil {
+		return err
+	}
+	return writeJSONAtomic(path, e, 0o600)
 }
 
 func (s *Store) caseEventBySequenceUnlocked(caseID string, sequence uint64) (CaseEvent, error) {
-	matches, err := filepath.Glob(filepath.Join(s.Dir, "cases", caseID, "events", fmt.Sprintf("%020d-*.json", sequence)))
+	pattern, err := s.casePath(caseID, "events", fmt.Sprintf("%020d-*.json", sequence))
+	if err != nil {
+		return CaseEvent{}, err
+	}
+	matches, err := filepath.Glob(pattern)
 	if err != nil || len(matches) != 1 {
 		return CaseEvent{}, fmt.Errorf("case event sequence %d not found", sequence)
 	}
@@ -433,12 +474,20 @@ func (s *Store) caseEventBySequenceUnlocked(caseID string, sequence uint64) (Cas
 func (s *Store) Case(id string) (CaseProjection, error) { return s.caseProjectionUnlocked(id) }
 func (s *Store) caseProjectionUnlocked(id string) (CaseProjection, error) {
 	var p CaseProjection
-	err := readStrictJSON(filepath.Join(s.Dir, "cases", id, "projection.json"), &p)
+	path, err := s.casePath(id, "projection.json")
+	if err != nil {
+		return p, err
+	}
+	err = readStrictJSON(path, &p)
 	return p, err
 }
 
 func (s *Store) VerifyCase(caseID string) (CaseProjection, error) {
-	files, err := filepath.Glob(filepath.Join(s.Dir, "cases", caseID, "events", "*.json"))
+	pattern, err := s.casePath(caseID, "events", "*.json")
+	if err != nil {
+		return CaseProjection{}, err
+	}
+	files, err := filepath.Glob(pattern)
 	if err != nil || len(files) == 0 {
 		return CaseProjection{}, errors.New("case has no events")
 	}
@@ -565,7 +614,11 @@ func (s *Store) Receipt(scope, key string) (IdempotencyReceipt, error) {
 
 func (s *Store) LastCaseEvent(caseID string) (CaseEvent, error) {
 	var head CaseHead
-	if err := readStrictJSON(filepath.Join(s.Dir, "cases", caseID, "head.json"), &head); err != nil {
+	headPath, err := s.casePath(caseID, "head.json")
+	if err != nil {
+		return CaseEvent{}, err
+	}
+	if err := readStrictJSON(headPath, &head); err != nil {
 		return CaseEvent{}, err
 	}
 	return s.caseEventBySequenceUnlocked(caseID, head.Sequence)
@@ -626,7 +679,13 @@ func (s *Store) CreateAlertBatch(req CreateAlertBatchRequest) (AlertBatchResult,
 		return AlertBatchResult{}, err
 	}
 	if receipt != nil {
-		path := filepath.Join(s.Dir, "idempotency", "batch-results", receipt.ObjectID+".json")
+		if err := validateHex64("batch result id", receipt.ObjectID); err != nil {
+			return AlertBatchResult{}, err
+		}
+		path, err := confinedStatePath(s.Dir, "idempotency", "batch-results", receipt.ObjectID+".json")
+		if err != nil {
+			return AlertBatchResult{}, err
+		}
 		if err := readStrictJSON(path, &result); err != nil {
 			return AlertBatchResult{}, err
 		}
@@ -641,7 +700,11 @@ func (s *Store) CreateAlertBatch(req CreateAlertBatchRequest) (AlertBatchResult,
 		result.Alerts = append(result.Alerts, alert)
 	}
 	batchHash, _ := HashObject(result.Alerts)
-	if err := writeJSONAtomic(filepath.Join(s.Dir, "idempotency", "batch-results", batchHash+".json"), result, 0o600); err != nil {
+	batchPath, err := confinedStatePath(s.Dir, "idempotency", "batch-results", batchHash+".json")
+	if err != nil {
+		return AlertBatchResult{}, err
+	}
+	if err := writeJSONAtomic(batchPath, result, 0o600); err != nil {
 		return AlertBatchResult{}, err
 	}
 	if err := s.saveReceipt("create-alert-batch", req.IdempotencyKey, req, result, "alert_batch", batchHash, req.OccurredAt); err != nil {
