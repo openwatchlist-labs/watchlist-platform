@@ -1,0 +1,67 @@
+name: Published Runtime Asset Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published prerelease tag
+        required: true
+        type: string
+      version:
+        description: Version without v prefix
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-runtime-qualification-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-published-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - name: Download published runtime assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/published"
+          gh release download "${{ inputs.tag }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "${RUNNER_TEMP}/published" \
+            --pattern "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.tar.gz" \
+            --pattern "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.manifest.json" \
+            --pattern "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.tar.gz.sig" \
+            --pattern "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.manifest.json.sig" \
+            --pattern "allowed_signers"
+      - name: Verify published SSH signatures
+        shell: bash
+        run: |
+          for name in \
+            "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.tar.gz" \
+            "openwatchlist-${{ inputs.version }}-linux-amd64-runtime.manifest.json"
+          do
+            ssh-keygen -Y verify \
+              -f "${RUNNER_TEMP}/published/allowed_signers" \
+              -I pdaiya@gmail.com \
+              -n openwatchlist-release \
+              -s "${RUNNER_TEMP}/published/${name}.sig" \
+              <"${RUNNER_TEMP}/published/${name}"
+          done
+      - name: Qualify downloaded Ubuntu runtime package
+        shell: bash
+        run: |
+          ./scripts/release/qualify-linux-amd64-runtime.sh \
+            --archive "${RUNNER_TEMP}/published/openwatchlist-${{ inputs.version }}-linux-amd64-runtime.tar.gz" \
+            --manifest "${RUNNER_TEMP}/published/openwatchlist-${{ inputs.version }}-linux-amd64-runtime.manifest.json" \
+            --output "${RUNNER_TEMP}/published-qualification"
+          cat "${RUNNER_TEMP}/published-qualification/qualification.json"

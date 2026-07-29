@@ -1,0 +1,66 @@
+name: Linux AMD64 Runtime Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Prerelease version without v prefix
+        required: true
+        type: string
+      expected_sha:
+        description: Exact main commit to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-amd64-runtime-release-${{ inputs.expected_sha }}
+  cancel-in-progress: false
+
+env:
+  RUSTUP_TOOLCHAIN: 1.97.1
+
+jobs:
+  build-and-qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact source identity
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.expected_sha }}"
+          test -z "$(git status --short)"
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Set up Rust
+        shell: bash
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
+          rustup target add --toolchain 1.97.1 x86_64-unknown-linux-gnu
+      - name: Build and qualify deterministic runtime assets
+        shell: bash
+        run: |
+          ./scripts/release/qualify-prerelease.sh \
+            --version "${{ inputs.version }}" \
+            --vcs-ref "${{ inputs.expected_sha }}" \
+            --source-date-epoch "$(git show -s --format=%ct "${{ inputs.expected_sha }}")" \
+            --output "${RUNNER_TEMP}/openwatchlist-r2-4-qualified-assets"
+      - name: Upload governed qualification bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: openwatchlist-r2-4-qualified-assets
+          path: ${{ runner.temp }}/openwatchlist-r2-4-qualified-assets
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
