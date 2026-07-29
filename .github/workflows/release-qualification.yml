@@ -14,10 +14,9 @@ concurrency:
 
 env:
   RUSTUP_TOOLCHAIN: 1.97.1
-
 jobs:
   release-qualification:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -31,12 +30,14 @@ jobs:
           cache: true
       - name: Set up Rust
         shell: bash
-        run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
+          rustup target add --toolchain 1.97.1 x86_64-unknown-linux-gnu
       - name: Qualify deterministic prerelease assets
         shell: bash
         run: |
           ./scripts/release/qualify-prerelease.sh \
-            --version 0.1.0-rc.3 \
+            --version 0.1.0-rc.4 \
             --vcs-ref "${GITHUB_SHA}" \
             --source-date-epoch "$(git show -s --format=%ct "${GITHUB_SHA}")" \
             --output "${RUNNER_TEMP}/openwatchlist-prerelease-qualification"
