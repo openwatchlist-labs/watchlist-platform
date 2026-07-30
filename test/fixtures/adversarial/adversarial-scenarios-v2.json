@@ -1,0 +1,136 @@
+{
+  "schema_version": "openwatchlist.adversarial-scenarios.v1",
+  "suite_id": "adversarial-and-messy-data-v1",
+  "version": "2026-07-30-r2",
+  "note": "Batch 2 - see README.md for the baseline/stress distinction. This batch adds: cross-script name-order conventions, nickname/diminutive substitution, date-format confusion, and multi-vector combined attacks (two techniques stacked, which is closer to how real evasion attempts actually look than any single-technique case).",
+  "scenarios": [
+    {
+      "scenario_id": "translit-11-stress-japanese-name-order",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "EXAMPLE HIROSHI",
+      "target_provider_record_id": "record-hiroshi-example",
+      "truth": "match",
+      "rationale": "Japanese convention is family-name-first (HIROSHI EXAMPLE as family+given would render 'EXAMPLE HIROSHI' if family name is Example) - Western systems and vendor feeds frequently flip this. Requires adding a corresponding catalog record; see synthetic-catalog-adversarial-v2.json.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "translit-12-stress-vietnamese-diacritics",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "NGUYEN VAN VIDONG",
+      "target_provider_record_id": "record-nguyen-example",
+      "truth": "match",
+      "rationale": "Vietnamese names carry tone diacritics (Vĩ Dũng) frequently stripped entirely in Latin-alphabet-only systems. Tests full diacritic removal, a step further than the Spanish/French accent cases in batch 1 since tone marks change more than a single glyph.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "translit-13-stress-ukrainian-vs-russian-form",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "OLEKSANDR EXAMPLENKO",
+      "target_provider_record_id": "record-oleksandr-example",
+      "truth": "match",
+      "rationale": "Ukrainian transliteration (Oleksandr) vs. Russian transliteration (Aleksandr) of what may be recorded under either spelling depending on which transliteration standard a source list used. This exact pattern (Kyiv/Kiev, Oleksandr/Aleksandr) has been a real, documented source of sanctions-list matching gaps.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "incomplete-06-missing-entity-type",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "EXAMPLE SENDING",
+      "query_missing_fields": [
+        "entity_type"
+      ],
+      "target_provider_record_id": null,
+      "truth": "ambiguous_by_design",
+      "expected_route": "investigate",
+      "rationale": "Partial organization name with no entity_type hint supplied. Tests whether omitting entity_type causes the search to silently narrow to the wrong candidate types (e.g. individual-only) and miss an organization hit entirely, rather than correctly searching both and surfacing for review.",
+      "known_status": "ambiguous_as_expected"
+    },
+    {
+      "scenario_id": "incomplete-07-date-format-confusion",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "MILAN NOVAK",
+      "query_date_of_birth": "03/11/1975",
+      "note": "Ambiguous as US (Mar 11) or international (11 Mar) format - deliberately not disambiguated in the query, same as real upstream data often is",
+      "target_provider_record_id": "record-yevgeni-example",
+      "truth": "match_on_name_dob_should_not_hard_exclude",
+      "rationale": "Tests whether an ambiguous-format date is used to confidently EXCLUDE a name match (bad - could cause a false clear) versus treated as weak/inconclusive corroborating evidence alongside the name. A DOB field should never be strong enough evidence, in either interpretation, to override a strong name match.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "incomplete-08-address-only-no-name-match",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "J SMITH",
+      "query_address": "HAMBURG",
+      "target_provider_record_id": null,
+      "truth": "clear",
+      "rationale": "Common name plus an address that happens to match a sanctioned organization's city (Orion Trading GmbH is Hamburg-based). Tests that shared address/geography alone doesn't inflate a weak name match into a false positive - this is the geography-evidence equivalent of the existing false_positive_pattern category.",
+      "known_status": "unscored"
+    },
+    {
+      "scenario_id": "obfuscation-13-rtl-override-injection",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ACME ‮STROPMI‬ LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Contains a Unicode Right-to-Left Override character (U+202E) which visually reverses 'IMPORTS' to display as 'STROPMI' reversed back to 'IMPORTS' on screen, while the underlying byte sequence differs from the plain string. This is a well-documented real technique (used e.g. to disguise file extensions) adapted to name obfuscation. High-value test - most naive string-matching pipelines mis-handle RLO/LRO control characters, either crashing, silently misrendering, or comparing the wrong underlying bytes.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-14-mixed-script-injection",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ACME ІMPORTS LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "The Latin 'I' in IMPORTS replaced with Cyrillic 'І' (U+0406, Ukrainian/Belarusian I), visually near-identical in most fonts. A second, distinct homoglyph technique from obfuscation-01 (which used Cyrillic O) - different codepoint, different script pairing, to test whether any fix for one homoglyph generalizes or is a narrow patch.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-15-nickname-diminutive",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "BILL EXAMPLETON",
+      "target_provider_record_id": "record-william-example",
+      "truth": "match",
+      "rationale": "Common English diminutive (Bill for William) not a spelling variant or transliteration - a genuinely different string tied to the same identity by cultural convention, not edit distance or phonetics. Tests whether the system has any nickname/diminutive table at all; most edit-distance/phonetic approaches will not catch this, since 'Bill' and 'William' are not phonetically or orthographically close.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "combined-01-transliteration-plus-truncation",
+      "category": "multi_vector",
+      "tag": "stress",
+      "query_name": "MOHAMED EL-EXAMP",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Stacks two techniques from batch 1: unregistered transliteration variant (translit-05) AND mid-word truncation (incomplete-05). Real evasion or genuinely messy data rarely arrives as a single clean technique - stacking is the more realistic test.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "combined-02-homoglyph-plus-suffix-swap",
+      "category": "multi_vector",
+      "tag": "stress",
+      "query_name": "ОRION TRADING LTD",
+      "target_provider_record_id": "record-orion-trading-gmbh",
+      "truth": "match",
+      "rationale": "Stacks Cyrillic-O homoglyph (obfuscation-01) with corporate-suffix swap (obfuscation-08). If either technique alone defeats the matcher, this compound case will too - useful as a single regression check once the individual gaps are addressed, to confirm the fix generalizes to combinations, not just the isolated cases it was built against.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "combined-03-padding-plus-nickname",
+      "category": "multi_vector",
+      "tag": "stress",
+      "query_name": "MR BILL J EXAMPLETON ESQ",
+      "target_provider_record_id": "record-william-example",
+      "truth": "match",
+      "rationale": "Nickname substitution plus honorific/suffix padding stacked together.",
+      "known_status": "fail"
+    }
+  ],
+  "known_status_note": "known_status reflects an actual run against the compiled adversarial.owpcat package via matcherbaseline on 2026-07-30. pass/fail are regression-checked by internal/adversarialtest; ambiguous_as_expected and unscored are logged but not asserted as pass/fail."
+}

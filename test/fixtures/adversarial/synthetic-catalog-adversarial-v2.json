@@ -1,0 +1,110 @@
+{
+  "schema_version": "fixture-provider-catalog/v1alpha1",
+  "provider_id": "synthetic-provider",
+  "provider_version": "v0.1.0",
+  "catalog_id": "synthetic-watchlist-catalog-adversarial",
+  "catalog_version": "2026-07-30.adversarial-2",
+  "catalog_mode": "provider_entity",
+  "records": [
+    {
+      "provider_record_id": "record-hiroshi-example",
+      "provider_entity_id": "entity-hiroshi-example",
+      "entity_type": "individual",
+      "primary_name": "HIROSHI EXAMPLE",
+      "aliases": [],
+      "dates": [
+        "1979-09-04"
+      ],
+      "attributes": {
+        "fixture_class": "synthetic_individual",
+        "test_purpose": "Japanese family-name-first vs given-name-first convention; no alias registered for the flipped order"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-HIROSHI-001",
+          "programs": [
+            "DEMO"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-nguyen-example",
+      "provider_entity_id": "entity-nguyen-example",
+      "entity_type": "individual",
+      "primary_name": "NGUYEN VAN VĨ DũNG",
+      "aliases": [],
+      "dates": [
+        "1985-02-20"
+      ],
+      "attributes": {
+        "fixture_class": "synthetic_individual",
+        "test_purpose": "Vietnamese tone diacritics, no ASCII-folded alias registered"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-NGUYEN-001",
+          "programs": [
+            "DEMO"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-oleksandr-example",
+      "provider_entity_id": "entity-oleksandr-example",
+      "entity_type": "individual",
+      "primary_name": "ALEKSANDR EXAMPLENKO",
+      "aliases": [],
+      "dates": [
+        "1971-12-01"
+      ],
+      "attributes": {
+        "fixture_class": "synthetic_individual",
+        "test_purpose": "Catalog uses Russian-style transliteration (Aleksandr); query in batch 2 uses Ukrainian-style (Oleksandr) - deliberately not registered as an alias, mirroring a real, documented gap pattern"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-OLEKSANDR-001",
+          "programs": [
+            "DEMO"
+          ]
+        }
+      ]
+    },
+    {
+      "provider_record_id": "record-william-example",
+      "provider_entity_id": "entity-william-example",
+      "entity_type": "individual",
+      "primary_name": "WILLIAM EXAMPLETON",
+      "aliases": [],
+      "dates": [
+        "1966-05-19"
+      ],
+      "attributes": {
+        "fixture_class": "synthetic_individual",
+        "test_purpose": "No nickname/diminutive registered - tests whether the system has any diminutive-name table (Bill/William, Bob/Robert, etc.) at all"
+      },
+      "source_assertions": [
+        {
+          "source_id": "synthetic-authority",
+          "authority": "OpenWatchlist Labs Test Authority",
+          "list_id": "SYNTHETIC-TEST",
+          "source_record_id": "SRC-WILLIAM-001",
+          "programs": [
+            "DEMO"
+          ]
+        }
+      ]
+    }
+  ]
+}

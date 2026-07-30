@@ -1,0 +1,288 @@
+{
+  "schema_version": "openwatchlist.adversarial-scenarios.v1",
+  "suite_id": "adversarial-and-messy-data-v1",
+  "version": "2026-07-29-r1",
+  "note": "All target entities are synthetic (see synthetic-catalog-adversarial-v1.json). 'tag: baseline' means the query matches a registered alias already in the catalog - should already pass. 'tag: stress' means the query is deliberately NOT a registered alias - this is the real test of fuzzy/phonetic generalization. See README.md.",
+  "scenarios": [
+    {
+      "scenario_id": "translit-01-baseline-registered-alias",
+      "category": "transliteration",
+      "tag": "baseline",
+      "query_name": "YEVGENIY EXAMPLOV",
+      "target_provider_record_id": "record-yevgeni-example",
+      "truth": "match",
+      "rationale": "Exactly matches the one alias that IS registered on this record.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-02-stress-alternate-romanization",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "EVGENY EXAMPLOV",
+      "target_provider_record_id": "record-yevgeni-example",
+      "truth": "match",
+      "rationale": "Common alternate English romanization of a Russian-origin given name, deliberately not registered as an alias. Tests phonetic/fuzzy generalization, not alias lookup.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "translit-03-stress-anglicized-form",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "EUGENE EXAMPLOV",
+      "target_provider_record_id": "record-yevgeni-example",
+      "truth": "match",
+      "rationale": "Fully anglicized given-name form. Harder than translit-02 - tests whether matching goes beyond edit-distance/phonetic folding into known cross-language name equivalence, which most systems (including this one, on current evidence) do not attempt. Expect this one to fail; that's useful information, not a bug to panic over.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "translit-04-baseline-registered-alias",
+      "category": "transliteration",
+      "tag": "baseline",
+      "query_name": "MOHAMMED AL-EXAMPLI",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Exactly matches the registered alias.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-05-stress-prefix-variant",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "MOHAMED EL-EXAMPLI",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Single-M spelling plus al-/el- prefix substitution, common real-world variance in Arabic-origin name romanization. Not registered.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-06-stress-prefix-merged",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "MUHAMMED ALEXAMPLI",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Prefix merged into surname with no hyphen or space at all - tests tokenization robustness, not just spelling tolerance.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "translit-07-stress-diacritic-ascii-fold",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "JOSE MARIA EXAMPLON",
+      "target_provider_record_id": "record-jose-example",
+      "truth": "match",
+      "rationale": "No ASCII-folded alias is registered at all on this record - purely tests whether the normalizer strips diacritics before comparison, or requires an exact accented-character match.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-08-stress-partial-diacritic",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "JOSÉ MARIA EXAMPLON",
+      "target_provider_record_id": "record-jose-example",
+      "truth": "match",
+      "rationale": "Mixed - one accent kept, one dropped. Simulates realistic manual data entry rather than a clean full-fold or full-original.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-09-stress-name-order",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "WEI CHEN EXAMPLE",
+      "target_provider_record_id": "record-chen-example",
+      "truth": "match",
+      "rationale": "Third word order for this name (primary is CHEN WEI EXAMPLE, registered alias is EXAMPLE CHEN WEI) - neither the primary name nor the registered alias uses this order. Tests token-order independence.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "translit-10-stress-surname-comma",
+      "category": "transliteration",
+      "tag": "stress",
+      "query_name": "CHEN, WEI EXAMPLE",
+      "target_provider_record_id": "record-chen-example",
+      "truth": "match",
+      "rationale": "Surname-first-with-comma convention common in some vendor data feeds.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "incomplete-01-suffix-dropped",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "ACME IMPORTS",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Legal-entity suffix (LLC) dropped entirely - extremely common in free-text payment fields.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "incomplete-02-name-only-no-context",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "MILAN NOVAK",
+      "query_missing_fields": [
+        "date_of_birth",
+        "country",
+        "identifier"
+      ],
+      "target_provider_record_id": "record-novak-example",
+      "truth": "match",
+      "rationale": "Catalog record itself has no DOB on file; query also supplies none. Tests matching on name alone when no corroborating identifier exists on either side - and whether the system can express appropriately lower confidence rather than a false full-confidence exact match.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "incomplete-03-initials-only",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "M. NOVAK",
+      "target_provider_record_id": "record-novak-example",
+      "truth": "ambiguous_by_design",
+      "expected_route": "investigate",
+      "rationale": "Initials-only queries are inherently ambiguous (many people share 'M. Novak'). The correct behavior is NOT a confident auto-match or auto-clear - it's routing to human review. A system that returns high-confidence auto-match here is arguably worse than one that fails to match at all, because it will generate false confidence at scale.",
+      "known_status": "ambiguous_as_expected"
+    },
+    {
+      "scenario_id": "incomplete-04-truncated-identifier",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "MILAN NOVAK",
+      "query_identifier": "EX123",
+      "target_provider_record_id": "record-novak-example",
+      "truth": "match_on_name_not_identifier",
+      "rationale": "Query identifier is a truncated prefix of the real passport number (EX1234567). Tests whether the system correctly avoids treating a partial-prefix identifier match as strong corroborating evidence (it shouldn't - prefix collisions are common) while still catching the name-level match.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "incomplete-05-truncated-name",
+      "category": "incomplete_record",
+      "tag": "stress",
+      "query_name": "MUHAMMAD AL-EXAMP",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Name cut off mid-word, simulating a field-length-limited upstream system. Tests prefix/truncation tolerance.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-01-homoglyph-cyrillic-o",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ОRION TRADING GMBH",
+      "target_provider_record_id": "record-orion-trading-gmbh",
+      "truth": "match",
+      "rationale": "Leading 'O' replaced with visually identical Cyrillic 'О' (U+041E). Renders identically in most UIs but is a different Unicode codepoint. This is a well-known real evasion technique (homoglyph substitution) and, based on the normalization code reviewed, is very likely NOT currently handled - the normalizer only does whitespace/casing, no Unicode confusable folding. Expect this to fail; treat that as the single highest-priority finding from this whole test bank.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-02-leetspeak-zero-for-o",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "0RION TRADING GMBH",
+      "target_provider_record_id": "record-orion-trading-gmbh",
+      "truth": "match",
+      "rationale": "Digit zero substituted for letter O (plain ASCII, not a homoglyph) - tests fuzzy edit-distance rather than Unicode folding specifically.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-03-leetspeak-in-catalog-org",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ACME IMP0RTS LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Same digit-substitution pattern against the original base-catalog entity.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-04-zero-width-space",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "AC​ME IMPORTS LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Zero-width space (U+200B) inserted mid-word - invisible in most UIs, present in the underlying string. Tests whether normalization strips non-printing Unicode, not just visible whitespace.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-05-punctuation-noise",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "A.C.M.E. IMPORTS, LLC.",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Excess punctuation - very common in real free-text payment fields, low-effort but high-frequency noise.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-06-token-reorder",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "IMPORTS LLC ACME",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Full token reordering, no other change.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-07-single-edit-typo",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ACME IMPORTZ LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "rationale": "Single-character edit distance (S -> Z), plausible as an innocent typo or a deliberate near-miss.",
+      "known_status": "pass"
+    },
+    {
+      "scenario_id": "obfuscation-08-entity-suffix-swap",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ORION TRADING LTD",
+      "target_provider_record_id": "record-orion-trading-gmbh",
+      "truth": "match",
+      "rationale": "Corporate suffix swapped (GMBH -> LTD), same core name, implying a different jurisdiction/entity type. This mirrors a real sanctions-evasion pattern: re-registering the same operation under a new corporate wrapper. High-value test.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-09-near-duplicate-disambiguation",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ORION HOLDING GMBH",
+      "target_provider_record_id": null,
+      "truth": "ambiguous_by_design",
+      "expected_route": "investigate",
+      "rationale": "Singular 'Holding' vs the catalog's 'ORION HOLDINGS GMBH' and 'ORION TRADING GMBH' - one edit away from two different real entities. Correct behavior is surfacing both as candidates for human disambiguation, not silently picking one with high confidence.",
+      "known_status": "ambiguous_as_expected"
+    },
+    {
+      "scenario_id": "obfuscation-10-honorific-and-suffix-padding",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "MR MUHAMMAD AL EXAMPLI JR",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Added honorific prefix and generational suffix, hyphen dropped from al-Exampli. Tests whether added tokens dilute the match score below threshold.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-11-token-dilution-padding",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "MUHAMMAD JAMES ROBERT WILLIAM AL-EXAMPLI",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Three plausible-but-fake middle names inserted, deliberately designed to dilute a token-overlap-based score below a naive threshold. Tests resistance to a padding/dilution evasion attempt specifically, not just tolerance of noise.",
+      "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-12-field-mapping-error",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_first_name": "MUHAMMAD AL-EXAMPLI",
+      "query_last_name": "",
+      "target_provider_record_id": "record-muhammad-example",
+      "truth": "match",
+      "rationale": "Simulates an upstream integration bug (not deliberate evasion): the entire name crammed into a single field. Tests robustness to malformed upstream input, which is at least as common in production as deliberate adversarial behavior.",
+      "known_status": "fail"
+    }
+  ],
+  "known_status_note": "known_status reflects an actual run against the compiled adversarial.owpcat package via matcherbaseline on 2026-07-30. pass/fail are regression-checked by internal/adversarialtest; ambiguous_as_expected and unscored are logged but not asserted as pass/fail."
+}

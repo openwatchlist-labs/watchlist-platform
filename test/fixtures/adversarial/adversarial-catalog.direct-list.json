@@ -1,0 +1,360 @@
+{
+  "schema_version": "ofac-direct-list-catalog/v1alpha1",
+  "catalog_id": "ofac-sdn-direct",
+  "catalog_version": "2026-07-30-adversarial-r1",
+  "catalog_checksum": "8a2fc0c7318b09578b638ca8bebe4135c5f640d677bb67b28999354124692282",
+  "catalog_mode": "direct_list",
+  "projector_version": "ofac-direct-list-projector/v0.1.0",
+  "source_manifest": {
+    "schema_version": "ofac-source-manifest/v1alpha1",
+    "manifest_id": "ofac_source_484631b9594888dbe5f52f60",
+    "authority": "U.S. Department of the Treasury, Office of Foreign Assets Control",
+    "dataset_id": "ofac-sdn",
+    "source_url": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.XML",
+    "acquisition_method": "local_fixture",
+    "acquired_at": "2026-07-30T00:00:00Z",
+    "media_type": "application/xml",
+    "content_length": 3235,
+    "content_sha256": "c33e134053cc471a29d3e3974ad6ae61ad6912bd4d5375f1c41eef532dca5aa2",
+    "xml_namespace": "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML",
+    "publish_date": "07/30/2026",
+    "declared_record_count": 12,
+    "parser_version": "ofac-sdn-legacy-xml-parser/v0.1.0"
+  },
+  "record_count": 12,
+  "records": [
+    {
+      "provider_record_id": "ofac:sdn:1001",
+      "source_uid": "1001",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Acme Imports LLC",
+      "remarks": "Synthetic fixture record. Not an actual OFAC designation. Reused from ofac-sdn-fixture.catalog.json for continuity with existing tests.",
+      "programs": [
+        "DEMO"
+      ],
+      "aliases": [
+        {
+          "source_uid": "1101",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "ACME IMPORTS"
+        },
+        {
+          "source_uid": "1102",
+          "type": "f.k.a.",
+          "strength": "weak",
+          "name": "ACME GLOBAL"
+        }
+      ],
+      "addresses": [
+        {
+          "source_uid": "1201",
+          "city": "New York",
+          "country": "United States"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "1001",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9001",
+      "source_uid": "9001",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Yevgeni Petrovich Examplov",
+      "remarks": "Synthetic. Transliteration stress-test record - only ONE romanization registered as alias.",
+      "programs": [
+        "DEMO"
+      ],
+      "aliases": [
+        {
+          "source_uid": "9101",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "Yevgeniy Examplov"
+        }
+      ],
+      "dates_of_birth": [
+        "1975-03-11"
+      ],
+      "citizenships": [
+        "Russia"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9001",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9002",
+      "source_uid": "9002",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Muhammad Al-Exampli",
+      "remarks": "Synthetic. Arabic-origin transliteration stress-test record.",
+      "programs": [
+        "DEMO"
+      ],
+      "aliases": [
+        {
+          "source_uid": "9201",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "Mohammed Al-Exampli"
+        }
+      ],
+      "dates_of_birth": [
+        "1968-11-02"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9002",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9003",
+      "source_uid": "9003",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Jose Maria Examplon",
+      "remarks": "Synthetic. Diacritic stress-test record - NO ASCII-folded alias registered; primary_name itself is stored ASCII-only here deliberately so the query with full accents (translit-08) tests fold-on-query rather than fold-on-catalog.",
+      "programs": [
+        "DEMO"
+      ],
+      "dates_of_birth": [
+        "1982-06-30"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9003",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9004",
+      "source_uid": "9004",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Orion Trading GmbH",
+      "remarks": "Synthetic. Anchor for entity-suffix-swap and near-duplicate obfuscation scenarios.",
+      "programs": [
+        "DEMO"
+      ],
+      "addresses": [
+        {
+          "source_uid": "9401",
+          "city": "Hamburg",
+          "country": "Germany"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9004",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9005",
+      "source_uid": "9005",
+      "entity_type": "organization",
+      "sdn_type": "Entity",
+      "primary_name": "Orion Holdings GmbH",
+      "remarks": "Synthetic. Near-duplicate pair with Orion Trading GmbH - same core name, different corporate function, for disambiguation testing.",
+      "programs": [
+        "DEMO"
+      ],
+      "addresses": [
+        {
+          "source_uid": "9501",
+          "city": "Hamburg",
+          "country": "Germany"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9005",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9006",
+      "source_uid": "9006",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Chen Wei Example",
+      "remarks": "Synthetic. Name-order stress-test record - only ONE alternate order registered as alias.",
+      "programs": [
+        "DEMO"
+      ],
+      "aliases": [
+        {
+          "source_uid": "9601",
+          "type": "a.k.a.",
+          "strength": "strong",
+          "name": "Example Chen Wei"
+        }
+      ],
+      "dates_of_birth": [
+        "1990-01-15"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9006",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9007",
+      "source_uid": "9007",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Milan Novak Example",
+      "remarks": "Synthetic. No date of birth on file at all - incomplete-record stress-test record.",
+      "programs": [
+        "DEMO"
+      ],
+      "identifiers": [
+        {
+          "source_uid": "9701",
+          "type": "Passport",
+          "number": "EX1234567"
+        }
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9007",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9008",
+      "source_uid": "9008",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Hiroshi Example",
+      "remarks": "Synthetic. Family-name-first vs given-name-first convention stress-test record.",
+      "programs": [
+        "DEMO"
+      ],
+      "dates_of_birth": [
+        "1979-09-04"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9008",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9009",
+      "source_uid": "9009",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Nguyen Van Vi Dung",
+      "remarks": "Synthetic. Vietnamese tone-diacritic stress-test record; primary_name stored ASCII-only, query in scenario batch 2 uses full tone marks.",
+      "programs": [
+        "DEMO"
+      ],
+      "dates_of_birth": [
+        "1985-02-20"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9009",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9010",
+      "source_uid": "9010",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "Aleksandr Examplenko",
+      "remarks": "Synthetic. Russian-style transliteration on file; Ukrainian-style query (Oleksandr) deliberately not registered as alias.",
+      "programs": [
+        "DEMO"
+      ],
+      "dates_of_birth": [
+        "1971-12-01"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9010",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    },
+    {
+      "provider_record_id": "ofac:sdn:9011",
+      "source_uid": "9011",
+      "entity_type": "individual",
+      "sdn_type": "Individual",
+      "primary_name": "William Exampleton",
+      "remarks": "Synthetic. No nickname/diminutive registered - tests whether any diminutive-name handling exists at all.",
+      "programs": [
+        "DEMO"
+      ],
+      "dates_of_birth": [
+        "1966-05-19"
+      ],
+      "source_assertion": {
+        "source_id": "ofac-sls",
+        "authority": "OpenWatchlist Labs Test Authority",
+        "list_id": "SDN",
+        "source_record_id": "9011",
+        "programs": [
+          "DEMO"
+        ]
+      }
+    }
+  ]
+}
