@@ -1,0 +1,8 @@
+{
+  "schema_version": "openwatchlist.alert-policy.v1",
+  "policy_id": "phase9ab-alert-policy",
+  "version": "r1",
+  "high_score_threshold": 850,
+  "review_score_threshold": 600,
+  "external_escalate_threshold": 900
+}

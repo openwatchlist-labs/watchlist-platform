@@ -1,0 +1,83 @@
+{
+  "controls": {
+    "compiler_toolchain_invocation_on_hosts": false,
+    "complete_temporary_root_rebinding": true,
+    "controlled_reactivation": true,
+    "declared_seal_regeneration": true,
+    "image_pull_or_build": false,
+    "initial_smoke": true,
+    "package_installation": false,
+    "qualification_first_opt2_transfer": true,
+    "rollback_qualification": true,
+    "systemd_mutation": false
+  },
+  "limitations": [
+    "controlled homelab qualification only",
+    "synthetic three-record catalog fixture",
+    "not production or regulatory certification"
+  ],
+  "opt1": {
+    "api_bind": "127.0.0.1:8080",
+    "endpoint_status": {
+      "healthz": 200,
+      "livez": 200,
+      "metrics": 200,
+      "readyz": 200
+    },
+    "postgres_bind": "127.0.0.1:15432",
+    "postgres_ready": true,
+    "protected_postgres_port": 5432,
+    "review_console_ready": true,
+    "runtime_config_sha256": "37ad8b256ec763cf8e13d3ea4e9bf9ba726e5746dfdb79157bea538417785ac9"
+  },
+  "opt2": {
+    "fixture_kind": "synthetic_nonproduction_conformance",
+    "identifier_count": 3,
+    "identifier_lookup_passed": true,
+    "input_sha256": "17559b75fef7e34c1c37dca7192113fb5632b5248255cbb20a9e0ea35803bb21",
+    "name_count": 8,
+    "name_lookup_passed": true,
+    "package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+    "record_count": 3,
+    "record_lookup_passed": true,
+    "resident_daemon_started": false
+  },
+  "publication": {
+    "container_ids_included": false,
+    "generated_evidence_included": false,
+    "private_addresses_included": false,
+    "secret_material_included": false,
+    "ssh_usernames_included": false
+  },
+  "release": {
+    "linux_amd64_runtime_sha256": "1cf61dce31fad81d8511bac76c5a29aef3c0375a3a26d0c92f58a70a3494a29f",
+    "main_commit": "210dc3c00d43f4f4e9ceae6905c24c9c9ea99584",
+    "main_tree": "51b93dd4a4e27b5607c2a460580829490e9742d1",
+    "release_id": 361927608,
+    "tag": "v0.1.0-rc.4"
+  },
+  "roles": [
+    {
+      "mode": "runtime",
+      "name": "opt1",
+      "responsibility": "platform-api and owned PostgreSQL"
+    },
+    {
+      "mode": "runtime",
+      "name": "opt2",
+      "responsibility": "catalog-mmap conformance runtime"
+    },
+    {
+      "mode": "capability-only",
+      "name": "g732",
+      "responsibility": "existing Ollama capability"
+    },
+    {
+      "mode": "capability-only",
+      "name": "p50",
+      "responsibility": "existing Qdrant and Neo4j capability"
+    }
+  ],
+  "schema": "openwatchlist.public-homelab-r2-4-closure.v1",
+  "status": "DEPLOYED_AND_ROLLBACK_QUALIFIED_R2_4_CONTROLLED_RUNTIME"
+}

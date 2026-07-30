@@ -5,9 +5,33 @@ platform. This clean canonical repository begins from a curated, byte-preserving
 import of reviewed production code and accepted test fixtures from the preserved
 legacy repository.
 
-## Clean-restart status
+## Current governed status
 
-This baseline is **OpenWatchlist Clean Restart R1.6**. It contains:
+The public repository has progressed beyond its clean-restart baseline:
+
+- **Clean Restart R1.6** established the curated Go module, Rust workspace,
+  provenance controls, and inherited-debt governance.
+- **R2.1–R2.3** reconstructed public repository governance, CodeQL, release
+  qualification, and prerelease publication.
+- **`v0.1.0-rc.4`** is the current governed prerelease, built from commit
+  `210dc3c00d43f4f4e9ceae6905c24c9c9ea99584`.
+- **R2.4 r1.8.3.4** completed controlled four-role homelab deployment, smoke
+  testing, full rollback qualification, and controlled reactivation.
+
+The R2.4 result is a controlled homelab qualification, not a production,
+customer, regulatory, or compliance certification. The catalog runtime was
+qualified with the repository's three-record synthetic conformance fixture, not
+with a full production watchlist catalog.
+
+See:
+
+- `docs/governance/public-release-lineage.md`
+- `docs/homelab/r2-4/README.md`
+- `scripts/deployment/r2-4/README.md`
+
+## Clean-restart foundation
+
+The R1.6 baseline contains:
 
 - the canonical Go module and Rust workspace;
 - production application, runtime, configuration, migration, fixture, and
@@ -17,19 +41,15 @@ This baseline is **OpenWatchlist Clean Restart R1.6**. It contains:
 - exact, source-bound governance for inherited whitespace and Rust formatting
   debt without rewriting accepted source bytes.
 
-It does not carry forward legacy Git history, inherited GitHub workflows, Phase
-11 release orchestration, fixed-host homelab deployment, H1 qualification
-scripts, generated candidates, evidence, results, materialized selectors, or
-movable legacy toolchain declarations.
-
-No release, deployment, homelab qualification, or regulatory disposition is
-claimed by this baseline. Those capabilities must be rebuilt and qualified in
-later governed changes.
+It does not carry forward legacy Git history, inherited GitHub workflows,
+generated qualification evidence, customer data, private credentials, runtime
+state, or fixed private-network configuration.
 
 ## Developer validation
 
 ```bash
 ./scripts/ci/verify-clean-restart.sh
+./scripts/ci/verify-homelab-r2-4-publication.sh
 ./scripts/ci/run-ci.sh
 ```
 
@@ -46,13 +66,19 @@ commit and tree, every imported source hash, the complete import plan, the
 historical staged-baseline hashes, source-bound inherited-debt baselines, and
 the bootstrap journal.
 
+Public R2.4 documentation records release identities, role boundaries,
+qualification contracts, synthetic fixture identities, and sanitized closure
+results. Private host addresses, usernames, secret material, container IDs,
+absolute workstation paths, and generated evidence directories are excluded.
+
 ## Security and governance
 
 LLM output is advisory and cannot replace deterministic screening evidence,
 policy controls, four-eyes review, or human decision ownership. Do not commit
 credentials, private keys, customer information, generated qualification
-evidence, or runtime data. See `SECURITY.md` and
-`docs/governance/clean-restart-r1.md`.
+evidence, or runtime data. See `SECURITY.md`,
+`docs/governance/clean-restart-r1.md`, and
+`docs/homelab/r2-4/publication-boundary.md`.
 
 ## Public fixture and dependency posture
 
