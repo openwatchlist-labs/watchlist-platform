@@ -1,0 +1,186 @@
+{
+  "schema_version": "openwatchlist.identity-role-registry.v1",
+  "registry_id": "phase9f-review-console-identity",
+  "version": "2026-07-15-r1",
+  "roles": [
+    {
+      "role_id": "analyst",
+      "description": "Tenant analyst",
+      "permissions": [
+        "alert.read",
+        "assistance.read",
+        "assistance.request",
+        "case.assign_self",
+        "case.create",
+        "case.investigate",
+        "case.read",
+        "decision.propose",
+        "evidence.request",
+        "evidence.submit"
+      ]
+    },
+    {
+      "role_id": "auditor",
+      "description": "Read-only tenant auditor",
+      "permissions": [
+        "alert.read",
+        "assistance.read",
+        "case.read",
+        "security.audit.read"
+      ]
+    },
+    {
+      "role_id": "platform_admin",
+      "description": "Platform administrator",
+      "permissions": [
+        "*"
+      ]
+    },
+    {
+      "role_id": "reviewer",
+      "description": "Independent reviewer",
+      "permissions": [
+        "alert.read",
+        "assistance.read",
+        "assistance.review",
+        "case.read",
+        "decision.approve"
+      ]
+    },
+    {
+      "role_id": "supervisor",
+      "description": "Tenant workflow supervisor",
+      "permissions": [
+        "alert.read",
+        "assistance.read",
+        "assistance.request",
+        "assistance.review",
+        "case.assign_any",
+        "case.assign_self",
+        "case.create",
+        "case.investigate",
+        "case.read",
+        "case.reopen",
+        "case.rescreen",
+        "decision.approve",
+        "decision.propose",
+        "evidence.request",
+        "evidence.submit",
+        "security.audit.read"
+      ]
+    },
+    {
+      "role_id": "tenant_admin",
+      "description": "Tenant administrator",
+      "permissions": [
+        "alert.*",
+        "assistance.*",
+        "case.*",
+        "decision.*",
+        "evidence.*",
+        "security.audit.read"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "user_id": "alice",
+      "display_name": "Alice Analyst",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-a",
+          "roles": [
+            "analyst"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "auditor-a",
+      "display_name": "Avery Auditor",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-a",
+          "roles": [
+            "auditor"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "bob",
+      "display_name": "Bob Reviewer",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-a",
+          "roles": [
+            "reviewer"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "mallory",
+      "display_name": "Mallory Tenant B Analyst",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-b",
+          "roles": [
+            "analyst"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "platform-admin",
+      "display_name": "Platform Administrator",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "*",
+          "roles": [
+            "platform_admin"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "sue",
+      "display_name": "Sue Supervisor",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-a",
+          "roles": [
+            "supervisor"
+          ]
+        }
+      ]
+    },
+    {
+      "user_id": "tenant-admin-a",
+      "display_name": "Tenant A Administrator",
+      "active": true,
+      "session_epoch": 1,
+      "bindings": [
+        {
+          "tenant_id": "tenant-a",
+          "roles": [
+            "tenant_admin"
+          ]
+        }
+      ]
+    }
+  ],
+  "registry_sha256": "cc7bf54cb3adb36a7dc5d1f5cc65e23f7df5b3f6a7d0d0d52b76eeaee0106869"
+}

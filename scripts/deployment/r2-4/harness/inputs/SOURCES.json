@@ -1,0 +1,53 @@
+{
+  "catalog_data_classification": "nonproduction conformance fixture only",
+  "commit": "210dc3c00d43f4f4e9ceae6905c24c9c9ea99584",
+  "repository": "openwatchlist-labs/watchlist-platform",
+  "schema": "openwatchlist.r2-4-r1-8-3-4-activation-input-sources.v1",
+  "sources": [
+    {
+      "local_path": "opt1-inputs/alert-policy.json",
+      "name": "alert-policy.json",
+      "role": "opt1",
+      "sha256": "bc74b704e48805fcf02e04fe68e33f568443235ade5fcfbdd513b7a6b0089a3c",
+      "size": 217,
+      "source_path": "test/fixtures/alert-case/policy.json",
+      "source_url": "https://raw.githubusercontent.com/openwatchlist-labs/watchlist-platform/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/test/fixtures/alert-case/policy.json"
+    },
+    {
+      "local_path": "opt1-inputs/corpus-snapshot.json",
+      "name": "corpus-snapshot.json",
+      "role": "opt1",
+      "sha256": "c02b876863c7b40649c8ca94e54248783aaa85a8c480a8ea0de9d3e60f287fd1",
+      "size": 3454,
+      "source_path": "test/fixtures/case-assistance/corpus/snapshot.json",
+      "source_url": "https://raw.githubusercontent.com/openwatchlist-labs/watchlist-platform/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/test/fixtures/case-assistance/corpus/snapshot.json"
+    },
+    {
+      "local_path": "opt1-inputs/identity-registry.json",
+      "name": "identity-registry.json",
+      "role": "opt1",
+      "sha256": "d5bc174f6879f0b0ac9e9174c58501ab6cad8a1b14eb242faf25c886ff6dbf9b",
+      "size": 3959,
+      "source_path": "configs/review-console/identity-registry-r1.json",
+      "source_url": "https://raw.githubusercontent.com/openwatchlist-labs/watchlist-platform/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/configs/review-console/identity-registry-r1.json"
+    },
+    {
+      "local_path": "opt2-inputs/ofac-fixture.owcin",
+      "name": "ofac-fixture.owcin",
+      "role": "opt2",
+      "sha256": "17559b75fef7e34c1c37dca7192113fb5632b5248255cbb20a9e0ea35803bb21",
+      "size": 1983,
+      "source_path": "test/fixtures/runtime-mmap/ofac-fixture.owcin",
+      "source_url": "https://raw.githubusercontent.com/openwatchlist-labs/watchlist-platform/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/test/fixtures/runtime-mmap/ofac-fixture.owcin"
+    },
+    {
+      "local_path": "source-lock/corpus-manifest.json",
+      "name": "corpus-manifest.json",
+      "role": "source-lock",
+      "sha256": "ace8cf8199b39d1d4adeb13f16958706ea748a7885ed7cadff8f774c65b08dd0",
+      "size": 2287,
+      "source_path": "test/fixtures/case-assistance/corpus/manifest.json",
+      "source_url": "https://raw.githubusercontent.com/openwatchlist-labs/watchlist-platform/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/test/fixtures/case-assistance/corpus/manifest.json"
+    }
+  ]
+}

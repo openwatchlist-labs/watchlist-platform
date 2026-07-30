@@ -1,0 +1,44 @@
+{
+  "schema_version": "openwatchlist.rag-corpus-manifest.v1",
+  "corpus_id": "phase9c-governed-corpus",
+  "version": "2026-07-15-r1",
+  "built_at": "2026-07-15T15:00:00Z",
+  "documents": [
+    {
+      "document_id": "guidance-evidence-r1",
+      "tenant_id": "*",
+      "kind": "guidance",
+      "title": "Evidence collection guidance",
+      "source_ref": "fixture:guidance/evidence-r1",
+      "effective_at": "2026-07-15T00:00:00Z",
+      "text": "When identity evidence is incomplete, request date of birth, government identifier, address, and reliable source documents. Missing evidence should remain explicit and should not be inferred by an analyst-assistance model.\n\nEvery factual statement in an analyst note must be supported by case evidence or an exact retrieved citation."
+    },
+    {
+      "document_id": "policy-escalation-r1",
+      "tenant_id": "*",
+      "kind": "policy",
+      "title": "Exact name, identifier, and escalation review policy",
+      "source_ref": "fixture:policy/escalation-r1",
+      "effective_at": "2026-07-15T00:00:00Z",
+      "text": "An exact name or typed identifier match is strong evidence requiring investigation under the deterministic policy. Analyst assistance may summarize the evidence but cannot clear, close, escalate, or otherwise change the policy route.\n\nCountry or entity-type contradictions must be displayed as countervailing evidence and must not be silently discarded."
+    },
+    {
+      "document_id": "tenant-a-prior-case-r1",
+      "tenant_id": "tenant-a",
+      "kind": "prior_case",
+      "title": "Prior case with exact identifier and contradictory country",
+      "source_ref": "fixture:tenant-a/case-101",
+      "effective_at": "2026-07-15T00:00:00Z",
+      "text": "A prior tenant-a review involved an exact identifier candidate with a country contradiction. The analyst requested independent identity evidence before proposing a decision."
+    },
+    {
+      "document_id": "tenant-b-secret-case-r1",
+      "tenant_id": "tenant-b",
+      "kind": "prior_case",
+      "title": "Tenant B confidential case",
+      "source_ref": "fixture:tenant-b/secret-case",
+      "effective_at": "2026-07-15T00:00:00Z",
+      "text": "TENANT_B_SECRET_MARKER must never be retrieved for tenant-a or any other tenant."
+    }
+  ]
+}

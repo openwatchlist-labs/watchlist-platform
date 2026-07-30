@@ -9,6 +9,8 @@ else
   ./scripts/ci/verify-clean-restart.sh
 fi
 
+./scripts/ci/verify-homelab-r2-4-publication.sh
+
 if [[ -f go.mod ]]; then
   command -v go >/dev/null 2>&1 || { echo 'FAIL: Go is required' >&2; exit 1; }
   go mod verify
@@ -23,18 +25,15 @@ if [[ -f go.mod ]]; then
   go vet ./...
   go test ./...
 fi
-
 if [[ -f Cargo.toml ]]; then
   command -v cargo >/dev/null 2>&1 || { echo 'FAIL: Cargo is required' >&2; exit 1; }
   command -v rustc >/dev/null 2>&1 || { echo 'FAIL: rustc is required' >&2; exit 1; }
   command -v rustfmt >/dev/null 2>&1 || { echo 'FAIL: rustfmt is required' >&2; exit 1; }
-
   python3 ./scripts/ci/check_rustfmt.py \
     --baseline .clean-restart/inherited-rustfmt-baseline.txt \
     --plan .clean-restart/import-plan.json \
     --manifest .clean-restart/import-manifest.json \
     --root "$ROOT"
-
   cargo check --locked --workspace --all-targets
   cargo test --locked --workspace --all-targets
   if [[ "${CI_STRICT_CLIPPY:-0}" == "1" ]]; then
@@ -54,5 +53,4 @@ else
     done <<< "$cargo_manifests"
   fi
 fi
-
 printf 'PASS: OpenWatchlist clean-restart CI\n'

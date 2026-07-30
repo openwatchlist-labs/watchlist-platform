@@ -1,0 +1,179 @@
+{
+  "activation_approval": "ACTIVATE_OPENWATCHLIST_R2_4_CONTROLLED_ROLLBACK_QUALIFIED_RUNTIME",
+  "activation_readiness_status": "READY_FOR_GOVERNED_R2_4_CONTROLLED_ACTIVATION",
+  "activation_timeout_seconds": 900,
+  "active_link": "/srv/openwatchlist/runtime/active",
+  "api_health_paths": [
+    "livez",
+    "healthz",
+    "readyz",
+    "metrics"
+  ],
+  "api_version": "2022-11-28",
+  "catalog": {
+    "expected_package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+    "identifier_count": 3,
+    "input_name": "ofac-fixture.owcin",
+    "lookup_identifier_type": "Legal Entity Identifier",
+    "lookup_identifier_value": "5493-001K-JTIIGC8Y1R12",
+    "lookup_name": "acme imports",
+    "lookup_record_id": "ofac:sdn:3003",
+    "name_count": 8,
+    "package_name": "ofac-fixture.owmmap",
+    "record_count": 3,
+    "source_input_sha256": "17559b75fef7e34c1c37dca7192113fb5632b5248255cbb20a9e0ea35803bb21",
+    "source_input_size": 1983
+  },
+  "corpus": {
+    "manifest_local_path": "source-lock/corpus-manifest.json",
+    "manifest_schema": "openwatchlist.rag-corpus-manifest.v1",
+    "manifest_sha256": "cbf1762e549e285aa0bcaf9c437c32957e4117328c26f52bd0d6a00552535989",
+    "passage_count": 6,
+    "snapshot_local_path": "opt1-inputs/corpus-snapshot.json",
+    "snapshot_schema": "openwatchlist.rag-corpus-snapshot.v1",
+    "snapshot_sha256": "3e50b008055e55086da897a2ba4497634638b15afede270d5e95348f3c092def",
+    "source_manifest_sha256": "ace8cf8199b39d1d4adeb13f16958706ea748a7885ed7cadff8f774c65b08dd0",
+    "source_manifest_size": 2287,
+    "source_snapshot_sha256": "c02b876863c7b40649c8ca94e54248783aaa85a8c480a8ea0de9d3e60f287fd1",
+    "source_snapshot_size": 3454
+  },
+  "final_status": "DEPLOYED_AND_ROLLBACK_QUALIFIED_R2_4_CONTROLLED_RUNTIME",
+  "g732": {
+    "ollama_base_url": "http://127.0.0.1:11434",
+    "opt1_ollama_base_url": "http://g732.example.invalid:11434",
+    "required_models": [
+      "qwen3:14b",
+      "ibm/granite4:tiny-h"
+    ]
+  },
+  "hosts": [
+    {
+      "activation_mode": "runtime",
+      "hostname": "opt1.example.invalid",
+      "name": "opt1",
+      "role": "control-plane-postgres-and-gateway",
+      "ssh": "deploy@opt1.example.invalid"
+    },
+    {
+      "activation_mode": "capability-only",
+      "hostname": "g732.example.invalid",
+      "name": "g732",
+      "role": "gpu-model-capability",
+      "ssh": "deploy@g732.example.invalid"
+    },
+    {
+      "activation_mode": "runtime",
+      "hostname": "opt2.example.invalid",
+      "name": "opt2",
+      "role": "catalog-capability",
+      "ssh": "deploy@opt2.example.invalid"
+    },
+    {
+      "activation_mode": "capability-only",
+      "hostname": "p50.example.invalid",
+      "name": "Thinkpad-P50",
+      "role": "data-rag-capability",
+      "ssh": "deploy@p50.example.invalid"
+    }
+  ],
+  "linux_amd64_runtime_sha256": "1cf61dce31fad81d8511bac76c5a29aef3c0375a3a26d0c92f58a70a3494a29f",
+  "main_commit": "210dc3c00d43f4f4e9ceae6905c24c9c9ea99584",
+  "main_tree": "51b93dd4a4e27b5607c2a460580829490e9742d1",
+  "opt1_api_bind": "127.0.0.1:8080",
+  "opt1_input_files": [
+    {
+      "name": "alert-policy.json",
+      "sha256": "bc74b704e48805fcf02e04fe68e33f568443235ade5fcfbdd513b7a6b0089a3c",
+      "size": 217
+    },
+    {
+      "name": "corpus-snapshot.json",
+      "sha256": "c02b876863c7b40649c8ca94e54248783aaa85a8c480a8ea0de9d3e60f287fd1",
+      "size": 3454
+    },
+    {
+      "name": "identity-registry.json",
+      "sha256": "d5bc174f6879f0b0ac9e9174c58501ab6cad8a1b14eb242faf25c886ff6dbf9b",
+      "size": 3959
+    }
+  ],
+  "opt1_postgres_bind": "127.0.0.1:15432",
+  "opt1_postgres_container": "openwatchlist-r2-4-rc4-postgres",
+  "opt1_postgres_database": "openwatchlist",
+  "opt1_postgres_image": "pgvector/pgvector:pg16",
+  "opt1_postgres_user": "openwatchlist",
+  "opt1_postgres_volume": "openwatchlist-r2-4-rc4-postgres-data",
+  "opt1_qualification_config_seals": {
+    "runtime.json": "config_sha256",
+    "tenant-quotas.json": "registry_sha256"
+  },
+  "opt1_qualification_required_activation_input_configs": [
+    "runtime.json",
+    "review-console.json"
+  ],
+  "opt1_qualification_required_rebound_configs": [
+    "runtime.json",
+    "review-console.json"
+  ],
+  "opt1_qualification_required_resealed_configs": [
+    "runtime.json"
+  ],
+  "opt1_required_secrets": [
+    "openwatchlist-runtime-signing-key.hex",
+    "postgres-runtime-password"
+  ],
+  "opt2_input_files": [
+    {
+      "name": "ofac-fixture.owcin",
+      "sha256": "17559b75fef7e34c1c37dca7192113fb5632b5248255cbb20a9e0ea35803bb21",
+      "size": 1983
+    }
+  ],
+  "owned_label_key": "openwatchlist.owner",
+  "owned_label_value": "r2-4-r1-8-3",
+  "p50": {
+    "qdrant_health_url": "http://127.0.0.1:6333/healthz",
+    "required_tcp_ports": [
+      6333,
+      7474,
+      7687
+    ]
+  },
+  "protected_postgres_port": 5432,
+  "public_template": true,
+  "readiness_timeout_seconds": 120,
+  "release_id": 361927608,
+  "release_label_key": "openwatchlist.release",
+  "repository": "openwatchlist-labs/watchlist-platform",
+  "repository_id": 1314485914,
+  "rollback_approval": "ROLLBACK_OPENWATCHLIST_R2_4_CONTROLLED_RUNTIME",
+  "runtime_executables": [
+    "platform-api",
+    "platform-ops",
+    "container-healthcheck",
+    "catalog-mmap"
+  ],
+  "runtime_owner": "r2-4-r1-8-3",
+  "runtime_root": "/srv/openwatchlist/runtime/v0.1.0-rc.4",
+  "schema": "openwatchlist.r2-4-r1-8-3-4-policy.v1",
+  "source_commit_paths": {
+    "alert-policy.json": "test/fixtures/alert-case/policy.json",
+    "corpus-manifest.json": "test/fixtures/case-assistance/corpus/manifest.json",
+    "corpus-snapshot.json": "test/fixtures/case-assistance/corpus/snapshot.json",
+    "identity-registry.json": "configs/review-console/identity-registry-r1.json",
+    "ofac-fixture.owcin": "test/fixtures/runtime-mmap/ofac-fixture.owcin"
+  },
+  "source_commit_urls": {
+    "catalog_fixture": "https://github.com/openwatchlist-labs/watchlist-platform/blob/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/test/fixtures/runtime-mmap/ofac-fixture.owcin",
+    "catalog_mmap": "https://github.com/openwatchlist-labs/watchlist-platform/blob/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/runtime/catalog-mmap/src/bin/catalog-mmap.rs",
+    "platform_api": "https://github.com/openwatchlist-labs/watchlist-platform/blob/210dc3c00d43f4f4e9ceae6905c24c9c9ea99584/cmd/platform-api/main.go"
+  },
+  "source_lock_status": "PASS",
+  "stage_root": "/srv/openwatchlist/staged/v0.1.0-rc.4",
+  "staging_stage_manifest_schema": "openwatchlist.r2-4-r1-8-2-3-remote-stage-manifest.v1",
+  "staging_status": "STAGED_FOR_GOVERNED_R2_4_ACTIVATION_REVIEW",
+  "staging_summary_schema": "openwatchlist.r2-4-r1-8-2-3-no-start-staging-closure.v1",
+  "tag_object": "59bef22cede1b7f945b99846ed25666ef8013aea",
+  "target_tag": "v0.1.0-rc.4",
+  "version": "0.1.0-rc.4"
+}
