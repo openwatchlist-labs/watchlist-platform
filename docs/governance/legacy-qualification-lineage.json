@@ -1,0 +1,103 @@
+{
+  "canonical_baseline_commit": "4d53536393376e9026bb73c7eea89e8d2ead3030",
+  "canonical_repository": "openwatchlist-labs/watchlist-platform",
+  "disposition": {
+    "actions_enabled": false,
+    "archived": true,
+    "deployment_source": false,
+    "new_development_allowed": false,
+    "release_source": false,
+    "visibility": "private"
+  },
+  "import_policy": {
+    "accepted_public_or_synthetic_fixtures_only": true,
+    "legacy_operational_scripts_copied": 0,
+    "legacy_test_files_copied": 0,
+    "raw_legacy_evidence_imported": false,
+    "raw_legacy_test_results_imported": false
+  },
+  "legacy_freeze_commit": "31aa23f516018f7577f4dcec95142f981142a6f8",
+  "legacy_freeze_tree": "cd6e0d80584c05bde3a14582ab895b6e4ed79df3",
+  "legacy_repository": "openwatchlist-labs/watchlist-platform-legacy",
+  "qualification_records": [
+    {
+      "canonical_coverage": [
+        "cmd",
+        "internal",
+        "runtime/catalog-mmap",
+        "test/fixtures",
+        "test/golden",
+        "scripts/ci/run-ci.sh"
+      ],
+      "id": "phase-7c-through-phase-11-engineering-baseline",
+      "legacy_snapshot_commit": "31aa23f516018f7577f4dcec95142f981142a6f8",
+      "raw_evidence_imported": false,
+      "scope": "Curated production code, unit tests, contract tests, public or synthetic fixtures, and goldens through the Phase 11 engineering baseline.",
+      "status": "historical_accepted_superseded"
+    },
+    {
+      "canonical_coverage": [
+        "docs/governance/public-release-lineage.md",
+        "scripts/release",
+        ".github/workflows"
+      ],
+      "id": "phase-11-rc2-publication",
+      "raw_evidence_imported": false,
+      "release": "v0.1.0-rc.2",
+      "scope": "Historical multi-architecture prerelease packaging, SBOM, scanning, signing, and release-asset qualification.",
+      "status": "historical_accepted_superseded",
+      "vcs_ref": "fb88a11846b8940f69d2c5b4325e22812686a0b8"
+    },
+    {
+      "candidate_set_id": "binding_candidates_v2_1bc7a328177b167ffd77_20260722T171954Z",
+      "canonical_coverage": [
+        "scripts/deployment/r2-4/harness/scripts/verify_source_lock.py",
+        "scripts/deployment/r2-4/harness/tests/test_source_lock.py",
+        "docs/homelab/r2-4/defect-closure.md"
+      ],
+      "id": "h1-source-lock-and-governed-binding-selection",
+      "raw_evidence_imported": false,
+      "scope": "Historical OFAC/OpenSanctions source locking, bounded candidate generation, and governed binding selection.",
+      "source_lock_id": "frozen_5ca7d77862f9976ac1bd257b",
+      "status": "historical_accepted_not_imported"
+    },
+    {
+      "canonical_coverage": [
+        "scripts/ci/legacy_exclusion_gate.py",
+        "scripts/ci/verify-clean-restart.sh",
+        "scripts/ci/tests/test_legacy_lineage.py"
+      ],
+      "id": "h1-r2-provider-activation-stale-generated-go-tree",
+      "raw_evidence_imported": false,
+      "scope": "Provider activation was blocked because stale generated Go evidence under a legacy evidence tree was rediscovered by the root Go module.",
+      "status": "historical_failed_safely"
+    },
+    {
+      "canonical_coverage": [
+        "scripts/deployment/r2-4",
+        "docs/homelab/r2-4"
+      ],
+      "id": "legacy-h1-fixed-host-harness",
+      "raw_evidence_imported": false,
+      "scope": "Legacy fixed-host topology, generated plans, materialized selectors, execution results, and H1 orchestration.",
+      "status": "superseded_not_imported"
+    }
+  ],
+  "regression_review": {
+    "added_canonical_regressions": [
+      {
+        "id": "legacy_operational_path_reentry",
+        "path": "scripts/ci/tests/test_legacy_lineage.py",
+        "protects": "Canonical Git history rejects legacy homelab, generated evidence, materialized selector, and fixed-host deployment paths."
+      },
+      {
+        "id": "stale_generated_go_evidence_reentry",
+        "path": "scripts/ci/tests/test_legacy_lineage.py",
+        "protects": "A generated Go source beneath a legacy evidence path is rejected before it can be discovered by the root Go module."
+      }
+    ],
+    "reason": "Current canonical code already contains the curated production, unit, contract, fixture, and golden coverage. Legacy-only H1 orchestration, generated evidence, fixed-host deployment, and materialized results are obsolete or nonportable.",
+    "review_result": "no_legacy_test_file_required_verbatim_import"
+  },
+  "schema": "openwatchlist.legacy-qualification-lineage.v1"
+}

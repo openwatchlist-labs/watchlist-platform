@@ -26,6 +26,8 @@ with a full production watchlist catalog.
 See:
 
 - `docs/governance/public-release-lineage.md`
+- `docs/governance/legacy-repository.md`
+- `docs/governance/legacy-qualification-lineage.md`
 - `docs/homelab/r2-4/README.md`
 - `scripts/deployment/r2-4/README.md`
 
@@ -50,6 +52,7 @@ state, or fixed private-network configuration.
 ```bash
 ./scripts/ci/verify-clean-restart.sh
 ./scripts/ci/verify-homelab-r2-4-publication.sh
+python3 ./scripts/ci/verify-legacy-lineage.py
 ./scripts/ci/run-ci.sh
 ```
 
@@ -68,7 +71,9 @@ the bootstrap journal.
 
 Public R2.4 documentation records release identities, role boundaries,
 qualification contracts, synthetic fixture identities, and sanitized closure
-results. Private host addresses, usernames, secret material, container IDs,
+results. The preserved pre-clean-restart repository is governed as a private,
+read-only archive; only sanitized lineage and current reproducible controls are
+carried into this canonical repository. Private host addresses, usernames, secret material, container IDs,
 absolute workstation paths, and generated evidence directories are excluded.
 
 ## Security and governance
