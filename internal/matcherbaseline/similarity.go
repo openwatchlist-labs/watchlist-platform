@@ -13,7 +13,7 @@ type featureScore struct {
 func scoreName(query, candidate string, profile ThresholdProfile) (int, []featureScore, int) {
 	qt, ct := tokens(query), tokens(candidate)
 	features := []featureScore{
-		{name: "edit_similarity", score: editSimilarity(query, candidate), weight: profile.EditSimilarityWeightBasisPoints},
+		{name: "edit_similarity", score: bestEditSimilarity(query, candidate, qt, ct), weight: profile.EditSimilarityWeightBasisPoints},
 		{name: "length_similarity", score: lengthSimilarity(query, candidate), weight: profile.LengthWeightBasisPoints},
 		{name: "ordered_token_similarity", score: orderedTokenSimilarity(qt, ct), weight: profile.OrderedTokenWeightBasisPoints},
 		{name: "phonetic_similarity", score: phoneticSimilarity(qt, ct), weight: profile.PhoneticWeightBasisPoints},
@@ -34,6 +34,49 @@ func scoreName(query, candidate string, profile ThresholdProfile) (int, []featur
 		total = 0
 	}
 	return total, features, penalty
+}
+
+// bestEditSimilarity returns the higher of the raw whole-string edit
+// similarity and the edit similarity computed on token-sorted renderings of
+// the same two strings.
+//
+// Why: token_alignment_similarity already scores pure token reordering as a
+// perfect match (each token has an exact best match somewhere in the other
+// list, regardless of position) - that's deliberate, existing behavior, not
+// something introduced here. But raw whole-string edit_similarity is
+// order-sensitive, so it was fighting against that decision instead of
+// agreeing with it: a full reordering of otherwise-identical tokens (e.g.
+// "Acme Imports LLC" vs "Imports LLC Acme") scored a very low raw edit
+// similarity purely because the characters shifted position, even though
+// nothing about the actual words differs. Comparing sorted-token renderings
+// as well, and taking the max, means edit_similarity stops re-penalizing a
+// property (token order) the system has already decided elsewhere isn't
+// meaningful for a name match.
+//
+// This intentionally cannot raise a score above what perfect token identity
+// already earns via token_alignment_similarity - it only removes a
+// redundant, conflicting penalty for the same case. The accepted trade-off,
+// consistent with token_alignment_similarity's existing weight, is that two
+// entities whose names are literally the same words in a different order
+// (e.g. "Alpha Beta Corp" vs "Beta Alpha Corp") are not distinguishable by
+// word order alone under this matcher - genuine spelling differences within
+// a token are unaffected, since sorting tokens doesn't fix a misspelled word.
+func bestEditSimilarity(query, candidate string, qt, ct []string) int {
+	raw := editSimilarity(query, candidate)
+	if len(qt) < 2 && len(ct) < 2 {
+		return raw // nothing to reorder
+	}
+	sortedRaw := editSimilarity(sortedJoin(qt), sortedJoin(ct))
+	if sortedRaw > raw {
+		return sortedRaw
+	}
+	return raw
+}
+
+func sortedJoin(tokens []string) string {
+	sorted := append([]string(nil), tokens...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, " ")
 }
 
 func editSimilarity(left, right string) int {
