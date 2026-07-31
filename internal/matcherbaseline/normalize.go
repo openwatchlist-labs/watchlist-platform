@@ -152,5 +152,9 @@ func tokens(value string) []string {
 	if value == "" {
 		return nil
 	}
-	return strings.Fields(value)
+	fields := strings.Fields(value)
+	for i, f := range fields {
+		fields[i] = canonicalizeToken(f)
+	}
+	return fields
 }
