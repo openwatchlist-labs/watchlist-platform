@@ -99,7 +99,7 @@
       "target_provider_record_id": "record-william-example",
       "truth": "match",
       "rationale": "Common English diminutive (Bill for William) not a spelling variant or transliteration - a genuinely different string tied to the same identity by cultural convention, not edit distance or phonetics. Tests whether the system has any nickname/diminutive table at all; most edit-distance/phonetic approaches will not catch this, since 'Bill' and 'William' are not phonetically or orthographically close.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "combined-01-transliteration-plus-truncation",
