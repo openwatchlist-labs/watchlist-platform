@@ -20,6 +20,7 @@ var foldMap = map[rune]string{
 }
 
 func fold(value string) string {
+	value = resolveBidiOverrides(value)
 	value = strings.ToUpper(value)
 	var builder strings.Builder
 	lastSpace := true
@@ -41,12 +42,14 @@ func fold(value string) string {
 			//
 			// Two distinct cases land here:
 			//   - Unicode format characters (category Cf): zero-width
-			//     space/joiner/non-joiner, byte-order mark, bidirectional
-			//     overrides (used e.g. to visually reverse text). These have
-			//     no visual width at all, so inserting a token break for
-			//     them would split a single visible word into two - which
-			//     is exactly what was happening before this fix, and is a
-			//     bigger error than just ignoring an invisible character.
+			//     space/joiner/non-joiner, byte-order mark, and any
+			//     bidirectional override/isolate markers that
+			//     resolveBidiOverrides (above) didn't already consume.
+			//     These have no visual width at all, so inserting a token
+			//     break for them would split a single visible word into
+			//     two - which is exactly what was happening before this
+			//     fix, and is a bigger error than just ignoring an
+			//     invisible character.
 			//   - Decorative "connector" punctuation within a name: period
 			//     and apostrophe. "A.C.M.E." should fold to "ACME" (one
 			//     token), not "A C M E" (four); "O'Brien" should fold to
@@ -64,6 +67,71 @@ func fold(value string) string {
 		}
 	}
 	return strings.Join(strings.Fields(builder.String()), " ")
+}
+
+// resolveBidiOverrides undoes the classic "Trojan Source"-style spoofing
+// technique before anything else touches the string: an attacker wraps a
+// substring in a Right-to-Left Override (U+202E) or Left-to-Right Override
+// (U+202D), pre-reversing the substring's actual character order so that
+// once a bidi-aware renderer applies the override, the DISPLAYED text reads
+// correctly (or as intended to deceive) - e.g. the literal bytes "STROPMI"
+// wrapped in RLO/PDF display on screen as "IMPORTS".
+//
+// Merely deleting the RLO/PDF control characters (which is all the general
+// Cf-stripping in fold's main loop does) is not enough: it leaves the
+// enclosed text in its already-reversed byte order, so "ACME \u202eSTROPMI
+// \u202cLLC" would fold to "ACME STROPMI LLC" - genuinely different text,
+// not a fixed version of "ACME IMPORTS LLC". This function reverses the
+// rune sequence between an override start and its matching Pop Directional
+// Formatting (U+202C) - or the end of the string, if unterminated - before
+// the override markers themselves are discarded, so the two representations
+// of the same visible name compare equal after folding.
+//
+// Scope: handles the two override characters (RLO, LRO), which are what
+// this specific spoofing technique relies on. Bidi *isolate* characters
+// (U+2066-U+2069) don't reverse rendering order the same way and are left
+// to the general Cf-stripping path; they're a narrower concern and not
+// known to be used for this particular attack.
+func resolveBidiOverrides(value string) string {
+	const (
+		rlo = '\u202e'
+		lro = '\u202d'
+		pdf = '\u202c'
+	)
+	runes := []rune(value)
+	hasOverride := false
+	for _, r := range runes {
+		if r == rlo || r == lro {
+			hasOverride = true
+			break
+		}
+	}
+	if !hasOverride {
+		return value // fast path: no bidi override present, nothing to do
+	}
+	out := make([]rune, 0, len(runes))
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r != rlo && r != lro {
+			out = append(out, r)
+			continue
+		}
+		j := i + 1
+		for j < len(runes) && runes[j] != pdf {
+			j++
+		}
+		span := append([]rune(nil), runes[i+1:j]...)
+		for l, rgt := 0, len(span)-1; l < rgt; l, rgt = l+1, rgt-1 {
+			span[l], span[rgt] = span[rgt], span[l]
+		}
+		out = append(out, span...)
+		if j < len(runes) {
+			i = j // the loop's i++ will skip past the PDF itself
+		} else {
+			i = j - 1 // reached end of string without a closing PDF
+		}
+	}
+	return string(out)
 }
 
 // isIgnorableForFold reports whether r should be deleted entirely during
