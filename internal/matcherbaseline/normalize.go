@@ -36,12 +36,48 @@ func fold(value string) string {
 			lastSpace = false
 			continue
 		}
+		if isIgnorableForFold(r) {
+			// Deleted outright, not treated as a token separator.
+			//
+			// Two distinct cases land here:
+			//   - Unicode format characters (category Cf): zero-width
+			//     space/joiner/non-joiner, byte-order mark, bidirectional
+			//     overrides (used e.g. to visually reverse text). These have
+			//     no visual width at all, so inserting a token break for
+			//     them would split a single visible word into two - which
+			//     is exactly what was happening before this fix, and is a
+			//     bigger error than just ignoring an invisible character.
+			//   - Decorative "connector" punctuation within a name: period
+			//     and apostrophe. "A.C.M.E." should fold to "ACME" (one
+			//     token), not "A C M E" (four); "O'Brien" should fold to
+			//     "OBRIEN", not "O BRIEN". Other punctuation (hyphen,
+			//     comma, slash, ampersand, underscore, colon, semicolon)
+			//     deliberately keeps the old space-separator behavior below
+			//     - those more often do separate genuinely distinct words
+			//     (e.g. "Smith-Jones"), and changing that is a different,
+			//     riskier decision than this one.
+			continue
+		}
 		if !lastSpace && builder.Len() > 0 {
 			builder.WriteByte(' ')
 			lastSpace = true
 		}
 	}
 	return strings.Join(strings.Fields(builder.String()), " ")
+}
+
+// isIgnorableForFold reports whether r should be deleted entirely during
+// folding rather than treated as a token separator. See the call site in
+// fold for the reasoning behind each case.
+func isIgnorableForFold(r rune) bool {
+	if unicode.Is(unicode.Cf, r) {
+		return true
+	}
+	switch r {
+	case '.', '\'', '\u2019': // full stop, apostrophe, right single quotation mark (common apostrophe substitute)
+		return true
+	}
+	return false
 }
 
 func tokens(value string) []string {

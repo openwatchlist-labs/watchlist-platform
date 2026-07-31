@@ -199,7 +199,7 @@
       "target_provider_record_id": "record-acme-imports",
       "truth": "match",
       "rationale": "Zero-width space (U+200B) inserted mid-word - invisible in most UIs, present in the underlying string. Tests whether normalization strips non-printing Unicode, not just visible whitespace.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-05-punctuation-noise",
@@ -209,7 +209,7 @@
       "target_provider_record_id": "record-acme-imports",
       "truth": "match",
       "rationale": "Excess punctuation - very common in real free-text payment fields, low-effort but high-frequency noise.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-06-token-reorder",
@@ -219,7 +219,7 @@
       "target_provider_record_id": "record-acme-imports",
       "truth": "match",
       "rationale": "Full token reordering, no other change.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-07-single-edit-typo",
