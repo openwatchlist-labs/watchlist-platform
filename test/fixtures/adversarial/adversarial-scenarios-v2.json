@@ -12,7 +12,7 @@
       "target_provider_record_id": "record-hiroshi-example",
       "truth": "match",
       "rationale": "Japanese convention is family-name-first (HIROSHI EXAMPLE as family+given would render 'EXAMPLE HIROSHI' if family name is Example) - Western systems and vendor feeds frequently flip this. Requires adding a corresponding catalog record; see synthetic-catalog-adversarial-v2.json.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "translit-12-stress-vietnamese-diacritics",
@@ -79,7 +79,7 @@
       "target_provider_record_id": "record-acme-imports",
       "truth": "match",
       "rationale": "Contains a Unicode Right-to-Left Override character (U+202E) which visually reverses 'IMPORTS' to display as 'STROPMI' reversed back to 'IMPORTS' on screen, while the underlying byte sequence differs from the plain string. This is a well-documented real technique (used e.g. to disguise file extensions) adapted to name obfuscation. High-value test - most naive string-matching pipelines mis-handle RLO/LRO control characters, either crashing, silently misrendering, or comparing the wrong underlying bytes.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-14-mixed-script-injection",
@@ -130,6 +130,36 @@
       "truth": "match",
       "rationale": "Nickname substitution plus honorific/suffix padding stacked together.",
       "known_status": "fail"
+    },
+    {
+      "scenario_id": "obfuscation-16-homoglyph-cyrillic-r-visual-p",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ACME IMРORTS LLC",
+      "target_provider_record_id": "record-acme-imports",
+      "truth": "match",
+      "known_status": "pass",
+      "rationale": "Cyrillic Er (U+0420) substituted for Latin P - visually near-identical, but foldMap transliterates Cyrillic Er to 'R' (its actual phonetic value), NOT 'P' (its visual lookalike). This deliberately tests whether homoglyph tolerance is real confusable-detection or just generic edit-distance tolerance treating any single wrong character the same way. Passes today (score ~9167), but this is NOT evidence of deliberate homoglyph handling - the same margin would hold for a plain typo in that position. See obfuscation-19 for a case where this same accidental tolerance is much thinner."
+    },
+    {
+      "scenario_id": "obfuscation-17-homoglyph-cyrillic-en-visual-h",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "НIROSHI EXAMPLE",
+      "target_provider_record_id": "record-hiroshi-example",
+      "truth": "match",
+      "known_status": "pass",
+      "rationale": "Cyrillic En (U+041D) substituted for Latin H - visually near-identical, transliterates to 'N' not 'H'. Passes today (score ~8834) for the same accidental single-character-tolerance reason as obfuscation-16, not because of deliberate confusable detection."
+    },
+    {
+      "scenario_id": "obfuscation-18-homoglyph-cyrillic-ve-visual-b",
+      "category": "obfuscation",
+      "tag": "stress",
+      "query_name": "ORION TRADING GMВH",
+      "target_provider_record_id": "record-orion-trading-gmbh",
+      "truth": "match",
+      "known_status": "pass",
+      "rationale": "Cyrillic Ve (U+0412) substituted for Latin B in 'GmbH' - visually near-identical, transliterates to 'V' not 'B'. Passes today (score ~9081) for the same accidental single-character-tolerance reason as obfuscation-16/17, not deliberate confusable detection. (Earlier draft of this scenario mistakenly targeted a nickname form - 'Bill' vs the catalog's stored 'William' - which conflated this with the separate, unrelated nickname-matching gap; fixed to isolate the homoglyph variable cleanly.)"
     }
   ],
   "known_status_note": "known_status reflects an actual run against the compiled adversarial.owpcat package via matcherbaseline on 2026-07-30. pass/fail are regression-checked by internal/adversarialtest; ambiguous_as_expected and unscored are logged but not asserted as pass/fail."
