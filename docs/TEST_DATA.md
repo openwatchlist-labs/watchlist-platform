@@ -83,7 +83,7 @@ writing one from scratch.
   and **`test/fixtures/providers/synthetic/synthetic-catalog-v1.json`** -
   the simpler "provider-entity" catalog schema (also used by the adversarial
   bank and the `clawbot-gateway` demo integration). **Important:** this
-  schema can be loaded by `matcherprovider.FixtureProvider`, which does
+  schema can be loaded by `matcherprovider.ExactMatchFixtureProvider`, which does
   **exact-match only** - see issue #12 / `docs/TEST_COVERAGE.md`. It is not
   a substitute for the direct-list catalog above when you want to exercise
   real fuzzy matching.
@@ -255,7 +255,7 @@ almost anything above:
 Several points in this project's own history came from exactly this kind of
 confusion - worth knowing before you hit the same wall:
 
-- `matcherprovider.FixtureProvider`'s catalog format (provider-entity,
+- `matcherprovider.ExactMatchFixtureProvider`'s catalog format (provider-entity,
   simple JSON) and `matcherbaseline`'s catalog format (direct-list,
   compiled to `.owpcat`) look superficially similar but are not
   interchangeable, and only the latter exercises real fuzzy matching -

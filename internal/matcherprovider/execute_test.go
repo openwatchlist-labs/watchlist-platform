@@ -205,7 +205,7 @@ func TestFixtureCatalogRejectsUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadFixtureProvider(bytes.NewReader(data)); !errors.Is(err, ErrInvalidFixtureCatalog) {
+	if _, err := LoadExactMatchFixtureProvider(bytes.NewReader(data)); !errors.Is(err, ErrInvalidFixtureCatalog) {
 		t.Fatalf("expected strict fixture JSON rejection, got %v", err)
 	}
 }
@@ -224,7 +224,7 @@ func TestProviderEntityCatalogRequiresEntityIDs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadFixtureProvider(bytes.NewReader(data)); !errors.Is(err, ErrInvalidFixtureCatalog) {
+	if _, err := LoadExactMatchFixtureProvider(bytes.NewReader(data)); !errors.Is(err, ErrInvalidFixtureCatalog) {
 		t.Fatalf("expected missing provider entity ID rejection, got %v", err)
 	}
 }
@@ -280,14 +280,14 @@ func testCandidate(recordID string, score int) ProviderCandidate {
 	}
 }
 
-func loadTestFixtureProvider(t *testing.T) *FixtureProvider {
+func loadTestFixtureProvider(t *testing.T) *ExactMatchFixtureProvider {
 	t.Helper()
 	file, err := os.Open("../../test/fixtures/providers/synthetic/synthetic-catalog-v1.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	provider, err := LoadFixtureProvider(file)
+	provider, err := LoadExactMatchFixtureProvider(file)
 	if err != nil {
 		t.Fatal(err)
 	}
