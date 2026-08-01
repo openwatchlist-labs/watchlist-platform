@@ -156,5 +156,26 @@ func tokens(value string) []string {
 	for i, f := range fields {
 		fields[i] = canonicalizeToken(f)
 	}
-	return fields
+	return dropCorporateSuffixes(fields)
+}
+
+// dropCorporateSuffixes removes recognized legal-entity-type suffix tokens
+// (see corporate_suffixes.go) so a name is scored on its substantive part
+// regardless of which jurisdiction's suffix it uses, or whether it has one
+// at all. Falls back to the original, unfiltered tokens if every token
+// would otherwise be dropped (e.g. a query that is just "LLC") - a
+// suffix-only string isn't meaningfully improved by becoming empty, and an
+// empty token list is worth avoiding rather than relying on every
+// downstream scoring function to handle it gracefully.
+func dropCorporateSuffixes(fields []string) []string {
+	filtered := fields[:0:0] // new backing array, don't mutate caller's slice in place
+	for _, f := range fields {
+		if !isCorporateSuffix(f) {
+			filtered = append(filtered, f)
+		}
+	}
+	if len(filtered) == 0 {
+		return fields
+	}
+	return filtered
 }

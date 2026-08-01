@@ -239,7 +239,7 @@
       "target_provider_record_id": "record-orion-trading-gmbh",
       "truth": "match",
       "rationale": "Corporate suffix swapped (GMBH -> LTD), same core name, implying a different jurisdiction/entity type. This mirrors a real sanctions-evasion pattern: re-registering the same operation under a new corporate wrapper. High-value test.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-09-near-duplicate-disambiguation",
