@@ -51,7 +51,7 @@ the note at the bottom).
 | `iso20022coverage` | 6 | (inferred) Tracks which ISO 20022 payment message fields are mapped/covered by the matcher. |
 | `matcherbaseline` | 6 | **(verified)** The real fuzzy/phonetic/token-alignment name matcher. Reads a compiled `ofacruntime` payload + threshold profiles. This is the engine the new adversarial tests exercise directly. |
 | `matchercontext` | 2 | (inferred) Contextual matching layer (jurisdiction policy, address/phrase evidence) built on top of `matcherbaseline`. |
-| `matcherprovider` | 9 | **(verified)** Shared `Provider` interface, `Runner`/`Execute`/`Replay` orchestration, and the simpler **exact-match-only** `FixtureProvider` used for JSON-fixture-based testing/demos. Important: this package's `FixtureProvider` is NOT the same matching engine as `matcherbaseline` - see the adversarial section below, this distinction is easy to miss. |
+| `matcherprovider` | 9 | **(verified)** Shared `Provider` interface, `Runner`/`Execute`/`Replay` orchestration, and the simpler **exact-match-only** `ExactMatchFixtureProvider` used for JSON-fixture-based testing/demos. Important: this package's `ExactMatchFixtureProvider` is NOT the same matching engine as `matcherbaseline` - see the adversarial section below, this distinction is easy to miss. |
 | `matcherrequest` | 7 | (inferred) Request/response contract types (`CandidateSearchRequest`, `RequestBatch`, replay envelopes). |
 | `mmapcatalogcontract` | 2 | (inferred) Contract/schema for the Rust-side memory-mapped catalog format. |
 | `normalization` | 1 | **(verified)** Deliberately minimal: whitespace collapsing and case-folding per field profile (name, IBAN, country code, etc.). No diacritic stripping, no Unicode-confusable folding, no phonetic logic - all of that lives one layer up, in `matcherbaseline`. |
@@ -125,7 +125,7 @@ screening real, messy, sometimes adversarial data actually requires.
 - `internal/adversarialtest/adversarial_test.go` - the actual `go test`
   wiring. Runs every scenario as a subtest against the real
   `matcherbaseline` engine (loaded from the compiled runtime package, not
-  the simpler exact-match-only `matcherprovider.FixtureProvider` used
+  the simpler exact-match-only `matcherprovider.ExactMatchFixtureProvider` used
   elsewhere in the project - **this distinction matters and is easy to
   get wrong**; see the callout below).
 
@@ -189,7 +189,7 @@ This project has **two** provider implementations that both read JSON
 catalogs and both implement the same `matcherprovider.Provider`
 interface, but they are not equivalent:
 
-- `matcherprovider.FixtureProvider` (`--provider fixture` in
+- `matcherprovider.ExactMatchFixtureProvider` (`--provider fixture` in
   `cmd/matcher-run`, used by `synthetic-catalog-v1.json` and the
   `clawbot-gateway` demo integration) does **exact match only** -
   case/whitespace-normalized string equality, nothing else.
@@ -197,7 +197,7 @@ interface, but they are not equivalent:
   fuzzy/token-alignment/phonetic engine, but it only loads from a
   *compiled* `.owpcat` runtime package, not directly from JSON.
 
-A pass or fail against `FixtureProvider` says nothing about
+A pass or fail against `ExactMatchFixtureProvider` says nothing about
 `matcherbaseline`'s actual matching capability. This is an easy mistake
 to make (a demo "screening" call and a real matching-engine test can look
 superficially identical from the outside), so it's worth being explicit

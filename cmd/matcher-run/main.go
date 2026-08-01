@@ -21,7 +21,7 @@ import (
 
 func main() {
 	catalogPath := flag.String("catalog", "test/fixtures/providers/synthetic/synthetic-catalog-v1.json", "provider catalog JSON or compiled runtime package")
-	providerKind := flag.String("provider", "fixture", "provider adapter: fixture, ofac-direct, ofac-runtime, ofac-baseline, ofac-context, provider-entity, or hybrid-overlay")
+	providerKind := flag.String("provider", "fixture", "provider adapter: fixture (exact-match only, see matcherprovider package docs), ofac-direct, ofac-runtime, ofac-baseline (real fuzzy/phonetic matching), ofac-context, provider-entity, or hybrid-overlay")
 	overlayCatalogPath := flag.String("overlay-catalog", "", "OFAC direct-list overlay catalog for hybrid-overlay")
 	matcherProfilesPath := flag.String("matcher-profiles", "configs/matcher-profiles/ofac-name-baseline-r1.json", "name matcher threshold profile set for ofac-baseline or ofac-context")
 	contextProfilesPath := flag.String("context-profiles", "configs/matcher-profiles/ofac-context-baseline-r1.json", "context matcher profile set for ofac-context")
@@ -52,7 +52,7 @@ func main() {
 	case "fixture":
 		catalog, openErr := os.Open(*catalogPath)
 		check(openErr, "open provider catalog")
-		provider, err = matcherprovider.LoadFixtureProvider(catalog)
+		provider, err = matcherprovider.LoadExactMatchFixtureProvider(catalog)
 		_ = catalog.Close()
 	case "ofac-direct":
 		catalog, openErr := os.Open(*catalogPath)

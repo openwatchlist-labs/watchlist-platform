@@ -1,3 +1,26 @@
+// Package matcherprovider defines the shared Provider interface used by
+// every name-matching backend in this repository, plus one concrete
+// implementation: ExactMatchFixtureProvider.
+//
+// IMPORTANT, easy to get wrong: there are two very different providers in
+// this codebase that both satisfy the same Provider interface, and a
+// pass/fail against one says nothing about the other:
+//
+//   - ExactMatchFixtureProvider (this package) reads a plain JSON
+//     FixtureCatalog and matches on case/whitespace-normalized string
+//     EQUALITY ONLY - no fuzzy matching, no phonetic matching, no
+//     transliteration handling beyond what's literally registered as an
+//     alias in the catalog data itself.
+//   - matcherbaseline.Provider (a different package) is the real
+//     fuzzy/token-alignment/phonetic matching engine, but it only loads
+//     from a compiled runtime package (built via cmd/ofac-runtime), not
+//     directly from a FixtureCatalog JSON file.
+//
+// A demo or integration test using ExactMatchFixtureProvider can look
+// superficially identical to one using matcherbaseline.Provider from the
+// outside - both just look like "the matcher returned some candidates" -
+// but only the latter exercises real matching robustness. See issue #12
+// and docs/TEST_DATA.md for the fuller history of this confusion.
 package matcherprovider
 
 import (
@@ -46,12 +69,23 @@ type FixtureCatalog struct {
 	Records         []FixtureRecord `json:"records"`
 }
 
-type FixtureProvider struct {
+// ExactMatchFixtureProvider is a Provider backed by a plain JSON catalog
+// (FixtureCatalog), matching purely on case/whitespace-normalized string
+// equality. It is NOT the same matching engine as matcherbaseline.Provider,
+// which does real fuzzy/token-alignment/phonetic matching against a
+// compiled runtime package - see the package doc comment above for the
+// full distinction. This type was previously named just "FixtureProvider",
+// which invited exactly that confusion (see issue #12); the name now says
+// what it actually does.
+type ExactMatchFixtureProvider struct {
 	descriptor ProviderDescriptor
 	records    []FixtureRecord
 }
 
-func LoadFixtureProvider(reader io.Reader) (*FixtureProvider, error) {
+// LoadExactMatchFixtureProvider reads a FixtureCatalog from reader and
+// returns an ExactMatchFixtureProvider backed by it. Previously named
+// LoadFixtureProvider.
+func LoadExactMatchFixtureProvider(reader io.Reader) (*ExactMatchFixtureProvider, error) {
 	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var catalog FixtureCatalog
@@ -113,14 +147,14 @@ func LoadFixtureProvider(reader io.Reader) (*FixtureProvider, error) {
 	if err := ValidateDescriptor(descriptor); err != nil {
 		return nil, fmt.Errorf("%w: descriptor: %v", ErrInvalidFixtureCatalog, err)
 	}
-	return &FixtureProvider{descriptor: descriptor, records: append([]FixtureRecord(nil), catalog.Records...)}, nil
+	return &ExactMatchFixtureProvider{descriptor: descriptor, records: append([]FixtureRecord(nil), catalog.Records...)}, nil
 }
 
-func (provider *FixtureProvider) Descriptor() ProviderDescriptor {
+func (provider *ExactMatchFixtureProvider) Descriptor() ProviderDescriptor {
 	return provider.descriptor
 }
 
-func (provider *FixtureProvider) Search(_ context.Context, request matcherrequest.CandidateSearchRequest) ([]ProviderCandidate, error) {
+func (provider *ExactMatchFixtureProvider) Search(_ context.Context, request matcherrequest.CandidateSearchRequest) ([]ProviderCandidate, error) {
 	query := normalizeFixtureValue(request.Query.NormalizedValue)
 	matches := make([]ProviderCandidate, 0)
 	for _, record := range provider.records {
@@ -298,6 +332,6 @@ func cloneAssertions(values []SourceAssertion) []SourceAssertion {
 	return result
 }
 
-func StrictDecodeFixtureProvider(data []byte) (*FixtureProvider, error) {
-	return LoadFixtureProvider(bytes.NewReader(data))
+func StrictDecodeExactMatchFixtureProvider(data []byte) (*ExactMatchFixtureProvider, error) {
+	return LoadExactMatchFixtureProvider(bytes.NewReader(data))
 }
