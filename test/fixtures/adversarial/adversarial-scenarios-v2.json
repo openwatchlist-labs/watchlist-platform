@@ -119,7 +119,7 @@
       "target_provider_record_id": "record-orion-trading-gmbh",
       "truth": "match",
       "rationale": "Stacks Cyrillic-O homoglyph (obfuscation-01) with corporate-suffix swap (obfuscation-08). If either technique alone defeats the matcher, this compound case will too - useful as a single regression check once the individual gaps are addressed, to confirm the fix generalizes to combinations, not just the isolated cases it was built against.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "combined-03-padding-plus-nickname",

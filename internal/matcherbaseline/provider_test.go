@@ -51,9 +51,19 @@ func TestFuzzyOrganization(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(c) != 1 || len(d) != 0 || c[0].ProviderRecordID != "ofac:sdn:1001" || c[0].ScoreBasisPoints != 9605 || c[0].Exact {
+	if len(c) != 1 || len(d) != 0 || c[0].ProviderRecordID != "ofac:sdn:1001" || c[0].ScoreBasisPoints != 9534 || c[0].Exact {
 		t.Fatalf("unexpected: %+v %+v", c, d)
 	}
+	// Score changed from 9605 to 9534 as a direct, expected consequence of
+	// the #11 fix (dropping recognized legal-entity suffix tokens like
+	// "LLC" before scoring - see corporate_suffixes.go): "LLC" previously
+	// contributed a perfectly-matching token to both the query and
+	// candidate token lists, inflating token_alignment_similarity a bit;
+	// with it dropped from both sides symmetrically, that inflation goes
+	// away. The match itself is unaffected (same record, same route, still
+	// correctly non-exact) - only the score reflects the more honest
+	// comparison of "ACME IMPORT" against "ACME IMPORTS" without a
+	// coincidentally-matching suffix propping the number up.
 }
 func TestFuzzyIndividual(t *testing.T) {
 	c, _, e := testProvider(t).SearchWithDiagnostics(context.Background(), request("JORDON EXAMPLE", canonical.CandidateIndividual))
