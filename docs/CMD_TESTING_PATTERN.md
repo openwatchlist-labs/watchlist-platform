@@ -82,16 +82,29 @@ and output content.
 - `cmd/platform-api` - 4 tests (failure modes only; happy path skipped,
   see file for why).
 - `cmd/policy-evaluate` - 5 tests, including a real happy-path case.
-- 44 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
-  has zero tests (the other package noted alongside `platformapi` in the
-  original issue).
+- `cmd/screening-api` - 5 tests, failure modes only. Happy path is a hard
+  blocker, not a choice: `load()` unconditionally starts the real Rust
+  catalog-mmap runtime as a subprocess (`runtimemmapclient.StartPool`) -
+  the same Rust-toolchain dependency documented as unverified in issue
+  #13. `internal/screeningapi`'s own tests avoid this via a Go-level
+  `fakeRuntime` interface mock, which isn't reachable from the compiled
+  CLI. Add a real happy-path test here once #13's Rust question is
+  resolved.
+- `cmd/matcher-run` - 6 tests, including TWO genuine happy-path cases
+  (`ofac-baseline` real fuzzy matching, and `fixture` exact-match-only -
+  see issue #12 for why those two are meaningfully different engines).
+  No Rust dependency at all for this package, unlike screening-api.
+- 42 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
+  has zero tests.
 
 ## Suggested order for remaining work
 
-Prioritize production-facing services first (`cmd/screening-api`,
-`cmd/review-console-api` if it exists, `cmd/matcher-run`), then the
-catalog-lifecycle cluster (`cmd/ofac-runtime`, `cmd/ofac-ingest`,
-`cmd/projection-package` - though the latter already has indirect coverage
-via `internal/projectionpackage`'s own tests calling its exported
-functions directly), then the rest roughly by how production-critical they
-are.
+Production-facing `cmd/screening-api` and `cmd/matcher-run` are now
+covered (batch 2). Next: the catalog-lifecycle cluster
+(`cmd/ofac-runtime`, `cmd/ofac-ingest`, `cmd/projection-package` - though
+the latter already has indirect coverage via `internal/projectionpackage`'s
+own tests calling its exported functions directly), then
+`cmd/alert-case`, `cmd/candidate-score`, `cmd/false-positive-classify`,
+then the rest roughly by how production-critical they are. Consider
+`cmd/review-console-*` a priority too, given `internal/reviewconsoleapi`
+is the other zero-test `internal/` package named in the original issue.
