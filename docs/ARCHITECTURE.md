@@ -14,7 +14,8 @@ misleading before (see issue #12's `FixtureProvider` rename).
 ## The most important thing to understand first
 
 **Two genuinely different retrieval/matching paths exist in this
-codebase, and only one of them is in the live production screening path:**
+codebase, by design, serving different purposes - not one "finished" path
+and one "not yet wired in":**
 
 1. **Production `cmd/screening-api`** retrieves candidates via
    `internal/runtimemmapclient`, a Go client for the Rust-compiled
@@ -23,25 +24,28 @@ codebase, and only one of them is in the live production screening path:**
    and nothing else. This is **exact-name, prefix, or exact-identifier
    lookup only**. `screeningapi` does not import `matcherbaseline`,
    `matcherprovider`, or `matchercontext` at all - confirmed by checking
-   its actual imports, not assumed.
+   its actual imports, not assumed. This is the live, real-time path.
 2. **`internal/matcherbaseline`** (with `internal/matchercontext` layered
-   on top) is the real fuzzy/token-alignment/phonetic matching engine -
-   the one issues #8, #9, #10, and #11 improved. It's exercised by
-   `cmd/matcher-run` and tested thoroughly by `internal/adversarialtest`,
-   but as of this writing it is **not wired into the live production
-   screening-api request path** at all.
+   on top) is the fuzzy/token-alignment/phonetic matching engine - the one
+   issues #8, #9, #10, and #11 improved. It is **intentionally scoped as a
+   post-processing/analysis tool over matches the live system has already
+   produced**, not a replacement for or an integration target into the
+   live retrieval path. It's exercised by `cmd/matcher-run` and tested
+   thoroughly by `internal/adversarialtest`.
 
-Practically: today, live screening decisions are made on exact/prefix/
-identifier matches retrieved from the Rust runtime, then scored with
-additional evidence by `internal/candidatescoring` (which scores a
-*bounded, already-retrieved* candidate set - it does not search a catalog
-itself). The sophisticated fuzzy-matching robustness work is real, tested,
-and valuable, but its practical impact today is on `cmd/matcher-run` and
-whatever might consume it later - not on what a live screening-api request
-currently does. If this is meant to change, that's a real integration
-project, not a small wiring fix.
+Practically: live screening decisions are made on exact/prefix/identifier
+matches retrieved from the Rust runtime, then scored with additional
+evidence by `internal/candidatescoring` (which scores a *bounded,
+already-retrieved* candidate set - it does not search a catalog itself).
+The fuzzy-matching robustness work (issues #8-#11) targets a deliberately
+separate tool for deeper, retrospective analysis of matches the live
+system surfaces - the two paths having different jobs is the design, not
+a gap to close.
 
 ## Request lifecycle, end to end (verified via actual import chains)
+
+This is the **live** path - what happens when a real screening request
+comes in:
 
 ```
 Vendor alert (Actimize, Fircosoft, generic)
@@ -51,14 +55,9 @@ Alert / Case record created
         │  internal/alertcase (imported by alertcaseapi, reviewconsoleapi,
         │  assistanceapi, reviewconsole, vendoradapter itself)
         ▼
-Screening request → candidate retrieval
+Screening request → candidate retrieval (exact/prefix/identifier ONLY)
         │  cmd/screening-api / internal/screeningapi
         │    → internal/runtimemmapclient → Rust catalog-mmap runtime
-        │      (exact/prefix/identifier lookup ONLY - see above)
-        │  -- OR, separately, for fuzzy matching --
-        │  cmd/matcher-run → internal/matcherbaseline (+ matchercontext)
-        │    → internal/matcherprovider → internal/ofacruntime (.owpcat,
-        │      pure Go, no Rust)
         ▼
 Candidate scoring
         │  internal/candidatescoring (imported by screeningapi,
@@ -87,6 +86,18 @@ Review console (where an analyst actually works a case)
         │  internal/reviewconsole (imports alertcase, assistancerag)
         │  internal/reviewconsoleapi (HTTP surface)
 ```
+
+### Separate: post-processing/analysis tooling over live-system matches
+
+`cmd/matcher-run` → `internal/matcherbaseline` (+ `matchercontext`) →
+`internal/matcherprovider` → `internal/ofacruntime` (`.owpcat`, pure Go,
+no Rust) is a **deliberately separate tool**, not a branch of the live
+pipeline above and not a pending integration into it. Its job is deeper,
+retrospective analysis of matches the live system has already produced -
+robustness testing, investigating edge cases, and the kind of adversarial
+stress-testing `internal/adversarialtest` does (see issues #8-#11). It
+does not feed into `candidatescoring`, `policyengine`, or any part of the
+live request lifecycle above, and there is no expectation that it should.
 
 ## Package responsibilities, by cluster
 
