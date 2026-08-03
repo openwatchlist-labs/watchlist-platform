@@ -1,0 +1,399 @@
+openapi: 3.0.3
+info:
+  title: OpenWatchlist Screening API
+  version: "0.1.0"
+  description: |
+    Real-time screening request API. Retrieves candidates via the Rust
+    catalog-mmap runtime (exact-name, prefix, or exact-identifier lookup
+    only - see docs/ARCHITECTURE.md's "most important thing to understand
+    first" section; this is NOT fuzzy/phonetic matching, which is a
+    separate, intentionally distinct post-processing tool - see
+    cmd/matcher-run), then scores retrieved candidates with
+    internal/candidatescoring.
+
+    This document was written directly from internal/screeningapi/http.go,
+    types.go, and config.go - every path, header, status code, and error
+    code below is what the code actually does, not a general-purpose REST
+    convention assumed to apply. If this drifts from the code in the
+    future, trust the code and update this file, the same principle
+    docs/TEST_COVERAGE.md, docs/TEST_DATA.md, and docs/ARCHITECTURE.md
+    already state for themselves.
+  contact:
+    name: openwatchlist-labs/watchlist-platform
+
+servers:
+  - url: /
+    description: Path is relative; host/port/TLS are deployment-specific
+      (see docs/homelab/r2-4/ for one example deployment topology).
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness check
+      description: >
+        Always returns 200 if the process is running and able to respond
+        at all - does not check runtime/catalog readiness. Use /readyz
+        for that.
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ok] }
+                  api_version: { type: string, example: "screening-api/v0.1.0" }
+        "405":
+          description: Method not allowed (only GET is accepted).
+          headers:
+            Allow: { schema: { type: string, example: "GET" } }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /readyz:
+    get:
+      summary: Readiness check
+      description: >
+        Checks internal Service.Ready() - whether the underlying runtime
+        (the compiled catalog-mmap package) is actually available. Returns
+        503 with a Problem body, not just a plain error, when not ready.
+      responses:
+        "200":
+          description: Service is ready to accept screening requests.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [ready] }
+                  api_version: { type: string, example: "screening-api/v0.1.0" }
+        "503":
+          description: Runtime not ready (code SCREENING_API_NOT_READY).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "405":
+          description: Method not allowed (only GET is accepted).
+          headers:
+            Allow: { schema: { type: string, example: "GET" } }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/screenings:
+    post:
+      summary: Screen a single query
+      description: >
+        Exact-name, prefix, or exact-identifier lookup against the
+        compiled catalog runtime, followed by candidate scoring. See
+        the Query schema's `kind` field for the three supported lookup
+        modes - there is no fuzzy-match mode on this endpoint.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ScreeningRequest" }
+            example:
+              schema_version: "screening-request/v1alpha1"
+              request_id: "api-name-match-001"
+              source_system_id: "fircosoft-prod"
+              raw_list_name: "WLS_OFAC_001"
+              effective_at: "2026-07-20T12:00:00Z"
+              query:
+                kind: "name"
+                value: "ACME IMPORTS"
+                target_entity_types: ["organization"]
+                limit: 20
+      responses:
+        "200":
+          description: >
+            Screening completed. A 200 does NOT mean "no hit" - check
+            `status` in the response body (matched / no_candidates /
+            blocked). This may be a fresh result OR a replayed prior
+            response if the same Idempotency-Key was reused for the same
+            request body (see the X-Idempotent-Replay response header).
+          headers:
+            X-Correlation-ID: { schema: { type: string } }
+            X-Idempotent-Replay:
+              description: Present and "true" only when this is a replayed response.
+              schema: { type: string, enum: ["true"] }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/ScreeningResponse" } }
+        "400":
+          description: >
+            Invalid request - malformed JSON, an unrecognized field
+            (strict decoding), a missing/invalid Idempotency-Key, an
+            invalid X-Correlation-ID, or a request body exceeding limits.
+            See the `code` field for the specific reason (e.g.
+            INVALID_REQUEST, IDEMPOTENCY_KEY_REQUIRED,
+            INVALID_CORRELATION_ID, INVALID_REQUEST_BODY).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "409":
+          description: >
+            Idempotency conflict - the same Idempotency-Key was reused
+            with a DIFFERENT request body (code IDEMPOTENCY_KEY_REUSE), or
+            a request with this key is already in flight (code
+            IDEMPOTENCY_KEY_IN_PROGRESS).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413":
+          description: Request body exceeds the configured maximum (code REQUEST_BODY_TOO_LARGE).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "415":
+          description: Content-Type header present but not application/json (code CONTENT_TYPE_NOT_JSON).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "405":
+          description: Method not allowed (only POST is accepted).
+          headers:
+            Allow: { schema: { type: string, example: "POST" } }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: Runtime unavailable or request timed out (code RUNTIME_UNAVAILABLE).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "500":
+          description: Unexpected screening failure (code SCREENING_FAILED).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+  /v1/screenings/batch:
+    post:
+      summary: Screen a batch of queries
+      description: >
+        Same semantics as POST /v1/screenings, applied to a bounded batch.
+        Batch size is validated against a configured maximum (returns 400
+        with code BATCH_LIMIT_EXCEEDED if exceeded) - the maximum itself
+        is deployment-configured (validated to be between 1 and 10,000 at
+        config-load time; see internal/screeningapi/config.go), not a
+        fixed constant this spec can state precisely.
+      parameters:
+        - $ref: "#/components/parameters/CorrelationIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BatchRequest" }
+      responses:
+        "200":
+          description: Batch completed. Check `summary` and each item's `status` individually.
+          headers:
+            X-Correlation-ID: { schema: { type: string } }
+            X-Idempotent-Replay: { schema: { type: string, enum: ["true"] } }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/BatchResponse" } }
+        "400":
+          description: Invalid request, or batch size exceeds the configured maximum (code BATCH_LIMIT_EXCEEDED).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "409":
+          description: Idempotency conflict (same codes as the single-screening endpoint).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "413":
+          description: Request body exceeds the configured maximum (code REQUEST_BODY_TOO_LARGE).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "415":
+          description: Content-Type header present but not application/json (code CONTENT_TYPE_NOT_JSON).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "405":
+          description: Method not allowed (only POST is accepted).
+          headers:
+            Allow: { schema: { type: string, example: "POST" } }
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "503":
+          description: Runtime unavailable or request timed out (code RUNTIME_UNAVAILABLE).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+        "500":
+          description: Unexpected screening failure (code SCREENING_FAILED).
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Problem" } }
+
+components:
+  parameters:
+    CorrelationIdHeader:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: >
+        Optional, max 128 chars. If omitted, the server derives one from a
+        hash of the request body (prefixed "corr_"). Echoed back on every
+        response, including error responses, once past the header's own
+        validation step.
+      schema: { type: string, maxLength: 128 }
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        REQUIRED, max 128 chars - requests without one are rejected with
+        400 (code IDEMPOTENCY_KEY_REQUIRED). Reusing a key with an
+        identical request body replays the original response
+        (X-Idempotent-Replay: true); reusing it with a DIFFERENT body
+        returns 409 (code IDEMPOTENCY_KEY_REUSE).
+      schema: { type: string, maxLength: 128 }
+
+  schemas:
+    Query:
+      type: object
+      required: [kind, value]
+      properties:
+        kind:
+          type: string
+          enum: [name, identifier, record_id]
+          description: The only three lookup modes this endpoint supports - all exact/prefix, never fuzzy.
+        value: { type: string }
+        identifier_type: { type: string, description: "Required semantics depend on kind=identifier; e.g. an LEI/passport/tax-ID type." }
+        prefix: { type: boolean, description: "If true, matches values that START WITH `value` rather than requiring an exact match." }
+        target_entity_types:
+          type: array
+          items: { type: string, example: organization }
+        limit: { type: integer }
+
+    ScreeningRequest:
+      type: object
+      required: [schema_version, request_id, source_system_id, raw_list_name, effective_at, query]
+      properties:
+        schema_version: { type: string, example: "screening-request/v1alpha1" }
+        request_id: { type: string }
+        source_system_id: { type: string, example: "fircosoft-prod" }
+        raw_list_name: { type: string, example: "WLS_OFAC_001" }
+        effective_at: { type: string, format: date-time }
+        query: { $ref: "#/components/schemas/Query" }
+
+    BatchRequest:
+      type: object
+      required: [schema_version, requests]
+      properties:
+        schema_version: { type: string }
+        requests:
+          type: array
+          items: { $ref: "#/components/schemas/ScreeningRequest" }
+
+    Candidate:
+      type: object
+      properties:
+        candidate_id: { type: string }
+        record_id: { type: string }
+        entity_type: { type: string }
+        primary_name: { type: string }
+        match_kind: { type: string }
+        matched_value: { type: string }
+        normalized_query: { type: string }
+
+    RuntimeLineage:
+      type: object
+      description: >
+        Provenance of the compiled catalog runtime that served this
+        request - which .owmmap package, which catalog activation/epoch.
+        Present only when the runtime path was actually exercised.
+      properties:
+        schema_version: { type: string }
+        client_version: { type: string }
+        worker_protocol: { type: string }
+        component_id: { type: string }
+        catalog_version_id: { type: string }
+        catalog_activation_id: { type: string }
+        catalog_epoch: { type: integer, format: int64 }
+        catalog_id: { type: string }
+        catalog_version: { type: string }
+        catalog_checksum: { type: string }
+
+    ListResolution:
+      type: object
+      description: Result of resolving raw_list_name/source_system_id against the alert-list mapping registry (internal/alertlistmapping).
+      properties:
+        schema_version: { type: string }
+        mapping_registry_id: { type: string }
+        namespace: { type: string }
+        source_system_id: { type: string }
+        raw_list_name: { type: string }
+        resolved_at: { type: string, format: date-time }
+        status: { type: string }
+        available: { type: boolean }
+        exact_match: { type: boolean }
+        review_blocker: { type: string, description: "Present when the mapping itself blocks automated review (e.g. an unmapped list)." }
+
+    ScreeningResponse:
+      type: object
+      properties:
+        schema_version: { type: string }
+        api_version: { type: string, example: "screening-api/v0.1.0" }
+        screening_id: { type: string }
+        correlation_id: { type: string }
+        idempotency_key: { type: string }
+        processed_at: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [matched, no_candidates, blocked]
+          description: The actual outcome - always check this, a 200 alone does not mean "clear."
+        request: { $ref: "#/components/schemas/ScreeningRequest" }
+        list_resolution: { $ref: "#/components/schemas/ListResolution" }
+        runtime: { $ref: "#/components/schemas/RuntimeLineage" }
+        candidate_count: { type: integer }
+        candidates:
+          type: array
+          items: { $ref: "#/components/schemas/Candidate" }
+        review_blockers:
+          type: array
+          items: { type: string }
+
+    BatchSummary:
+      type: object
+      properties:
+        total: { type: integer }
+        matched: { type: integer }
+        no_candidates: { type: integer }
+        blocked: { type: integer }
+        candidates: { type: integer }
+
+    BatchResponse:
+      type: object
+      properties:
+        schema_version: { type: string }
+        api_version: { type: string }
+        batch_id: { type: string }
+        correlation_id: { type: string }
+        idempotency_key: { type: string }
+        processed_at: { type: string, format: date-time }
+        failure_policy: { type: string }
+        summary: { $ref: "#/components/schemas/BatchSummary" }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/ScreeningResponse" }
+
+    Problem:
+      type: object
+      description: >
+        RFC 7807-flavored problem details (with a schema_version and a
+        stable machine-readable `code` in addition to the standard
+        fields) - this repo's convention for every non-2xx response on
+        this API.
+      properties:
+        schema_version: { type: string }
+        type: { type: string, example: "about:blank" }
+        title: { type: string }
+        status: { type: integer }
+        code:
+          type: string
+          description: >
+            Stable, machine-readable error code. Observed values as of
+            this writing: INVALID_CORRELATION_ID, IDEMPOTENCY_KEY_REQUIRED,
+            CONTENT_TYPE_NOT_JSON, INVALID_REQUEST_BODY,
+            REQUEST_BODY_TOO_LARGE, IDEMPOTENCY_STORE_ERROR,
+            IDEMPOTENCY_KEY_REUSE, IDEMPOTENCY_KEY_IN_PROGRESS,
+            BATCH_LIMIT_EXCEEDED, INVALID_REQUEST, SCREENING_FAILED,
+            RUNTIME_UNAVAILABLE, METHOD_NOT_ALLOWED, NOT_FOUND,
+            SCREENING_API_NOT_READY.
+        detail: { type: string }
+        correlation_id: { type: string }
