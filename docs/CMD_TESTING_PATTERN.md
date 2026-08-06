@@ -94,17 +94,38 @@ and output content.
   (`ofac-baseline` real fuzzy matching, and `fixture` exact-match-only -
   see issue #12 for why those two are meaningfully different engines).
   No Rust dependency at all for this package, unlike screening-api.
-- 42 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
+- `cmd/ofac-runtime` - 5 tests, including a real compile-then-inspect
+  happy path. No Rust dependency (pure-Go `internal/ofacruntime`).
+  `readiness`/`activate`/`rollback` subcommands (`internal/catalogruntime`)
+  not covered yet.
+- `cmd/projection-package` - 6 tests, including a real compile-then-verify
+  happy path reusing the same fixture pair independently verified during
+  the #13 investigation, and a test confirming `inspect` is genuinely a
+  byte-identical alias of `verify` (not just assumed from reading the
+  source). No Rust dependency for this step - it only produces the
+  intermediate JSON, not the Rust-compiled `.owmmap` binary.
+- `cmd/false-positive-classify` - 5 tests, including a real happy path
+  against the existing `pattern-observations.json` fixture. Every failure
+  mode here exits code 1, not 2 - no separate usage-specific exit code,
+  different from several other `cmd/` packages already covered. Verified
+  directly rather than assumed consistent.
+- `cmd/candidate-score` - 8 tests, covering all three subcommands
+  (`score`, `batch`, `check-policy`) with real fixtures, including the
+  `dob-contradiction` scenario specifically since it's the kind of case
+  most likely to reveal a scoring regression.
+- 38 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
   has zero tests.
 
 ## Suggested order for remaining work
 
-Production-facing `cmd/screening-api` and `cmd/matcher-run` are now
-covered (batch 2). Next: the catalog-lifecycle cluster
-(`cmd/ofac-runtime`, `cmd/ofac-ingest`, `cmd/projection-package` - though
-the latter already has indirect coverage via `internal/projectionpackage`'s
-own tests calling its exported functions directly), then
-`cmd/alert-case`, `cmd/candidate-score`, `cmd/false-positive-classify`,
-then the rest roughly by how production-critical they are. Consider
-`cmd/review-console-*` a priority too, given `internal/reviewconsoleapi`
-is the other zero-test `internal/` package named in the original issue.
+Production-facing `cmd/screening-api`, `cmd/matcher-run`, and the
+catalog-lifecycle/scoring tools most likely to have existing fixtures
+(`cmd/ofac-runtime`, `cmd/projection-package`, `cmd/candidate-score`,
+`cmd/false-positive-classify`) are now covered (batches 1-3). Next:
+`cmd/alert-case` (has fixtures under `test/fixtures/alert-case`),
+`cmd/vendor-adapter` (has fixtures under `test/fixtures/vendor-adapters`),
+`cmd/ofac-ingest`, then `cmd/review-console-*` - a priority given
+`internal/reviewconsoleapi` is the other zero-test `internal/` package
+named in the original issue, though check first whether it has the same
+kind of deep, fixture-less config chain that blocked a happy-path test
+for `cmd/platform-api`.
