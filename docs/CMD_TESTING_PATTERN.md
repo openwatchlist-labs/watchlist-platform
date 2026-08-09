@@ -150,8 +150,47 @@ and output content.
   verify-token round trip (both via the `-token` flag and via stdin,
   since `main.go` falls back to reading `/dev/stdin` when the flag is
   omitted - verified from source before testing, not assumed).
-- 34 of 49 `cmd/` packages remain. `internal/reviewconsoleapi`'s zero-test
-  gap is now closed via these two entrypoints.
+- `cmd/ofac-ingest` - 6 tests, including real manifest/catalog happy
+  paths. Important: without `--input`, this binary defaults to
+  downloading from a real external URL - every test passes `--input`
+  pointing at a local fixture specifically to avoid a live network
+  dependency, verified this default by reading main.go first.
+- `cmd/update-manager` - 5 tests, including a real `simulate` happy path
+  using this binary's own built-in flag defaults, which already point at
+  committed fixtures.
+- `cmd/screening-ledger` - 7 tests, reusing the real, pre-populated
+  ledger state committed at `test/fixtures/screening-ledger/state/`
+  (copied into a fresh temp dir per test, since some commands mutate
+  state). `migrate`/`sync`/`import-audit` (live PostgreSQL) and `replay`
+  (live HTTP backend) not covered, same category as `cmd/alert-case`'s
+  skipped `migrate`.
+- `cmd/catalog-refresh` - 4 tests, including a real `simulate` happy path
+  using built-in fixture defaults.
+- `cmd/catalog-registry` - 5 tests, including a full
+  init -> register-component -> register-version -> activate -> verify
+  -> snapshot happy path, using real committed component/version input
+  fixtures whose IDs are deterministically derived from content (verified
+  the fixture's hardcoded `component_id` actually matches what
+  registering the component fixture produces, rather than assuming).
+- `cmd/provider-catalog` - 7 tests, covering all 4 subcommands. Found and
+  documented a real schema incompatibility: `internal/providerentity`'s
+  catalog format is NOT the same as `matcherprovider`'s
+  `ExactMatchFixtureProvider` format (see issue #12) - a catalog valid for
+  one is rejected by the other. Includes a test asserting this rejection
+  explicitly, not just working around it silently.
+- `cmd/provider-refresh` - 6 tests. Scope: `init` (needs a
+  catalog-registry store as its one prerequisite) plus failure modes and
+  `postgres-schema`. `analyze`/`decide`/`promote`/`rollback` need a THIRD
+  chained subsystem (an alert-list-mapping store) plus specific analysis
+  input - a fuller multi-system integration test, not attempted here.
+- `cmd/scoring-activation` - 5 tests, including a real
+  activate-then-status happy path reusing the exact projection-package
+  fixture pair independently verified during the #13 investigation.
+- 26 of 49 `cmd/` packages remain, plus `cmd/activation-promotion` (the
+  largest remaining catalog-lifecycle tool, not yet attempted) and the
+  legacy `screeningapiv8d`-`v8g` wrappers (deliberately deferred pending
+  the #14 keep/archive/delete decision - see that issue's resolution
+  before investing further test-writing effort there).
 
 ## Suggested order for remaining work
 
