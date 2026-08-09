@@ -125,8 +125,33 @@ and output content.
   plus stateless `profiles`/`check-profile`/`convert`/`batch` happy
   paths. `submit` (makes a real HTTP call to a live `--alert-case-url`)
   not covered, for the same reason `migrate` isn't above.
-- 36 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
-  has zero tests.
+- `cmd/review-console-api` - 5 tests, INCLUDING a real happy path. This
+  package's config chain (`RuntimeConfig`-equivalent ->
+  `reviewauth.Registry` -> `assistancerag.CorpusSnapshot` -> signing key
+  -> security audit dir) looked at least as deep as `cmd/platform-api`'s
+  documented blocker, but a full working config WAS successfully
+  assembled - reusing existing fixtures
+  (`test/fixtures/alert-case/policy.json`,
+  `test/fixtures/case-assistance/corpus/snapshot.json`,
+  `test/fixtures/review-console/signing-key.hex`) plus one piece built
+  programmatically in the test itself: a valid `reviewauth.Registry` with
+  a correctly computed checksum, using the package's own exported
+  `HashObject` function rather than guessing at the hash algorithm.
+  `model_mode: "fixture"` avoids needing a live Ollama instance. Includes
+  a deliberate negative test (a structurally-valid registry with only the
+  checksum wrong) proving the checksum validation actually fires - the
+  first version of that test was itself wrong (the "bad" registry failed
+  on missing fields before ever reaching the checksum check), caught and
+  fixed before committing. This directly closes the
+  `internal/reviewconsoleapi` zero-test gap named in the original issue.
+- `cmd/review-console` - 9 tests, reusing the same config-assembly recipe
+  (duplicated, not shared - each `cmd/` package compiles as its own
+  `main`), covering all 5 subcommands including a genuine issue-token ->
+  verify-token round trip (both via the `-token` flag and via stdin,
+  since `main.go` falls back to reading `/dev/stdin` when the flag is
+  omitted - verified from source before testing, not assumed).
+- 34 of 49 `cmd/` packages remain. `internal/reviewconsoleapi`'s zero-test
+  gap is now closed via these two entrypoints.
 
 ## Suggested order for remaining work
 
