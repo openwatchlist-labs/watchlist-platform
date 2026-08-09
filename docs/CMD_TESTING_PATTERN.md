@@ -113,18 +113,28 @@ and output content.
   (`score`, `batch`, `check-policy`) with real fixtures, including the
   `dob-contradiction` scenario specifically since it's the kind of case
   most likely to reveal a scoring regression.
-- 38 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
+- `cmd/alert-case` - 7 tests, including a full stateful-workflow happy
+  path (create-alert, replay against the same input, alert, status,
+  verify-alert, verify-audit, all against one shared `--state-dir`) -
+  this project's first genuinely stateful `cmd/` package tested, not just
+  a stateless transform. `migrate` (needs a live PostgreSQL DSN and
+  `psql`) not covered - a real integration test waiting to be written,
+  out of scope for this batch's black-box unit-level approach.
+- `cmd/vendor-adapter` - 10 tests, including the same
+  ingest-then-replay-then-verify stateful pattern as `cmd/alert-case`,
+  plus stateless `profiles`/`check-profile`/`convert`/`batch` happy
+  paths. `submit` (makes a real HTTP call to a live `--alert-case-url`)
+  not covered, for the same reason `migrate` isn't above.
+- 36 of 49 `cmd/` packages remain. `internal/reviewconsoleapi` also still
   has zero tests.
 
 ## Suggested order for remaining work
 
-Production-facing `cmd/screening-api`, `cmd/matcher-run`, and the
-catalog-lifecycle/scoring tools most likely to have existing fixtures
-(`cmd/ofac-runtime`, `cmd/projection-package`, `cmd/candidate-score`,
-`cmd/false-positive-classify`) are now covered (batches 1-3). Next:
-`cmd/alert-case` (has fixtures under `test/fixtures/alert-case`),
-`cmd/vendor-adapter` (has fixtures under `test/fixtures/vendor-adapters`),
-`cmd/ofac-ingest`, then `cmd/review-console-*` - a priority given
+Production-facing and fixture-rich packages are covered through batch 4
+(`cmd/screening-api`, `cmd/matcher-run`, `cmd/ofac-runtime`,
+`cmd/projection-package`, `cmd/candidate-score`,
+`cmd/false-positive-classify`, `cmd/alert-case`, `cmd/vendor-adapter`).
+Next: `cmd/ofac-ingest`, then `cmd/review-console-*` - a priority given
 `internal/reviewconsoleapi` is the other zero-test `internal/` package
 named in the original issue, though check first whether it has the same
 kind of deep, fixture-less config chain that blocked a happy-path test
