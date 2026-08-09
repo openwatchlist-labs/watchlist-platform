@@ -355,11 +355,68 @@ unrelated to any code change. Cleaned up and reconfirmed the full suite
 before continuing - worth checking `df -h` if a build failure looks
 like an environment problem rather than a real compile error.
 
-## Status: complete (for the non-deferred set)
+## Status: all 53 cmd/ packages now covered
 
-All 49 non-deferred `cmd/` packages are now covered. The only remaining
-gap is `screeningapiv8d`-`v8g` (see the note above) - that's a #14
-decision, not a #15 testing task.
+All 49 non-deferred `cmd/` packages, plus `screeningapiv8d`-`v8g`
+(deferred through #15's own work, then added on explicit request after
+#15 closed), now have real test coverage.
+
+`screeningapiv8d`-`v8g`, added last:
+
+- `cmd/screening-api-v8d` - 7 tests, INCLUDING a genuine full HTTP round
+  trip matched byte-for-byte against the committed golden fixture
+  (`test/golden/screening-api-v8d/realtime.response.json`, excluding
+  randomly-generated `correlation_id`/`request_sha256`). Real
+  architectural finding: unlike current `cmd/screening-api`, this
+  version talks to its candidate source via an HTTP upstream client, not
+  the Rust catalog-mmap runtime that blocked current `screening-api`'s
+  happy-path test (see #13). It even ships its own `fixture-upstream`
+  subcommand, matching exactly what
+  `test/golden/screening-api-v8d/README.md` says this package's own
+  internal tests already do ("the readiness upstream URL is dynamically
+  allocated during the test").
+- `cmd/screening-api-v8e` - 6 tests, reusing v8d's `fixture-upstream`
+  directly (confirmed by reading `internal/screeningapiv8e/server.go`
+  that it wraps `screeningapiv8d.NewHTTPUpstream`/`NewServer` and
+  therefore speaks the identical protocol - not assumed), plus a real
+  `scoring-activation` state built the same way
+  `cmd/scoring-activation/main_test.go`'s happy path does. Two real
+  mistakes caught and fixed here: the upstream fixture's embedded
+  `activation_id` must exactly match the local activation's ID or the
+  server correctly returns HTTP 502 with `active_catalog_lineage_mismatch`
+  (found via that real error, not guessed); and the first response
+  assertion only checked for a field present in BOTH the success and the
+  blocked response, so it would have silently passed either way -
+  strengthened to check the actual `status` value.
+- `cmd/screening-api-v8f` - 5 tests, scoped to failure modes. This is the
+  canary/shadow variant: its config needs BOTH an
+  `activation_state_directory` and a `promotion_state_directory` (a real
+  `promotion.json` must already exist - confirmed via the actual "load
+  promotion status: ... no such file" error), plus two upstream URLs
+  (current/candidate) that likely need cross-referenced lineage IDs the
+  same way v8e's did. Building a fully consistent activation + promotion
+  + dual-upstream chain is a bigger integration effort than this batch
+  was scoped for - documented plainly, not silently skipped. Also caught
+  a wrong exit-code assumption here (`--config` missing is exit 1, not
+  the exit 2 used for no-args/unknown-command) via the real binary
+  output, not assumed consistent.
+- `cmd/screening-api-v8g` - 6 tests, another genuine full HTTP round
+  trip, reusing `internal/screeningledger`'s real committed fixtures
+  (`test/fixtures/screening-ledger/snapshot-key.hex`) and v8d's
+  `fixture-upstream` again. Found and specifically tested a real,
+  sharp-edged quirk: this binary's hand-rolled flag parser only
+  recognizes the literal string `--config` (double-dash) - `-config`
+  (single-dash, which every `flag.Parse`-based binary elsewhere in this
+  project accepts) is silently NOT matched and falls through to
+  "--config is required" with no warning that the flag itself was
+  malformed. Added `TestSingleDashConfigFlagIsNotRecognized` specifically
+  to lock this in, since it's exactly the kind of silent footgun someone
+  copying a flag convention from another `cmd/` package in this repo
+  would hit.
+
+All four confirmed to run together with zero port conflicts (each uses
+`net.Listen("tcp", "127.0.0.1:0")` for dynamic port allocation, released
+before handing the address to a subprocess - never a hardcoded port).
 
 Real integration-test surface intentionally left for later, noted
 throughout this document rather than silently skipped: `cmd/alert-case`'s
@@ -367,7 +424,8 @@ throughout this document rather than silently skipped: `cmd/alert-case`'s
 `migrate`/`sync`/`import-audit`/`replay`, `cmd/provider-refresh`'s
 `analyze`/`decide`/`promote`/`rollback`, `cmd/activation-promotion`'s full
 lifecycle mutation commands, `cmd/case-assistance`'s `assist`/`review`/
-`record`, and `cmd/platform-ops`'s `backup-*`/`sync-*`. Each needs either
+`record`, `cmd/platform-ops`'s `backup-*`/`sync-*`, and
+`cmd/screening-api-v8f`'s full check/serve happy path. Each needs either
 live infrastructure (PostgreSQL, a running HTTP server) or a deeper,
 multi-system state chain than this batch-by-batch black-box approach
 was scoped to build. Worth a dedicated integration-test effort if that
