@@ -186,11 +186,39 @@ and output content.
 - `cmd/scoring-activation` - 5 tests, including a real
   activate-then-status happy path reusing the exact projection-package
   fixture pair independently verified during the #13 investigation.
-- 26 of 49 `cmd/` packages remain, plus `cmd/activation-promotion` (the
-  largest remaining catalog-lifecycle tool, not yet attempted) and the
-  legacy `screeningapiv8d`-`v8g` wrappers (deliberately deferred pending
-  the #14 keep/archive/delete decision - see that issue's resolution
-  before investing further test-writing effort there).
+- `cmd/activation-promotion` - 8 tests. The most complex remaining `cmd/`
+  package (12 subcommands, a full canary/shadow-testing promotion
+  lifecycle). Scope: the read/record-oriented subcommands (`status`,
+  `verify-audit`, `compare-shadow`, `summarize-shadow`) using the real,
+  pre-populated promotion state committed at
+  `test/fixtures/activation-promotion/state/` - its own golden README
+  says this fixture "is never promoted in place," which matches this
+  scope exactly. `stage`/`prepare`/`evaluate`/`start-canary`/`ack`/
+  `promote`/`rollback`/`recover` (the full lifecycle mutations) not
+  covered - a bigger, separate integration test.
+- `cmd/rag-corpus` - 6 tests. Found and worked around a real fixture/code
+  drift: the committed `test/fixtures/rag/corpus-manifest.json` and
+  `test/golden/rag/corpus-snapshot.json` use a richer, DIFFERENT schema
+  than what `LoadManifest`/`LoadSnapshot` currently accept (discovered by
+  running the commands against them and reading the actual "unknown
+  field" errors, not assumed compatible). Built a minimal, schema-correct
+  manifest programmatically instead, using real document text from
+  `test/fixtures/rag/documents/approved-policy.md` rather than synthetic
+  content. Also found `test/fixtures/rag/entity-type-query.json` uses an
+  older `query_text`-based query schema; the current `RetrievalQuery`
+  needs `terms []string` - added a test asserting the old-schema query is
+  correctly rejected, not silently mishandled.
+- 19 of 49 `cmd/` packages remain: `cmd/rag-index`, `cmd/rag-query`,
+  `cmd/release-artifact`, `cmd/release-benchmark`, `cmd/release-config`,
+  `cmd/release-qualification`, `cmd/iso20022-family`,
+  `cmd/iso20022-inspect`, `cmd/alert-case-api`, `cmd/case-assistance-api`,
+  `cmd/case-assistance`, `cmd/vendor-adapter-api`,
+  `cmd/alert-list-mapping`, `cmd/analyst-note`, `cmd/matcher-project`,
+  `cmd/runtime-catalog-input`, `cmd/platform-ops`,
+  `cmd/container-healthcheck`, `cmd/adversarial-checksum-fix`,
+  `cmd/review-run`. Plus the legacy `screeningapiv8d`-`v8g` wrappers,
+  deliberately deferred pending the separate #14 keep/archive/delete
+  decision.
 
 ## Suggested order for remaining work
 
