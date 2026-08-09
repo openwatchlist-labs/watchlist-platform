@@ -228,13 +228,40 @@ and output content.
   (canonical/evidence/inspection/matcher-requests/replay) against the
   same real pacs.008 fixture and this binary's own default screening-plan
   config.
-- 15 of 49 `cmd/` packages remain: the `release-*` cluster (4), the API
-  wrappers (`alert-case-api`, `case-assistance-api`, `case-assistance`,
-  `vendor-adapter-api`), and misc (`alert-list-mapping`, `analyst-note`,
-  `matcher-project`, `runtime-catalog-input`, `platform-ops`,
-  `container-healthcheck`, `adversarial-checksum-fix`, `review-run`).
-  Plus the legacy `screeningapiv8d`-`v8g` wrappers, deliberately deferred
-  pending the separate #14 keep/archive/delete decision.
+- `cmd/release-config` - 6 tests, both subcommands (`seal-runtime`,
+  `seal-quotas`) against real committed production config examples
+  (`configs/production/phase9g-example.json`,
+  `configs/production/tenant-quotas-r1.json`) rather than hand-authored
+  configs, given this project's history with strict,
+  `DisallowUnknownFields` config schemas.
+- `cmd/release-artifact` - 5 tests, a full manifest -> verify -> bundle ->
+  verify-bundle happy path against a small synthetic directory tree
+  (deliberately not this actual repo - slow and fragile against unrelated
+  changes for no real benefit), plus a genuine tamper-detection test
+  (modify a file after the manifest is built, confirm `verify` catches it
+  with a content-mismatch error).
+- `cmd/release-benchmark` - 3 tests. This tool always makes real HTTP
+  requests with no fixture/dry-run mode at all (verified by reading
+  main.go). Every test points `--url` at `127.0.0.1:1`, a reserved port
+  nothing ever listens on - a fast, deterministic, guaranteed-refused
+  connection, not a live external dependency - which still exercises the
+  real benchmark runner, JSON report shape, and the
+  qualified/exit-code-1 logic end to end. A genuinely successful run
+  against a live target is a separate integration test, not attempted.
+- `cmd/release-qualification` - 6 tests, including a real
+  evaluate -> verify happy path. Confirmed the real committed fixture
+  suite genuinely qualifies against the real gate set (status
+  "qualified", exit 0) before writing that assertion - a "not qualified"
+  (exit 2) case isn't covered, since no stricter gate config or worse
+  suite currently exists as a fixture to exercise it.
+- 11 of 49 `cmd/` packages remain: `cmd/alert-case-api`,
+  `cmd/case-assistance-api`, `cmd/case-assistance`,
+  `cmd/vendor-adapter-api`, `cmd/alert-list-mapping`, `cmd/analyst-note`,
+  `cmd/matcher-project`, `cmd/runtime-catalog-input`, `cmd/platform-ops`,
+  `cmd/container-healthcheck`, `cmd/adversarial-checksum-fix`,
+  `cmd/review-run`. Plus the legacy `screeningapiv8d`-`v8g` wrappers,
+  deliberately deferred pending the separate #14 keep/archive/delete
+  decision.
 
 ## Suggested order for remaining work
 
