@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatchlist.dev/schemas/homelab/frozen-source-lock.v1.schema.json",
+  "title": "OpenWatchlist frozen source lock",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "lock_id",
+    "release",
+    "ofac",
+    "opensanctions",
+    "projection_packages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "openwatchlist.homelab.frozen-source-lock.v1"
+    },
+    "release": {
+      "type": "object",
+      "required": [
+        "tag",
+        "vcs_ref",
+        "image_repository",
+        "image_digest"
+      ]
+    },
+    "ofac": {
+      "type": "object"
+    },
+    "opensanctions": {
+      "type": "object"
+    }
+  }
+}

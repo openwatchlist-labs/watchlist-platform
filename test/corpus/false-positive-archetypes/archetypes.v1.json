@@ -1,0 +1,1964 @@
+{
+  "schema_version": "openwatchlist.homelab.false-positive-archetypes.v1",
+  "corpus_id": "homelab_false_positive_archetypes_r1",
+  "title": "OpenWatchlist Homelab False-Positive Archetype Corpus",
+  "source_note": "Derived from 35 user-provided Fircosoft-style industry false-positive examples. The original illustrative watchlist IDs, biographies, scores, and release decisions are not qualification truth.",
+  "data_policy": {
+    "watchlist_truth": "frozen real OFAC source data only",
+    "opensanctions_truth": "real OpenSanctions FollowTheMoney entity cross-walked to the same OFAC source record",
+    "synthetic_allowed": [
+      "innocent transaction parties",
+      "payment messages",
+      "KYC conflicts",
+      "controlled name and field mutations"
+    ],
+    "synthetic_forbidden": [
+      "OFAC source IDs",
+      "OFAC names or aliases presented as official",
+      "OFAC biographies",
+      "OFAC identifiers",
+      "provider lineage",
+      "regulatory disposition"
+    ]
+  },
+  "coverage_requirements": {
+    "archetype_count": 35,
+    "required_controls_per_archetype": [
+      "false_positive",
+      "true_positive",
+      "near_negative"
+    ],
+    "minimum_core_scenarios": 105,
+    "provider_modes": [
+      "native_ofac",
+      "opensanctions_ofac",
+      "dual_provider"
+    ],
+    "minimum_provider_mode_executions": 315
+  },
+  "archetypes": [
+    {
+      "id": "fp-001",
+      "source_example_number": 1,
+      "title": "Common Name Hit (Fuzzy Name Matching)",
+      "family": "common_name_biographical",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual whose primary name or real alias contains common given/surname tokens and has at least one secondary biographical attribute.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Retain the strongest real name tokens in a synthetic innocent person, add a distinct token, and provide conflicting DOB, nationality, address, and typed identifier evidence.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "name_similarity_retained",
+          "biographical_conflict",
+          "typed_identifier_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-002",
+      "source_example_number": 2,
+      "title": "Geographic Substring Hit (Text Containment)",
+      "family": "substring_collision",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "creditor_name",
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC entity or alias with a short distinctive token that can be embedded inside a benign synthetic word without altering the OFAC source record.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the real token inside a synthetic business, product, or activity word and place it in a non-geographic field with clean country evidence.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "substring_boundary_mismatch",
+          "field_context_mismatch",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-003",
+      "source_example_number": 3,
+      "title": "Vessel / Corporate Name Conflict",
+      "family": "entity_type_conflict",
+      "implementation_track": "asset_identity",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC vessel with a distinctive primary-name token and, when available, a real IMO or flag attribute.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a synthetic onshore corporation using one vessel-name token while providing corporate legal form, company address, and no vessel identifier.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "entity_type_mismatch",
+          "missing_asset_identifier",
+          "corporate_context"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-004",
+      "source_example_number": 4,
+      "title": "BIC Code / Location Sequence Hit",
+      "family": "routing_code_collision",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "intermediary_bic",
+        "agent_bic"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a real short alias or distinctive 2-4 character token; do not fabricate a code when the frozen snapshot has no eligible record.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the real token in a syntactically valid synthetic BIC or routing code belonging to a clean jurisdiction.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "field_type_mismatch",
+          "routing_code_context",
+          "token_boundary_mismatch"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-005",
+      "source_example_number": 5,
+      "title": "Corporate Initials / Acronym Hit",
+      "family": "acronym_collision",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "debtor_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a real acronym or short alias between 3 and 6 characters.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Expand the same letters into a benign synthetic company name and provide conflicting registry country, industry, and ownership evidence.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "acronym_expansion_mismatch",
+          "country_conflict",
+          "business_context_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-006",
+      "source_example_number": 6,
+      "title": "Phonetic / Transliteration Over-Match",
+      "family": "transliteration",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with multiple real aliases or transliterations plus DOB, nationality, or passport evidence.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Generate a close phonetic spelling from the real name while assigning a conflicting synthetic DOB, country, and typed identifier.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "phonetic_similarity_retained",
+          "biographical_conflict",
+          "typed_identifier_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-007",
+      "source_example_number": 7,
+      "title": "Port or Locality Name Containment Hit",
+      "family": "substring_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "address",
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC entity with a short locality-like or name token suitable for containment testing.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the token inside a synthetic company, complex, port, or locality name in a clean jurisdiction.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "substring_boundary_mismatch",
+          "location_context_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-008",
+      "source_example_number": 8,
+      "title": "Generic Commercial Term Hit",
+      "family": "lexical_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "creditor_name",
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization or alias containing a token that also has ordinary commercial or dictionary use.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Use the overlapping token in a benign synthetic commercial name or service description with conflicting business context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "dictionary_usage_context",
+          "entity_context_conflict",
+          "missing_qualifying_terms"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-009",
+      "source_example_number": 9,
+      "title": "Multi-Word Overlap Hit (Shared Legal Form)",
+      "family": "multiword_overlap",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization whose name contains generic trade or legal-form words plus at least one distinctive token.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a synthetic company that overlaps on generic words or punctuation-normalized initials but differs on distinctive tokens, country, and registry context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "generic_token_downweighting",
+          "distinctive_token_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-010",
+      "source_example_number": 10,
+      "title": "OFAC Keyword Match with Missing Qualifying Words",
+      "family": "missing_qualifying_terms",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "creditor_name",
+        "beneficiary_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC government, military, bank, ministry, or state organization whose primary name contains critical qualifying terms.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Remove the critical real qualifying terms from a synthetic private-company name while retaining a secondary phrase cluster.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "missing_qualifying_terms",
+          "government_private_context_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-011",
+      "source_example_number": 11,
+      "title": "Slavic / Eastern European Phonetic Over-Match",
+      "family": "transliteration",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with Cyrillic-origin name variants and real biographical or passport attributes.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Generate a plausible alternate Latin transliteration while assigning conflicting DOB, nationality, passport country, and address.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "transliteration_similarity_retained",
+          "biographical_conflict",
+          "passport_country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-012",
+      "source_example_number": 12,
+      "title": "Latin American Name Permutation Over-Match",
+      "family": "name_permutation",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with compound paternal/maternal surnames and real nationality or DOB evidence.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Reorder or partially retain the real name components in a synthetic person while changing maternal surname and secondary identifiers.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "name_permutation_similarity",
+          "surname_component_conflict",
+          "biographical_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-013",
+      "source_example_number": 13,
+      "title": "East Asian Monosyllabic Exact-Name Over-Match",
+      "family": "common_name_biographical",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "debtor_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with a short East Asian name and real nationality, address, DOB, or passport evidence.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Use the exact real name for a synthetic innocent person but supply conflicting nationality, residency, DOB, and passport country.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "exact_name_not_identity_confirmation",
+          "nationality_conflict",
+          "biographical_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-014",
+      "source_example_number": 14,
+      "title": "Intermediary Bank Acronym Overlap",
+      "family": "routing_code_collision",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.009"
+      ],
+      "trigger_fields": [
+        "intermediary_bic",
+        "intermediary_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC financial institution with a real acronym or short alias that can appear at the start of a synthetic BIC.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a clean synthetic intermediary bank and BIC containing the real acronym, with conflicting country and institution identity.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "routing_code_context",
+          "institution_identity_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-015",
+      "source_example_number": 15,
+      "title": "Sovereign Debt Free-Text Clause Match",
+      "family": "narrative_context",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT202"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "instruction_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC government or ministry record with a distinctive multi-token phrase.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Place a normalized fragment of that phrase inside a synthetic legal, bond, infrastructure, or indemnity reference unrelated to the target.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "narrative_phrase_context",
+          "missing_qualifying_terms",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-016",
+      "source_example_number": 16,
+      "title": "Energy Commodity Trade Narrative Overlap",
+      "family": "substring_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "trade_description"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC vessel, organization, or person with a short distinctive token that can be contained inside a longer synthetic vessel or cargo name.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the token in a clean synthetic vessel, product, terminal, or cargo reference and provide clean route and ownership context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "substring_boundary_mismatch",
+          "trade_route_conflict",
+          "asset_identity_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-017",
+      "source_example_number": 17,
+      "title": "SWIFT Tag 20 Transaction Reference Match",
+      "family": "wrong_field_context",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "MT202"
+      ],
+      "trigger_fields": [
+        "transaction_reference"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a real short alias suitable for deterministic reference-string collision.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Place the real alias only inside a synthetic sender reference and ensure no party field contains the target identity.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "non_party_field",
+          "field_semantic_suppression",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-018",
+      "source_example_number": 18,
+      "title": "Account Number Collision with Vessel IMO",
+      "family": "typed_identifier_collision",
+      "implementation_track": "typed_identifier",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "pain.001"
+      ],
+      "trigger_fields": [
+        "debtor_account_id",
+        "creditor_account_id"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC vessel with a real IMO or other typed numeric asset identifier.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Place the exact real numeric identifier in a synthetic bank-account field while omitting all vessel context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "identifier_type_mismatch",
+          "account_field_context",
+          "missing_asset_context"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-019",
+      "source_example_number": 19,
+      "title": "Regulatory Reporting Denial-Context Match",
+      "family": "denial_context",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "regulatory_reporting",
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind any real OFAC organization with a sufficiently distinctive primary name.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Include the exact real name only inside a synthetic negative declaration such as no relationship or no involvement.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "denial_context",
+          "non_party_field",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-020",
+      "source_example_number": 20,
+      "title": "Asset Management Fund Registry Overlap",
+      "family": "corporate_similarity",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT202",
+        "pacs.009"
+      ],
+      "trigger_fields": [
+        "asset_owner_name",
+        "debtor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC financial institution or state enterprise with a distinctive prefix and real entity type.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a synthetic regulated fund whose name shares the prefix but has fund legal form, clean registry jurisdiction, and distinct ownership.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "regulated_fund_context",
+          "entity_identity_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-021",
+      "source_example_number": 21,
+      "title": "Securities Identifier Sequence Collision",
+      "family": "typed_identifier_collision",
+      "implementation_track": "typed_identifier",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "sese.023",
+        "sese.024"
+      ],
+      "trigger_fields": [
+        "financial_instrument_id"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC vessel or aircraft with a short primary-name token or real asset identifier.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the real token in a synthetic ISIN-like or alternate financial instrument identifier.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "identifier_type_mismatch",
+          "financial_instrument_context",
+          "missing_asset_context"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-022",
+      "source_example_number": 22,
+      "title": "Syndicated Loan Facility Reference Collision",
+      "family": "narrative_context",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT202COV",
+        "pacs.009"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "facility_reference"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a real short alias or distinctive token.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the token in a synthetic consortium, agent, tranche, or facility-reference acronym with clean project geography.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "legal_reference_context",
+          "party_field_absence",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-023",
+      "source_example_number": 23,
+      "title": "Bulk Vendor Name versus Individual",
+      "family": "entity_type_conflict",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT101",
+        "pain.001"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual whose given and family names can plausibly appear in a synthetic company name.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Build a synthetic registered vendor from the real name tokens and add corporate suffix, registry country, and ownership context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "person_company_mismatch",
+          "corporate_context",
+          "ownership_context_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-024",
+      "source_example_number": 24,
+      "title": "Corporate Liquidity Sweep Internal Code Collision",
+      "family": "wrong_field_context",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pain.001",
+        "camt.053"
+      ],
+      "trigger_fields": [
+        "organization_other_id",
+        "internal_entity_id"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a real short alias or distinctive acronym.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the alias in a synthetic internal organization or treasury-pool identifier rather than a party name.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "internal_code_context",
+          "non_party_field",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-025",
+      "source_example_number": 25,
+      "title": "Trade Invoice Product-Code Substring",
+      "family": "substring_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "invoice_description"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC entity with a distinctive token that can be segmented inside a synthetic product model or serial number.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a synthetic invoice/product code containing the token and provide clean goods, origin, destination, and counterparty context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "product_code_context",
+          "substring_boundary_mismatch",
+          "trade_route_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-026",
+      "source_example_number": 26,
+      "title": "Middle Eastern Name Transliteration and Age Conflict",
+      "family": "transliteration",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with Middle Eastern transliteration variants and real DOB or nationality evidence.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Generate a related spelling for a synthetic student or family recipient with strongly conflicting age, nationality, and account KYC.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "transliteration_similarity_retained",
+          "age_conflict",
+          "nationality_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-027",
+      "source_example_number": 27,
+      "title": "Latin American Compound Surname and Gender Conflict",
+      "family": "name_permutation",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "creditor_name",
+        "beneficiary_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with compound surname plus real gender and nationality evidence when available.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Create a synthetic person whose name contains overlapping masculine/feminine tokens but conflicts on gender, surname structure, DOB, and passport.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "name_permutation_similarity",
+          "gender_conflict",
+          "surname_component_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-028",
+      "source_example_number": 28,
+      "title": "Family Remittance Substring Phrase Collision",
+      "family": "substring_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC entity with a short distinctive token that can occur inside an ordinary recreational or family-remittance word.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the real token in a synthetic family-payment narrative and provide clean sender/recipient countries.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "substring_boundary_mismatch",
+          "family_payment_context",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-029",
+      "source_example_number": 29,
+      "title": "Dual-Use Goods or Trade Serial Collision",
+      "family": "typed_identifier_collision",
+      "implementation_track": "typed_identifier",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "product_model"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC aircraft, vessel, or other asset with a real model, registration, or distinctive asset token.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Reuse the exact token as a synthetic commercial product model or serial in an invoice narrative.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "product_identifier_context",
+          "asset_type_mismatch",
+          "missing_asset_context"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-030",
+      "source_example_number": 30,
+      "title": "Bankruptcy Trustee and Sanctioned Estate Name",
+      "family": "legal_control_context",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "ordering_customer_name",
+        "debtor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC organization with a distinctive primary name.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Embed the exact real name in a synthetic trustee, receiver, estate, or court-administrator account title and provide independent-control context.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "legal_control_context",
+          "account_control_distinction",
+          "party_role_distinction"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-031",
+      "source_example_number": 31,
+      "title": "Short Exact Name versus Corporate Entity",
+      "family": "entity_type_conflict",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "creditor_name",
+        "beneficiary_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual with a short two-token name and real person attributes.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Use the exact name tokens as the root of a synthetic corporation with legal suffix, registry evidence, and distinct ownership.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "exact_name_not_identity_confirmation",
+          "person_company_mismatch",
+          "corporate_context"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-032",
+      "source_example_number": 32,
+      "title": "System Migration Padding or Technical Artifact",
+      "family": "technical_artifact",
+      "implementation_track": "field_semantics",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT202",
+        "camt.053"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "internal_reference"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC entity with a real short alias; reject the binding when no eligible real alias exists.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Insert the alias into a synthetic zero-padded migration, reconciliation, hash, or treasury-balancing reference.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "technical_artifact_context",
+          "non_party_field",
+          "party_field_absence"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-033",
+      "source_example_number": 33,
+      "title": "Dictionary Word versus Individual Surname",
+      "family": "lexical_collision",
+      "implementation_track": "narrative_context",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "goods_description"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC individual whose real surname or alias is also an ordinary dictionary or commercial word.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Use the word only as a common noun in a synthetic goods or service description.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "dictionary_usage_context",
+          "non_party_field",
+          "person_context_absent"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-034",
+      "source_example_number": 34,
+      "title": "Missing Qualifying Industry Word: Company versus Vessel",
+      "family": "missing_qualifying_terms",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "pacs.008",
+        "MT103"
+      ],
+      "trigger_fields": [
+        "remittance_information",
+        "creditor_name"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC vessel or maritime organization whose name contains a critical shipping, vessel, maritime, or transport qualifier.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Retain the shared name root in a synthetic non-maritime business while omitting the real qualifying industry term and asset identifier.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "missing_qualifying_terms",
+          "industry_context_conflict",
+          "missing_asset_identifier"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    },
+    {
+      "id": "fp-035",
+      "source_example_number": 35,
+      "title": "Distinctive Token with Multiple Missing Context Words",
+      "family": "missing_qualifying_terms",
+      "implementation_track": "identity_evidence",
+      "status": "planned_unbound",
+      "message_profiles": [
+        "MT103",
+        "pacs.008"
+      ],
+      "trigger_fields": [
+        "beneficiary_name",
+        "remittance_information"
+      ],
+      "real_data_binding": {
+        "required": true,
+        "provider_source": "frozen_real_ofac_snapshot",
+        "selection_strategy": "Bind a real OFAC bank or multi-token organization containing a distinctive token plus institution and country qualifiers.",
+        "binding_failure_policy": "mark_blocked_and_select_another_real_record_preserving_the_archetype; never fabricate OFAC data",
+        "opensanctions_crosswalk_required": true
+      },
+      "synthetic_transaction_recipe": {
+        "synthetic_innocent_side_required": true,
+        "recipe": "Use the distinctive token in a synthetic technology or service company while omitting the institution type and geographic qualifier.",
+        "must_not_represent_real_innocent_person_or_company": true
+      },
+      "expected_invariants": {
+        "candidate_expectation": "candidate_or_feature_hit_expected_unless_field_semantics_suppresses_before_candidate",
+        "required_evidence_or_reason_codes": [
+          "missing_qualifying_terms",
+          "institution_type_conflict",
+          "country_conflict"
+        ],
+        "provider_lineage_required": true,
+        "catalog_activation_lineage_required": true,
+        "regulatory_disposition": "not_provided",
+        "forbidden_outcomes": [
+          "regulatory_clearance",
+          "regulatory_release",
+          "auto_release",
+          "confirmed_false_positive"
+        ]
+      },
+      "required_controls": [
+        "false_positive",
+        "true_positive",
+        "near_negative"
+      ],
+      "provider_modes": [
+        "native_ofac",
+        "opensanctions_ofac",
+        "dual_provider"
+      ]
+    }
+  ]
+}

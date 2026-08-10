@@ -1,0 +1,31 @@
+{
+  "schema_version": "openwatchlist.homelab.frozen-source-lock.v1",
+  "lock_id": "UNBOUND",
+  "created_at": "",
+  "release": {
+    "tag": "v0.1.0-rc.2",
+    "vcs_ref": "fb88a11846b8940f69d2c5b4325e22812686a0b8",
+    "image_repository": "ghcr.io/openwatchlist-labs/watchlist-platform",
+    "image_digest": "sha256:02c1538f3525b16499062f72ae230f62279d021fe922ac9c5828dc9076562bf3"
+  },
+  "ofac": {
+    "source_name": "OFAC Sanctions List Service",
+    "snapshot_date": "",
+    "downloaded_at": "",
+    "source_files": [],
+    "aggregate_sha256": "",
+    "parser_version": "",
+    "record_count": null
+  },
+  "opensanctions": {
+    "dataset": "us_ofac_sdn",
+    "snapshot_date": "",
+    "downloaded_at": "",
+    "source_files": [],
+    "aggregate_sha256": "",
+    "ftm_model_version": "",
+    "entity_count": null
+  },
+  "projection_packages": [],
+  "notes": "Populate and review this lock before binding or executing qualification scenarios."
+}
