@@ -57,4 +57,10 @@ else
     done <<< "$cargo_manifests"
   fi
 fi
+if [[ -n "${OWL_TEST_DATABASE_URL:-}" ]]; then
+  ./scripts/ci/check_sql_invariants.sh
+else
+  printf 'SKIP: SQL security invariants (OWL_TEST_DATABASE_URL not set)\n'
+fi
+
 printf 'PASS: OpenWatchlist clean-restart CI\n'
