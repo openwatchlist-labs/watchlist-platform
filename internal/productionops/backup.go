@@ -128,7 +128,7 @@ func CreateBackup(archivePath string, roots []BackupRoot, createdAt time.Time) (
 }
 func zipWrite(zw *zip.Writer, name string, b []byte, mode os.FileMode) error {
 	h := &zip.FileHeader{Name: name, Method: zip.Deflate}
-	h.SetModTime(fixedZipTime)
+	h.Modified = fixedZipTime
 	h.SetMode(mode)
 	w, err := zw.CreateHeader(h)
 	if err != nil {

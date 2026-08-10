@@ -56,7 +56,7 @@ func (u *HTTPUpstream) Ready(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Phase 8B readiness returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("phase 8B readiness returned HTTP %d", resp.StatusCode)
 	}
 	return nil
 }

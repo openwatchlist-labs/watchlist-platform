@@ -172,7 +172,7 @@ func TestPostgresMigrationIsMetadataOnly(t *testing.T) {
 func testCatalog(t *testing.T) (catalogregistry.Store, catalogregistry.Registry, catalogregistry.Component, catalogregistry.CatalogVersion) {
 	t.Helper()
 	store := catalogregistry.Store{Root: t.TempDir()}
-	registry, err := store.Initialize("demo-bank")
+	_, err := store.Initialize("demo-bank")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func testCatalog(t *testing.T) (catalogregistry.Store, catalogregistry.Registry,
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterComponent(provider)
+	_, err = store.RegisterComponent(provider)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,11 +188,11 @@ func testCatalog(t *testing.T) (catalogregistry.Store, catalogregistry.Registry,
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterVersion(version)
+	_, err = store.RegisterVersion(version)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, registry, err = store.Activate(catalogregistry.ActivationRequest{ComponentID: provider.ComponentID, TargetVersionID: version.VersionID, Action: catalogregistry.ActivationActionActivate, Reason: "activate provider fixture", ActivatedAt: testTime.Add(-20 * time.Minute), ActivatedBy: "phase7cd-test"})
+	_, registry, err := store.Activate(catalogregistry.ActivationRequest{ComponentID: provider.ComponentID, TargetVersionID: version.VersionID, Action: catalogregistry.ActivationActionActivate, Reason: "activate provider fixture", ActivatedAt: testTime.Add(-20 * time.Minute), ActivatedBy: "phase7cd-test"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -51,48 +51,6 @@ func Project(snapshot Snapshot) (Catalog, error) {
 	return projectWithAdapter(snapshot, AdapterVersion)
 }
 
-func projectLegacy(snapshot Snapshot) (Catalog, error) {
-	if err := ValidateSnapshot(snapshot); err != nil {
-		return Catalog{}, err
-	}
-	entities := make([]Entity, 0, len(snapshot.Entities))
-	for _, source := range snapshot.Entities {
-		entity := Entity{
-			ProviderRecordID:  "provider:" + snapshot.ProviderName + ":" + source.EntityID,
-			ProviderEntityID:  source.EntityID,
-			EntityType:        source.EntityType,
-			PrimaryName:       strings.TrimSpace(source.PrimaryName),
-			Aliases:           append([]Alias(nil), source.Aliases...),
-			Addresses:         append([]Address(nil), source.Addresses...),
-			Identifiers:       append([]Identifier(nil), source.Identifiers...),
-			DatesOfBirth:      sortedUnique(source.DatesOfBirth),
-			Remarks:           strings.TrimSpace(source.Remarks),
-			SourceMemberships: append([]SourceMembership(nil), source.SourceMemberships...),
-			Attributes:        cloneMap(source.Attributes),
-		}
-		canonicalizeEntity(&entity)
-		entities = append(entities, entity)
-	}
-	sort.Slice(entities, func(i, j int) bool { return entities[i].ProviderEntityID < entities[j].ProviderEntityID })
-	catalog := Catalog{
-		SchemaVersion:     CatalogSchemaVersion,
-		CatalogID:         "provider-entity-" + snapshot.ProviderName,
-		CatalogVersion:    snapshot.SnapshotVersion + "-" + snapshot.SnapshotChecksum[:12],
-		CatalogMode:       matcherprovider.CatalogModeProviderEntity,
-		AdapterVersion:    AdapterVersion,
-		ProviderName:      snapshot.ProviderName,
-		SourceSnapshotID:  snapshot.SnapshotID,
-		SourceSnapshotSHA: snapshot.SnapshotChecksum,
-		RecordCount:       len(entities),
-		Entities:          entities,
-	}
-	catalog.CatalogChecksum = catalogChecksum(catalog)
-	if err := ValidateCatalog(catalog); err != nil {
-		return Catalog{}, err
-	}
-	return catalog, nil
-}
-
 func BuildHybridCatalog(base Catalog, overlay matcherprovider.CatalogReference) (HybridCatalog, error) {
 	if err := ValidateCatalog(base); err != nil {
 		return HybridCatalog{}, err

@@ -2,7 +2,6 @@ package rag
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"time"
 )
@@ -165,8 +164,4 @@ func sortedUnique(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func equalStrings(a, b []string) bool {
-	return reflect.DeepEqual(a, b)
 }

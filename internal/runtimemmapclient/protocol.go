@@ -101,7 +101,7 @@ func parseWorkerError(line, requestID string) error {
 	if err != nil {
 		return fmt.Errorf("decode worker error: %w", err)
 	}
-	return fmt.Errorf("Rust runtime: %s", message)
+	return fmt.Errorf("rust runtime: %s", message)
 }
 
 func validateRequestID(value string) error {

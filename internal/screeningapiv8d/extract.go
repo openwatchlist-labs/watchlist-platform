@@ -37,30 +37,6 @@ func extractSingleRequest(raw []byte) (extractedRequest, error) {
 	return extractRequestMap(root), nil
 }
 
-func extractBatchRequests(raw []byte, max int) (string, []extractedRequest, error) {
-	var root map[string]any
-	if err := json.Unmarshal(raw, &root); err != nil {
-		return "", nil, fmt.Errorf("decode batch request: %w", err)
-	}
-	items := arrayValue(root, "items", "screenings", "requests")
-	if len(items) == 0 {
-		return "", nil, fmt.Errorf("batch items must not be empty")
-	}
-	if len(items) > max {
-		return "", nil, fmt.Errorf("batch items exceeds configured maximum of %d", max)
-	}
-	out := make([]extractedRequest, 0, len(items))
-	for index, item := range items {
-		object, ok := item.(map[string]any)
-		if !ok {
-			return "", nil, fmt.Errorf("batch item %d is not an object", index)
-		}
-		out = append(out, extractRequestMap(object))
-	}
-	batchID := stringValue(root, "batch_id", "request_id", "id")
-	return batchID, out, nil
-}
-
 func extractRequestMap(root map[string]any) extractedRequest {
 	subjectMap := objectValue(root, "subject", "screening_subject", "party")
 	if subjectMap == nil {
@@ -106,7 +82,7 @@ func extractUpstreamBatch(raw []byte, fallback Lineage) ([]extractedUpstream, er
 	for index, item := range items {
 		object, ok := item.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("Phase 8B batch item %d is not an object", index)
+			return nil, fmt.Errorf("phase 8B batch item %d is not an object", index)
 		}
 		if nested := objectValue(object, "response", "result"); nested != nil {
 			object = nested

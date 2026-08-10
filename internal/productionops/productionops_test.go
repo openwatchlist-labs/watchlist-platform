@@ -11,7 +11,10 @@ import (
 func TestRateLimiterAndConcurrency(t *testing.T) {
 	r := NewRateLimiter()
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	if !r.Allow("a", now, 60, 2) || !r.Allow("a", now, 60, 2) || r.Allow("a", now, 60, 2) {
+	firstAllowed := r.Allow("a", now, 60, 2)
+	secondAllowed := r.Allow("a", now, 60, 2)
+	thirdAllowed := r.Allow("a", now, 60, 2)
+	if !firstAllowed || !secondAllowed || thirdAllowed {
 		t.Fatal("burst enforcement failed")
 	}
 	if !r.Allow("a", now.Add(time.Second), 60, 2) {
@@ -50,14 +53,14 @@ func TestOutboxLifecycleRecoveryAndConflict(t *testing.T) {
 	if _, _, err = s.Enqueue("case.delivery", "tenant-a", "idem-1", []byte(`{"case_id":"different"}`), 3, t0); err == nil {
 		t.Fatal("expected conflict")
 	}
-	p, token, err := s.Claim(t0.Add(time.Second), 2*time.Second)
+	p, _, err := s.Claim(t0.Add(time.Second), 2*time.Second)
 	if err != nil || p.State != "leased" {
 		t.Fatalf("claim %v state=%s", err, p.State)
 	}
 	if err = s.Recover(t0.Add(4 * time.Second)); err != nil {
 		t.Fatal(err)
 	}
-	p, token, err = s.Claim(t0.Add(5*time.Second), 10*time.Second)
+	p, token, err := s.Claim(t0.Add(5*time.Second), 10*time.Second)
 	if err != nil || p.Attempt != 2 {
 		t.Fatalf("reclaim %v attempt=%d", err, p.Attempt)
 	}

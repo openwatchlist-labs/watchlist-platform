@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/openwatchlist-labs/watchlist-platform/internal/runtimemmapclient"
 )
 
-var ErrRuntimeUnavailable = errors.New("Rust candidate runtime is unavailable")
+var ErrRuntimeUnavailable = errors.New("rust candidate runtime is unavailable")
 
 type Service struct {
 	Loader        StateLoader
@@ -302,18 +301,4 @@ func (service *Service) now() time.Time {
 		return service.Clock().UTC()
 	}
 	return time.Now().UTC()
-}
-
-func canonicalBlockers(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	sort.Strings(values)
-	out := values[:0]
-	for _, value := range values {
-		if value != "" && (len(out) == 0 || out[len(out)-1] != value) {
-			out = append(out, value)
-		}
-	}
-	return out
 }

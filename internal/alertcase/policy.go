@@ -108,7 +108,7 @@ func (p Policy) Evaluate(req CreateAlertRequest) (Classification, PolicyDecision
 		event.EventSHA256 = ""
 		eventRaw, _ := json.Marshal(event)
 		if SHA256Bytes(eventRaw) != declaredEventSHA {
-			return Classification{}, PolicyDecision{}, nil, nil, "", errors.New("Phase 8G screening event checksum mismatch")
+			return Classification{}, PolicyDecision{}, nil, nil, "", errors.New("phase 8G screening event checksum mismatch")
 		}
 		event.EventSHA256 = declaredEventSHA
 		var bounded boundedCandidateSummary

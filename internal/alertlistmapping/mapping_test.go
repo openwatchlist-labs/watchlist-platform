@@ -210,7 +210,7 @@ func mappingInput(source, raw string, action MappingAction, component string, fr
 func testCatalog(t *testing.T, activateOfficial, activateProvider bool) (catalogregistry.Registry, catalogregistry.Component, catalogregistry.Component) {
 	t.Helper()
 	store := catalogregistry.Store{Root: t.TempDir()}
-	registry, err := store.Initialize("demo-bank")
+	_, err := store.Initialize("demo-bank")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func testCatalog(t *testing.T, activateOfficial, activateProvider bool) (catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterComponent(official)
+	_, err = store.RegisterComponent(official)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func testCatalog(t *testing.T, activateOfficial, activateProvider bool) (catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterComponent(provider)
+	_, err = store.RegisterComponent(provider)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func testCatalog(t *testing.T, activateOfficial, activateProvider bool) (catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterVersion(officialVersion)
+	_, err = store.RegisterVersion(officialVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func testCatalog(t *testing.T, activateOfficial, activateProvider bool) (catalog
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err = store.RegisterVersion(providerVersion)
+	registry, err := store.RegisterVersion(providerVersion)
 	if err != nil {
 		t.Fatal(err)
 	}
