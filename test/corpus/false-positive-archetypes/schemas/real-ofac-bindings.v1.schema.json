@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatchlist.dev/schemas/homelab/real-ofac-bindings.v1.schema.json",
+  "title": "OpenWatchlist real OFAC and OpenSanctions binding lock",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "binding_set_id",
+    "status",
+    "frozen_source_lock_sha256",
+    "bindings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "openwatchlist.homelab.real-ofac-bindings.v1"
+    },
+    "bindings": {
+      "type": "array",
+      "minItems": 35,
+      "maxItems": 35,
+      "items": {
+        "type": "object",
+        "required": [
+          "archetype_id",
+          "status",
+          "ofac",
+          "opensanctions",
+          "review"
+        ]
+      }
+    }
+  }
+}

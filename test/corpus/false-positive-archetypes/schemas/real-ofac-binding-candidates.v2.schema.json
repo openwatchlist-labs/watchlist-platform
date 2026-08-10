@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatchlist.dev/schemas/homelab/real-ofac-binding-candidates.v2.schema.json",
+  "title": "OpenWatchlist review-eligible OFAC/OpenSanctions binding candidates v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generator_version",
+    "candidate_set_id",
+    "generated_at",
+    "status",
+    "frozen_source_lock_sha256",
+    "lock_id",
+    "source_hashes",
+    "rules",
+    "summary",
+    "crosswalk_population_reconciliation",
+    "quality_gate",
+    "candidate_content_sha256",
+    "archetypes"
+  ],
+  "properties": {
+    "schema_version": {"const": "openwatchlist.homelab.binding-candidates.v2"},
+    "generator_version": {"const": "homelab-binding-candidates/v2.0.0"},
+    "candidate_set_id": {"type": "string", "minLength": 16},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "status": {"const": "manual_review_required"},
+    "frozen_source_lock_sha256": {"$ref": "#/$defs/sha256"},
+    "lock_id": {"type": "string", "minLength": 1},
+    "source_hashes": {
+      "type": "object",
+      "required": ["ofac_advanced_xml_sha256", "opensanctions_entities_ftm_sha256"],
+      "properties": {
+        "ofac_advanced_xml_sha256": {"$ref": "#/$defs/sha256"},
+        "opensanctions_entities_ftm_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "object",
+      "required": [
+        "bounded_candidates_only",
+        "candidate_limit_per_archetype",
+        "exact_crosswalk_required",
+        "hard_archetype_eligibility_required",
+        "provider_evidence_must_remain_source_separated",
+        "selection_key",
+        "automatic_acceptance_forbidden",
+        "manual_named_review_required",
+        "all_or_nothing_binding_finalization",
+        "regulatory_disposition"
+      ],
+      "properties": {
+        "bounded_candidates_only": {"const": true},
+        "candidate_limit_per_archetype": {"type": "integer", "minimum": 1, "maximum": 20},
+        "exact_crosswalk_required": {"const": true},
+        "hard_archetype_eligibility_required": {"const": true},
+        "provider_evidence_must_remain_source_separated": {"const": true},
+        "selection_key": {"const": "candidate_id"},
+        "automatic_acceptance_forbidden": {"const": true},
+        "manual_named_review_required": {"const": true},
+        "all_or_nothing_binding_finalization": {"const": true},
+        "regulatory_disposition": {"const": "not_provided"}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["archetype_count", "archetypes_with_candidates", "archetypes_without_candidates", "total_candidates", "ambiguous_exact_crosswalk_uid_count"],
+      "properties": {
+        "archetype_count": {"const": 35},
+        "archetypes_with_candidates": {"const": 35},
+        "archetypes_without_candidates": {"const": 0},
+        "total_candidates": {"type": "integer", "minimum": 35},
+        "ambiguous_exact_crosswalk_uid_count": {"const": 0}
+      }
+    },
+    "crosswalk_population_reconciliation": {
+      "type": "object",
+      "required": [
+        "current_ofac_uid_count",
+        "opensanctions_resolved_exact_ofac_uid_count",
+        "current_ofac_with_exact_crosswalk_count",
+        "current_ofac_without_exact_crosswalk_count",
+        "opensanctions_exact_crosswalk_uid_not_in_current_ofac_count",
+        "net_opensanctions_resolved_minus_current_ofac_count",
+        "balance_equations"
+      ]
+    },
+    "quality_gate": {
+      "type": "object",
+      "required": ["status", "checks", "empty_archetype_ids", "legacy_v1_candidate_packs_forbidden", "automatic_acceptance_forbidden", "manual_named_review_required", "quality_gate_sha256"],
+      "properties": {
+        "status": {"const": "review_eligible"},
+        "empty_archetype_ids": {"type": "array", "maxItems": 0},
+        "legacy_v1_candidate_packs_forbidden": {"const": true},
+        "automatic_acceptance_forbidden": {"const": true},
+        "manual_named_review_required": {"const": true},
+        "quality_gate_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate_content_sha256": {"$ref": "#/$defs/sha256"},
+    "ambiguous_crosswalk_samples": {"type": "array", "maxItems": 0},
+    "archetypes": {
+      "type": "array",
+      "minItems": 35,
+      "maxItems": 35,
+      "items": {"$ref": "#/$defs/archetype"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "typedEvidence": {
+      "type": "object",
+      "required": ["type", "value", "source"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "value": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "ofac": {
+      "type": "object",
+      "required": [
+        "source_record_id", "primary_name", "aliases", "party_subtype_ids",
+        "typed_identifiers", "typed_programs", "typed_dates", "typed_countries",
+        "typed_locations", "typed_gender", "source_record_projection_sha256",
+        "source_record_projection_hash_method", "source_subtree_serialization_sha256",
+        "source_subtree_hash_method"
+      ],
+      "properties": {
+        "source_record_id": {"type": "string", "minLength": 1},
+        "primary_name": {"type": "string", "minLength": 1},
+        "aliases": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "party_subtype_ids": {"type": "array", "items": {"type": "string"}},
+        "typed_identifiers": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_programs": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_dates": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_countries": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_locations": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_gender": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "source_record_projection_sha256": {"$ref": "#/$defs/sha256"},
+        "source_record_projection_hash_method": {"const": "sha256(canonical-json-official-ofac-projection)"},
+        "source_subtree_serialization_sha256": {"$ref": "#/$defs/sha256"},
+        "source_subtree_hash_method": {"type": "string", "pattern": "parser serialization, not exact source bytes"}
+      },
+      "additionalProperties": false
+    },
+    "opensanctions": {
+      "type": "object",
+      "required": [
+        "entity_id", "dataset", "entity_schema", "source_ofac_record_id",
+        "entity_sha256", "entity_hash_method", "crosswalk_method",
+        "crosswalk_evidence", "referents", "names", "typed_identifiers",
+        "typed_programs", "typed_dates", "typed_countries", "typed_locations",
+        "typed_gender"
+      ],
+      "properties": {
+        "entity_id": {"type": "string", "minLength": 1},
+        "dataset": {"const": "us_ofac_sdn"},
+        "entity_schema": {"type": "string", "minLength": 1},
+        "source_ofac_record_id": {"type": "string", "minLength": 1},
+        "entity_sha256": {"$ref": "#/$defs/sha256"},
+        "entity_hash_method": {"const": "sha256(exact-NDJSON-line-without-line-terminator)"},
+        "crosswalk_method": {"type": "string", "minLength": 1},
+        "crosswalk_evidence": {"type": "string", "minLength": 1},
+        "referents": {"type": "array", "items": {"type": "string"}},
+        "names": {"type": "array", "items": {"type": "string"}},
+        "typed_identifiers": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_programs": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_dates": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_countries": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_locations": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}},
+        "typed_gender": {"type": "array", "items": {"$ref": "#/$defs/typedEvidence"}}
+      },
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "candidate_id", "selection_key", "review_state", "normalized_entity_type",
+        "normalized_entity_type_source", "ofac", "opensanctions", "quality_score",
+        "score_components", "mechanic_evidence", "review_warnings",
+        "display_order", "quality_rank", "tie_group_size", "candidate_evidence_sha256"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 5},
+        "selection_key": {"type": "string", "minLength": 5},
+        "review_state": {"const": "candidate_only_manual_review_required"},
+        "normalized_entity_type": {"type": "string", "minLength": 1},
+        "normalized_entity_type_source": {"const": "opensanctions_us_ofac_sdn_crosswalk"},
+        "ofac": {"$ref": "#/$defs/ofac"},
+        "opensanctions": {"$ref": "#/$defs/opensanctions"},
+        "quality_score": {"type": "integer"},
+        "score_components": {"type": "array", "minItems": 1},
+        "mechanic_evidence": {
+          "type": "object",
+          "required": ["hard_eligibility", "archetype_id", "required_evidence", "selected_real_source_feature", "synthetic_collision_seed", "mechanic_evidence_sha256"],
+          "properties": {"hard_eligibility": {"const": "passed"}}
+        },
+        "review_warnings": {"type": "array", "items": {"type": "string"}},
+        "display_order": {"type": "integer", "minimum": 1},
+        "quality_rank": {"type": "integer", "minimum": 1},
+        "tie_group_size": {"type": "integer", "minimum": 1},
+        "candidate_evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "archetype": {
+      "type": "object",
+      "required": ["archetype_id", "title", "family", "selection_strategy", "candidate_count", "candidate_set_signature_sha256", "candidates"],
+      "properties": {
+        "archetype_id": {"type": "string", "pattern": "^fp-[0-9]{3}$"},
+        "title": {"type": "string", "minLength": 1},
+        "family": {"type": "string", "minLength": 1},
+        "selection_strategy": {"type": "string", "minLength": 1},
+        "candidate_count": {"type": "integer", "minimum": 1, "maximum": 20},
+        "candidate_set_signature_sha256": {"$ref": "#/$defs/sha256"},
+        "candidates": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"$ref": "#/$defs/candidate"}}
+      }
+    }
+  }
+}

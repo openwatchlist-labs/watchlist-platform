@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatchlist.dev/schemas/homelab/false-positive-archetypes.v1.schema.json",
+  "title": "OpenWatchlist false-positive archetype corpus",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "corpus_id",
+    "data_policy",
+    "coverage_requirements",
+    "archetypes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "openwatchlist.homelab.false-positive-archetypes.v1"
+    },
+    "corpus_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "archetypes": {
+      "type": "array",
+      "minItems": 35,
+      "maxItems": 35,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "source_example_number",
+          "title",
+          "family",
+          "implementation_track",
+          "real_data_binding",
+          "synthetic_transaction_recipe",
+          "expected_invariants",
+          "required_controls",
+          "provider_modes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^fp-[0-9]{3}$"
+          },
+          "source_example_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 35
+          },
+          "required_controls": {
+            "type": "array",
+            "contains": {
+              "const": "false_positive"
+            },
+            "minItems": 3,
+            "uniqueItems": true
+          },
+          "provider_modes": {
+            "type": "array",
+            "minItems": 3,
+            "uniqueItems": true
+          }
+        }
+      }
+    }
+  }
+}

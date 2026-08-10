@@ -1,0 +1,1029 @@
+{
+  "schema_version": "openwatchlist.homelab.real-ofac-bindings.v1",
+  "binding_set_id": "UNBOUND",
+  "status": "template_unbound",
+  "frozen_source_lock_sha256": "REPLACE_AFTER_SNAPSHOT_FREEZE",
+  "rules": {
+    "all_bindings_must_resolve_from_frozen_snapshot": true,
+    "fabricated_watchlist_data_forbidden": true,
+    "opensanctions_crosswalk_required": true,
+    "manual_review_required": true
+  },
+  "bindings": [
+    {
+      "archetype_id": "fp-001",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-002",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-003",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-004",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-005",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-006",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-007",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-008",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-009",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-010",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-011",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-012",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-013",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-014",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-015",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-016",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-017",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-018",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-019",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-020",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-021",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-022",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-023",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-024",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-025",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-026",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-027",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-028",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-029",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-030",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-031",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-032",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-033",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-034",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    },
+    {
+      "archetype_id": "fp-035",
+      "status": "unbound",
+      "ofac": {
+        "source_record_id": "",
+        "primary_name": "",
+        "entity_type": "",
+        "source_record_sha256": "",
+        "selected_aliases": [],
+        "selected_identifiers": [],
+        "selected_programs": [],
+        "selected_dates": [],
+        "selected_countries": [],
+        "selection_rationale": ""
+      },
+      "opensanctions": {
+        "entity_id": "",
+        "dataset": "us_ofac_sdn",
+        "entity_schema": "",
+        "source_ofac_record_id": "",
+        "entity_sha256": "",
+        "crosswalk_rationale": ""
+      },
+      "review": {
+        "reviewer": "",
+        "reviewed_at": "",
+        "evidence_path": ""
+      }
+    }
+  ]
+}

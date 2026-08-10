@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openwatchlist.dev/schemas/homelab/real-ofac-binding-candidates.v1.schema.json",
+  "title": "OpenWatchlist bounded real OFAC/OpenSanctions candidate evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generator_version",
+    "candidate_set_id",
+    "generated_at",
+    "status",
+    "frozen_source_lock_sha256",
+    "lock_id",
+    "rules",
+    "summary",
+    "archetypes"
+  ],
+  "properties": {
+    "schema_version": {"const": "openwatchlist.homelab.binding-candidates.v1"},
+    "status": {"const": "manual_review_required"},
+    "frozen_source_lock_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rules": {
+      "type": "object",
+      "required": [
+        "bounded_candidates_only",
+        "candidate_limit_per_archetype",
+        "exact_crosswalk_required",
+        "automatic_acceptance_forbidden",
+        "manual_named_review_required",
+        "all_or_nothing_binding_finalization",
+        "regulatory_disposition"
+      ]
+    },
+    "archetypes": {
+      "type": "array",
+      "minItems": 35,
+      "maxItems": 35,
+      "items": {
+        "type": "object",
+        "required": ["archetype_id", "title", "selection_strategy", "candidate_count", "candidates"]
+      }
+    }
+  }
+}
