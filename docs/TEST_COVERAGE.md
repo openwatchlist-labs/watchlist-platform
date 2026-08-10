@@ -83,6 +83,7 @@ batch-by-batch effort rather than a simple count.
 | `catalogruntime` | 3 |  |
 | `catalogsource` | 2 |  |
 | `falsepositive` | 10 |  |
+| `integrationtest` | 1 |  |
 | `iso20022coverage` | 6 |  |
 | `matcherbaseline` | 6 |  |
 | `matchercontext` | 2 |  |
@@ -123,7 +124,7 @@ batch-by-batch effort rather than a simple count.
 | `vendoradapter` | 3 |  |
 | `vendoradapterapi` | 1 |  |
 
-**Totals (generated, not hand-counted): 202 test functions across 55 `internal/` packages.**
+**Totals (generated, not hand-counted): 203 test functions across 56 `internal/` packages.**
 
 Zero test coverage: platformapi, reviewconsoleapi.
 
