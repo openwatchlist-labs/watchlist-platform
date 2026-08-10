@@ -1,0 +1,31 @@
+# Single source of truth for tenant-scoped relations (ADR-0001 SEC-1, §3/§4).
+#
+# Read by three consumers (ADR §3 point 1):
+#   - scripts/ci/check_tenant_binding.py  (this PR)
+#   - db/migrations/014_tenant_isolation.sql  (migration PR, not yet landed)
+#   - test/sql/security_invariants.sql  (migration PR, not yet landed)
+#
+# Every relation created under db/migrations/ that is tenant-scoped appears here
+# exactly once. This is the literal list from ADR-0001 §4 Class A and Class B —
+# transcribed directly, not inferred. Class C (deferred by D2) and Class D
+# (platform-global) relations are deliberately absent.
+
+# Class A — tenant-scoped, tenant_id present, RLS already forced (5)
+alert_record
+alert_case
+case_assistance_record
+vendor_adapter_record
+review_security_audit_event
+
+# Class B — tenant-scoped, work required (11)
+alert_case_membership
+alert_case_event
+alert_case_idempotency
+alert_case_audit
+case_assistance_review
+case_assistance_idempotency
+case_assistance_audit
+vendor_adapter_idempotency
+vendor_adapter_audit
+operational_outbox_event
+operational_outbox_message
