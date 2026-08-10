@@ -1,6 +1,7 @@
 # RAG Architecture
 
 **Status:** Phase 0 design contract
+
 **Role:** retrieve and cite context; never determine the sanctions-review route
 
 ## 1. Objective

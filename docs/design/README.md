@@ -8,11 +8,16 @@ These documents were written in the pre-restart legacy repository
 clean restart because the import only pulled from `docs/architecture/`,
 `docs/design/`, and `docs/security/`, while the legacy repo kept this
 material flat at `docs/*.md`. They were restored under SAL-4, SAL-5,
-SAL-6, and SAL-9 as byte-preserving copies of the frozen legacy source
-(with the sole exception of trailing whitespace on 12 lines across 6
-files, stripped to satisfy this repository's whitespace CI gate); nothing
-here was rewritten, re-wrapped, or fact-checked against the current
-codebase.
+SAL-6, and SAL-9 as byte-preserving copies of the frozen legacy source,
+with one documented exception: 12 metadata lines across 6 files used a
+Markdown hard-line-break (two trailing spaces) that trips this
+repository's whitespace CI gate on new content (see `CLAUDE.md`, "Markdown
+hard-line-breaks trip the whitespace gate on new content"). Those
+hard-breaks were replaced with an ordinary blank-line paragraph break
+between the affected metadata fields — not simply stripped — so the
+fields still render on separate lines; only the raw byte-for-byte
+whitespace changed, not any wording. Nothing else here was rewritten,
+re-wrapped, or fact-checked against the current codebase.
 
 **Read these as intent, not as fact.** They describe what each phase was
 *designed* to do at the time it was written. Large parts of that intent

@@ -1,7 +1,9 @@
 # Product Positioning
 
 **Status:** Phase 0 architecture baseline
+
 **Product:** OpenWatchlist Platform
+
 **Repository:** `openwatchlist-labs/watchlist-platform`
 
 ## Positioning statement

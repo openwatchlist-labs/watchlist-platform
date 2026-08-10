@@ -1,6 +1,7 @@
 # LLM Governance
 
 **Status:** Phase 0 control baseline
+
 **Core rule:** LLMs may assist analysts; they do not own screening or policy decisions.
 
 ## 1. Governance objective

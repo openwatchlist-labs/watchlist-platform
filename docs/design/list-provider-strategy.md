@@ -1,7 +1,9 @@
 # List Provider Strategy
 
 **Status:** Phase 0 design contract
+
 **Initial source:** OFAC official list data
+
 **Architectural requirement:** provider-ready without provider lock-in
 
 ## 1. Objective

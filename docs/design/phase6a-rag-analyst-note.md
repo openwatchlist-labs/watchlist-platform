@@ -1,6 +1,7 @@
 # Phase 6A — Immutable RAG and governed analyst-note v1
 
 **Status:** implementation baseline
+
 **Authority boundary:** retrieval and generated prose never own the deterministic screening disposition
 
 ## 1. Objective

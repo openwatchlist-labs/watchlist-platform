@@ -1,9 +1,13 @@
 # Homelab OFAC and OpenSanctions Functional Test Plan
 
 **Plan ID:** `openwatchlist-homelab-functional-test-plan-r1`
+
 **Release under qualification:** `v0.1.0-rc.2`
+
 **VCS reference:** `fb88a11846b8940f69d2c5b4325e22812686a0b8`
+
 **Immutable image:** `ghcr.io/openwatchlist-labs/watchlist-platform@sha256:02c1538f3525b16499062f72ae230f62279d021fe922ac9c5828dc9076562bf3`
+
 **Status:** Test design and unbound real-source corpus
 
 ## 1. Purpose
