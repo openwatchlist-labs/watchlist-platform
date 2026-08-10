@@ -80,5 +80,5 @@ func canonicalizeToken(t string) string {
 	if canonical, ok := nicknameToCanonical[t]; ok {
 		return canonical
 	}
-	return t
+	return canonicalizeTransliterationVariant(t)
 }

@@ -22,7 +22,7 @@
       "target_provider_record_id": "record-yevgeni-example",
       "truth": "match",
       "rationale": "Common alternate English romanization of a Russian-origin given name, deliberately not registered as an alias. Tests phonetic/fuzzy generalization, not alias lookup.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "translit-03-stress-anglicized-form",
@@ -260,7 +260,7 @@
       "target_provider_record_id": "record-muhammad-example",
       "truth": "match",
       "rationale": "Added honorific prefix and generational suffix, hyphen dropped from al-Exampli. Tests whether added tokens dilute the match score below threshold.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-11-token-dilution-padding",
