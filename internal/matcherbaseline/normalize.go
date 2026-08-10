@@ -156,7 +156,24 @@ func tokens(value string) []string {
 	for i, f := range fields {
 		fields[i] = canonicalizeToken(f)
 	}
-	return dropCorporateSuffixes(fields)
+	return dropPersonHonorifics(dropCorporateSuffixes(fields))
+}
+
+// dropPersonHonorifics removes recognized courtesy-title tokens (see
+// person_honorifics.go), the same fallback-if-empty behavior as
+// dropCorporateSuffixes for the same reason: a string that is only a
+// title isn't meaningfully improved by becoming empty.
+func dropPersonHonorifics(fields []string) []string {
+	filtered := fields[:0:0] // new backing array, don't mutate caller's slice in place
+	for _, f := range fields {
+		if !isPersonHonorific(f) {
+			filtered = append(filtered, f)
+		}
+	}
+	if len(filtered) == 0 {
+		return fields
+	}
+	return filtered
 }
 
 // dropCorporateSuffixes removes recognized legal-entity-type suffix tokens

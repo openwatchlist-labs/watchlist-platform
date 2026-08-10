@@ -174,7 +174,7 @@ func orderedTokenSimilarity(left, right []string) int {
 	}
 	for i := 1; i <= len(left); i++ {
 		for j := 1; j <= len(right); j++ {
-			if editSimilarity(left[i-1], right[j-1]) >= 8000 {
+			if editSimilarity(left[i-1], right[j-1]) >= 7000 {
 				matrix[i][j] = matrix[i-1][j-1] + 1
 			} else if matrix[i-1][j] > matrix[i][j-1] {
 				matrix[i][j] = matrix[i-1][j]

@@ -109,7 +109,7 @@
       "target_provider_record_id": "record-muhammad-example",
       "truth": "match",
       "rationale": "Stacks two techniques from batch 1: unregistered transliteration variant (translit-05) AND mid-word truncation (incomplete-05). Real evasion or genuinely messy data rarely arrives as a single clean technique - stacking is the more realistic test.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "combined-02-homoglyph-plus-suffix-swap",
@@ -129,7 +129,7 @@
       "target_provider_record_id": "record-william-example",
       "truth": "match",
       "rationale": "Nickname substitution plus honorific/suffix padding stacked together.",
-      "known_status": "fail"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-16-homoglyph-cyrillic-r-visual-p",
