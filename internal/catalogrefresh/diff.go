@@ -1,7 +1,6 @@
 package catalogrefresh
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sort"
@@ -103,5 +102,3 @@ func changedFields(a, b ofaccatalog.DirectListRecord) []string {
 	}
 	return out
 }
-
-func canonicalJSON(value any) ([]byte, error) { return json.Marshal(value) }

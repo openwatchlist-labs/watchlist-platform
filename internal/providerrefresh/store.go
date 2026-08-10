@@ -167,7 +167,7 @@ func (s Store) Promote(input PromoteInput, catalogStore catalogregistry.Store) (
 	if err != nil {
 		return PromotionExecution{}, Registry{}, catalogregistry.Registry{}, err
 	}
-	catalog, err = catalogStore.RegisterVersion(version)
+	_, err = catalogStore.RegisterVersion(version)
 	if err != nil {
 		return PromotionExecution{}, Registry{}, catalogregistry.Registry{}, err
 	}

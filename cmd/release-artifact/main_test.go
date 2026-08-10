@@ -83,7 +83,7 @@ func TestHappyPath_FullWorkflow(t *testing.T) {
 		t.Fatalf("verify: expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
 
-	stdout, stderr, code = run("bundle", "-root", root, "-manifest", manifest, "-output", bundle)
+	_, stderr, code = run("bundle", "-root", root, "-manifest", manifest, "-output", bundle)
 	if code != 0 {
 		t.Fatalf("bundle: expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
