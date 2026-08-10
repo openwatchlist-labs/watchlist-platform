@@ -23,8 +23,13 @@
 //     to human review) is a policy-layer decision this package can't
 //     fully evaluate on its own, so we only check the matcher didn't
 //     confidently return exactly one candidate.
-//   - "unscored" -> logged only. See docs/TEST_COVERAGE.md for scenarios
-//     not yet wired into pass/fail logic (e.g. truth: "clear" cases).
+//   - "clear" -> asserted: Search() only ever returns candidates that
+//     already cleared the confident-match threshold (verified by reading
+//     the provider code, not assumed), so "clear" means exactly "zero
+//     candidates returned" and is checked as such, following the same
+//     known_status regression-lock pattern as "match" scenarios.
+//   - "unscored" -> logged only. See docs/TEST_COVERAGE.md for any
+//     scenario truth values not yet wired into pass/fail logic.
 //
 // This means the suite is safe to run in ordinary CI today - it will not
 // turn red because of a known, already-tracked gap - while still making
@@ -168,6 +173,19 @@ func TestAdversarialScenarioBank(t *testing.T) {
 			case "match", "match_on_name_not_identifier", "match_on_name_dob_should_not_hard_exclude":
 				actualPass := top == expected && expected != ""
 				assessAgainstKnownStatus(t, sc, actualPass, top, expected, &passCount, &failCount, &newlyPassingCount)
+			case "clear":
+				// Search() only ever returns candidates that already
+				// cleared profile.ThresholdBasisPoints - every append
+				// path in SearchWithDiagnostics checks
+				// "score < profile.ThresholdBasisPoints { continue }"
+				// first (verified by reading internal/matcherbaseline/provider.go
+				// before writing this, not assumed). So a non-empty
+				// candidates list here is ALWAYS a confident match by
+				// definition; there is no such thing as a sub-threshold
+				// entry to additionally check the score of. "clear"
+				// means exactly and only "zero candidates returned."
+				actualClear := len(candidates) == 0
+				assessAgainstKnownStatus(t, sc, actualClear, top, "(no confident match)", &passCount, &failCount, &newlyPassingCount)
 			case "ambiguous_by_design":
 				ambiguousCount++
 				if len(candidates) == 1 {
@@ -208,6 +226,6 @@ func assessAgainstKnownStatus(t *testing.T, sc scenario, actualPass bool, top, e
 		t.Logf("KNOWN GAP (tracked, not failing build): query=%q expected=%s got=%s. %s",
 			sc.QueryName, expected, top, sc.Rationale)
 	default:
-		t.Fatalf("scenario %s has unrecognized known_status %q - every match-type scenario must be pass or fail", sc.ScenarioID, sc.KnownStatus)
+		t.Fatalf("scenario %s has unrecognized known_status %q - every match-type or clear-type scenario must be pass or fail", sc.ScenarioID, sc.KnownStatus)
 	}
 }

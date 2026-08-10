@@ -69,7 +69,7 @@
       "target_provider_record_id": null,
       "truth": "clear",
       "rationale": "Common name plus an address that happens to match a sanctioned organization's city (Orion Trading GmbH is Hamburg-based). Tests that shared address/geography alone doesn't inflate a weak name match into a false positive - this is the geography-evidence equivalent of the existing false_positive_pattern category.",
-      "known_status": "unscored"
+      "known_status": "pass"
     },
     {
       "scenario_id": "obfuscation-13-rtl-override-injection",
