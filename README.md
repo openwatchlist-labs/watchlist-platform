@@ -40,7 +40,7 @@ legacy repository.
 Corroborating evidence (date of birth, nationality, sanctions program, place
 of birth) is extracted during ingestion but is not carried into the compiled
 runtime package, so it is not available on live candidates. See the
-consolidated issue register for tracked work.
+[consolidated issue register](docs/backlog/README.md) for tracked work.
 
 ## Current governed status
 
