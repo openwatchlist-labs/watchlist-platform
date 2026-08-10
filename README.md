@@ -5,6 +5,44 @@ platform. This clean canonical repository begins from a curated, byte-preserving
 import of reviewed production code and accepted test fixtures from the preserved
 legacy repository.
 
+## Current matching capability
+
+**Table 1 — Matching capability**
+
+| Variant class | Live path | Notes |
+| --- | --- | --- |
+| Exact normalized name | Supported | Punctuation-stripped, ASCII case-folded |
+| Name prefix | Supported | Client-controlled |
+| Typed identifier exact | Supported | No scheme validation yet |
+| Record ID | Supported | |
+| Typo / character transposition | Not supported | Engine exists in internal/matcherbaseline, off the production path |
+| Token reordering | Not supported | |
+| Name particles and compounds (AL, BIN, VAN DER) | Not supported | |
+| Concatenation splitting (KRAYINVESTBANK ↔ KRAY INVEST BANK) | Not supported | |
+| Transliteration / cross-script | Not supported | |
+| Phonetic | Not supported | |
+| Non-ASCII case variants (Cyrillic, Greek, Arabic) | Not supported | normalize_ascii folds only bytes < 0x80 |
+
+**Table 2 — Supported lists**
+
+| List | Status |
+| --- | --- |
+| OFAC SDN | Supported |
+| OFAC Consolidated (non-SDN) | Not supported |
+| OFAC SSI (Sectoral) | Not supported |
+| UN | Not supported |
+| EU | Not supported |
+| UK OFSI | Not supported |
+| AU DFAT | Not supported |
+| PEP | Not supported |
+| Adverse media | Not supported |
+
+Corroborating evidence (date of birth, nationality, sanctions program, place
+of birth) is extracted during ingestion but is not carried into the compiled
+runtime package, so it is not available on live candidates. See the
+[issue register](https://github.com/openwatchlist-labs/watchlist-platform/issues)
+for tracked work.
+
 ## Current governed status
 
 The public repository has progressed beyond its clean-restart baseline:
