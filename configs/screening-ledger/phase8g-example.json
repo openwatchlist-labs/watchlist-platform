@@ -1,8 +1,5 @@
 {
-  "listen_address": "127.0.0.1:18094",
-  "upstream_base_url": "http://127.0.0.1:18093",
   "ledger_directory": "../../test/fixtures/screening-ledger/state",
-  "idempotency_directory": "../../test/fixtures/screening-ledger/idempotency",
   "instance_id": "screening-api-v8g-example",
   "snapshot_key_file": "../../test/fixtures/screening-ledger/snapshot-key.hex",
   "snapshot_key_env": "",

@@ -14,6 +14,7 @@ python3 ./scripts/ci/verify-legacy-lineage.py
 PYTHONDONTWRITEBYTECODE=1 python3 ./scripts/ci/tests/test_legacy_lineage.py
 python3 ./scripts/ci/check_tenant_binding.py
 PYTHONDONTWRITEBYTECODE=1 python3 ./scripts/ci/tests/test_tenant_binding.py
+python3 ./scripts/ci/check_screening_variants.py
 
 if [[ -f go.mod ]]; then
   command -v go >/dev/null 2>&1 || { echo 'FAIL: Go is required' >&2; exit 1; }

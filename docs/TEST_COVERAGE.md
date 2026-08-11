@@ -83,7 +83,7 @@ batch-by-batch effort rather than a simple count.
 | `catalogruntime` | 3 |  |
 | `catalogsource` | 2 |  |
 | `falsepositive` | 10 |  |
-| `integrationtest` | 1 |  |
+| `integrationtest` | 2 |  |
 | `iso20022coverage` | 6 |  |
 | `matcherbaseline` | 6 |  |
 | `matchercontext` | 2 |  |
@@ -113,18 +113,16 @@ batch-by-batch effort rather than a simple count.
 | `runtimemmapclient` | 1 |  |
 | `scoringactivation` | 3 |  |
 | `screening` | 8 |  |
-| `screeningapi` | 5 |  |
-| `screeningapiv8d` | 5 |  |
-| `screeningapiv8e` | 3 |  |
-| `screeningapiv8f` | 2 |  |
-| `screeningapiv8g` | 1 |  |
+| `screeningapi` | 4 |  |
 | `screeningledger` | 5 |  |
 | `screeningplan` | 2 |  |
+| `tenantctx` | 10 |  |
+| `tenantsql` | 8 |  |
 | `updatemanager` | 3 |  |
 | `vendoradapter` | 3 |  |
 | `vendoradapterapi` | 1 |  |
 
-**Totals (generated, not hand-counted): 203 test functions across 56 `internal/` packages.**
+**Totals (generated, not hand-counted): 210 test functions across 54 `internal/` packages.**
 
 Zero test coverage: platformapi, reviewconsoleapi.
 
@@ -297,7 +295,3 @@ up in a conversation with a design partner or in future documentation.
   actually-verified descriptions, and 11 of `internal/`'s 59 packages now
   have real `// Package x ...` doc comments as well (issue #20, ongoing -
   48 remain).
-- The `screeningapiv8d`-`v8g` packages sitting alongside current
-  `screeningapi`: resolved as "keep for now, documented why" rather than
-  archived or deleted - see `docs/RETIRED_SERVICE_VERSIONS.md` (issue
-  #14) for the actual decision and rationale.

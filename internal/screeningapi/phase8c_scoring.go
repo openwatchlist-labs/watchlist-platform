@@ -2,9 +2,9 @@ package screeningapi
 
 import "github.com/openwatchlist-labs/watchlist-platform/internal/candidatescoring"
 
-// Phase8CCandidateScorer is the typed bridge used by the Phase 8B real-time
-// and batch service. Both paths call the same immutable engine, preventing
-// route-specific score drift.
+// Phase8CCandidateScorer is a typed bridge to the candidatescoring engine.
+// It has no caller in the current screening HTTP path; Service returns
+// unscored retrieval candidates. See DOM-3.
 type Phase8CCandidateScorer struct {
 	engine *candidatescoring.Engine
 }

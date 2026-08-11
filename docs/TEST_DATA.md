@@ -158,14 +158,6 @@ Three different compiled/binary formats exist - worth not confusing them:
   current `internal/screeningapi`: name-match, identifier-match, batch,
   and an unmapped-alert-list case. `README.md` in this directory explains
   the scenario coverage in one paragraph.
-- **`test/fixtures/screening-api-v8d/`** + **`test/golden/screening-api-v8d/`**
-  - fixtures for the retired `v8d` version (see issue #14 re: whether these
-    older versions should be archived). Confirmed: no equivalent fixture
-    directories exist for v8e/v8f/v8g at all, despite their `internal/`
-    packages still having their own unit tests - if you're evaluating
-    which retired versions are safe to remove, this asymmetry (some have
-    fixture-level test data, some only have unit tests) is worth factoring
-    in.
 
 ### 7. Case/alert lifecycle and review workflow
 
