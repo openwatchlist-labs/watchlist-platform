@@ -13,6 +13,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/reviewauth"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantsql"
 )
 
 type CommandRunner interface {
@@ -57,28 +61,114 @@ func (p *PostgresSink) run(ctx context.Context, sql string) error {
 	_, err := p.Runner.Run(ctx, p.PSQLPath, []string{p.DSN, "-X", "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "--quiet"}, []byte(sql))
 	return err
 }
+
+// runBound is the tenantsql.Runner this sink hands to tenantsql.WithTenant.
+// Only internal/tenantsql can construct the Bound proof it requires, which
+// is what makes every statement below reach Postgres through the seam
+// (ADR-0001 SEC-1 §3).
+func (p *PostgresSink) runBound(ctx context.Context, _ tenantsql.Bound, sql string) error {
+	return p.run(ctx, sql)
+}
+
 func (p *PostgresSink) Ping(ctx context.Context) error    { return p.run(ctx, "SELECT 1;\n") }
 func (p *PostgresSink) Migrate(ctx context.Context) error { return p.run(ctx, SchemaSQL) }
+
+// PersistSnapshot writes rag_corpus_snapshot, which is Class D (platform-
+// global, ADR-0001 SEC-1 §4) -- content-addressed and shared across
+// tenants by design, so it is deliberately not routed through the seam.
 func (p *PostgresSink) PersistSnapshot(ctx context.Context, s CorpusSnapshot) error {
 	raw, _ := json.Marshal(s)
 	sql := "INSERT INTO rag_corpus_snapshot(snapshot_sha256,corpus_id,corpus_version,built_at,passage_count,snapshot_json) VALUES (" + sqlText(s.SnapshotSHA256) + "," + sqlText(s.CorpusID) + "," + sqlText(s.Version) + "," + sqlText(s.BuiltAt) + "::timestamptz," + fmt.Sprint(s.PassageCount) + "," + sqlJSON(raw) + ") ON CONFLICT(snapshot_sha256) DO NOTHING;\n"
 	return p.run(ctx, sql)
 }
+
 func (p *PostgresSink) PersistRecord(ctx context.Context, r AssistanceRecord, receipt IdempotencyReceipt) error {
+	tenant, err := tenantctx.Assert(ctx, r.TenantID)
+	if err != nil {
+		return err
+	}
 	raw, _ := json.Marshal(r)
 	rr, _ := json.Marshal(receipt)
-	sql := "BEGIN;\nINSERT INTO case_assistance_record(assistance_id,case_id,tenant_id,task,status,record_sha256,snapshot_sha256,generation_model_id,guardian_model_id,occurred_at,record_json) VALUES (" + sqlText(r.AssistanceID) + "," + sqlText(r.CaseID) + "," + sqlText(r.TenantID) + "," + sqlText(r.Task) + "," + sqlText(r.Status) + "," + sqlText(r.RecordSHA256) + "," + sqlText(r.Retrieval.SnapshotSHA256) + "," + sqlText(r.Generation.ModelID) + "," + sqlText(r.GuardianInvocation.ModelID) + "," + sqlText(r.OccurredAt) + "::timestamptz," + sqlJSON(raw) + ") ON CONFLICT(assistance_id) DO NOTHING;\nINSERT INTO case_assistance_idempotency(scope,key_sha256,request_sha256,response_sha256,object_type,object_id,created_at,receipt_json) VALUES (" + sqlText(receipt.Scope) + "," + sqlText(receipt.KeySHA256) + "," + sqlText(receipt.RequestSHA256) + "," + sqlText(receipt.ResponseSHA256) + "," + sqlText(receipt.ObjectType) + "," + sqlText(receipt.ObjectID) + "," + sqlText(receipt.CreatedAt) + "::timestamptz," + sqlJSON(rr) + ") ON CONFLICT(scope,key_sha256) DO NOTHING;\nCOMMIT;\n"
-	return p.run(ctx, sql)
+	body := tenantsql.Insert("case_assistance_record", []tenantsql.Col{
+		{Name: "assistance_id", SQL: sqlText(r.AssistanceID)},
+		{Name: "case_id", SQL: sqlText(r.CaseID)},
+		{Name: "tenant_id", SQL: sqlText(r.TenantID)},
+		{Name: "task", SQL: sqlText(r.Task)},
+		{Name: "status", SQL: sqlText(r.Status)},
+		{Name: "record_sha256", SQL: sqlText(r.RecordSHA256)},
+		{Name: "snapshot_sha256", SQL: sqlText(r.Retrieval.SnapshotSHA256)},
+		{Name: "generation_model_id", SQL: sqlText(r.Generation.ModelID)},
+		{Name: "guardian_model_id", SQL: sqlText(r.GuardianInvocation.ModelID)},
+		{Name: "occurred_at", SQL: sqlText(r.OccurredAt) + "::timestamptz"},
+		{Name: "record_json", SQL: sqlJSON(raw)},
+	}, "ON CONFLICT(assistance_id) DO NOTHING") +
+		tenantsql.Insert("case_assistance_idempotency", []tenantsql.Col{
+			{Name: "scope", SQL: sqlText(receipt.Scope)},
+			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
+			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
+			{Name: "response_sha256", SQL: sqlText(receipt.ResponseSHA256)},
+			{Name: "object_type", SQL: sqlText(receipt.ObjectType)},
+			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
+			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
+			{Name: "receipt_json", SQL: sqlJSON(rr)},
+		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
-func (p *PostgresSink) PersistReview(ctx context.Context, e ReviewEvent, receipt IdempotencyReceipt) error {
+
+// PersistReview writes case_assistance_review, which -- like ReviewEvent
+// itself -- carries no tenant_id (only assistance_id/case_id). tenantID is
+// the assistance record's own stored tenant, which the caller already has
+// via Store.Record(assistance_id) before calling this; it goes through
+// the same Assert() path as every other write, so it is still checked
+// against a ctx-bound tenant rather than trusted outright.
+func (p *PostgresSink) PersistReview(ctx context.Context, e ReviewEvent, receipt IdempotencyReceipt, tenantID string) error {
+	tenant, err := tenantctx.Assert(ctx, tenantID)
+	if err != nil {
+		return err
+	}
 	raw, _ := json.Marshal(e)
 	rr, _ := json.Marshal(receipt)
-	sql := "BEGIN;\nINSERT INTO case_assistance_review(assistance_id,case_id,sequence,event_sha256,previous_event_sha256,action,actor,reason,occurred_at,event_json) VALUES (" + sqlText(e.AssistanceID) + "," + sqlText(e.CaseID) + "," + fmt.Sprint(e.Sequence) + "," + sqlText(e.EventSHA256) + "," + sqlText(e.PreviousEventSHA256) + "," + sqlText(e.Action) + "," + sqlText(e.Actor) + "," + sqlText(e.Reason) + "," + sqlText(e.OccurredAt) + "::timestamptz," + sqlJSON(raw) + ") ON CONFLICT(event_sha256) DO NOTHING;\nINSERT INTO case_assistance_idempotency(scope,key_sha256,request_sha256,response_sha256,object_type,object_id,created_at,receipt_json) VALUES (" + sqlText(receipt.Scope) + "," + sqlText(receipt.KeySHA256) + "," + sqlText(receipt.RequestSHA256) + "," + sqlText(receipt.ResponseSHA256) + "," + sqlText(receipt.ObjectType) + "," + sqlText(receipt.ObjectID) + "," + sqlText(receipt.CreatedAt) + "::timestamptz," + sqlJSON(rr) + ") ON CONFLICT(scope,key_sha256) DO NOTHING;\nCOMMIT;\n"
-	return p.run(ctx, sql)
+	body := tenantsql.Insert("case_assistance_review", []tenantsql.Col{
+		{Name: "assistance_id", SQL: sqlText(e.AssistanceID)},
+		{Name: "case_id", SQL: sqlText(e.CaseID)},
+		{Name: "sequence", SQL: fmt.Sprint(e.Sequence)},
+		{Name: "event_sha256", SQL: sqlText(e.EventSHA256)},
+		{Name: "previous_event_sha256", SQL: sqlText(e.PreviousEventSHA256)},
+		{Name: "action", SQL: sqlText(e.Action)},
+		{Name: "actor", SQL: sqlText(e.Actor)},
+		{Name: "reason", SQL: sqlText(e.Reason)},
+		{Name: "occurred_at", SQL: sqlText(e.OccurredAt) + "::timestamptz"},
+		{Name: "event_json", SQL: sqlJSON(raw)},
+	}, "ON CONFLICT(event_sha256) DO NOTHING") +
+		tenantsql.Insert("case_assistance_idempotency", []tenantsql.Col{
+			{Name: "scope", SQL: sqlText(receipt.Scope)},
+			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
+			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
+			{Name: "response_sha256", SQL: sqlText(receipt.ResponseSHA256)},
+			{Name: "object_type", SQL: sqlText(receipt.ObjectType)},
+			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
+			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
+			{Name: "receipt_json", SQL: sqlJSON(rr)},
+		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
+
+// SyncAudit pushes the on-disk audit-event backlog to case_assistance_audit
+// (Class B, ADR-0001 SEC-1 §4). See internal/alertcase/postgres.go's
+// SyncAudit doc comment for why this resolves tenant from the on-disk
+// assistance record rather than a live Postgres lookup: case_assistance_record
+// is FORCE RLS'd already, so an unbound SELECT over this sink's own
+// connection always returns zero rows -- the resolver needs the tenant
+// before it can query for it. Every audit event here has object_type
+// "assistance", so the join is a single lookup rather than alertcase's
+// two-way one. Resolved events are grouped by tenant so each Postgres
+// transaction binds exactly one; an event whose object_id doesn't resolve
+// is logged and skipped, never fatal to the rest of the sweep.
 func (p *PostgresSink) SyncAudit(ctx context.Context, stateDir string) error {
 	files, _ := filepath.Glob(filepath.Join(stateDir, "audit", "events", "*.json"))
 	sort.Strings(files)
+	byTenant := map[string]string{}
+	var order []string
 	for _, path := range files {
 		raw, err := os.ReadFile(path)
 		if err != nil {
@@ -88,12 +178,67 @@ func (p *PostgresSink) SyncAudit(ctx context.Context, stateDir string) error {
 		if err := json.Unmarshal(raw, &e); err != nil {
 			return err
 		}
-		sql := "INSERT INTO case_assistance_audit(stream_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,actor,object_type,object_id,audit_json) VALUES (" + sqlText(e.StreamID) + "," + fmt.Sprint(e.Sequence) + "," + sqlText(e.AuditSHA256) + "," + sqlText(e.PreviousAuditSHA256) + "," + sqlText(e.OccurredAt) + "::timestamptz," + sqlText(e.Action) + "," + sqlText(e.Actor) + "," + sqlText(e.ObjectType) + "," + sqlText(e.ObjectID) + "," + sqlJSON(raw) + ") ON CONFLICT(audit_sha256) DO NOTHING;\n"
-		if err := p.run(ctx, sql); err != nil {
+		tenantID, ok := resolveAuditTenant(stateDir, e)
+		if !ok {
+			continue
+		}
+		stmt := tenantsql.Insert("case_assistance_audit", []tenantsql.Col{
+			{Name: "stream_id", SQL: sqlText(e.StreamID)},
+			{Name: "sequence", SQL: fmt.Sprint(e.Sequence)},
+			{Name: "audit_sha256", SQL: sqlText(e.AuditSHA256)},
+			{Name: "previous_audit_sha256", SQL: sqlText(e.PreviousAuditSHA256)},
+			{Name: "occurred_at", SQL: sqlText(e.OccurredAt) + "::timestamptz"},
+			{Name: "action", SQL: sqlText(e.Action)},
+			{Name: "actor", SQL: sqlText(e.Actor)},
+			{Name: "object_type", SQL: sqlText(e.ObjectType)},
+			{Name: "object_id", SQL: sqlText(e.ObjectID)},
+			{Name: "audit_json", SQL: sqlJSON(raw)},
+		}, "ON CONFLICT(audit_sha256) DO NOTHING")
+		if _, seen := byTenant[tenantID]; !seen {
+			order = append(order, tenantID)
+		}
+		byTenant[tenantID] += stmt
+	}
+	sort.Strings(order)
+	for _, tenantID := range order {
+		tenant, err := tenantctx.Resolve(reviewauth.Claims{TenantID: tenantID})
+		if err != nil {
+			return err
+		}
+		if err := tenantsql.WithTenant(ctx, tenant, byTenant[tenantID], p.runBound); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func resolveAuditTenant(stateDir string, event AuditEvent) (string, bool) {
+	if event.ObjectType != "assistance" {
+		fmt.Fprintf(os.Stderr, "assistancerag: SyncAudit: unsupported object_type for stream_id=%s sequence=%d object_type=%s object_id=%s; skipping\n",
+			event.StreamID, event.Sequence, event.ObjectType, event.ObjectID)
+		return "", false
+	}
+	if err := validateAssistanceID(event.ObjectID); err != nil {
+		fmt.Fprintf(os.Stderr, "assistancerag: SyncAudit: cannot resolve tenant for stream_id=%s sequence=%d object_id=%s: %v; skipping\n",
+			event.StreamID, event.Sequence, event.ObjectID, err)
+		return "", false
+	}
+	path, err := confinedStatePath(stateDir, "assistance", event.ObjectID+".json")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "assistancerag: SyncAudit: cannot resolve tenant for stream_id=%s sequence=%d object_id=%s: %v; skipping\n",
+			event.StreamID, event.Sequence, event.ObjectID, err)
+		return "", false
+	}
+	var record AssistanceRecord
+	if err := ReadStrictJSON(path, &record); err != nil || record.TenantID == "" {
+		if err == nil {
+			err = errors.New("record has empty tenant_id")
+		}
+		fmt.Fprintf(os.Stderr, "assistancerag: SyncAudit: cannot resolve tenant for stream_id=%s sequence=%d object_id=%s path=%q: %v; skipping\n",
+			event.StreamID, event.Sequence, event.ObjectID, path, err)
+		return "", false
+	}
+	return record.TenantID, true
 }
 func sqlText(v string) string {
 	return "convert_from(decode('" + hex.EncodeToString([]byte(v)) + "','hex'),'UTF8')"

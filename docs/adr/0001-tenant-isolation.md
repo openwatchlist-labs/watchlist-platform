@@ -557,3 +557,136 @@ looks, from the outside, like adding a `WHERE` clause.
 **Neutral but worth stating.** Nothing here improves matching, scoring, or throughput. SEC-1 closing
 does not move the platform closer to production capability on the DOM-* axis; it removes one of the
 reasons a pilot could not be run at all.
+
+## Addendum: seam PR findings
+
+Recorded during implementation of §2/§3 (`internal/tenantctx`, `internal/tenantsql`, and the retrofit
+of `internal/alertcase`, `internal/assistancerag`, `internal/vendoradapter`, `internal/productionops`,
+`internal/screeningledger`). This section documents what the design above missed and how it was
+actually resolved — it is not a redesign, and none of it changes §2–§9's decisions.
+
+### 1. §3 assumed a DB-side lookup could resolve tenant for `SyncAudit`; it cannot
+
+§3 specifies that `internal/tenantsql` "owns the transaction envelope" for SQL touching a
+tenant-scoped relation, and §5's migration derives `alert_case_audit`/`case_assistance_audit`
+tenant_id via a join on `object_type`/`object_id` to the owning Class A record. Read together, the
+implicit assumption was that `SyncAudit`'s Go-level sweep of the on-disk audit-event backlog could
+resolve each event's tenant the same way: query the owning record.
+
+That assumption is wrong, and not as a corner case. `alert_record`, `alert_case`, and
+`case_assistance_record` already carry `FORCE ROW LEVEL SECURITY` (`db/migrations/013_force_rls.sql:30-32`,
+landed by SEC-1a before this PR), with policy
+`USING (openwatchlist_tenant_visible(tenant_id))` (`db/migrations/009g_production_hardening.sql:94`),
+where `openwatchlist_tenant_visible` reads `current_setting('openwatchlist.tenant_id', true)`
+(`db/migrations/009g_production_hardening.sql:84-85`). With no GUC bound, that reads `NULL`, and
+`row_tenant = NULL` is never `true` — so a `SELECT tenant_id FROM alert_case WHERE case_id = ...`
+issued over the seam's own `owl_app` connection returns **zero rows, unconditionally**, before a
+tenant is known. This is the same fail-closed behavior the ADR's Context section already documents
+for reads in general; it was not previously connected to the resolver `SyncAudit` would need.
+
+The policy's only escape hatch is `current_setting('openwatchlist.tenant_id', true) = '*'`
+(`db/migrations/009g_production_hardening.sql:85`), reserved for the operator role. `tenantctx.Resolve`
+refuses to construct a `'*'` tenant (`internal/tenantctx/tenantctx.go:39-41`,
+`ErrWildcardTenant`), which is exactly what invariant 6 in §8 requires ("No policy reachable by
+`owl_app` admits the `'*'` wildcard") — so there is no code path by which the seam could grant itself
+the bypass. A live Postgres join for this resolver, run over `owl_app`, is a structural dead end, not
+a missing index or a performance concern.
+
+**Resolution.** `SyncAudit` resolves tenant from the on-disk sibling record instead of a query —
+`internal/alertcase/postgres.go:239` (`lookupAuditTenant`) reads `alerts/<id>.json` or
+`cases/<id>/projection.json` under the same `stateDirectory` the function already receives, using the
+package's existing path-confinement helpers (`internal/alertcase/state_path.go:39,85,92`);
+`internal/assistancerag/postgres.go:215` (`resolveAuditTenant`) reads `assistance/<id>.json` the same
+way (`internal/assistancerag/state_path.go:31,77`). This is the same `object_type`/`object_id` join §5
+specifies for the Postgres backfill, sourced from disk instead of SQL — the on-disk state directory is
+already the authoritative read source per this ADR's own Context section ("the review console reads
+from the filesystem state directory... the Postgres sinks are write-only mirrors"). An event whose
+`object_id` doesn't resolve — missing file, unreadable, empty `tenant_id` — is logged with its
+`stream_id`/`sequence`/`object_type`/`object_id`/attempted path and skipped; it is never fatal to the
+rest of the sweep and never defaulted to a guessed tenant (`internal/alertcase/postgres.go:229-237`,
+`internal/assistancerag/postgres.go:215-232`). Resolved events are grouped by tenant so each Postgres
+transaction still binds exactly one (`internal/alertcase/postgres.go:174-198`,
+`internal/assistancerag/postgres.go:167-193`).
+
+### 2. `productionops` has no per-ID on-disk index; tenant is resolved in-batch instead
+
+Unlike `alertcase`/`assistancerag`, `internal/productionops` has no `Store` type and no per-ID lookup
+path into the state directory — `SyncVendorAdapterState` and `SyncOutbox` are pure glob-and-read
+sweeps (`internal/productionops/postgres.go:110`, `:209`). Applying the same disk-resolver pattern as
+§1 above would mean re-reading an arbitrary file by ID with no existing helper to do it safely.
+
+**Resolution.** Both functions build the object_id → tenant_id join in memory from the same batch
+already being read, rather than from a persistent index: `SyncVendorAdapterState` records each
+`vendor_adapter_record`'s `RecordID → TenantID` while processing the `records` glob, then looks that
+map up for the `receipts` and `audit` globs processed in the same call
+(`internal/productionops/postgres.go:110-198`); `SyncOutbox` does the same for `MessageID → TenantID`
+across `messages` and `events` (`internal/productionops/postgres.go:209-273`). This matches §5's join
+semantics (`record_id`/`object_id` → owning record, `message_id` → owning message) but there is **no
+cross-run persistent index** — a receipt, audit event, or outbox event whose owning record/message is
+not present in *that run's* batch is logged with its identifying fields and skipped
+(`internal/productionops/postgres.go:159`, `:182`, `:255`), not guessed at. Under normal operation this
+is a non-issue because nothing in either sync path deletes or archives processed files (verified by
+inspection — no `os.Remove`/`os.Rename` touches `records`/`receipts`/`audit`/`messages`/`events`), so
+an owning record present in one run is present in every subsequent run too.
+
+### 3. Transaction granularity in `productionops` changed from one commit per run to one per tenant group
+
+Before this PR, `SyncVendorAdapterState` and `SyncOutbox` each built one `BEGIN;...COMMIT;` string
+spanning every file in the batch and issued it as a single `psql` invocation — one transaction per
+run, regardless of how many tenants' data it carried. `tenantsql.WithTenant` binds exactly one tenant
+per transaction (§3), and a sync run spans every tenant with pending state, so this PR necessarily
+changed the unit of atomicity from "the whole run" to "one tenant's slice of the run": resolved rows
+are grouped by tenant (`tenantBatch`, `internal/productionops/postgres.go:72-97`) and each group is
+committed as its own `WithTenant` call (`internal/productionops/postgres.go:198`, `:271`).
+
+**Why partial completion on crash/retry is still safe.** A crash between two tenant groups (A
+committed, B not yet started) is a new observable state that did not exist before this PR — the
+question is whether re-running the sync after such a crash is safe, and it is, for reasons checked
+against the actual schema and code rather than assumed:
+
+- **The retry path is "re-derive from unchanged source," not "resume from a cursor."** Neither
+  function's source directories are ever mutated by these code paths (confirmed by inspection, §2
+  above), so a retry re-globs the identical files and rebuilds byte-identical tenant groups. There was
+  no offset or watermark before this PR either — full-batch re-scan was already the retry mechanism.
+- **Every `ON CONFLICT` target is a real constraint keyed on content, not on when the row was
+  written**, and none of the five statements is `DO UPDATE`:
+
+  | Table | Conflict target (`internal/productionops/postgres.go`) | Backing constraint |
+  |---|---|---|
+  | `vendor_adapter_record` | `record_id` (`:145`) | `record_id text PRIMARY KEY` (`db/migrations/009e_vendor_adapter_ingress.sql:3`) |
+  | `vendor_adapter_idempotency` | `scope,idempotency_key` (`:168`) | `PRIMARY KEY(scope,idempotency_key)` (`db/migrations/009e_vendor_adapter_ingress.sql:12`) |
+  | `vendor_adapter_audit` | `audit_sha256` (`:195`) | `UNIQUE(audit_sha256)` (`db/migrations/009e_vendor_adapter_ingress.sql:18`) |
+  | `operational_outbox_message` | `message_id` (`:241`) | `message_id text PRIMARY KEY` (`db/migrations/009g_production_hardening.sql:20`) |
+  | `operational_outbox_event` | `event_sha256` (`:268`) | `event_sha256 text PRIMARY KEY` (`db/migrations/009g_production_hardening.sql:35`) |
+
+  Every one of these values is read out of the static JSON file, computed once by the producer, not
+  regenerated per sync attempt — so a retry issues a byte-identical statement against an
+  already-satisfied constraint and Postgres no-ops it. There is no path to a double-write.
+- **Each tenant's transaction is still atomic.** `p.run`/`p.Run` sends the full
+  `"BEGIN;\n...\nCOMMIT;\n"` text to one `psql` session; a process killed before `COMMIT;` leaves
+  Postgres to roll that session back. Partial completion only ever happens *between* tenant
+  transactions, never *within* one.
+- **FK ordering survives the split.** Within one tenant's accumulated statement string, records are
+  always appended before the receipts/audits/events that reference them (`internal/productionops/postgres.go:110-198`,
+  `:209-273`), and a referencing row is always grouped into the *same* tenant bucket as the record it
+  references, since both are resolved from the same `RecordID`/`MessageID` map. A row's FK dependency
+  is therefore always satisfied inside its own single-tenant transaction — there is no cross-transaction
+  FK dependency for a partial run to break.
+- **The skip path (§2) is unaffected by retry.** "Owning record not in this batch" is deterministic
+  given unchanged source files: a row that resolved on one run resolves identically on the next
+  (re-processed as a no-op), and one that didn't resolve logs and skips identically both times.
+
+**Checked consequence: advisory-lock scope narrowed from run-level to tenant-group-level.** Before
+this PR, `SyncVendorAdapterState`/`SyncOutbox` acquired `pg_advisory_xact_lock` once
+(`hashtext('openwatchlist-phase9g-vendor-sync')` / `hashtext('openwatchlist-phase9g-outbox-sync')`)
+inside the single run-spanning transaction, so two concurrent invocations were fully serialized against
+each other for the whole run. After this PR, the same lock key is acquired and released inside each
+per-tenant transaction (`internal/productionops/postgres.go:198`, `:271`) — so two concurrent
+invocations can now interleave at tenant-group granularity: one process's tenant-A transaction can
+commit and release the lock while another process's tenant-A transaction (from a separate, concurrent
+run) proceeds next, interleaved with the first process's tenant-B transaction. This is a real
+narrowing of the mutual-exclusion guarantee, not a hypothetical one, and it is stated here as a
+checked consequence rather than asserted safe by omission: it remains safe only because of the same
+idempotency argument above (every statement either tenant-group's transaction could issue is
+`ON CONFLICT ... DO NOTHING` on a content-derived key), not because serialization still holds — it
+does not, at sub-run granularity.

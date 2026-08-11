@@ -8,6 +8,9 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantsql"
 )
 
 type PostgresSink struct {
@@ -36,11 +39,42 @@ func (p *PostgresSink) run(ctx context.Context, sql string) error {
 	}
 	return nil
 }
+
+// runBound is the tenantsql.Runner this sink hands to tenantsql.WithTenant.
+// Only internal/tenantsql can construct the Bound proof it requires, which
+// is what makes every statement below reach Postgres through the seam
+// (ADR-0001 SEC-1 §3).
+func (p *PostgresSink) runBound(ctx context.Context, _ tenantsql.Bound, sql string) error {
+	return p.run(ctx, sql)
+}
+
 func (p *PostgresSink) Ping(ctx context.Context) error { return p.run(ctx, "SELECT 1") }
 func (p *PostgresSink) Persist(ctx context.Context, e Envelope, r Receipt) error {
+	tenant, err := tenantctx.Assert(ctx, e.CreateAlertRequest.TenantID)
+	if err != nil {
+		return err
+	}
 	eb, _ := json.Marshal(e)
 	rb, _ := json.Marshal(r)
-	sql := "BEGIN;\n" + "INSERT INTO vendor_adapter_record(record_id,adapter_id,adapter_version,profile_sha256,source_sha256,envelope_sha256,tenant_id,source_alert_id,occurred_at,envelope_json) VALUES (" + q(e.RecordID) + "," + q(e.AdapterID) + "," + q(e.AdapterVersion) + "," + q(e.ProfileSHA256) + "," + q(e.SourceSHA256) + "," + q(e.EnvelopeSHA256) + "," + q(e.CreateAlertRequest.TenantID) + "," + q(e.CreateAlertRequest.ExternalAlert.SourceAlertID) + "," + q(e.CreateAlertRequest.OccurredAt) + "::timestamptz," + q(string(eb)) + "::jsonb) ON CONFLICT(record_id) DO NOTHING;\n" + "INSERT INTO vendor_adapter_idempotency(scope,idempotency_key,source_sha256,record_id,receipt_json) VALUES (" + q(r.Scope) + "," + q(r.IdempotencyKey) + "," + q(r.SourceSHA256) + "," + q(r.RecordID) + "," + q(string(rb)) + "::jsonb) ON CONFLICT(scope,idempotency_key) DO NOTHING;\nCOMMIT;"
-	return p.run(ctx, sql)
+	body := tenantsql.Insert("vendor_adapter_record", []tenantsql.Col{
+		{Name: "record_id", SQL: q(e.RecordID)},
+		{Name: "adapter_id", SQL: q(e.AdapterID)},
+		{Name: "adapter_version", SQL: q(e.AdapterVersion)},
+		{Name: "profile_sha256", SQL: q(e.ProfileSHA256)},
+		{Name: "source_sha256", SQL: q(e.SourceSHA256)},
+		{Name: "envelope_sha256", SQL: q(e.EnvelopeSHA256)},
+		{Name: "tenant_id", SQL: q(e.CreateAlertRequest.TenantID)},
+		{Name: "source_alert_id", SQL: q(e.CreateAlertRequest.ExternalAlert.SourceAlertID)},
+		{Name: "occurred_at", SQL: q(e.CreateAlertRequest.OccurredAt) + "::timestamptz"},
+		{Name: "envelope_json", SQL: q(string(eb)) + "::jsonb"},
+	}, "ON CONFLICT(record_id) DO NOTHING") +
+		tenantsql.Insert("vendor_adapter_idempotency", []tenantsql.Col{
+			{Name: "scope", SQL: q(r.Scope)},
+			{Name: "idempotency_key", SQL: q(r.IdempotencyKey)},
+			{Name: "source_sha256", SQL: q(r.SourceSHA256)},
+			{Name: "record_id", SQL: q(r.RecordID)},
+			{Name: "receipt_json", SQL: q(string(rb)) + "::jsonb"},
+		}, "ON CONFLICT(scope,idempotency_key) DO NOTHING")
+	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 func q(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }

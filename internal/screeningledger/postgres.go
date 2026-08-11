@@ -72,16 +72,37 @@ func (p *PostgresSink) Persist(ctx context.Context, event Event, request, respon
 		"INSERT INTO screening_idempotency_receipt(scope,idempotency_key_sha256,request_sha256,response_sha256,http_status,event_id) SELECT " + sqlText(event.Route) + "," + sqlNullableText(event.IdempotencyKeyHash) + "," + sqlText(event.RequestSHA256) + "," + sqlText(event.ResponseSHA256) + "," + fmt.Sprint(event.HTTPStatus) + "," + sqlText(event.EventID) + " WHERE " + sqlNullableText(event.IdempotencyKeyHash) + " IS NOT NULL ON CONFLICT (scope,idempotency_key_sha256) DO NOTHING;\nCOMMIT;\n"
 	return p.run(ctx, sql)
 }
+
+// PersistAudit previously issued this INSERT as a bare statement, outside
+// any transaction. ADR-0001 SEC-1 §3 calls this out by name: a local
+// set_config in that position would be silently a no-op, exactly the
+// looks-installed-does-nothing class the ADR exists to eliminate. Wrapped
+// here in the same BEGIN/COMMIT envelope Persist already uses. No tenant
+// binding applies -- screening_ledger_audit is Class C (deferred by D2,
+// ADR §4/§9), absent from db/tenant_scoped_tables.txt.
 func (p *PostgresSink) PersistAudit(ctx context.Context, event AuditEvent) error {
 	raw, _ := json.Marshal(event)
-	sql := "INSERT INTO screening_ledger_audit(ledger_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,event_id,audit_json) VALUES (" + sqlText(event.LedgerID) + "," + fmt.Sprint(event.Sequence) + "," + sqlText(event.AuditSHA256) + "," + sqlText(event.PreviousAuditSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Action) + "," + sqlNullableText(event.EventID) + "," + sqlJSON(raw) + ") ON CONFLICT (audit_sha256) DO NOTHING;\n"
+	sql := "BEGIN;\n" +
+		"INSERT INTO screening_ledger_audit(ledger_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,event_id,audit_json) VALUES (" + sqlText(event.LedgerID) + "," + fmt.Sprint(event.Sequence) + "," + sqlText(event.AuditSHA256) + "," + sqlText(event.PreviousAuditSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Action) + "," + sqlNullableText(event.EventID) + "," + sqlJSON(raw) + ") ON CONFLICT (audit_sha256) DO NOTHING;\n" +
+		"COMMIT;\n"
 	return p.run(ctx, sql)
 }
+
+// PurgeExpired: see PersistAudit's doc comment -- same bare-statement
+// hazard, same fix. screening_ledger_snapshot is Class C.
 func (p *PostgresSink) PurgeExpired(ctx context.Context, before, operator, reason string) error {
-	return p.run(ctx, "SELECT screening_ledger_purge_snapshots("+sqlText(before)+"::timestamptz,"+sqlText(operator)+","+sqlText(reason)+");\n")
+	sql := "BEGIN;\n" +
+		"SELECT screening_ledger_purge_snapshots(" + sqlText(before) + "::timestamptz," + sqlText(operator) + "," + sqlText(reason) + ");\n" +
+		"COMMIT;\n"
+	return p.run(ctx, sql)
 }
+
+// PersistExternalAudit: see PersistAudit's doc comment -- same
+// bare-statement hazard, same fix. watchlist_operational_audit is Class C.
 func (p *PostgresSink) PersistExternalAudit(ctx context.Context, source, streamID string, sequence uint64, eventSHA, previous, occurred, action string, payload []byte) error {
-	sql := "INSERT INTO watchlist_operational_audit(source,stream_id,sequence,event_sha256,previous_event_sha256,occurred_at,action,payload_json) VALUES (" + sqlText(source) + "," + sqlText(streamID) + "," + fmt.Sprint(sequence) + "," + sqlText(eventSHA) + "," + sqlText(previous) + "," + sqlText(occurred) + "::timestamptz," + sqlText(action) + "," + sqlJSON(payload) + ") ON CONFLICT (source,event_sha256) DO NOTHING;\n"
+	sql := "BEGIN;\n" +
+		"INSERT INTO watchlist_operational_audit(source,stream_id,sequence,event_sha256,previous_event_sha256,occurred_at,action,payload_json) VALUES (" + sqlText(source) + "," + sqlText(streamID) + "," + fmt.Sprint(sequence) + "," + sqlText(eventSHA) + "," + sqlText(previous) + "," + sqlText(occurred) + "::timestamptz," + sqlText(action) + "," + sqlJSON(payload) + ") ON CONFLICT (source,event_sha256) DO NOTHING;\n" +
+		"COMMIT;\n"
 	return p.run(ctx, sql)
 }
 func insertSnapshotSQL(e SnapshotEnvelope, raw []byte) string {

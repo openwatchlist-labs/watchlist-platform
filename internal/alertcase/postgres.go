@@ -13,6 +13,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/reviewauth"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantsql"
 )
 
 type CommandRunner interface {
@@ -61,39 +65,120 @@ func (p *PostgresSink) run(ctx context.Context, sql string) error {
 	return err
 }
 
+// runBound is the tenantsql.Runner this sink hands to tenantsql.WithTenant.
+// Only internal/tenantsql can construct the Bound proof it requires, which
+// is what makes every statement below reach Postgres through the seam
+// (ADR-0001 SEC-1 §3).
+func (p *PostgresSink) runBound(ctx context.Context, _ tenantsql.Bound, sql string) error {
+	return p.run(ctx, sql)
+}
+
 func (p *PostgresSink) Ping(ctx context.Context) error    { return p.run(ctx, "SELECT 1;\n") }
 func (p *PostgresSink) Migrate(ctx context.Context) error { return p.run(ctx, SchemaSQL) }
 
 func (p *PostgresSink) PersistAlert(ctx context.Context, alert AlertRecord, receipt IdempotencyReceipt) error {
+	tenant, err := tenantctx.Assert(ctx, alert.TenantID)
+	if err != nil {
+		return err
+	}
 	alertJSON, _ := json.Marshal(alert)
 	receiptJSON, _ := json.Marshal(receipt)
-	sql := "BEGIN;\n" +
-		"INSERT INTO alert_record(alert_id,tenant_id,source_type,source_identity,record_sha256,policy_route,created_at,alert_json) VALUES (" + sqlText(alert.AlertID) + "," + sqlText(alert.TenantID) + "," + sqlText(alert.SourceType) + "," + sqlText(alert.SourceIdentity) + "," + sqlText(alert.RecordSHA256) + "," + sqlText(alert.PolicyDecision.Route) + "," + sqlText(alert.CreatedAt) + "::timestamptz," + sqlJSON(alertJSON) + ") ON CONFLICT(alert_id) DO NOTHING;\n" +
-		"INSERT INTO alert_case_idempotency(scope,key_sha256,request_sha256,response_sha256,object_type,object_id,created_at,receipt_json) VALUES (" + sqlText(receipt.Scope) + "," + sqlText(receipt.KeySHA256) + "," + sqlText(receipt.RequestSHA256) + "," + sqlText(receipt.ResponseSHA256) + "," + sqlText(receipt.ObjectType) + "," + sqlText(receipt.ObjectID) + "," + sqlText(receipt.CreatedAt) + "::timestamptz," + sqlJSON(receiptJSON) + ") ON CONFLICT(scope,key_sha256) DO NOTHING;\nCOMMIT;\n"
-	return p.run(ctx, sql)
+	body := tenantsql.Insert("alert_record", []tenantsql.Col{
+		{Name: "alert_id", SQL: sqlText(alert.AlertID)},
+		{Name: "tenant_id", SQL: sqlText(alert.TenantID)},
+		{Name: "source_type", SQL: sqlText(alert.SourceType)},
+		{Name: "source_identity", SQL: sqlText(alert.SourceIdentity)},
+		{Name: "record_sha256", SQL: sqlText(alert.RecordSHA256)},
+		{Name: "policy_route", SQL: sqlText(alert.PolicyDecision.Route)},
+		{Name: "created_at", SQL: sqlText(alert.CreatedAt) + "::timestamptz"},
+		{Name: "alert_json", SQL: sqlJSON(alertJSON)},
+	}, "ON CONFLICT(alert_id) DO NOTHING") +
+		tenantsql.Insert("alert_case_idempotency", []tenantsql.Col{
+			{Name: "scope", SQL: sqlText(receipt.Scope)},
+			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
+			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
+			{Name: "response_sha256", SQL: sqlText(receipt.ResponseSHA256)},
+			{Name: "object_type", SQL: sqlText(receipt.ObjectType)},
+			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
+			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
+			{Name: "receipt_json", SQL: sqlJSON(receiptJSON)},
+		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
 func (p *PostgresSink) PersistCase(ctx context.Context, projection CaseProjection, event CaseEvent, receipt IdempotencyReceipt) error {
+	tenant, err := tenantctx.Assert(ctx, projection.TenantID)
+	if err != nil {
+		return err
+	}
 	projectionJSON, _ := json.Marshal(projection)
 	eventJSON, _ := json.Marshal(event)
 	receiptJSON, _ := json.Marshal(receipt)
 	memberships := ""
 	for _, alertID := range projection.AlertIDs {
-		memberships += "INSERT INTO alert_case_membership(case_id,alert_id,joined_at) VALUES (" + sqlText(projection.CaseID) + "," + sqlText(alertID) + "," + sqlText(projection.CreatedAt) + "::timestamptz) ON CONFLICT(case_id,alert_id) DO NOTHING;\n"
+		memberships += tenantsql.Insert("alert_case_membership", []tenantsql.Col{
+			{Name: "case_id", SQL: sqlText(projection.CaseID)},
+			{Name: "alert_id", SQL: sqlText(alertID)},
+			{Name: "joined_at", SQL: sqlText(projection.CreatedAt) + "::timestamptz"},
+		}, "ON CONFLICT(case_id,alert_id) DO NOTHING")
 	}
-	sql := "BEGIN;\n" +
-		"INSERT INTO alert_case(case_id,tenant_id,state,revision,created_at,updated_at,projection_json) VALUES (" + sqlText(projection.CaseID) + "," + sqlText(projection.TenantID) + "," + sqlText(projection.State) + "," + fmt.Sprint(projection.Revision) + "," + sqlText(projection.CreatedAt) + "::timestamptz," + sqlText(projection.UpdatedAt) + "::timestamptz," + sqlJSON(projectionJSON) + ") ON CONFLICT(case_id) DO UPDATE SET state=EXCLUDED.state,revision=EXCLUDED.revision,updated_at=EXCLUDED.updated_at,projection_json=EXCLUDED.projection_json WHERE alert_case.revision<EXCLUDED.revision;\n" + memberships +
-		"INSERT INTO alert_case_event(case_id,sequence,revision,event_sha256,previous_event_sha256,occurred_at,action,actor,event_json) VALUES (" + sqlText(event.CaseID) + "," + fmt.Sprint(event.Sequence) + "," + fmt.Sprint(event.Revision) + "," + sqlText(event.EventSHA256) + "," + sqlText(event.PreviousEventSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Action) + "," + sqlText(event.Actor) + "," + sqlJSON(eventJSON) + ") ON CONFLICT(event_sha256) DO NOTHING;\n" +
-		"INSERT INTO alert_case_idempotency(scope,key_sha256,request_sha256,response_sha256,object_type,object_id,created_at,receipt_json) VALUES (" + sqlText(receipt.Scope) + "," + sqlText(receipt.KeySHA256) + "," + sqlText(receipt.RequestSHA256) + "," + sqlText(receipt.ResponseSHA256) + "," + sqlText(receipt.ObjectType) + "," + sqlText(receipt.ObjectID) + "," + sqlText(receipt.CreatedAt) + "::timestamptz," + sqlJSON(receiptJSON) + ") ON CONFLICT(scope,key_sha256) DO NOTHING;\nCOMMIT;\n"
-	return p.run(ctx, sql)
+	body := tenantsql.Insert("alert_case", []tenantsql.Col{
+		{Name: "case_id", SQL: sqlText(projection.CaseID)},
+		{Name: "tenant_id", SQL: sqlText(projection.TenantID)},
+		{Name: "state", SQL: sqlText(projection.State)},
+		{Name: "revision", SQL: fmt.Sprint(projection.Revision)},
+		{Name: "created_at", SQL: sqlText(projection.CreatedAt) + "::timestamptz"},
+		{Name: "updated_at", SQL: sqlText(projection.UpdatedAt) + "::timestamptz"},
+		{Name: "projection_json", SQL: sqlJSON(projectionJSON)},
+	}, "ON CONFLICT(case_id) DO UPDATE SET state=EXCLUDED.state,revision=EXCLUDED.revision,updated_at=EXCLUDED.updated_at,projection_json=EXCLUDED.projection_json WHERE alert_case.revision<EXCLUDED.revision") +
+		memberships +
+		tenantsql.Insert("alert_case_event", []tenantsql.Col{
+			{Name: "case_id", SQL: sqlText(event.CaseID)},
+			{Name: "sequence", SQL: fmt.Sprint(event.Sequence)},
+			{Name: "revision", SQL: fmt.Sprint(event.Revision)},
+			{Name: "event_sha256", SQL: sqlText(event.EventSHA256)},
+			{Name: "previous_event_sha256", SQL: sqlText(event.PreviousEventSHA256)},
+			{Name: "occurred_at", SQL: sqlText(event.OccurredAt) + "::timestamptz"},
+			{Name: "action", SQL: sqlText(event.Action)},
+			{Name: "actor", SQL: sqlText(event.Actor)},
+			{Name: "event_json", SQL: sqlJSON(eventJSON)},
+		}, "ON CONFLICT(event_sha256) DO NOTHING") +
+		tenantsql.Insert("alert_case_idempotency", []tenantsql.Col{
+			{Name: "scope", SQL: sqlText(receipt.Scope)},
+			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
+			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
+			{Name: "response_sha256", SQL: sqlText(receipt.ResponseSHA256)},
+			{Name: "object_type", SQL: sqlText(receipt.ObjectType)},
+			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
+			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
+			{Name: "receipt_json", SQL: sqlJSON(receiptJSON)},
+		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
+// SyncAudit pushes the on-disk audit-event backlog to alert_case_audit
+// (Class B, ADR-0001 SEC-1 §4). AuditEvent carries object_type/object_id
+// but no tenant_id, and a live Postgres lookup can't supply one either:
+// alert_case/alert_record are already FORCE RLS (db/migrations/013), so a
+// SELECT issued over this sink's own owl_app connection returns zero rows
+// until a tenant is already bound -- the exact chicken-and-egg the ADR's
+// wildcard carve-out exists for, and tenantctx deliberately never
+// constructs '*' for owl_app (invariant 6, ADR §8). The resolver instead
+// reads the same on-disk projection ADR §5 derives tenant_id from during
+// backfill (alerts/<id>.json, cases/<id>/projection.json) -- the
+// authoritative source per the ADR's own Context section, and already
+// present under stateDirectory. Resolved events are grouped by tenant so
+// each Postgres transaction binds exactly one tenant; an event whose
+// object_id doesn't resolve is logged and skipped, never fatal to the
+// rest of the sweep.
 func (p *PostgresSink) SyncAudit(ctx context.Context, stateDirectory string) error {
 	files, err := filepath.Glob(filepath.Join(stateDirectory, "audit", "events", "*.json"))
 	if err != nil {
 		return err
 	}
 	sort.Strings(files)
+	byTenant := map[string]string{}
+	var order []string
 	for _, path := range files {
 		raw, err := os.ReadFile(path)
 		if err != nil {
@@ -103,12 +188,89 @@ func (p *PostgresSink) SyncAudit(ctx context.Context, stateDirectory string) err
 		if err := json.Unmarshal(raw, &event); err != nil {
 			return err
 		}
-		sql := "INSERT INTO alert_case_audit(stream_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,actor,object_type,object_id,audit_json) VALUES (" + sqlText(event.StreamID) + "," + fmt.Sprint(event.Sequence) + "," + sqlText(event.AuditSHA256) + "," + sqlText(event.PreviousAuditSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Action) + "," + sqlText(event.Actor) + "," + sqlText(event.ObjectType) + "," + sqlText(event.ObjectID) + "," + sqlJSON(raw) + ") ON CONFLICT(audit_sha256) DO NOTHING;\n"
-		if err := p.run(ctx, sql); err != nil {
+		tenantID, ok := resolveAuditTenant(stateDirectory, event)
+		if !ok {
+			continue
+		}
+		stmt := tenantsql.Insert("alert_case_audit", []tenantsql.Col{
+			{Name: "stream_id", SQL: sqlText(event.StreamID)},
+			{Name: "sequence", SQL: fmt.Sprint(event.Sequence)},
+			{Name: "audit_sha256", SQL: sqlText(event.AuditSHA256)},
+			{Name: "previous_audit_sha256", SQL: sqlText(event.PreviousAuditSHA256)},
+			{Name: "occurred_at", SQL: sqlText(event.OccurredAt) + "::timestamptz"},
+			{Name: "action", SQL: sqlText(event.Action)},
+			{Name: "actor", SQL: sqlText(event.Actor)},
+			{Name: "object_type", SQL: sqlText(event.ObjectType)},
+			{Name: "object_id", SQL: sqlText(event.ObjectID)},
+			{Name: "audit_json", SQL: sqlJSON(raw)},
+		}, "ON CONFLICT(audit_sha256) DO NOTHING")
+		if _, seen := byTenant[tenantID]; !seen {
+			order = append(order, tenantID)
+		}
+		byTenant[tenantID] += stmt
+	}
+	sort.Strings(order)
+	for _, tenantID := range order {
+		tenant, err := tenantctx.Resolve(reviewauth.Claims{TenantID: tenantID})
+		if err != nil {
+			return err
+		}
+		if err := tenantsql.WithTenant(ctx, tenant, byTenant[tenantID], p.runBound); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// resolveAuditTenant derives the tenant that owns an audit event's
+// object_id, per the same object_type-driven join ADR-0001 SEC-1 §5 uses
+// for the Postgres backfill, sourced from the on-disk record instead of a
+// query RLS would block (see SyncAudit doc comment).
+func resolveAuditTenant(stateDirectory string, event AuditEvent) (string, bool) {
+	tenantID, path, err := lookupAuditTenant(stateDirectory, event.ObjectType, event.ObjectID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "alertcase: SyncAudit: cannot resolve tenant for stream_id=%s sequence=%d object_type=%s object_id=%s path=%q: %v; skipping\n",
+			event.StreamID, event.Sequence, event.ObjectType, event.ObjectID, path, err)
+		return "", false
+	}
+	return tenantID, true
+}
+
+func lookupAuditTenant(stateDirectory, objectType, objectID string) (tenantID, path string, err error) {
+	switch objectType {
+	case "alert":
+		if err = validateAlertID(objectID); err != nil {
+			return "", "", err
+		}
+		if path, err = confinedStatePath(stateDirectory, "alerts", objectID+".json"); err != nil {
+			return "", path, err
+		}
+		var a AlertRecord
+		if err = readStrictJSON(path, &a); err != nil {
+			return "", path, err
+		}
+		if a.TenantID == "" {
+			return "", path, errors.New("record has empty tenant_id")
+		}
+		return a.TenantID, path, nil
+	case "case":
+		if err = validateCaseID(objectID); err != nil {
+			return "", "", err
+		}
+		if path, err = confinedStatePath(stateDirectory, "cases", objectID, "projection.json"); err != nil {
+			return "", path, err
+		}
+		var c CaseProjection
+		if err = readStrictJSON(path, &c); err != nil {
+			return "", path, err
+		}
+		if c.TenantID == "" {
+			return "", path, errors.New("record has empty tenant_id")
+		}
+		return c.TenantID, path, nil
+	default:
+		return "", "", fmt.Errorf("unsupported object_type %q", objectType)
+	}
 }
 
 func sqlText(v string) string {

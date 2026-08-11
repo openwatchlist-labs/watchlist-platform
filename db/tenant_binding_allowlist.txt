@@ -18,12 +18,7 @@ permanent	Migrate	D1/ADR §3: runs schema DDL as owl_migrator; never bound to a 
 permanent	Ping	D1/ADR §3: issues SELECT 1; touches no tenant-scoped relation.
 permanent	db/migrations/	ADR §5: the 014 migration backfill/policy DDL runs directly as owl_migrator, outside any Go seam.
 #
-# TRANSITIONAL -- every current sink call site, seeded so this gate PR is
-# green on merge (ADR §3: "the check cannot land enforcing before the seam
-# it guards exists"). The seam PR (internal/tenantsql, ADR §3) must empty
-# this section; a transitional entry surviving the seam PR is a bug the
-# check itself catches, because the call site it protects will have moved.
-transitional	internal/alertcase/postgres.go	Pre-seam sink for alert_record/alert_case/alert_case_membership/alert_case_event/alert_case_idempotency/alert_case_audit; moves to internal/tenantsql in the seam PR.
-transitional	internal/assistancerag/postgres.go	Pre-seam sink for case_assistance_record/case_assistance_review/case_assistance_idempotency/case_assistance_audit; moves to internal/tenantsql in the seam PR.
-transitional	internal/vendoradapter/postgres.go	Pre-seam sink for vendor_adapter_record/vendor_adapter_idempotency; moves to internal/tenantsql in the seam PR.
-transitional	internal/productionops/postgres.go	Pre-seam batch sync for vendor_adapter_record/vendor_adapter_idempotency/vendor_adapter_audit/operational_outbox_message/operational_outbox_event; moves to internal/tenantsql in the seam PR.
+# TRANSITIONAL -- empty. The seam PR (internal/tenantsql, ADR §3) has
+# adopted WithTenant at every sink call site that was seeded here by the
+# gate PR; a transitional entry surviving the seam PR is a bug the check
+# itself catches, because the call site it protects will have moved.

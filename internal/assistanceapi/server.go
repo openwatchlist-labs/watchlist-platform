@@ -192,9 +192,13 @@ func (s *Server) review(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.Postgres != nil {
-		receipt, e := s.Store.Receipt("review:"+req.AssistanceID, req.IdempotencyKey)
+		record, e := s.Store.Record(req.AssistanceID)
+		receipt, re := s.Store.Receipt("review:"+req.AssistanceID, req.IdempotencyKey)
 		if e == nil {
-			e = s.Postgres.PersistReview(r.Context(), event, receipt)
+			e = re
+		}
+		if e == nil {
+			e = s.Postgres.PersistReview(r.Context(), event, receipt, record.TenantID)
 		}
 		if e == nil {
 			e = s.Postgres.SyncAudit(r.Context(), s.Config.AssistanceStateDirectory)
