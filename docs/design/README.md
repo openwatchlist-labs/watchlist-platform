@@ -34,6 +34,17 @@ renamed to avoid colliding with the current, maintained
 [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — the two describe different
 systems at different points in time and should not be conflated.
 
+**Superseded instruction:** [`docs/design/phase8-runtime-operations.md`](phase8-runtime-operations.md)
+(§ topology, around line 27) instructs new deployment work to "target
+`screening-api-v8g` as the public boundary." That instruction is stale by
+construction — see
+[ADR-0002 §2](../adr/0002-screening-api-consolidation.md#2-record-correction-which-document-is-authoritative)
+— and superseded by ADR-0002, which deletes `v8d`–`v8g` under REL-10 and
+establishes `internal/screeningapi` / `cmd/screening-api` as the sole
+screening implementation. The file itself is left unedited to preserve its
+byte-for-byte fidelity to the restored legacy source (see above); this note
+is the correction of record.
+
 ## Restored documents
 
 | File | Subject | Phase / subsystem |

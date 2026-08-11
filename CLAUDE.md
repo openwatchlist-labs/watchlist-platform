@@ -40,10 +40,9 @@ python scripts/ci/verify-legacy-lineage.py
    validator to `cmd/corpus-validate/`, design docs to `docs/design/`.
    **Never** migrate `*.key`, `*.pem`, `*.crt`, or `.env*` from the legacy archive.
 
-4. **State which screening-api you are changing.** There are five near-identical implementations:
-   `cmd/screening-api` (+ `internal/screeningapi`) and `-v8d`/`-v8e`/`-v8f`/`-v8g` with their own
-   backing packages. They have already diverged. A fix applied to one leaves the other four broken.
-   Until REL-10 collapses them, name the target explicitly in the PR description.
+4. **There is one screening-api implementation.** `cmd/screening-api` (+ `internal/screeningapi`)
+   is the sole screening implementation; REL-10 deleted the four `-v8d`/`-v8e`/`-v8f`/`-v8g` proxy
+   tiers (see ADR-0002).
 
 5. **Write the failing test first.** The dominant bug class in this repo is *silent absence* —
    a control that looks installed and does nothing. A fix without a test that fails before it is
@@ -91,7 +90,7 @@ python scripts/ci/verify-legacy-lineage.py
 ## Layout
 
 ```
-cmd/                  Service and CLI entrypoints (5 duplicate screening-api variants — see rule 4)
+cmd/                  Service and CLI entrypoints (single screening-api entrypoint — see rule 4)
 internal/             56 packages; business logic
   candidatescoring/     Evidence scoring; NOT currently wired into the live screening path
   matcherbaseline/      Real fuzzy matcher; intentionally OFF the production path today
