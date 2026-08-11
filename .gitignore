@@ -20,3 +20,9 @@
 .idea/
 .vscode/
 *.swp
+
+# Deliberately excluded from version control -- contains unpatched
+# vulnerability detail / advisory-seeding material. See memory/MEMORY.md
+# and the security advisory disclosure decision. Never commit these.
+docs/backlog/issue-register.md
+scripts/create-advisories.sh
