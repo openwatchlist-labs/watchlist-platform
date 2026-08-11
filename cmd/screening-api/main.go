@@ -35,9 +35,17 @@ func serve(args []string) {
 	config, service, runtime := load(*configPath)
 	defer runtime.Close()
 	handler := &screeningapi.Handler{Config: config, Service: service, Store: screeningapi.IdempotencyStore{Root: config.IdempotencyRoot}}
+	tokens, err := screeningapi.LoadTokenService(config)
+	if err != nil {
+		fatalf("load token service: %v", err)
+	}
+	authenticated, err := screeningapi.NewAuthenticatedHandler(handler, tokens, nil)
+	if err != nil {
+		fatalf("construct authenticated handler: %v", err)
+	}
 	server := &http.Server{
 		Addr:              config.ListenAddress,
-		Handler:           handler,
+		Handler:           authenticated,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       time.Duration(config.RequestTimeoutMS+5000) * time.Millisecond,
 		WriteTimeout:      time.Duration(config.RequestTimeoutMS+5000) * time.Millisecond,
