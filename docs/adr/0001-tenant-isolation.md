@@ -857,3 +857,16 @@ incremented from exactly one branch — the `TenantID` check (`internal/rag/retr
 branch increments it for scope. The name promises an enforcement the code does not perform. This is
 independent of SEC-1d above: even a fully authenticated `TenantID` would not stop a document from
 being retrieved outside its declared `AccessScope`, because nothing checks `AccessScope` at all.
+
+## Addendum: citation corrections
+
+Two line-number citations in §2 were inaccurate in the original text and are corrected here:
+
+1. **Claims.TenantID location.** §2 cites `internal/reviewauth/types.go:57` as the definition of
+   `Claims.TenantID`. The correct location is `types.go:40`. Line 57 defines `SecurityAuditEvent.TenantID`,
+   an adjacent but distinct field in the same file.
+
+2. **TenantID decode location.** §2 cites `internal/reviewauth/token.go:136` as where `Parse` decodes
+   `TenantID`. The correct location is `token.go:105`, where `d.Decode(&c)` unmarshals the JWT claims
+   payload into the `Claims` struct. Line 136 is where the already-decoded `c.TenantID` is consumed as
+   an argument to `s.Registry.RolesFor(u, c.TenantID)` to re-derive roles.
