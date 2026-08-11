@@ -74,17 +74,20 @@ Three decisions frame the rest of this document.
 | **D2** | The screening-ledger family stays **out of RLS scope** in this ADR. | Smallest viable migration. But per-tenant screening evidence stays cross-tenant readable — an accepted risk with a re-entry condition, recorded in §9, not omitted. |
 | **D3** | Authenticated tenant provenance is a **hard prerequisite** for closing SEC-1. | Binding a GUC to a caller-asserted tenant is theatre. Body-supplied `tenant_id` is demoted to an assertion that must match the bound tenant. |
 
-D2 and the idempotency fix interact, and the interaction is deliberate rather than an oversight:
-`screening_idempotency_receipt` receives a `tenant_id` column and a tenant-scoped uniqueness key in
-§6 while receiving **no RLS policy**. The uniqueness change alone closes both paths in
-GHSA-vhj8-986g-vjf4 — decision inheritance and the existence oracle — because those are collisions in
-the key, not reads across a policy boundary.
+D2 and the idempotency fix interact, and the interaction is deliberate rather than an oversight, though
+which relations §6 actually touches was corrected during the migration PR (see §4 Class C and §6):
+GHSA-vhj8-986g-vjf4 is closed for `alert_case_idempotency`, `case_assistance_idempotency`, and
+`vendor_adapter_idempotency` by a tenant-scoped uniqueness key with **no RLS policy** on any of the
+three. `screening_idempotency_receipt` carries the same defect but stays fully inside the Class C
+deferral — no authenticated tenant exists anywhere upstream of it to key on — so GHSA-vhj8-986g-vjf4
+remains open for that one table specifically, tracked under the same SEC-1c re-entry condition as the
+rest of Class C rather than silently narrowed.
 
 ## 1. Scope
 
 In scope: tenant resolution and binding, RLS policy coverage for Class A and Class B relations (§4),
-the `tenant_id` backfill, idempotency-key scoping across four tables, rollback, and the test bar that
-defines "closed".
+the `tenant_id` backfill, idempotency-key scoping across three tables (`screening_idempotency_receipt`
+deferred to Class C — see §4, §6), rollback, and the test bar that defines "closed".
 
 Out of scope, each with a pointer: the ledger family (§9, SEC-1c), the idempotency TOCTOU (§6,
 SEC-5), audit-chain forgery (§9, SEC-7), DSN exposure via `argv` (§3, SEC-3).
@@ -261,8 +264,17 @@ constraint (`009g:30`), but never received a policy.
 `watchlist_operational_audit`.
 
 These are tenant-scoped in principle and receive no RLS in this ADR. `screening_idempotency_receipt`
-is the exception that still gets a `tenant_id` column and a tenant-scoped key in §6, because its
-defect is key collision rather than policy absence. Re-entry condition and risk: §9, SEC-1c.
+was originally planned as an exception that would still get a `tenant_id` column and a tenant-scoped
+key in §6, on the theory that its defect is key collision rather than policy absence — **corrected
+during the migration PR**: `internal/screeningapi` has no tenant concept anywhere in the Go tree to
+backfill from or write going forward (confirmed by inspection: no `TenantID` field on
+`screeningledger.Event`/`SnapshotEnvelope`, no tenant string in `internal/screeningapi` at all), unlike
+`alertcaseapi`/`assistanceapi`/`vendoradapterapi`, whose sinks assert a bound tenant via
+`tenantctx.Assert` (seam PR #70) before this migration runs. Populating either a historical backfill
+or a going-forward write for this table would mean inventing a tenant value with no evidence behind
+it — exactly what §5's "no defaults, no sentinels" rule and this section's own D2 reasoning already
+forbid for the rest of Class C. `screening_idempotency_receipt` therefore stays untouched, fully inside
+the Class C deferral, alongside its six siblings. Re-entry condition and risk: §9, SEC-1c.
 
 ### Class D — platform-global by design (12)
 
@@ -363,22 +375,29 @@ production-sized restore and stated in the deployment plan before this runs.
 
 ## 6. Idempotency-key scoping (GHSA-vhj8-986g-vjf4 / SEC-6)
 
-Four relations carry the same defect and are fixed together:
+Four relations were originally identified as carrying the same defect. Three are fixed together in
+this migration; the fourth, `screening_idempotency_receipt`, is corrected out of this section and
+into the Class C deferral (§4) — internal/screeningapi has no tenant concept anywhere upstream to key
+on, so there is nothing honest to backfill or write, and inventing one would be exactly the
+data-integrity-finding-not-a-default problem §5 refuses to paper over elsewhere. Left here as a
+record of the correction, not silently dropped from the table:
 
 | Relation | Current key | Becomes |
 |---|---|---|
-| `screening_idempotency_receipt` | `(scope, idempotency_key_sha256)` (`008g:6`) | `(tenant_id, scope, idempotency_key_sha256)` |
+| `screening_idempotency_receipt` | `(scope, idempotency_key_sha256)` (`008g:6`) | **unchanged** — deferred to Class C / SEC-1c (§4, §9); no tenant source exists to key on |
 | `alert_case_idempotency` | `(scope, key_sha256)` (`009ab:32`) | `(tenant_id, scope, key_sha256)` |
 | `case_assistance_idempotency` | `(scope, key_sha256)` (`009c:24`) | `(tenant_id, scope, key_sha256)` |
 | `vendor_adapter_idempotency` | `(scope, idempotency_key)` (`009e:12`) | `(tenant_id, scope, idempotency_key)` |
 
 **Schema and writers change in one PR.** A key that includes `tenant_id` is wrong until every writer
-supplies one. Writers: `internal/screeningledger/postgres.go:72`,
-`internal/alertcase/postgres.go:67-90`, `internal/assistancerag/postgres.go:67-78`,
-`internal/vendoradapter/postgres.go:43` — and the duplicated `SchemaSQL` constants that mirror these
-tables (`internal/screeningledger/postgres.go:107`, `internal/alertcase/postgres.go:173`,
-`internal/assistancerag/postgres.go:127`) must move in lockstep or REL-9's schema duplication becomes
-a live divergence.
+supplies one. Writers: `internal/alertcase/postgres.go:67-90`,
+`internal/assistancerag/postgres.go:67-78`, `internal/vendoradapter/postgres.go:43` — each already
+asserts a bound tenant via `tenantctx.Assert` (seam PR #70) before the migration PR runs, confirmed by
+inspection before writing `db/migrations/014_tenant_isolation.sql` — and the duplicated `SchemaSQL`
+constants that mirror two of these tables (`internal/alertcase/postgres.go:173`,
+`internal/assistancerag/postgres.go:127`; `internal/vendoradapter/postgres.go` has no `SchemaSQL`
+const to update) must move in lockstep or REL-9's schema duplication becomes a live divergence.
+`internal/screeningledger/postgres.go:72` is not a writer for this section, per the correction above.
 
 **`ON CONFLICT ... DO NOTHING` comes off these writes.** Per the repo trap, a swallowed conflict on
 an idempotency write hides real divergence. Catch `23505` and surface it.
@@ -691,7 +710,90 @@ idempotency argument above (every statement either tenant-group's transaction co
 `ON CONFLICT ... DO NOTHING` on a content-derived key), not because serialization still holds — it
 does not, at sub-run granularity.
 
-### 4. Class D's `rag_corpus_snapshot` classification did not extend to `internal/rag`
+## Addendum: migration PR findings
+
+Recorded during implementation of §5/§6/§7/§8 (`db/migrations/014_tenant_isolation.sql`,
+`db/rollback/014_tenant_isolation_down.sql`, the seven new invariants in
+`test/sql/security_invariants.sql`, and the two-tenant suite in
+`internal/integrationtest/tenant_isolation_test.go`), verified against a real local Postgres 17
+instance provisioned identically to CI (`scripts/ci/provision_test_roles.sh`), not asserted from
+inspection alone. This section documents what §5's design missed and how it was actually resolved —
+it is not a redesign.
+
+### 1. `owl_migrator` needed the operator wildcard bound for its own backfill
+
+§5 does not say what identity the migration's own JOINs read Class A tables as, beyond "runs as
+`owl_migrator`." That identity turned out to matter: `owl_migrator` ran the `CREATE TABLE` statements
+for every Class A relation (`009ab`/`009c`/`009e`/`009f`), so it *owns* them, and `alert_record`,
+`alert_case`, `case_assistance_record`, `vendor_adapter_record` already carry
+`FORCE ROW LEVEL SECURITY` (`013_force_rls.sql`, merged before this migration). `FORCE` applies to the
+owner too — so without a bound tenant GUC, every JOIN in this migration against a Class A table,
+*including the alert_case_membership cross-tenant pre-check itself* (§5 point (e)), silently saw zero
+rows: not because nothing matched, but because RLS hid everything. Confirmed empirically: seeded a
+real cross-tenant `alert_case_membership` violation, ran the migration, and it committed successfully
+— the pre-check had found "0 violations" for the wrong reason. This is exactly the class of bug this
+ADR exists to eliminate, and it was invisible against CI's empty-database migration run, which has no
+data for RLS to hide.
+
+**Resolution.** The migration binds the operator wildcard for the lifetime of its own transaction
+before any Class A read (`db/migrations/014_tenant_isolation.sql:50`,
+`SELECT set_config('openwatchlist.tenant_id', '*', true)`), `is_local=true` so it cannot leak past
+`COMMIT`/`ROLLBACK`. This does not touch invariant 6 (no wildcard reachable from `owl_app`): the
+invariant is about `owl_app`, a distinct, less-privileged role that never runs a migration file.
+
+### 2. Foreign-key checks bypass row security — ten policies needed a cross-reference `WITH CHECK`
+
+§5's uniform `openwatchlist_tenant_visible(tenant_id)` policy (same predicate on `USING` and
+`WITH CHECK`, applied identically to all 16 relations) verifies a row's *own* `tenant_id` column. It
+does not verify that a row's *reference* to another tenant-scoped relation agrees. Postgres
+referential-integrity checks bypass row security by design — documented Postgres behavior, since an RI
+check must see the referenced row regardless of the querying session's visibility, or it could not
+enforce integrity at all. Confirmed empirically: bound as one tenant, a plain `INSERT` into
+`alert_case_membership` referencing another tenant's real, existing `alert_record` row succeeded — the
+row's own `WITH CHECK` passed (its own `tenant_id` matched the GUC) and the FK check to `alert_record`
+ignored RLS entirely. A normal tenant-bound caller could create a **new** cross-tenant link at any
+time going forward; §5's pre-check only ever screens for pre-existing violations, once, at migration
+time.
+
+**Resolution.** Ten of the eleven Class B relations reference another Class A/B relation and gained an
+explicit `EXISTS` subquery in `WITH CHECK` verifying the referenced parent belongs to the same tenant
+as the row being written (`db/migrations/014_tenant_isolation.sql:444-548`) — an `EXISTS` subquery,
+unlike an FK check, is an ordinary query and *is* subject to the querying session's RLS, so it only
+finds the parent when visible under the current binding. `operational_outbox_message` is the one
+Class B relation with no incoming reference to verify and keeps the bare predicate. The comparison is
+against the child row's own `tenant_id` column, not directly against
+`current_setting('openwatchlist.tenant_id')`: for any concrete tenant the two are equivalent (the bare
+predicate already forces the child's `tenant_id` to equal the GUC), but they diverge under the
+operator wildcard, where comparing directly to the GUC would require the parent to literally have
+`tenant_id='*'` — which no real row has — wrongly rejecting every operator-authored write. `USING`
+keeps the bare predicate: every row already reaching a table was verified against its parent either at
+backfill time (§5) or by this same `WITH CHECK` at insert time, so re-verifying on every read is
+redundant work, not a coverage gap. Every one of the ten new subqueries has its own empirical
+regression case in `internal/integrationtest/tenant_isolation_test.go`'s `FKCrossing` subtests — one
+relation's correct subquery does not imply another's is, and two were caught wrong during development
+(a naming mismatch between seeded fixture IDs and the test's own forged rows initially made two of the
+ten "pass" for referencing a row that did not exist under either tenant, not for correctly detecting
+the cross-tenant case).
+
+### 3. `case_assistance_idempotency`'s `review_event` rows need scope-parsing in the policy, not just the backfill
+
+Documented already as a backfill-derivation correction (§5's file header), but it applies equally to
+the new `WITH CHECK`: `object_id` for a `review_event`-scoped row is a per-assistance sequence number
+(`"1"`, `"2"`, …), not an `assistance_id` — the real owner is recoverable only by parsing it out of
+`scope` (`"review:"+assistance_id`, per `internal/assistancerag/store.go:369`). The policy's `EXISTS`
+subquery for this branch repeats the identical `substring(scope FROM length('review:') + 1)`
+derivation the backfill uses (`db/migrations/014_tenant_isolation.sql:504`), and has its own dedicated
+integration-suite case (`FKCrossing/case_assistance_idempotency_review_event_branch_via_scope`) rather
+than relying on the `assistance`-branch case to stand in for it.
+
+### 4. `screening_idempotency_receipt` correction
+
+§6 originally listed `screening_idempotency_receipt` as receiving the tenant-scoped key change in this
+migration. Corrected in §4/§6/§9 directly (not just here): `internal/screeningapi` has no tenant
+concept anywhere to backfill from or write going forward, so the table stays fully inside the Class C
+deferral. See §4 Class C and §6 for the corrected text and reasoning; noted here only so this
+addendum's own list of migration-PR corrections is complete.
+### 5. Class D's `rag_corpus_snapshot` classification did not extend to `internal/rag`
 
 §4's Class D table classifies the Postgres relation `rag_corpus_snapshot`
 (`db/migrations/009c_governed_rag_ai_assistance.sql:2`) as platform-global: "Content-addressed corpus

@@ -83,7 +83,15 @@ grant-app-privileges)
     echo "FAIL: no tables read from $TABLES_FILE" >&2
     exit 1
   }
-  echo "PASS: granted owl_app DML on $count tenant-scoped relation(s)"
+  # security_control_suspension (db/migrations/014_tenant_isolation.sql)
+  # is not tenant-scoped, so it is deliberately outside the loop above --
+  # but SQL invariant 5 (test/sql/security_invariants.sql, "no open
+  # security_control_suspension row") runs as owl_app via
+  # OWL_TEST_DATABASE_URL, and needs to read it. SELECT only: writing a
+  # suspension row is db/rollback/014_tenant_isolation_down.sql's job, run
+  # as owl_migrator, never as owl_app.
+  psql_super -c "GRANT SELECT ON security_control_suspension TO owl_app;"
+  echo "PASS: granted owl_app DML on $count tenant-scoped relation(s), SELECT on security_control_suspension"
   ;;
 *)
   usage

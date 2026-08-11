@@ -159,13 +159,14 @@ func SyncVendorAdapterState(ctx context.Context, p *PSQLRunner, state string) (m
 			fmt.Fprintf(os.Stderr, "productionops: SyncVendorAdapterState: cannot resolve tenant for receipt scope=%s record_id=%s: no matching record in this batch; skipping\n", r.Scope, r.RecordID)
 			continue
 		}
-		stmt := tenantsql.Insert("vendor_adapter_idempotency", []tenantsql.Col{
+		stmt := tenantsql.InsertCatchConflict("vendor_adapter_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: pgText(tenantID)},
 			{Name: "scope", SQL: pgText(r.Scope)},
 			{Name: "idempotency_key", SQL: pgText(r.IdempotencyKey)},
 			{Name: "source_sha256", SQL: pgText(r.SourceSHA256)},
 			{Name: "record_id", SQL: pgText(r.RecordID)},
 			{Name: "receipt_json", SQL: pgJSON(b)},
-		}, "ON CONFLICT(scope,idempotency_key) DO NOTHING")
+		})
 		batch.add(tenantID, stmt)
 	}
 	for _, f := range audits {

@@ -93,7 +93,8 @@ func (p *PostgresSink) PersistAlert(ctx context.Context, alert AlertRecord, rece
 		{Name: "created_at", SQL: sqlText(alert.CreatedAt) + "::timestamptz"},
 		{Name: "alert_json", SQL: sqlJSON(alertJSON)},
 	}, "ON CONFLICT(alert_id) DO NOTHING") +
-		tenantsql.Insert("alert_case_idempotency", []tenantsql.Col{
+		tenantsql.InsertCatchConflict("alert_case_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: sqlText(tenant.String())},
 			{Name: "scope", SQL: sqlText(receipt.Scope)},
 			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
 			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
@@ -102,7 +103,7 @@ func (p *PostgresSink) PersistAlert(ctx context.Context, alert AlertRecord, rece
 			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
 			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
 			{Name: "receipt_json", SQL: sqlJSON(receiptJSON)},
-		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+		})
 	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
@@ -143,7 +144,8 @@ func (p *PostgresSink) PersistCase(ctx context.Context, projection CaseProjectio
 			{Name: "actor", SQL: sqlText(event.Actor)},
 			{Name: "event_json", SQL: sqlJSON(eventJSON)},
 		}, "ON CONFLICT(event_sha256) DO NOTHING") +
-		tenantsql.Insert("alert_case_idempotency", []tenantsql.Col{
+		tenantsql.InsertCatchConflict("alert_case_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: sqlText(tenant.String())},
 			{Name: "scope", SQL: sqlText(receipt.Scope)},
 			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
 			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
@@ -152,7 +154,7 @@ func (p *PostgresSink) PersistCase(ctx context.Context, projection CaseProjectio
 			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
 			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
 			{Name: "receipt_json", SQL: sqlJSON(receiptJSON)},
-		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+		})
 	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
@@ -323,6 +325,7 @@ CREATE TABLE IF NOT EXISTS alert_case_event(
  UNIQUE(case_id,sequence),UNIQUE(case_id,revision)
 );
 CREATE TABLE IF NOT EXISTS alert_case_idempotency(
+ tenant_id text NOT NULL,
  scope text NOT NULL,
  key_sha256 text NOT NULL,
  request_sha256 text NOT NULL,
@@ -332,7 +335,7 @@ CREATE TABLE IF NOT EXISTS alert_case_idempotency(
  created_at timestamptz NOT NULL,
  receipt_json jsonb NOT NULL,
  inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
- PRIMARY KEY(scope,key_sha256)
+ PRIMARY KEY(tenant_id,scope,key_sha256)
 );
 CREATE TABLE IF NOT EXISTS alert_case_audit(
  stream_id text NOT NULL,
