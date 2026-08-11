@@ -115,6 +115,30 @@ func TestInsertNoConflictClause(t *testing.T) {
 	}
 }
 
+func TestInsertCatchConflictAssemblesStatement(t *testing.T) {
+	sql := tenantsql.InsertCatchConflict("alert_case_idempotency", []tenantsql.Col{
+		{Name: "tenant_id", SQL: "'t1'"},
+		{Name: "scope", SQL: "'s1'"},
+	})
+	want := "DO $$ BEGIN\n" +
+		"INSERT INTO alert_case_idempotency(tenant_id,scope) VALUES ('t1','s1');\n" +
+		"EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION 'idempotency key conflict on alert_case_idempotency: %', SQLERRM;\n" +
+		"END $$;\n"
+	if sql != want {
+		t.Fatalf("InsertCatchConflict() = %q, want %q", sql, want)
+	}
+}
+
+func TestInsertCatchConflictHasNoConflictClause(t *testing.T) {
+	sql := tenantsql.InsertCatchConflict("alert_case_idempotency", []tenantsql.Col{{Name: "scope", SQL: "'s1'"}})
+	if strings.Contains(sql, "ON CONFLICT") {
+		t.Fatalf("InsertCatchConflict() must never contain ON CONFLICT, got %q", sql)
+	}
+	if !strings.Contains(sql, "EXCEPTION WHEN unique_violation") {
+		t.Fatalf("InsertCatchConflict() does not catch unique_violation: %q", sql)
+	}
+}
+
 // TestWithTenantConcurrentSafe exercises the seam under -race: concurrent
 // bindings for different tenants must not observe each other's state,
 // since there is none shared -- each call builds an independent string.

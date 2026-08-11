@@ -68,13 +68,14 @@ func (p *PostgresSink) Persist(ctx context.Context, e Envelope, r Receipt) error
 		{Name: "occurred_at", SQL: q(e.CreateAlertRequest.OccurredAt) + "::timestamptz"},
 		{Name: "envelope_json", SQL: q(string(eb)) + "::jsonb"},
 	}, "ON CONFLICT(record_id) DO NOTHING") +
-		tenantsql.Insert("vendor_adapter_idempotency", []tenantsql.Col{
+		tenantsql.InsertCatchConflict("vendor_adapter_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: q(tenant.String())},
 			{Name: "scope", SQL: q(r.Scope)},
 			{Name: "idempotency_key", SQL: q(r.IdempotencyKey)},
 			{Name: "source_sha256", SQL: q(r.SourceSHA256)},
 			{Name: "record_id", SQL: q(r.RecordID)},
 			{Name: "receipt_json", SQL: q(string(rb)) + "::jsonb"},
-		}, "ON CONFLICT(scope,idempotency_key) DO NOTHING")
+		})
 	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 func q(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }

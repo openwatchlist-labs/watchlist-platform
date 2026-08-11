@@ -65,17 +65,37 @@ type Col struct {
 // table is a runtime value, not a literal baked in alongside the verb, so
 // callers pass table names as data.
 func Insert(table string, cols []Col, conflict string) string {
+	sql := insertStatement(table, cols)
+	if conflict != "" {
+		sql += " " + conflict
+	}
+	return sql + ";\n"
+}
+
+// InsertCatchConflict assembles a bare INSERT (no ON CONFLICT clause)
+// wrapped in a PL/pgSQL block that catches unique_violation (SQLSTATE
+// 23505) and re-raises it naming the table, instead of a caller reaching
+// for "ON CONFLICT ... DO NOTHING" -- which would silently swallow a real
+// idempotency-key collision rather than surface it (repo rule: "Do not
+// swallow conflicts... Catch 23505 and surface it"). table is a runtime
+// value for the same reason Insert's is: callers pass table names as
+// data, this package writes the verb text.
+func InsertCatchConflict(table string, cols []Col) string {
+	insert := insertStatement(table, cols) + ";"
+	return "DO $$ BEGIN\n" +
+		insert + "\n" +
+		"EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION 'idempotency key conflict on " + table + ": %', SQLERRM;\n" +
+		"END $$;\n"
+}
+
+func insertStatement(table string, cols []Col) string {
 	names := make([]string, len(cols))
 	vals := make([]string, len(cols))
 	for i, c := range cols {
 		names[i] = c.Name
 		vals[i] = c.SQL
 	}
-	sql := "INSERT INTO " + table + "(" + strings.Join(names, ",") + ") VALUES (" + strings.Join(vals, ",") + ")"
-	if conflict != "" {
-		sql += " " + conflict
-	}
-	return sql + ";\n"
+	return "INSERT INTO " + table + "(" + strings.Join(names, ",") + ") VALUES (" + strings.Join(vals, ",") + ")"
 }
 
 func sqlText(v string) string {

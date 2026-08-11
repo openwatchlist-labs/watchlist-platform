@@ -17,6 +17,7 @@
 permanent	Migrate	D1/ADR §3: runs schema DDL as owl_migrator; never bound to a tenant.
 permanent	Ping	D1/ADR §3: issues SELECT 1; touches no tenant-scoped relation.
 permanent	db/migrations/	ADR §5: the 014 migration backfill/policy DDL runs directly as owl_migrator, outside any Go seam.
+permanent	internal/integrationtest/tenant_isolation_test.go	ADR §8: the two-tenant suite deliberately issues raw SQL via psql to verify what Postgres RLS/WITH CHECK enforce directly, independent of the Go seam -- it must not route through tenantsql, since the property under test is the database's own enforcement, not the seam's.
 #
 # TRANSITIONAL -- empty. The seam PR (internal/tenantsql, ADR §3) has
 # adopted WithTenant at every sink call site that was seeded here by the

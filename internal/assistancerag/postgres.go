@@ -102,7 +102,8 @@ func (p *PostgresSink) PersistRecord(ctx context.Context, r AssistanceRecord, re
 		{Name: "occurred_at", SQL: sqlText(r.OccurredAt) + "::timestamptz"},
 		{Name: "record_json", SQL: sqlJSON(raw)},
 	}, "ON CONFLICT(assistance_id) DO NOTHING") +
-		tenantsql.Insert("case_assistance_idempotency", []tenantsql.Col{
+		tenantsql.InsertCatchConflict("case_assistance_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: sqlText(tenant.String())},
 			{Name: "scope", SQL: sqlText(receipt.Scope)},
 			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
 			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
@@ -111,7 +112,7 @@ func (p *PostgresSink) PersistRecord(ctx context.Context, r AssistanceRecord, re
 			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
 			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
 			{Name: "receipt_json", SQL: sqlJSON(rr)},
-		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+		})
 	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
@@ -140,7 +141,8 @@ func (p *PostgresSink) PersistReview(ctx context.Context, e ReviewEvent, receipt
 		{Name: "occurred_at", SQL: sqlText(e.OccurredAt) + "::timestamptz"},
 		{Name: "event_json", SQL: sqlJSON(raw)},
 	}, "ON CONFLICT(event_sha256) DO NOTHING") +
-		tenantsql.Insert("case_assistance_idempotency", []tenantsql.Col{
+		tenantsql.InsertCatchConflict("case_assistance_idempotency", []tenantsql.Col{
+			{Name: "tenant_id", SQL: sqlText(tenant.String())},
 			{Name: "scope", SQL: sqlText(receipt.Scope)},
 			{Name: "key_sha256", SQL: sqlText(receipt.KeySHA256)},
 			{Name: "request_sha256", SQL: sqlText(receipt.RequestSHA256)},
@@ -149,7 +151,7 @@ func (p *PostgresSink) PersistReview(ctx context.Context, e ReviewEvent, receipt
 			{Name: "object_id", SQL: sqlText(receipt.ObjectID)},
 			{Name: "created_at", SQL: sqlText(receipt.CreatedAt) + "::timestamptz"},
 			{Name: "receipt_json", SQL: sqlJSON(rr)},
-		}, "ON CONFLICT(scope,key_sha256) DO NOTHING")
+		})
 	return tenantsql.WithTenant(ctx, tenant, body, p.runBound)
 }
 
@@ -267,9 +269,9 @@ CREATE TABLE IF NOT EXISTS case_assistance_review(
  UNIQUE(assistance_id,sequence)
 );
 CREATE TABLE IF NOT EXISTS case_assistance_idempotency(
- scope text NOT NULL,key_sha256 text NOT NULL,request_sha256 text NOT NULL,response_sha256 text NOT NULL,
+ tenant_id text NOT NULL,scope text NOT NULL,key_sha256 text NOT NULL,request_sha256 text NOT NULL,response_sha256 text NOT NULL,
  object_type text NOT NULL,object_id text NOT NULL,created_at timestamptz NOT NULL,receipt_json jsonb NOT NULL,
- inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(scope,key_sha256)
+ inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(tenant_id,scope,key_sha256)
 );
 CREATE TABLE IF NOT EXISTS case_assistance_audit(
  stream_id text NOT NULL,sequence bigint NOT NULL,audit_sha256 text PRIMARY KEY,previous_audit_sha256 text NOT NULL,
