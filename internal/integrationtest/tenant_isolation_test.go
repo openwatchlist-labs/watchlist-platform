@@ -444,6 +444,19 @@ VALUES ('%[1]s','legit-ostream-%[2]s',999,rpad('legit_oevt_%[2]s',64,'0'),'','ms
 		// Confirm no row was written by any sink -- not just that Go
 		// returned an error before reaching Postgres, but that Postgres
 		// itself holds nothing under this alert_id, for any tenant.
+		//
+		// set_config('*', ...) below is test-diagnostic-only: it runs
+		// solely as owl_migrator (migratorURL, not testURL/owl_app),
+		// scoped to this single isolated psql connection, purely to make
+		// this one verification read see across every tenant. It must
+		// never be reachable from application code -- owl_app's only
+		// path to the tenant GUC is internal/tenantsql.WithTenant, which
+		// only accepts a tenantctx.Tenant, and tenantctx.Resolve
+		// structurally refuses to ever construct one holding '*'
+		// (ErrWildcardTenant). See ADR-0001 SEC-1 §3 ("owl_app... Never
+		// granted BYPASSRLS") and invariant 6 in test/sql/
+		// security_invariants.sql ("no policy reachable by owl_app
+		// admits the '*' wildcard") for why that boundary matters.
 		verify := fmt.Sprintf(`SELECT set_config('openwatchlist.tenant_id','*',false); SELECT count(*) FROM alert_record WHERE alert_id='%s';`, alertID)
 		if got := lastSEC1Line(mustRunSEC1SQL(t, migratorURL, verify)); got != "0" {
 			t.Fatalf("expected no alert_record row to exist after a rejected provenance mismatch, found %s", got)
