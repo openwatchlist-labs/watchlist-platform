@@ -793,3 +793,67 @@ migration. Corrected in §4/§6/§9 directly (not just here): `internal/screenin
 concept anywhere to backfill from or write going forward, so the table stays fully inside the Class C
 deferral. See §4 Class C and §6 for the corrected text and reasoning; noted here only so this
 addendum's own list of migration-PR corrections is complete.
+### 5. Class D's `rag_corpus_snapshot` classification did not extend to `internal/rag`
+
+§4's Class D table classifies the Postgres relation `rag_corpus_snapshot`
+(`db/migrations/009c_governed_rag_ai_assistance.sql:2`) as platform-global: "Content-addressed corpus
+shared across tenants; per-tenant use is recorded on `case_assistance_record`" (line 273). That
+relation is owned by `internal/assistancerag` (`internal/assistancerag/postgres.go`), one of the
+packages this addendum's §1 and §2 already retrofit through `tenantsql.WithTenant`.
+
+Two unrelated systems share the name. `internal/rag` — a second, independent retrieval
+implementation used by `cmd/rag-query`, `cmd/rag-index`, `cmd/review-run`, and
+`internal/revieworchestrator` — defines its own `CorpusSnapshot` type (`internal/rag/types.go:65`)
+under schema string `rag-corpus-snapshot/v1alpha1` (`internal/rag/types.go:5`). It is file-based:
+`rag.LoadSnapshot` reads a JSON file from disk, and no Postgres relation backs it at all.
+`cmd/rag-index/main_test.go:1-13` documents this collision directly — it records that the repo has
+"TWO separate, parallel RAG implementations," `internal/rag` and `internal/assistancerag`,
+distinguished only by actually running the binary against the fixtures and diffing output, because
+the two packages' schemas are otherwise easy to conflate.
+
+Because `internal/rag` creates no relation under `db/migrations/`, it cannot appear in §4's table —
+the table's own governing rule is that every relation created under `db/migrations/` appears exactly
+once (lines 230-232) — and Class D's stated rationale for `rag_corpus_snapshot` ("per-tenant use is
+recorded on `case_assistance_record`") was never about, and does not extend to, `internal/rag`'s
+document set.
+
+`internal/rag`'s `DocumentSpec` carries a real per-document `TenantID` (`internal/rag/types.go:33`),
+and the retriever does filter on it: `documentAllowed` excludes a document whose `Spec.TenantID` is
+non-empty and unequal to `query.TenantID`, incrementing `ExcludedTenantOrScope`
+(`internal/rag/retrieve.go:122-124`). That filter runs; it is not theatre. What is unverified is
+`query.TenantID` itself. `cmd/rag-query` and `cmd/review-run` — the entry points that build a
+`RetrievalQuery` — take tenant identity from a plain `--tenant-id` flag, defaulted to `"tenant-a"`
+and checked against nothing (`cmd/rag-query/main.go:20`, `cmd/review-run/main.go:30`).
+`revieworchestrator.Run` passes it straight through into `rag.QueryFromDecision`
+(`internal/revieworchestrator/orchestrate.go:38`, `:87`) with no intervening check. There is no
+`reviewauth.Claims`, no token, nothing upstream of `internal/rag` resembling the verified-claims
+input `tenantctx.Resolve` requires (`internal/tenantctx/tenantctx.go:35-44`) — the caller asserts a
+tenant and the retriever trusts the assertion.
+
+**Out of scope for the 014 migration; tracked separately as SEC-1d.**
+`db/migrations/014_tenant_isolation.sql` operates on Postgres relations only (§5); `internal/rag` has
+no database relation to seal, so there is nothing for that migration to touch. Closing this gap means
+giving `cmd/rag-query`, `cmd/review-run`, and any future service wrapping them an authentication
+mechanism to derive `TenantID` from, following the same pattern §2 established via
+`tenantctx.Resolve` (`internal/tenantctx/tenantctx.go:35-44`): a verified-claims input in, a bound
+tenant out, with the same wildcard and empty-tenant refusals `Resolve` already implements. Until that
+identity exists, this is the same "tenant identity is currently chosen by the caller" hazard the
+Context section names for `internal/alertcaseapi` (line 52), on a code path the Context section does
+not cover. The draft security advisory "Tenant isolation is not enforced"
+(`scripts/create-advisories.sh:36-39`, currently `Status: partially addressed`) is written broadly
+enough to cover this gap; its description should be understood to include `internal/rag`'s
+CLI/future-service callers, not only the Postgres-bound paths this ADR closes.
+
+**Distinct, separately-tracked bug: `AccessScope` is validated but never enforced (SEC-14).**
+`DocumentSpec.AccessScope` (`internal/rag/types.go:34`) is required to be non-empty at manifest
+validation — `ValidateManifest` rejects a document with `len(doc.AccessScope) == 0`
+(`internal/rag/validate.go:24`) — but nothing downstream ever reads it. `documentAllowed`
+(`internal/rag/retrieve.go:117-141`) checks source tier, approval status, `TenantID`, and the
+effective-date window; it does not reference `AccessScope`. `RetrievalQuery`
+(`internal/rag/types.go:96-112`) has no scope field to compare it against, and a repo-wide search
+confirms `AccessScope` appears at exactly the two sites above and nowhere else in the module. The
+counter its name implies it drives, `ExcludedTenantOrScope` (`internal/rag/types.go:145`), is
+incremented from exactly one branch — the `TenantID` check (`internal/rag/retrieve.go:123`) — and no
+branch increments it for scope. The name promises an enforcement the code does not perform. This is
+independent of SEC-1d above: even a fully authenticated `TenantID` would not stop a document from
+being retrieved outside its declared `AccessScope`, because nothing checks `AccessScope` at all.
