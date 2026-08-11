@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
 )
 
 type Handler struct {
@@ -86,9 +88,14 @@ func (handler *Handler) handleScreening(writer http.ResponseWriter, request *htt
 	if correlationID == "" {
 		correlationID = "corr_" + hashBytes(body)[:24]
 	}
+	tenant, ok := tenantctx.FromContext(request.Context())
+	if !ok {
+		handler.writeProblem(writer, Problem{SchemaVersion: ProblemSchemaVersion, Type: "about:blank", Title: "Unauthorized", Status: http.StatusUnauthorized, Code: "TENANT_UNBOUND", Detail: "no tenant bound on this request", CorrelationID: correlationID})
+		return
+	}
 	endpoint := request.URL.Path
 	requestSHA := hashBytes(append([]byte(endpoint+"\x1f"), body...))
-	replay, lease, err := handler.Store.Begin(endpoint, idempotencyKey, requestSHA)
+	replay, lease, err := handler.Store.Begin(endpoint, tenant.String(), idempotencyKey, requestSHA)
 	if err != nil {
 		status, code := http.StatusInternalServerError, "IDEMPOTENCY_STORE_ERROR"
 		if errors.Is(err, ErrIdempotencyConflict) {
@@ -146,7 +153,7 @@ func (handler *Handler) handleScreening(writer http.ResponseWriter, request *htt
 		handler.writeServiceError(writer, correlationID, err)
 		return
 	}
-	record := newIdempotencyRecord(endpoint, idempotencyKey, requestSHA, correlationID, http.StatusOK, encoded, handler.Service.now())
+	record := newIdempotencyRecord(endpoint, tenant.String(), idempotencyKey, requestSHA, correlationID, http.StatusOK, encoded, handler.Service.now())
 	if err := lease.Commit(record); err != nil {
 		handler.writeServiceError(writer, correlationID, err)
 		return

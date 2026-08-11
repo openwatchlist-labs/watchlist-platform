@@ -26,11 +26,16 @@ type IdempotencyLease struct {
 	released bool
 }
 
-func (store IdempotencyStore) Begin(endpoint, key, requestSHA string) (*idempotencyRecord, *IdempotencyLease, error) {
+// Begin starts (or replays) an idempotent write scoped to tenant. Scoping
+// the record path by tenant, not just endpoint and key, closes the
+// screeningapi half of GHSA-vhj8-986g-vjf4 (ADR-0003 §7): two tenants
+// presenting the same idempotency key no longer collide on the same
+// on-disk record.
+func (store IdempotencyStore) Begin(endpoint, tenant, key, requestSHA string) (*idempotencyRecord, *IdempotencyLease, error) {
 	if strings.TrimSpace(store.Root) == "" {
 		return nil, nil, fmt.Errorf("idempotency root is required")
 	}
-	path := store.recordPath(endpoint, key)
+	path := store.recordPath(endpoint, tenant, key)
 	if record, err := store.read(path); err == nil {
 		if record.RequestSHA256 != requestSHA {
 			return nil, nil, ErrIdempotencyConflict
@@ -62,7 +67,7 @@ func (lease *IdempotencyLease) Commit(record idempotencyRecord) error {
 	if lease == nil || lease.released {
 		return fmt.Errorf("idempotency lease is not active")
 	}
-	path := lease.store.recordPath(record.Endpoint, record.Key)
+	path := lease.store.recordPath(record.Endpoint, record.Tenant, record.Key)
 	data, err := jsonBytes(record)
 	if err != nil {
 		lease.Release()
@@ -105,11 +110,12 @@ func (lease *IdempotencyLease) Release() {
 	_ = os.Remove(lease.lockPath)
 }
 
-func (store IdempotencyStore) recordPath(endpoint, key string) string {
+func (store IdempotencyStore) recordPath(endpoint, tenant, key string) string {
 	return filepath.Join(store.Root, digest(struct {
 		Endpoint string `json:"endpoint"`
+		Tenant   string `json:"tenant"`
 		Key      string `json:"key"`
-	}{Endpoint: endpoint, Key: key})+".json")
+	}{Endpoint: endpoint, Tenant: tenant, Key: key})+".json")
 }
 
 func (store IdempotencyStore) read(path string) (idempotencyRecord, error) {
@@ -123,7 +129,7 @@ func (store IdempotencyStore) read(path string) (idempotencyRecord, error) {
 	if err := decoder.Decode(&record); err != nil {
 		return idempotencyRecord{}, err
 	}
-	if record.SchemaVersion != IdempotencySchemaVersion || record.Endpoint == "" || record.Key == "" || len(record.RequestSHA256) != 64 || len(record.Response) == 0 || record.CreatedAt.IsZero() {
+	if record.SchemaVersion != IdempotencySchemaVersion || record.Endpoint == "" || record.Tenant == "" || record.Key == "" || len(record.RequestSHA256) != 64 || len(record.Response) == 0 || record.CreatedAt.IsZero() {
 		return idempotencyRecord{}, fmt.Errorf("invalid idempotency record")
 	}
 	return record, nil
@@ -140,6 +146,6 @@ func jsonBytes(value any) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func newIdempotencyRecord(endpoint, key, requestSHA, correlationID string, status int, response []byte, createdAt time.Time) idempotencyRecord {
-	return idempotencyRecord{SchemaVersion: IdempotencySchemaVersion, Endpoint: endpoint, Key: key, RequestSHA256: requestSHA, StatusCode: status, CorrelationID: correlationID, Response: append([]byte(nil), response...), CreatedAt: createdAt.UTC()}
+func newIdempotencyRecord(endpoint, tenant, key, requestSHA, correlationID string, status int, response []byte, createdAt time.Time) idempotencyRecord {
+	return idempotencyRecord{SchemaVersion: IdempotencySchemaVersion, Endpoint: endpoint, Tenant: tenant, Key: key, RequestSHA256: requestSHA, StatusCode: status, CorrelationID: correlationID, Response: append([]byte(nil), response...), CreatedAt: createdAt.UTC()}
 }
