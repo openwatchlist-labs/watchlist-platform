@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertcase"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
 )
 
 type Server struct {
@@ -49,7 +50,7 @@ func (s *Server) Check(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) Handler() http.Handler {
+func (s *Server) Handler() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /readyz", s.ready)
@@ -121,6 +122,10 @@ func (s *Server) createAlert(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			err = s.Postgres.PersistAlert(r.Context(), alert, receipt)
 		}
+		if errors.Is(err, tenantctx.ErrTenantMismatch) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "body tenant_id does not match the authenticated tenant", "detail": err.Error()})
+			return
+		}
 		if err == nil {
 			err = s.Postgres.SyncAudit(r.Context(), s.Config.StateDirectory)
 		}
@@ -152,6 +157,10 @@ func (s *Server) createAlertBatch(w http.ResponseWriter, r *http.Request) {
 			receipt, persistErr := s.Store.Receipt("create-alert", child.IdempotencyKey)
 			if persistErr == nil {
 				persistErr = s.Postgres.PersistAlert(r.Context(), alert, receipt)
+			}
+			if errors.Is(persistErr, tenantctx.ErrTenantMismatch) {
+				writeJSON(w, http.StatusForbidden, map[string]any{"error": "body tenant_id does not match the authenticated tenant", "detail": persistErr.Error(), "completed": i})
+				return
 			}
 			if persistErr != nil && s.Config.PostgresRequired {
 				writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "durable PostgreSQL batch persistence failed", "detail": persistErr.Error(), "completed": i})
@@ -194,6 +203,10 @@ func (s *Server) createCase(w http.ResponseWriter, r *http.Request) {
 		receipt, e2 := s.Store.Receipt("create-case", req.IdempotencyKey)
 		if e1 == nil && e2 == nil {
 			e1 = s.Postgres.PersistCase(r.Context(), projection, event, receipt)
+		}
+		if errors.Is(e1, tenantctx.ErrTenantMismatch) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "body tenant_id does not match the authenticated tenant", "detail": e1.Error()})
+			return
 		}
 		if e1 == nil {
 			e1 = s.Postgres.SyncAudit(r.Context(), s.Config.StateDirectory)
@@ -239,6 +252,10 @@ func (s *Server) caseEvent(w http.ResponseWriter, r *http.Request) {
 		receipt, e1 := s.Store.Receipt(scope, req.IdempotencyKey)
 		if e1 == nil {
 			e1 = s.Postgres.PersistCase(r.Context(), projection, event, receipt)
+		}
+		if errors.Is(e1, tenantctx.ErrTenantMismatch) {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "case tenant does not match the authenticated tenant", "detail": e1.Error()})
+			return
 		}
 		if e1 != nil && s.Config.PostgresRequired {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "durable PostgreSQL persistence failed", "detail": e1.Error(), "case_id": req.CaseID})
