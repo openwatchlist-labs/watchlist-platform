@@ -38,6 +38,14 @@ type Config struct {
 	MaxBatchItems       int              `json:"max_batch_items"`
 	MaxCandidates       int              `json:"max_candidates"`
 	RequestTimeoutMS    int              `json:"request_timeout_ms"`
+	// AuthRegistryPath and SigningKeyPath configure the reviewauth
+	// TokenService httpauth authenticates requests with (ADR-0003 §2).
+	// Not validated by ValidateConfig -- "check" needs no auth to
+	// validate catalog/runtime wiring -- but required by "serve" (D4:
+	// hard cutover, no auth_required flag to make them optional there).
+	AuthRegistryPath   string `json:"auth_registry_path,omitempty"`
+	SigningKeyPath     string `json:"signing_key_path,omitempty"`
+	MaxTokenTTLMinutes int    `json:"max_token_ttl_minutes,omitempty"`
 }
 
 type QueryKind string
@@ -154,6 +162,7 @@ type Problem struct {
 type idempotencyRecord struct {
 	SchemaVersion string    `json:"schema_version"`
 	Endpoint      string    `json:"endpoint"`
+	Tenant        string    `json:"tenant"`
 	Key           string    `json:"key"`
 	RequestSHA256 string    `json:"request_sha256"`
 	StatusCode    int       `json:"status_code"`

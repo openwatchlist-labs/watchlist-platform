@@ -25,6 +25,8 @@ func LoadConfig(path string) (Config, error) {
 	config.MappingRegistryPath = resolvePath(base, config.MappingRegistryPath)
 	config.RuntimeBinaryPath = resolvePath(base, config.RuntimeBinaryPath)
 	config.IdempotencyRoot = resolvePath(base, config.IdempotencyRoot)
+	config.AuthRegistryPath = resolvePath(base, config.AuthRegistryPath)
+	config.SigningKeyPath = resolvePath(base, config.SigningKeyPath)
 	for index := range config.RuntimeBindings {
 		config.RuntimeBindings[index].PackagePath = resolvePath(base, config.RuntimeBindings[index].PackagePath)
 	}

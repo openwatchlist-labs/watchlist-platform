@@ -79,13 +79,23 @@ func TestHandlerIdempotencyReplayAndConflict(t *testing.T) {
 	service := &Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }}
 	config := Config{MaxBodyBytes: 1 << 20, MaxBatchItems: 100, MaxCandidates: 20, RequestTimeoutMS: 2000}
 	handler := &Handler{Config: config, Service: service, Store: IdempotencyStore{Root: t.TempDir()}}
+	tokens := loadFixtureTokenService(t)
+	token, _, err := tokens.Issue("alice", "tenant-a", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	guarded, err := NewAuthenticatedHandler(handler, tokens, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	body, _ := json.Marshal(fixtureRequest("screen-3", "unknown", "UNKNOWN", "2026-07-20T12:00:00Z"))
 
 	first := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/v1/screenings", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "idem-http-1")
-	handler.ServeHTTP(first, req)
+	req.Header.Set("Authorization", "Bearer "+token)
+	guarded.ServeHTTP(first, req)
 	if first.Code != http.StatusOK {
 		t.Fatalf("first status=%d body=%s", first.Code, first.Body.String())
 	}
@@ -93,7 +103,8 @@ func TestHandlerIdempotencyReplayAndConflict(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/v1/screenings", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "idem-http-1")
-	handler.ServeHTTP(second, req)
+	req.Header.Set("Authorization", "Bearer "+token)
+	guarded.ServeHTTP(second, req)
 	var firstJSON, secondJSON any
 	if err := json.Unmarshal(first.Body.Bytes(), &firstJSON); err != nil {
 		t.Fatal(err)
@@ -110,7 +121,8 @@ func TestHandlerIdempotencyReplayAndConflict(t *testing.T) {
 	req = httptest.NewRequest(http.MethodPost, "/v1/screenings", bytes.NewReader(changedBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Idempotency-Key", "idem-http-1")
-	handler.ServeHTTP(conflict, req)
+	req.Header.Set("Authorization", "Bearer "+token)
+	guarded.ServeHTTP(conflict, req)
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("expected conflict, got %d body=%s", conflict.Code, conflict.Body.String())
 	}

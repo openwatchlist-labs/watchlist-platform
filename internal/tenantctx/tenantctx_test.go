@@ -56,20 +56,28 @@ func TestFromContextMissing(t *testing.T) {
 	}
 }
 
-func TestAssertResolvesFromBodyWhenNoBoundTenant(t *testing.T) {
+// TestAssertRejectsUnconditionallyWhenNoBoundTenant replaces
+// TestAssertResolvesFromBodyWhenNoBoundTenant (ADR-0003 SEC-1b §6): the
+// fallback to Resolve(body) when ctx carries no bound tenant is gone. A
+// well-formed body tenant_id no longer buys anything absent a verified
+// binding -- Assert fails closed with ErrNoBoundTenant regardless of what
+// the body claims.
+func TestAssertRejectsUnconditionallyWhenNoBoundTenant(t *testing.T) {
 	tenant, err := Assert(context.Background(), "tenant-acme")
-	if err != nil {
-		t.Fatalf("Assert() unexpected error: %v", err)
-	}
-	if tenant.String() != "tenant-acme" {
-		t.Fatalf("Assert() = %q, want %q", tenant.String(), "tenant-acme")
+	if !errors.Is(err, ErrNoBoundTenant) {
+		t.Fatalf("Assert() = (%v, %v), want ErrNoBoundTenant", tenant, err)
 	}
 }
 
+// TestAssertRejectsWildcardOrEmptyBodyWhenNoBoundTenant keeps passing after
+// SEC-1b's fallback removal, but for a different reason: previously the
+// body value itself was rejected by Resolve (ErrWildcardTenant /
+// ErrNoTenantClaim); now every id is rejected outright because no tenant
+// is bound, before the body value is inspected at all.
 func TestAssertRejectsWildcardOrEmptyBodyWhenNoBoundTenant(t *testing.T) {
 	for _, id := range []string{"", "*"} {
-		if _, err := Assert(context.Background(), id); err == nil {
-			t.Fatalf("Assert(%q) = nil error, want rejection", id)
+		if _, err := Assert(context.Background(), id); !errors.Is(err, ErrNoBoundTenant) {
+			t.Fatalf("Assert(%q) = %v, want ErrNoBoundTenant", id, err)
 		}
 	}
 }

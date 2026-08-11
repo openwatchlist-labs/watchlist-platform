@@ -858,6 +858,51 @@ branch increments it for scope. The name promises an enforcement the code does n
 independent of SEC-1d above: even a fully authenticated `TenantID` would not stop a document from
 being retrieved outside its declared `AccessScope`, because nothing checks `AccessScope` at all.
 
+## Addendum: SEC-1b implementation finding (PR #83)
+
+Recorded during implementation of ADR-0003 (authenticated tenant provenance, SEC-1b). Not a
+redesign of this ADR; the finding concerns a gap in how §2's D3 provenance check
+(`tenantctx.Assert`) was wired at the HTTP layer, discovered once `internal/alertcaseapi` gained
+real authentication to exercise it against.
+
+### The `Assert` check existed and was tested; nothing turned its error into an HTTP status
+
+§2 specifies that a body-supplied `tenant_id` unequal to the bound tenant "is rejected with `403`"
+and that this closure condition holds only once SEC-1b supplies authenticated tenant identity for
+`internal/alertcaseapi`. `tenantctx.Assert` (`internal/tenantctx/tenantctx.go:75`) has returned
+`ErrTenantMismatch` since the seam PR, and `internal/alertcase/postgres.go` has called it from both
+sink entry points (`PersistAlert` at `:80`, `PersistCase` at `:111`) since the same PR — the check
+itself was never missing, and `tenantctx_test.go:98` covers `Assert` directly.
+
+What was missing sat one layer up: none of `internal/alertcaseapi/server.go`'s four write handlers
+(`createAlert`, `createAlertBatch`, `createCase`, `caseEvent`) inspected the sink's returned error
+for `ErrTenantMismatch` before PR #83. Each handler's only error branch checked
+`s.Config.PostgresRequired` (default `false`, `internal/alertcaseapi/config.go:23`) and otherwise
+fell through to its normal success response. A request whose body `tenant_id` disagreed with the
+authenticated tenant therefore still returned `201 Created` — the mismatch was detected, correctly,
+one call deep, and then discarded by the caller that received it. This is the same
+looks-installed-does-nothing shape the seam-PR addendum's §1 already names for a different code
+path, one layer further out: a control passing its own unit test proves the control fires, not that
+anything downstream acts on its result.
+
+The bug was latent rather than reachable until this PR, because `internal/alertcaseapi` had no
+authentication before ADR-0003 — the caller's asserted `tenant_id` was the only tenant claim in
+existence, so it could never disagree with anything. It became a live 403-that-returns-201 the
+moment a verified tenant existed to disagree with it, which is exactly why it surfaced while writing
+ADR-0003 §9's test bar rather than during the original seam or migration work.
+
+**Resolution.** All four write handlers now map `errors.Is(err, tenantctx.ErrTenantMismatch)` to
+`http.StatusForbidden` immediately after the sink call, before the `PostgresRequired` branch:
+`createAlert` (`internal/alertcaseapi/server.go:125-128`), `createAlertBatch` (`:161-164`,
+per-item, reporting how many batch entries had already completed), `createCase` (`:207-210`), and
+`caseEvent` (`:256-259`, worded "case tenant does not match" since this route's mismatch is on the
+case's stored tenant rather than a body field). Regression coverage:
+`TestAlertCaseAuthMismatchedBodyTenantRejected`
+(`internal/alertcaseapi/auth_test.go:264-279`) asserts 403 and zero sink calls on `createAlert`;
+`TestAlertCaseAuthMismatchedBodyTenantRejectedOnCreateCase` (`:284-322`) repeats the case against
+`createCase` to confirm the fix is not specific to one call site. Verified failing-first: reverting
+the mapping locally reproduces 201 on both tests, per the PR description.
+
 ## Addendum: citation corrections
 
 Two line-number citations in §2 were inaccurate in the original text and are corrected here:
