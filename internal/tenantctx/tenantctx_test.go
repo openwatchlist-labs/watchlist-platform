@@ -56,6 +56,50 @@ func TestFromContextMissing(t *testing.T) {
 	}
 }
 
+func TestAssertResolvesFromBodyWhenNoBoundTenant(t *testing.T) {
+	tenant, err := Assert(context.Background(), "tenant-acme")
+	if err != nil {
+		t.Fatalf("Assert() unexpected error: %v", err)
+	}
+	if tenant.String() != "tenant-acme" {
+		t.Fatalf("Assert() = %q, want %q", tenant.String(), "tenant-acme")
+	}
+}
+
+func TestAssertRejectsWildcardOrEmptyBodyWhenNoBoundTenant(t *testing.T) {
+	for _, id := range []string{"", "*"} {
+		if _, err := Assert(context.Background(), id); err == nil {
+			t.Fatalf("Assert(%q) = nil error, want rejection", id)
+		}
+	}
+}
+
+func TestAssertAcceptsBodyMatchingBoundTenant(t *testing.T) {
+	bound, err := Resolve(reviewauth.Claims{TenantID: "tenant-acme"})
+	if err != nil {
+		t.Fatalf("Resolve() unexpected error: %v", err)
+	}
+	ctx := NewContext(context.Background(), bound)
+	tenant, err := Assert(ctx, "tenant-acme")
+	if err != nil {
+		t.Fatalf("Assert() unexpected error: %v", err)
+	}
+	if tenant.String() != "tenant-acme" {
+		t.Fatalf("Assert() = %q, want %q", tenant.String(), "tenant-acme")
+	}
+}
+
+func TestAssertRejectsBodyMismatchingBoundTenant(t *testing.T) {
+	bound, err := Resolve(reviewauth.Claims{TenantID: "tenant-acme"})
+	if err != nil {
+		t.Fatalf("Resolve() unexpected error: %v", err)
+	}
+	ctx := NewContext(context.Background(), bound)
+	if _, err := Assert(ctx, "tenant-other"); !errors.Is(err, ErrTenantMismatch) {
+		t.Fatalf("Assert() = %v, want ErrTenantMismatch", err)
+	}
+}
+
 // TestResolveConcurrentSafe exercises Resolve under -race: independent
 // resolutions from concurrent goroutines must not share mutable state.
 func TestResolveConcurrentSafe(t *testing.T) {
