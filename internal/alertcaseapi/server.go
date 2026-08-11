@@ -49,7 +49,7 @@ func (s *Server) Check(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) Handler() http.Handler {
+func (s *Server) Handler() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /readyz", s.ready)

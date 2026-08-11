@@ -30,7 +30,11 @@ func main() {
 		check(server.Check(context.Background()))
 		write(map[string]any{"status": "ok", "state_directory": cfg.StateDirectory, "postgres_required": cfg.PostgresRequired, "policy_sha256": policy.PolicySHA256})
 	case "serve":
-		httpServer := &http.Server{Addr: cfg.ListenAddress, Handler: server.Handler(), ReadHeaderTimeout: 5 * time.Second}
+		tokens, err := alertcaseapi.LoadTokenService(cfg)
+		check(err)
+		authenticated, err := server.AuthenticatedHandler(tokens, nil)
+		check(err)
+		httpServer := &http.Server{Addr: cfg.ListenAddress, Handler: authenticated, ReadHeaderTimeout: 5 * time.Second}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		go func() {
@@ -40,7 +44,7 @@ func main() {
 			_ = httpServer.Shutdown(shutdown)
 		}()
 		fmt.Fprintf(os.Stderr, "alert-case-api listening on %s\n", cfg.ListenAddress)
-		err := httpServer.ListenAndServe()
+		err = httpServer.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
 			fatal("%v", err)
 		}

@@ -61,23 +61,30 @@ func FromContext(ctx context.Context) (Tenant, bool) {
 // disagrees with a tenant already bound on ctx.
 var ErrTenantMismatch = errors.New("tenantctx: body tenant_id does not match bound tenant")
 
+// ErrNoBoundTenant is returned by Assert when ctx carries no tenant bound
+// by a verified caller. Every sink must be reached through a request path
+// that authenticates and binds first (internal/httpauth, ADR-0003 SEC-1b
+// §2); there is no fallback that trusts a body-supplied tenant_id absent
+// that binding.
+var ErrNoBoundTenant = errors.New("tenantctx: no tenant bound on context")
+
 // Assert resolves the tenant a write is scoped to, implementing the
 // demotion of a body-supplied tenant_id to an assertion (ADR-0001 SEC-1
-// §2). If ctx already carries a tenant bound by a verified caller, id must
-// equal it exactly or the write is rejected with ErrTenantMismatch -- the
-// body's claim is checked, never silently overwritten and never silently
-// trusted. Absent a ctx-bound tenant -- true of every caller today, since
-// authenticating alertcaseapi/vendoradapterapi is separate work tracked as
-// SEC-1b -- id is resolved directly through Resolve, which still refuses
-// empty and '*'. This is the accepted interim state D1 describes: the
-// seam is fully adopted structurally before every caller has a verified
-// identity to bind.
+// §2). ctx must already carry a tenant bound by a verified caller -- id
+// must equal it exactly or the write is rejected with ErrTenantMismatch,
+// so the body's claim is checked, never silently overwritten and never
+// silently trusted. Absent a ctx-bound tenant, Assert fails closed with
+// ErrNoBoundTenant rather than resolving id directly: SEC-1b
+// (internal/httpauth) closed the gap this interim covered, so a caller
+// reaching a sink with no bound tenant is a bug in that caller, not a
+// caller this package should still accommodate.
 func Assert(ctx context.Context, id string) (Tenant, error) {
-	if bound, ok := FromContext(ctx); ok {
-		if bound.id != strings.TrimSpace(id) {
-			return Tenant{}, fmt.Errorf("%w: body=%q bound=%q", ErrTenantMismatch, id, bound.id)
-		}
-		return bound, nil
+	bound, ok := FromContext(ctx)
+	if !ok {
+		return Tenant{}, ErrNoBoundTenant
 	}
-	return Resolve(reviewauth.Claims{TenantID: id})
+	if bound.id != strings.TrimSpace(id) {
+		return Tenant{}, fmt.Errorf("%w: body=%q bound=%q", ErrTenantMismatch, id, bound.id)
+	}
+	return bound, nil
 }
