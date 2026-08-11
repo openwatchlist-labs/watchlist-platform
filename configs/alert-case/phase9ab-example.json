@@ -7,5 +7,8 @@
   "psql_path": "../../test/fixtures/alert-case/fake-psql.sh",
   "postgres_required": true,
   "max_body_bytes": 1048576,
-  "timeout_seconds": 10
+  "timeout_seconds": 10,
+  "auth_registry_path": "../review-console/identity-registry-r1.json",
+  "signing_key_path": "../../test/fixtures/review-console/signing-key.hex",
+  "max_token_ttl_minutes": 480
 }

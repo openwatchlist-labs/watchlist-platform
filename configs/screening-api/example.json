@@ -17,5 +17,8 @@
   "max_body_bytes": 1048576,
   "max_batch_items": 1000,
   "max_candidates": 100,
-  "request_timeout_ms": 10000
+  "request_timeout_ms": 10000,
+  "auth_registry_path": "var/review-console/identity-registry-r1.json",
+  "signing_key_path": "var/review-console/signing-key.hex",
+  "max_token_ttl_minutes": 480
 }

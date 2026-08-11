@@ -23,6 +23,14 @@ type Config struct {
 	PostgresRequired bool   `json:"postgres_required"`
 	MaxBodyBytes     int64  `json:"max_body_bytes"`
 	TimeoutSeconds   int    `json:"timeout_seconds"`
+	// AuthRegistryPath and SigningKeyPath configure the reviewauth
+	// TokenService httpauth authenticates requests with (ADR-0003 §2).
+	// Not required by LoadConfig -- "check" needs no auth to validate
+	// state/policy wiring -- but required by "serve" (D4: hard cutover,
+	// no auth_required flag to make them optional there).
+	AuthRegistryPath   string `json:"auth_registry_path,omitempty"`
+	SigningKeyPath     string `json:"signing_key_path,omitempty"`
+	MaxTokenTTLMinutes int    `json:"max_token_ttl_minutes,omitempty"`
 }
 
 func LoadConfig(path string) (Config, alertcase.Policy, error) {
@@ -46,6 +54,8 @@ func LoadConfig(path string) (Config, alertcase.Policy, error) {
 	cfg.StateDirectory = resolve(cfg.StateDirectory)
 	cfg.PolicyPath = resolve(cfg.PolicyPath)
 	cfg.PSQLPath = resolveExecutable(base, cfg.PSQLPath)
+	cfg.AuthRegistryPath = resolve(cfg.AuthRegistryPath)
+	cfg.SigningKeyPath = resolve(cfg.SigningKeyPath)
 	if cfg.ListenAddress == "" {
 		cfg.ListenAddress = "127.0.0.1:18091"
 	}
