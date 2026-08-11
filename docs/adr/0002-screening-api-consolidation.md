@@ -86,7 +86,10 @@ authentication and tenant binding (§11, SEC-1b, ADR-0001 §2); the tenant-blind
 idempotency key (§11, ADR-0001 Class C and GHSA-vhj8-986g-vjf4); replacing `fork`+`exec psql` in
 `internal/screeningledger` (ADR-0001 §10, REL-2).
 
-This ADR documents a decision. The deletion itself is a separate PR — see §7.
+This ADR documents a decision. The deletion itself is a separate PR — see §7. That split is required
+by `CLAUDE.md:59-61` (hard rule 7): irreversible changes "get a written ADR in `docs/adr/`, reviewed
+and merged first. Implementation PRs reference the ADR." Deleting eight packages is irreversible in
+the sense that matters — recoverable by `git revert`, but not by review once merged.
 
 ## 2. Record correction: which document is authoritative
 
@@ -153,9 +156,12 @@ cmd/screening-api-v8g  -> internal/screeningapiv8g                   (main.go:14
 
 Two consequences for the deletion order:
 
-- `internal/screeningapi/phase8d_frontdoor.go` is a pure re-export shim — six type aliases and three
-  constructors over `screeningapiv8d` (`:10-30`), with no logic of its own. It must be deleted in the
-  same change as `cmd/screening-api-v8d`, or the survivor stops compiling.
+- `internal/screeningapi/phase8d_frontdoor.go` is a pure re-export shim over `screeningapiv8d` with no
+  logic of its own: three type aliases (`Phase8DConfig:10`, `Phase8DServer:13`, `Phase8DUpstream:16`),
+  three function forwards (`LoadPhase8DConfig:18`, `NewPhase8DHTTPUpstream:22`, `NewPhase8DServer:26`),
+  and one const (`Phase8DShutdownTimeout:30`) — seven symbols, thirty lines. It is the **only** file in
+  the surviving package that imports a `v8*` package, and §3.1 establishes that it is dead code inside
+  the survivor. It is deleted alongside `cmd/screening-api-v8d`.
 - v8e cannot be deleted after v8d. It embeds a v8d `Server` and serves through `delegate.Handler()`
   (`internal/screeningapiv8e/server.go:77-83`), decorating responses with an activation tuple
   (`:145`). Both go together.
@@ -176,6 +182,44 @@ Only 8E prefix-matches; the other four are exact. All four proxy tiers expose a
 `http.Handler` passed whole to `http.Server` (`cmd/screening-api/main.go:37-39`) — so a wrappable seam
 exists everywhere today, contrary to earlier assessment. What does not exist anywhere is a *populated*
 one: §11.
+
+### 3.1 The survivor's own edge to v8d, and why it is not a synthesis
+
+`internal/screeningapi/phase8d_frontdoor.go:6` imports `internal/screeningapiv8d`. Read quickly, that
+sinks this ADR's central claim: if the survivor depends on a package this ADR deletes, then REL-10 is
+a partial absorption, not a deletion — either v8d's logic must be inlined into the survivor, or v8d
+survives as a dependency and "collapses to one" is false.
+
+Neither follows, because **the shim is dead code inside the survivor.** Established by enumerating
+every caller of all seven forwarded symbols, repo-wide:
+
+| Symbol | Callers outside the shim |
+|---|---|
+| `Phase8DConfig`, `Phase8DServer`, `Phase8DUpstream` | **none anywhere** — not in any package, not in any test |
+| `LoadPhase8DConfig` | `cmd/screening-api-v8d/main.go:42,63` |
+| `NewPhase8DHTTPUpstream` | `cmd/screening-api-v8d/main.go:46,67`; `internal/screeningapi/phase8d_frontdoor_test.go:10` |
+| `NewPhase8DServer` | `cmd/screening-api-v8d/main.go:47,68` |
+| `Phase8DShutdownTimeout` | `cmd/screening-api-v8d/main.go:92`; `internal/screeningapi/phase8d_frontdoor_test.go:14` |
+
+Every production caller is `cmd/screening-api-v8d`, which this ADR deletes. The only callers inside
+the surviving package are in `phase8d_frontdoor_test.go`, which tests the shim itself and is deleted
+with it. `cmd/screening-api/main.go` contains **zero** references to any `Phase8D` symbol, and so does
+every other file in `internal/screeningapi` — grep for `Phase8D` across `cmd/screening-api/` and
+`internal/screeningapi/*.go`, excluding the shim and its test, returns nothing. No route in
+`Handler.ServeHTTP` (`http.go:21-55`) constructs a `Phase8DServer`; the survivor's request path never
+reaches this file.
+
+The shim exists because of the import inversion in §3: `cmd/screening-api-v8d` imports the *survivor's*
+package rather than v8d directly, so the survivor must re-export v8d's constructors for that binary's
+benefit. It is scaffolding for a consumer this ADR removes, not a capability the survivor uses.
+
+**Verified by deletion, not by reading.** Removing `phase8d_frontdoor.go` and `phase8d_frontdoor_test.go`
+leaves `go build ./internal/screeningapi/... ./cmd/screening-api/...` clean and
+`go test ./internal/screeningapi/...` green. Nothing needs inlining because the survivor executes none
+of v8d's logic. §9's custody bar re-runs this as a gate rather than trusting this paragraph.
+
+This is the one edge where "deletion, not synthesis" could have failed, and it is the reason §9 tests
+custody after deletion rather than before.
 
 ## 4. Why `internal/screeningapi` is the survivor
 
@@ -201,8 +245,11 @@ tier `docs/ARCHITECTURE.md:20` and `internal/integrationtest/integration_test.go
 production.
 
 **This is not a synthesis.** Nothing needs porting out of the deleted trees, because the capabilities
-are not implemented there (§6). That is the finding that makes REL-10 a deletion rather than a merge,
-and it is the single most consequential result of this investigation.
+are not implemented there (§6) and the survivor executes none of the deleted code (§3.1). That is the
+finding that makes REL-10 a deletion rather than a merge, and it is the single most consequential
+result of this investigation. It is also the claim most worth attacking on review: the survivor does
+import `screeningapiv8d` in one file, and §3.1 exists because that edge has to be shown dead rather
+than asserted away.
 
 ## 5. Caller and reference inventory
 
@@ -246,7 +293,10 @@ Each proxy tier's distinguishing capability, and where it actually lives:
 | Durable ledger + Postgres audit | 8G | `internal/screeningledger` | `cmd/screening-ledger` | no |
 
 Verified by import inversion: no engine package imports any `screeningapiv8*` package. The dependency
-runs one way only — the servers import the engines. `internal/screeningledger` additionally owns the
+runs one way only — the servers import the engines. This claim is about the five **engine** packages
+above; the surviving `internal/screeningapi` does import `screeningapiv8d` in exactly one file, which
+§3.1 shows is dead code and deletes. A repo-wide scan for `screeningapiv8[defg]` imports returns six
+edges total, and §3.1's table classifies each. `internal/screeningledger` additionally owns the
 Postgres footprint (`db/migrations/008g_screening_ledger.sql`, see ADR-0001:37-41) and is driven by
 `cmd/screening-ledger`, not by v8g.
 
@@ -292,7 +342,8 @@ sequencing constraint applies.
 
 - delete `cmd/screening-api-v8d`, `-v8e`, `-v8f`, `-v8g`
 - delete `internal/screeningapiv8d`, `v8e`, `v8f`, `v8g`
-- delete `internal/screeningapi/phase8d_frontdoor.go` (§3 — the survivor will not compile otherwise)
+- delete `internal/screeningapi/phase8d_frontdoor.go` **and `phase8d_frontdoor_test.go`** — the
+  survivor's only edge into a deleted package, dead code by §3.1, and the shim's own test
 - delete `configs/screening-api/phase8d-example.json` and `test/fixtures/screening-api-v8d/`
 - correct the false doc comment at `internal/screeningapi/phase8c_scoring.go:5-7` (§6)
 - replace `docs/RETIRED_SERVICE_VERSIONS.md` with a short pointer to this ADR, and add a note at
@@ -301,6 +352,24 @@ sequencing constraint applies.
   `docs/design/README.md`. The archive's integrity claim (§2) argues for the latter.
 - prune the v8d–v8g sections of `docs/CMD_TESTING_PATTERN.md`, `docs/TEST_DATA.md`,
   `docs/TEST_COVERAGE.md`
+
+**`CLAUDE.md` disposition.** Two entries become stale the moment Stage 2 merges, and both are load-
+bearing guidance rather than prose:
+
+- **Hard rule 4** (`CLAUDE.md:43-46`) — "State which screening-api you are changing. There are five
+  near-identical implementations […] A fix applied to one leaves the other four broken. Until REL-10
+  collapses them, name the target explicitly in the PR description." Stage 2 *is* the collapse the rule
+  anticipates, so the rule retires by its own terms. Note that its "five near-identical
+  implementations" framing is the premise §§B–C of this ADR corrects: they were never near-identical,
+  and four of the five could not screen at all. The replacement text should say there is one
+  implementation, not restate a variant list.
+- **Layout** (`CLAUDE.md:94`) — "5 duplicate screening-api variants — see rule 4" becomes a single
+  entrypoint.
+
+`CLAUDE.md:96`'s note that `candidatescoring` is "NOT currently wired into the live screening path"
+stays accurate and, per §10, becomes more so. Updating `CLAUDE.md` belongs to Stage 2, not to this ADR
+— rule 7 (`CLAUDE.md:59-61`) requires the ADR to merge before the implementation that acts on it, and
+editing the rule that governs the change inside the change would invert that order.
 
 **Config disposition.** `configs/scoring-activation/phase8e-example.json`,
 `configs/activation-promotion/phase8f-example.json` and `configs/screening-ledger/phase8g-example.json`
@@ -359,9 +428,16 @@ engines in §6:
 4. No config, doc, fixture, or script in the post-deletion tree references a deleted binary. A single
    `grep -rn "screening-api-v8"` returning only matches inside `docs/design/` (the declared archive,
    §2) is the check.
+5. **No surviving package imports a deleted one.** `grep -rn --include='*.go'
+   "watchlist-platform/internal/screeningapiv8[defg]"` over the whole tree returns zero. This is a
+   separate check from item 3 because a stale import fails the build loudly, but a *surviving* shim
+   like §3.1's would have compiled fine while quietly keeping a deleted package alive — the scan must
+   cover `internal/screeningapi` itself, not just the four directories being removed. Scoping this
+   grep to the v8 directories is precisely how §3.1's edge stays invisible.
 
 Item 2 is the one with teeth: it is what distinguishes "the engine still exists" from "the engine
-still works without the server that was exercising it."
+still works without the server that was exercising it." Item 5 is the one that would have caught the
+§3.1 edge had it been live.
 
 **Documented deliberate non-parity.** The deletion PR must state, and this ADR states here, that these
 behaviors are removed rather than preserved: scored HTTP responses (§6, §10 — DOM-3), activation-tuple
@@ -393,8 +469,16 @@ DOM-3 closes. `internal/candidatescoring` remains fully present and `cmd/candida
 from the command line, so the capability is not lost — but nothing serves it.
 
 DOM-3 is tracked privately (`docs/backlog/README.md`: "Engineering issues for this platform are
-tracked privately, not in this directory"), so this ADR cross-references it by ID and does not restate
-its contents or status. The `DOM-*` namespace is corroborated by `docs/design/README.md:28`.
+tracked privately, not in this directory"), and `docs/backlog/issue-register.md` is deliberately
+excluded from version control because it "contains unpatched vulnerability detail / advisory-seeding
+material" (`.gitignore:24-28`). This ADR therefore cross-references DOM-3 by ID and does not restate
+its contents or status. The `DOM-*` namespace is corroborated by `CLAUDE.md:12-13` and
+`docs/design/README.md:28`.
+
+The finding is independently corroborated by the project's own guidance: `CLAUDE.md:96` describes
+`internal/candidatescoring` as "Evidence scoring; **NOT currently wired into the live screening
+path**". This ADR's contribution is the second half — that after REL-10 there is no HTTP path wired to
+it anywhere, because the one that was is being deleted.
 
 **Sequencing.** On all repo-visible evidence (§9's traffic finding below), no caller depends on scored
 responses today, so this is a deferrable accepted risk rather than a production regression, and DOM-3
