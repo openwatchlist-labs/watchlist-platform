@@ -1,6 +1,6 @@
 # ADR-0002: Screening API consolidation
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-08-11
 - **Issue:** REL-10 (P1)
 - **Related:** SEC-1 (ADR-0001, accepted), SEC-1b (blocked on this ADR), DOM-3, #14, #15,
