@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/vendoradapter"
 	"io"
 	"net/http"
@@ -95,6 +96,20 @@ func (s *Server) ingest(w http.ResponseWriter, r *http.Request) {
 		receipt, re := s.Store.Receipt(p.AdapterID, env.CreateAlertRequest.IdempotencyKey)
 		if re == nil {
 			re = s.Postgres.Persist(r.Context(), env, receipt)
+		}
+		// Tenant-integrity failures are surfaced regardless of
+		// PostgresRequired: they mean the write was scoped to the wrong
+		// tenant (or no tenant at all), not that Postgres is unreachable.
+		// PostgresRequired=false is meant to tolerate the latter --
+		// degrade to the local filesystem write on an outage -- and must
+		// not silently swallow the former.
+		if errors.Is(re, tenantctx.ErrTenantMismatch) {
+			write(w, 403, map[string]any{"error": "tenant mismatch", "detail": re.Error(), "record_id": env.RecordID})
+			return
+		}
+		if errors.Is(re, tenantctx.ErrNoBoundTenant) {
+			write(w, 500, map[string]any{"error": "tenant binding integrity failure", "detail": re.Error(), "record_id": env.RecordID})
+			return
 		}
 		if re != nil && s.Config.PostgresRequired {
 			write(w, 503, map[string]any{"error": "durable PostgreSQL persistence failed", "detail": re.Error(), "record_id": env.RecordID})
