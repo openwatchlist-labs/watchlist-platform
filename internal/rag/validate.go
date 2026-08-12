@@ -82,7 +82,7 @@ func ValidatePolicy(policy RetrievalPolicy) error {
 }
 
 func ValidateQuery(query RetrievalQuery) error {
-	if query.SchemaVersion != RetrievalQuerySchema || query.QueryID == "" || query.Task == "" || query.TenantID == "" || query.DecisionID == "" || query.Disposition == "" || query.ReviewRoute == "" || query.MessageType == "" || query.SemanticRole == "" || query.PolicyID == "" || query.EffectiveAt == "" {
+	if query.SchemaVersion != RetrievalQuerySchema || query.QueryID == "" || query.Task == "" || query.TenantID == "" || query.Scope == "" || query.DecisionID == "" || query.Disposition == "" || query.ReviewRoute == "" || query.MessageType == "" || query.SemanticRole == "" || query.PolicyID == "" || query.EffectiveAt == "" {
 		return fmt.Errorf("invalid retrieval query metadata")
 	}
 	if len(query.ReasonCodes) == 0 {

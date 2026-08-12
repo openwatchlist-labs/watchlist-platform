@@ -123,6 +123,10 @@ func (r *Retriever) documentAllowed(spec DocumentSpec, query RetrievalQuery, eff
 		summary.ExcludedTenantOrScope++
 		return false
 	}
+	if !containsString(spec.AccessScope, query.Scope) {
+		summary.ExcludedTenantOrScope++
+		return false
+	}
 	if spec.EffectiveFrom != "" {
 		value, err := time.Parse("2006-01-02", spec.EffectiveFrom)
 		if err != nil || effectiveAt.Before(value) {

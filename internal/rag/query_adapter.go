@@ -16,6 +16,7 @@ func QueryFromDecision(decision policyengine.Decision, tenantID, effectiveAt str
 		SchemaVersion:    RetrievalQuerySchema,
 		Task:             "explain_policy_route",
 		TenantID:         tenantID,
+		Scope:            "transaction_screening",
 		DecisionID:       decision.DecisionID,
 		Disposition:      string(decision.Disposition),
 		ReviewRoute:      string(decision.ReviewRoute),
