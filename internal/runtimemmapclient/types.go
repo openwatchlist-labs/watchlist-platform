@@ -16,6 +16,10 @@ type PackageInfo struct {
 	CatalogMode     string `json:"catalog_mode"`
 	PackageSHA256   string `json:"package_sha256"`
 	RecordCount     uint64 `json:"record_count"`
+	// NormalizationProfile is read directly from the compiled package's own
+	// header (internal/mmapcatalogcontract.ReadNormalizationProfile), not
+	// from the worker hello line or any config file -- see ADR-0004 §8/§9.4.
+	NormalizationProfile string `json:"normalization_profile"`
 }
 
 type Candidate struct {

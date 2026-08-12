@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertlistmapping"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/candidatescoring"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/runtimemmapclient"
 )
 
@@ -18,6 +19,10 @@ type Service struct {
 	Runtime       RuntimeProvider
 	MaxCandidates int
 	Clock         func() time.Time
+	// Scoring is not optional at runtime (ADR-0004 §6): a Service used to
+	// process requests must be constructed with a verified binding. cmd/
+	// screening-api/main.go's serve() refuses to start otherwise.
+	Scoring *ScoringBinding
 }
 
 func (service *Service) Ready() error {
@@ -39,6 +44,9 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 	if err := ValidateRequest(request, service.MaxCandidates); err != nil {
 		return ScreeningResponse{}, err
 	}
+	if service.Scoring == nil {
+		return ScreeningResponse{}, fmt.Errorf("scoring binding is not configured")
+	}
 	state, err := service.Loader.Load()
 	if err != nil {
 		return ScreeningResponse{}, err
@@ -57,6 +65,7 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 		Request:        request,
 		ListResolution: resolution,
 		Candidates:     []Candidate{},
+		Policy:         service.Scoring.policy,
 	}
 	if !resolution.Available {
 		if resolution.ReviewBlocker != "" {
@@ -123,6 +132,78 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 		}{RequestID: request.RequestID, Component: pointer.ComponentID, Version: pointer.VersionID, Candidate: value})
 		response.Candidates = append(response.Candidates, value)
 	}
+
+	if request.Query.Kind == QueryRecordID {
+		// §4: a record-ID lookup has no subject to compare against.
+		// Returning it with an unpopulated score would be the silent
+		// degradation §6 rejects, so the whole item is blocked instead.
+		response.CandidateCount = len(response.Candidates)
+		response.Status = StatusBlocked
+		response.ReviewBlockers = append(response.ReviewBlockers, BlockerScoringSubjectUnavailable)
+		response.ScreeningID = screeningID(response)
+		return response, nil
+	}
+
+	envelopes := make([]candidatescoring.CandidateEnvelope, 0, len(response.Candidates))
+	var missingRecordIDs []string
+	for _, candidate := range response.Candidates {
+		projected, ok := service.Scoring.index[candidate.RecordID]
+		if !ok {
+			missingRecordIDs = append(missingRecordIDs, candidate.RecordID)
+			continue
+		}
+		envelopes = append(envelopes, candidatescoring.CandidateEnvelope{
+			Candidate: projected,
+			Retrieval: candidatescoring.RetrievalEvidence{Routes: []string{candidate.MatchKind}},
+		})
+	}
+	if len(missingRecordIDs) > 0 {
+		// §6: a data gap in an artifact, not a service fault. The
+		// retrieval evidence is real and must not be discarded -- the
+		// whole item is blocked, loudly, rather than partially scored.
+		response.CandidateCount = len(response.Candidates)
+		response.Status = StatusBlocked
+		response.ReviewBlockers = append(response.ReviewBlockers, BlockerCandidateProjectionUnavailable)
+		for _, recordID := range missingRecordIDs {
+			response.ReviewBlockers = append(response.ReviewBlockers, BlockerCandidateProjectionUnavailable+":"+recordID)
+		}
+		response.ScreeningID = screeningID(response)
+		return response, nil
+	}
+
+	if len(envelopes) > 0 {
+		scoreRequest := candidatescoring.Request{
+			SchemaVersion: candidatescoring.RequestSchemaV1,
+			RequestID:     request.RequestID,
+			FieldPath:     "query.value",
+			OriginalValue: request.Query.Value,
+			Subject:       scoringSubject(request.Query),
+			Lineage:       service.Scoring.lineage,
+			Candidates:    envelopes,
+		}
+		scored, err := service.Scoring.engine.Score(scoreRequest)
+		if err != nil {
+			return ScreeningResponse{}, fmt.Errorf("score candidates: %w", err)
+		}
+		byRecordID := make(map[string]Candidate, len(response.Candidates))
+		for _, candidate := range response.Candidates {
+			byRecordID[candidate.RecordID] = candidate
+		}
+		reordered := make([]Candidate, 0, len(scored.Candidates))
+		for _, result := range scored.Candidates {
+			candidate := byRecordID[result.CandidateID]
+			candidate.Score = result.Score
+			candidate.StrengthBand = result.StrengthBand
+			candidate.ExactIdentifierMatched = result.ExactIdentifierMatched
+			candidate.ExactNameMatched = result.ExactNameMatched
+			candidate.ReasonCodes = result.ReasonCodes
+			candidate.Components = result.Components
+			candidate.Evidence = result.Evidence
+			reordered = append(reordered, candidate)
+		}
+		response.Candidates = reordered
+	}
+
 	response.CandidateCount = len(response.Candidates)
 	if response.CandidateCount > 0 {
 		response.Status = StatusMatched
@@ -240,6 +321,25 @@ func ValidateBatchRequest(request BatchRequest, maxCandidates int) error {
 		seen[item.RequestID] = struct{}{}
 	}
 	return nil
+}
+
+// scoringSubject maps a screening Query onto a scoring Subject per ADR-0004
+// §4's table. record_id queries never reach here (screenAt short-circuits
+// them before scoring). EntityType is set only when TargetEntityTypes names
+// exactly one type -- the field is singular and any other count has no
+// honest single answer.
+func scoringSubject(query Query) candidatescoring.Subject {
+	subject := candidatescoring.Subject{}
+	switch query.Kind {
+	case QueryName:
+		subject.Names = []string{query.Value}
+	case QueryIdentifier:
+		subject.Identifiers = []candidatescoring.Identifier{{Type: query.IdentifierType, Value: query.Value}}
+	}
+	if len(query.TargetEntityTypes) == 1 {
+		subject.EntityType = query.TargetEntityTypes[0]
+	}
+	return subject
 }
 
 func runtimeQueryKind(kind QueryKind) runtimemmapclient.QueryKind {

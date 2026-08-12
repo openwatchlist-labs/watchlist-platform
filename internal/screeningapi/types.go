@@ -4,19 +4,35 @@ import (
 	"time"
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertlistmapping"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/candidatescoring"
 )
 
 const (
 	ConfigSchemaVersion        = "screening-api-config/v1alpha1"
 	RequestSchemaVersion       = "screening-request/v1alpha1"
 	BatchRequestSchemaVersion  = "screening-batch-request/v1alpha1"
-	ResponseSchemaVersion      = "screening-response/v1alpha1"
+	ResponseSchemaVersion      = "screening-response/v1alpha2"
 	BatchResponseSchemaVersion = "screening-batch-response/v1alpha1"
 	RuntimeLineageSchema       = "screening-runtime-lineage/v1alpha1"
 	ProblemSchemaVersion       = "screening-api-problem/v1alpha1"
 	IdempotencySchemaVersion   = "screening-idempotency-record/v1alpha1"
-	APIVersion                 = "screening-api/v0.1.0"
+	APIVersion                 = "screening-api/v0.2.0"
+
+	// BlockerCandidateProjectionUnavailable is used when a retrieved
+	// record_id has no matching entry in the active scoring projection
+	// index -- a data gap in an artifact, not a service fault (ADR-0004 §6).
+	BlockerCandidateProjectionUnavailable = "candidate_projection_unavailable"
+	// BlockerScoringSubjectUnavailable is used when the query has no
+	// scorable subject (a record_id lookup; ADR-0004 §4/§6).
+	BlockerScoringSubjectUnavailable = "scoring_subject_unavailable"
 )
+
+// ScoreComponent and EvidenceItem alias the candidatescoring engine's own
+// types so the HTTP contract cannot drift from what the engine emits
+// (ADR-0004 §5).
+type ScoreComponent = candidatescoring.ScoreComponent
+type EvidenceItem = candidatescoring.EvidenceItem
+type PolicyReference = candidatescoring.PolicyReference
 
 type RuntimeBinding struct {
 	ComponentID   string `json:"component_id"`
@@ -46,6 +62,13 @@ type Config struct {
 	AuthRegistryPath   string `json:"auth_registry_path,omitempty"`
 	SigningKeyPath     string `json:"signing_key_path,omitempty"`
 	MaxTokenTTLMinutes int    `json:"max_token_ttl_minutes,omitempty"`
+	// ScoringActivationStateDirectory points at the internal/scoringactivation
+	// state directory the scoring binding is resolved from at startup
+	// (ADR-0004 §4). Same precedent as AuthRegistryPath/SigningKeyPath
+	// above: not validated by ValidateConfig -- "check" needs no scoring
+	// binding to validate catalog and runtime wiring -- but required by
+	// "serve" (no scoring_enabled flag to make it optional there; §6).
+	ScoringActivationStateDirectory string `json:"scoring_activation_state_directory,omitempty"`
 }
 
 type QueryKind string
@@ -87,6 +110,18 @@ type Candidate struct {
 	MatchKind       string `json:"match_kind"`
 	MatchedValue    string `json:"matched_value"`
 	NormalizedQuery string `json:"normalized_query"`
+
+	// Score is never omitempty: a caller must not confuse "not scored"
+	// with "scored zero". Where scoring did not happen the response says
+	// so through Status and ReviewBlockers, not through field absence
+	// (ADR-0004 §5).
+	Score                  int              `json:"score"`
+	StrengthBand           string           `json:"strength_band"`
+	ExactIdentifierMatched bool             `json:"exact_identifier_matched"`
+	ExactNameMatched       bool             `json:"exact_name_matched"`
+	ReasonCodes            []string         `json:"reason_codes"`
+	Components             []ScoreComponent `json:"components"`
+	Evidence               []EvidenceItem   `json:"evidence"`
 }
 
 type RuntimeLineage struct {
@@ -127,6 +162,7 @@ type ScreeningResponse struct {
 	CandidateCount int                         `json:"candidate_count"`
 	Candidates     []Candidate                 `json:"candidates"`
 	ReviewBlockers []string                    `json:"review_blockers,omitempty"`
+	Policy         PolicyReference             `json:"policy"`
 }
 
 type BatchSummary struct {

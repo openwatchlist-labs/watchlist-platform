@@ -14,6 +14,7 @@ import (
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertlistmapping"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/catalogregistry"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/runtimemmapclient"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/scoringactivation"
 )
 
 type staticLoader struct{ state State }
@@ -32,6 +33,12 @@ func (runtime *fakeRuntime) Lookup(_ context.Context, _, _ string, _ runtimemmap
 }
 func (runtime *fakeRuntime) Ready(catalogregistry.Registry) error { return nil }
 func (runtime *fakeRuntime) Close() error                         { return nil }
+func (runtime *fakeRuntime) PackageInfo(packageSHA256 string) (runtimemmapclient.PackageInfo, bool) {
+	if runtime.info.PackageSHA256 == packageSHA256 {
+		return runtime.info, true
+	}
+	return runtimemmapclient.PackageInfo{}, false
+}
 
 func TestScreenUsesExactMappingAndActiveRuntime(t *testing.T) {
 	state := loadGoldenState(t)
@@ -39,7 +46,7 @@ func TestScreenUsesExactMappingAndActiveRuntime(t *testing.T) {
 		info:   runtimemmapclient.PackageInfo{ProtocolVersion: "1", ComponentID: "catalog_component_ed835720fdb2b3a505927488", CatalogID: "ofac-sdn-direct", CatalogVersion: "2026-07-13-427847835cb4", CatalogChecksum: "339b64d9a9d8ffa9ea5b9ab243a320faeef1ade6f3dc5a3e8891e437adccc582", CatalogMode: "official_list", PackageSHA256: "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367", RecordCount: 3},
 		values: []runtimemmapclient.Candidate{{RecordID: "ofac:sdn:1001", EntityType: "organization", PrimaryName: "Acme Imports LLC", MatchKind: "alias", MatchedValue: "ACME IMPORTS", NormalizedQuery: "acme imports"}},
 	}
-	service := Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }}
+	service := Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }, Scoring: testScoringBinding(t)}
 	request := fixtureRequest("screen-1", "fircosoft-prod", "WLS_OFAC_001", "2026-07-20T12:00:00Z")
 	response, err := service.Screen(context.Background(), request, "corr-1", "idem-1")
 	if err != nil {
@@ -59,7 +66,7 @@ func TestScreenUsesExactMappingAndActiveRuntime(t *testing.T) {
 func TestUnmappedListReturnsBlockerWithoutRuntimeLookup(t *testing.T) {
 	state := loadGoldenState(t)
 	runtime := &fakeRuntime{}
-	service := Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20}
+	service := Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Scoring: testScoringBinding(t)}
 	request := fixtureRequest("screen-2", "fircosoft-prod", "WLS_OFAC_UNKNOWN", "2026-07-20T12:00:00Z")
 	response, err := service.Screen(context.Background(), request, "corr-2", "idem-2")
 	if err != nil {
@@ -76,7 +83,7 @@ func TestUnmappedListReturnsBlockerWithoutRuntimeLookup(t *testing.T) {
 func TestHandlerIdempotencyReplayAndConflict(t *testing.T) {
 	state := loadGoldenState(t)
 	runtime := &fakeRuntime{info: runtimemmapclient.PackageInfo{ProtocolVersion: "1", PackageSHA256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", RecordCount: 3}}
-	service := &Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }}
+	service := &Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }, Scoring: testScoringBinding(t)}
 	config := Config{MaxBodyBytes: 1 << 20, MaxBatchItems: 100, MaxCandidates: 20, RequestTimeoutMS: 2000}
 	handler := &Handler{Config: config, Service: service, Store: IdempotencyStore{Root: t.TempDir()}}
 	tokens := loadFixtureTokenService(t)
@@ -126,6 +133,31 @@ func TestHandlerIdempotencyReplayAndConflict(t *testing.T) {
 	if conflict.Code != http.StatusConflict {
 		t.Fatalf("expected conflict, got %d body=%s", conflict.Code, conflict.Body.String())
 	}
+}
+
+// testScoringBinding builds a real *ScoringBinding from the DOM-3 fixture
+// tuple (ADR-0004 §10): a real compiled OWMMAP01 catalog
+// (test/golden/runtime-mmap/ofac-fixture.owmmap), a projection package
+// keyed by that catalog's record IDs (ofac:sdn:1001/2002/3003 per §3's
+// join contract), and a policy declaring
+// openwatchlist-runtime-normalization/ascii-v1 -- distinct from the
+// Phase 8E stub tuple in test/fixtures/scoring-activation/state, which
+// stays untouched and still backs internal/scoringactivation's own tests.
+func testScoringBinding(t *testing.T) *ScoringBinding {
+	t.Helper()
+	manager, err := scoringactivation.NewManager(filepath.Join("..", "..", "test", "fixtures", "scoring-activation", "state-ofac-sdn-direct"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := manager.LoadActive()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding, err := NewScoringBinding(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return binding
 }
 
 func loadGoldenState(t *testing.T) State {

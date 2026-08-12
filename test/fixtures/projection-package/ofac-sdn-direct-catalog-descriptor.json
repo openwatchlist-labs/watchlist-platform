@@ -1,0 +1,13 @@
+{
+  "schema_version": "openwatchlist.catalog-package-descriptor.v1",
+  "provider": "ofac-direct",
+  "catalog_id": "ofac-sdn-direct",
+  "component_id": "catalog_component_ed835720fdb2b3a505927488",
+  "component_version": "2026-07-13-427847835cb4",
+  "catalog_package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+  "catalog_package_path": "../../golden/runtime-mmap/ofac-fixture.owmmap",
+  "normalization_profile": "openwatchlist-runtime-normalization/ascii-v1",
+  "record_count": 3,
+  "retrievable_candidate_count": 3,
+  "retrievable_candidate_ids_sha256": "4e47527886673a7e36c6ebf047e2ebce5f5a5cd5b8ffe8b6cdc263f473050cad"
+}

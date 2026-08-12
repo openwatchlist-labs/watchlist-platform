@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: OpenWatchlist Screening API
-  version: "0.1.0"
+  version: "0.2.0"
   description: |
     Real-time screening request API. Retrieves candidates via the Rust
     catalog-mmap runtime (exact-name, prefix, or exact-identifier lookup
@@ -43,7 +43,7 @@ paths:
                 type: object
                 properties:
                   status: { type: string, enum: [ok] }
-                  api_version: { type: string, example: "screening-api/v0.1.0" }
+                  api_version: { type: string, example: "screening-api/v0.2.0" }
         "405":
           description: Method not allowed (only GET is accepted).
           headers:
@@ -67,7 +67,7 @@ paths:
                 type: object
                 properties:
                   status: { type: string, enum: [ready] }
-                  api_version: { type: string, example: "screening-api/v0.1.0" }
+                  api_version: { type: string, example: "screening-api/v0.2.0" }
         "503":
           description: Runtime not ready (code SCREENING_API_NOT_READY).
           content:
@@ -282,6 +282,10 @@ components:
 
     Candidate:
       type: object
+      description: >
+        Score fields are drawn field-for-field from
+        internal/candidatescoring.CandidateResult so this contract cannot
+        drift from what the scoring engine emits (ADR-0004 §5).
       properties:
         candidate_id: { type: string }
         record_id: { type: string }
@@ -290,6 +294,58 @@ components:
         match_kind: { type: string }
         matched_value: { type: string }
         normalized_query: { type: string }
+        score:
+          type: integer
+          description: >
+            Never absent from the response body, but only meaningful when
+            `status` is `matched`. A caller reading `score` cannot
+            distinguish "not scored" from "scored zero" by absence alone -
+            check the top-level `status` and `review_blockers` first
+            (ADR-0004 §5, §6).
+        strength_band: { type: string, example: "review_candidate" }
+        exact_identifier_matched: { type: boolean }
+        exact_name_matched: { type: boolean }
+        reason_codes:
+          type: array
+          items: { type: string }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/ScoreComponent" }
+        evidence:
+          type: array
+          items: { $ref: "#/components/schemas/EvidenceItem" }
+          description: Bounded by the active policy's max_evidence_items.
+
+    ScoreComponent:
+      type: object
+      description: An immutable, additive contribution to the candidate score.
+      properties:
+        component: { type: string, example: "name" }
+        points: { type: integer }
+        reason_code: { type: string, example: "name_exact" }
+
+    EvidenceItem:
+      type: object
+      description: A bounded, analyst-readable projection of one subject/candidate comparison.
+      properties:
+        kind: { type: string, example: "name" }
+        outcome: { type: string, enum: [support, contradiction] }
+        subject_value: { type: string }
+        candidate_value: { type: string }
+        points: { type: integer }
+        reason_code: { type: string }
+
+    PolicyReference:
+      type: object
+      description: >
+        Which checksum-addressed scoring policy produced this response -
+        what makes a score replayable against immutable content
+        (ADR-0004 §5).
+      properties:
+        policy_id: { type: string }
+        policy_version: { type: string }
+        policy_sha256: { type: string }
+        normalization_profile: { type: string, example: "openwatchlist-runtime-normalization/ascii-v1" }
 
     RuntimeLineage:
       type: object
@@ -327,8 +383,8 @@ components:
     ScreeningResponse:
       type: object
       properties:
-        schema_version: { type: string }
-        api_version: { type: string, example: "screening-api/v0.1.0" }
+        schema_version: { type: string, example: "screening-response/v1alpha2" }
+        api_version: { type: string, example: "screening-api/v0.2.0" }
         screening_id: { type: string }
         correlation_id: { type: string }
         idempotency_key: { type: string }
@@ -336,7 +392,16 @@ components:
         status:
           type: string
           enum: [matched, no_candidates, blocked]
-          description: The actual outcome - always check this, a 200 alone does not mean "clear."
+          description: >
+            The actual outcome - always check this, a 200 alone does not
+            mean "clear." `blocked` covers both list-mapping gaps (e.g.
+            ALERT_LIST_MAPPING_REQUIRED) and two scoring-specific gaps
+            (ADR-0004 §6): a retrieved candidate absent from the active
+            projection index (`candidate_projection_unavailable`), and a
+            record_id query, which has no subject to score against
+            (`scoring_subject_unavailable`). Retrieval evidence is
+            preserved in `candidates` in both cases; scores are never
+            silently omitted or degraded to zero.
         request: { $ref: "#/components/schemas/ScreeningRequest" }
         list_resolution: { $ref: "#/components/schemas/ListResolution" }
         runtime: { $ref: "#/components/schemas/RuntimeLineage" }
@@ -347,6 +412,7 @@ components:
         review_blockers:
           type: array
           items: { type: string }
+        policy: { $ref: "#/components/schemas/PolicyReference" }
 
     BatchSummary:
       type: object

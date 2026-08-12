@@ -1,0 +1,28 @@
+{
+  "schema_version": "openwatchlist.candidate-scoring-policy.v1",
+  "policy_id": "candidate-scoring-r1-ascii-v1",
+  "policy_version": "1.0.0",
+  "normalization_profile": "openwatchlist-runtime-normalization/ascii-v1",
+  "max_evidence_items": 12,
+  "score_floor": 0,
+  "score_ceiling": 1000,
+  "weights": {
+    "typed_identifier_exact": 550,
+    "name_exact": 400,
+    "name_token_set": 340,
+    "name_prefix": 250,
+    "name_containment": 180,
+    "date_of_birth_exact": 120,
+    "date_of_birth_year": 60,
+    "country_exact": 60,
+    "entity_type_exact": 40,
+    "date_of_birth_conflict": -180,
+    "country_conflict": -60,
+    "entity_type_conflict": -100
+  },
+  "thresholds": {
+    "strong_candidate": 700,
+    "review_candidate": 400,
+    "weak_candidate": 1
+  }
+}

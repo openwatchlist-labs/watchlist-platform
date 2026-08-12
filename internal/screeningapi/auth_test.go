@@ -80,7 +80,7 @@ func newAuthTestHandler(t *testing.T, tokens *reviewauth.TokenService) (http.Han
 	t.Helper()
 	state := loadGoldenState(t)
 	runtime := &fakeRuntime{info: runtimemmapclient.PackageInfo{ProtocolVersion: "1", PackageSHA256: strings.Repeat("a", 64), RecordCount: 3}}
-	service := &Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }}
+	service := &Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }, Scoring: testScoringBinding(t)}
 	config := Config{MaxBodyBytes: 1 << 20, MaxBatchItems: 100, MaxCandidates: 20, RequestTimeoutMS: 2000}
 	store := IdempotencyStore{Root: t.TempDir()}
 	handler := &Handler{Config: config, Service: service, Store: store}

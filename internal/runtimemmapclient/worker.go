@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/mmapcatalogcontract"
 )
 
 type Worker struct {
@@ -62,7 +65,26 @@ func Start(ctx context.Context, binaryPath, packagePath string) (*Worker, error)
 		_ = cmd.Wait()
 		return nil, fmt.Errorf("worker protocol version %q, expected %q", info.ProtocolVersion, ProtocolVersion)
 	}
+	profile, err := readNormalizationProfile(packagePath)
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		return nil, fmt.Errorf("read package normalization_profile: %w", err)
+	}
+	info.NormalizationProfile = profile
 	return &Worker{cmd: cmd, stdin: stdin, scanner: scanner, info: info}, nil
+}
+
+// readNormalizationProfile reads normalization_profile directly out of the
+// compiled package's own header bytes (ADR-0004 §8/§10 item 5). This is a
+// Go-side file read alongside the worker subprocess, not an addition to the
+// worker's stdio hello protocol -- no Rust change, no wire-protocol change.
+func readNormalizationProfile(packagePath string) (string, error) {
+	raw, err := os.ReadFile(packagePath)
+	if err != nil {
+		return "", err
+	}
+	return mmapcatalogcontract.ReadNormalizationProfile(raw)
 }
 
 func (worker *Worker) Info() PackageInfo { return worker.info }

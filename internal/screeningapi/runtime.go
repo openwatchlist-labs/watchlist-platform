@@ -18,6 +18,11 @@ type RuntimeResult struct {
 type RuntimeProvider interface {
 	Lookup(context.Context, string, string, runtimemmapclient.Query) (RuntimeResult, error)
 	Ready(catalogregistry.Registry) error
+	// PackageInfo returns the bound runtime package whose PackageSHA256
+	// matches, reading its metadata straight from the package the runtime
+	// actually serves (ADR-0004 §2, §9.4) rather than from any
+	// config-declared descriptor.
+	PackageInfo(packageSHA256 string) (runtimemmapclient.PackageInfo, bool)
 	Close() error
 }
 
@@ -71,6 +76,18 @@ func (manager *RuntimeManager) Lookup(ctx context.Context, componentID, versionI
 		return RuntimeResult{}, err
 	}
 	return RuntimeResult{Info: binding.pool.Info(), Candidates: candidates}, nil
+}
+
+func (manager *RuntimeManager) PackageInfo(packageSHA256 string) (runtimemmapclient.PackageInfo, bool) {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	for _, binding := range manager.bindings {
+		info := binding.pool.Info()
+		if strings.EqualFold(info.PackageSHA256, packageSHA256) {
+			return info, true
+		}
+	}
+	return runtimemmapclient.PackageInfo{}, false
 }
 
 func (manager *RuntimeManager) Ready(catalog catalogregistry.Registry) error {
