@@ -98,6 +98,7 @@ type RetrievalQuery struct {
 	QueryID          string   `json:"query_id"`
 	Task             string   `json:"task"`
 	TenantID         string   `json:"tenant_id"`
+	Scope            string   `json:"scope"`
 	DecisionID       string   `json:"decision_id"`
 	Disposition      string   `json:"disposition"`
 	ReviewRoute      string   `json:"review_route"`

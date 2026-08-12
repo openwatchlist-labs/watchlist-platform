@@ -117,3 +117,39 @@ func TestTenantIsolation(t *testing.T) {
 		}
 	}
 }
+
+func TestAccessScopeEnforcement(t *testing.T) {
+	root := filepath.Join("..", "..")
+	manifestPath := filepath.Join(root, "test", "fixtures", "rag", "corpus-manifest.json")
+	manifest, _ := LoadManifest(manifestPath)
+	snapshot, _ := BuildSnapshot(manifestPath, manifest)
+	policy, _ := LoadPolicy(filepath.Join(root, "configs", "rag", "retrieval-policy-r1.json"))
+	query, _ := LoadQuery(filepath.Join(root, "test", "fixtures", "rag", "entity-type-query.json"))
+	query.Scope = "analyst_note"
+	query.QueryID = stableQueryID(query)
+	retriever, _ := NewRetriever(snapshot, policy)
+	pkg, err := retriever.Retrieve(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pkg.Summary.ExcludedTenantOrScope == 0 {
+		t.Fatal("expected scope-mismatched documents to be excluded")
+	}
+	for _, citation := range pkg.Citations {
+		inScope := false
+		for _, s := range snapshot.Documents {
+			if s.Spec.SourceID == citation.SourceID {
+				for _, scope := range s.Spec.AccessScope {
+					if scope == "analyst_note" {
+						inScope = true
+						break
+					}
+				}
+				break
+			}
+		}
+		if !inScope {
+			t.Fatalf("citation %s not in scope", citation.SourceID)
+		}
+	}
+}
