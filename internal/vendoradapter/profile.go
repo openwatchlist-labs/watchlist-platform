@@ -84,11 +84,19 @@ func ValidateProfile(p *Profile) error {
 	if p.MaxSourceBytes <= 0 || p.MaxSourceBytes > 16<<20 {
 		return errors.New("max_source_bytes must be between 1 and 16777216")
 	}
+	if _, ok := p.Mappings["tenant_id"]; ok {
+		return errors.New("tenant_id must be declared in constants only, not mappings (ADR-0006 D2): a vendor-payload value cannot be allowed to name its own tenant")
+	}
 	for _, f := range []string{"tenant_id", "source_system_id", "source_alert_id", "raw_list_name", "occurred_at", "correlation_id", "idempotency_key"} {
 		if p.Mappings[f] == "" {
 			if _, ok := p.Constants[f]; !ok {
 				return fmt.Errorf("missing mapping for %s", f)
 			}
+		}
+	}
+	if v, ok := p.Constants["tenant_id"]; ok {
+		if s, ok := v.(string); !ok || strings.TrimSpace(s) == "" {
+			return errors.New("constants.tenant_id must be a non-empty string")
 		}
 	}
 	allowed := map[string]bool{}

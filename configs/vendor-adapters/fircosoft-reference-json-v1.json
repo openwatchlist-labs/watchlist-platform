@@ -3,7 +3,7 @@
   "adapter_id": "fircosoft-reference-json-v1",
   "version": "2026-07-15-r1",
   "vendor": "fircosoft-reference",
-  "description": "Reference JSON mapping for Fircosoft-style alert exports; not a certified proprietary wire format",
+  "description": "Reference JSON mapping for Fircosoft-style alert exports; not a certified proprietary wire format. FIXTURE: constants.tenant_id is a placeholder operator value (tenant-a), not a confirmed deployment binding -- see ADR-0006 section 7.",
   "input_format": "json-object",
   "max_source_bytes": 4194304,
   "required_paths": [
@@ -16,7 +16,6 @@
     "request.dedupe"
   ],
   "mappings": {
-    "tenant_id": "message.customer",
     "source_system_id": "message.source",
     "source_alert_id": "message.alertReference",
     "raw_list_name": "message.list",
@@ -34,9 +33,12 @@
   "additional_evidence": {
     "matched_name": "message.details.matchedName",
     "screened_name": "message.details.screenedName",
-    "vendor_status": "message.status"
+    "vendor_status": "message.status",
+    "vendor_tenant_id": "message.customer"
   },
-  "constants": {},
+  "constants": {
+    "tenant_id": "tenant-a"
+  },
   "list_mappings": {
     "OFAC SDN": {
       "canonical_list_id": "ofac-sdn",
@@ -51,5 +53,5 @@
       "status": "active"
     }
   },
-  "profile_sha256": "16c535a3250dd3e9d2220776429ca38ecd19a3a29894fd3b481e2dcf85dc6728"
+  "profile_sha256": "532b1b29d713e9f468a4517063b85bc24397344ae8dd849c60418e64d364278c"
 }

@@ -52,24 +52,23 @@ func testEnvelopeAndReceipt(tenant string) (Envelope, Receipt) {
 	return e, r
 }
 
-// TestPersistWithoutBoundTenantIsNotUnconditionallyRejected is the
-// regression test for the SEC-1b fallback-removal hotfix. SEC-1b
-// (internal/tenantctx/tenantctx.go:81-85) deleted tenantctx.Assert's
-// body-fallback unconditionally, but internal/vendoradapterapi has no auth
-// middleware and never binds a tenant on ctx (SEC-1e is the tracked,
-// not-yet-landed fix for that). Before the hotfix, every call reaching
-// this sink through vendoradapterapi therefore fails closed with
-// ErrNoBoundTenant regardless of what the profile-derived tenant_id is.
-// This must fail before the hotfix and pass after it.
-func TestPersistWithoutBoundTenantIsNotUnconditionallyRejected(t *testing.T) {
+// TestPersistWithoutBoundTenantReturnsErrNoBoundTenant is the inversion of
+// the PR #92 hotfix's own regression test (ADR-0006 §6, D6). PR #92's
+// assertTenant fell back to resolving the body-supplied tenant_id directly
+// when ctx carried no bound tenant, as an interim for
+// internal/vendoradapterapi having no auth middleware. ADR-0006 D1 gives
+// vendoradapterapi a bound tenant of its own, so that interim is deleted and
+// Persist calls tenantctx.Assert directly: an unbound Persist must now fail
+// closed with ErrNoBoundTenant, the same as every other sink
+// (internal/tenantctx/tenantctx.go:81-85). Leaving this passing under the
+// old, non-inverted assertion would mean the fallback was not actually
+// removed.
+func TestPersistWithoutBoundTenantReturnsErrNoBoundTenant(t *testing.T) {
 	sink := fakePSQLSink(t)
 	e, r := testEnvelopeAndReceipt("tenant-a")
 	err := sink.Persist(context.Background(), e, r)
-	if errors.Is(err, tenantctx.ErrNoBoundTenant) {
-		t.Fatalf("Persist() with no bound tenant = %v, want the interim body-trust fallback to apply for this call site (ADR-0003 SEC-1e interim), not ErrNoBoundTenant", err)
-	}
-	if err != nil {
-		t.Fatalf("Persist() with no bound tenant and a valid body tenant_id: unexpected error: %v", err)
+	if !errors.Is(err, tenantctx.ErrNoBoundTenant) {
+		t.Fatalf("Persist() with no bound tenant = %v, want ErrNoBoundTenant (ADR-0006 D6: the PR #92 interim is deleted)", err)
 	}
 }
 
