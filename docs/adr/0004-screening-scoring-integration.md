@@ -389,7 +389,7 @@ impossible to mistake for a scored one.
 | Condition | Behavior | Reasoning |
 |---|---|---|
 | Activation state directory missing, unloadable, or failing `validateActivation` at startup | `serve` exits non-zero | Matches ADR-0003 D4's hard cutover for auth paths (`docs/adr/0003-authenticated-tenant-provenance.md:477-529`). A service that starts without scoring is a service that serves unscored results forever without anyone noticing. |
-| Runtime package profile ≠ policy profile at startup | `serve` exits non-zero | The check that v8d only pretended to perform (§2). See §10. |
+| Runtime package profile ≠ policy profile at startup | `serve` exits non-zero | The check that v8d only pretended to perform (§2). **This is the check that fails against today's fixtures** — the existing tuple loads cleanly and the row above does not fire. See §10. |
 | Retrieved `record_id` absent from the projection index | HTTP 200, `status: "blocked"`, blocker `candidate_projection_unavailable` | A data gap in an artifact, not a service fault. The retrieval hit is real evidence and must not be discarded; the blocker names exactly which candidate could not be scored. |
 | `Query.Kind` is `record_id` | HTTP 200, `status: "blocked"`, blocker `scoring_subject_unavailable` | §4: a record-ID lookup has no subject to compare against. Returning it with an unpopulated score would be the silent degradation this section rejects. |
 | `engine.Score` returns an error | HTTP 500 | The engine validates the request we constructed (`engine.go:225-252`). An error means *our* request was malformed — a defect in this service. Dressing a defect as a blocked 200 hides it. |
@@ -511,51 +511,94 @@ closes it.
 
 ## 10. Accepted risks and unfulfilled preconditions
 
-### No activated tuple exists that is bound to a catalog this service serves
+### The activated tuple that exists is not bound to a catalog this service serves
 
 This is the operational precondition DOM-3 inherits, and it is unfulfilled in the same way
-ADR-0002's Stage 0 and ADR-0003's D3 were. Checked directly, with the limits stated:
+ADR-0002's Stage 0 and ADR-0003's D3 were. Checked by execution, not inspection, and stated
+precisely because the obvious summary — "the fixture is broken" — is wrong:
 
-An activation record exists at `test/fixtures/scoring-activation/state/active.json`, and all three
-artifacts it references resolve on disk. It validates. **It validates against a placeholder.** Its
-catalog descriptor (`test/fixtures/projection-package/catalog-descriptor.json`) points at
-`test/fixtures/projection-package/catalog-fixture.mmap`, which is **41 bytes** containing the
-literal text `openwatchlist-phase8e-catalog-fixture-v1`. It is not a compiled catalog; it is not
-even in the `OWMMAP01` format the real packages use. It passes only because
-`ValidateCatalogPackageFile` (`projectionpackage/package.go:311-320`) verifies a SHA256 and nothing
-else — a stub whose digest matches its descriptor is indistinguishable from a catalog.
+**An activated tuple exists and it loads cleanly.** `test/fixtures/scoring-activation/state/active.json`
+is a well-formed, fully populated activation record: it declares a complete catalog descriptor
+inline, a projection binding, and a policy binding, with `unicode-upper-alnum-space-v1` consistently
+in both its `catalog` and `policy` sections. Verified by running it, not by reading it:
 
-Everything else about that tuple points the same way. Its five candidate IDs (`a-tie`,
-`candidate-exact-lei`, `candidate-exact-name`, `candidate-weak`, `z-tie`) are scoring unit-test
-names, not catalog record identifiers. Its normalization profile is `unicode-upper-alnum-space-v1`
-(`catalog-descriptor.json:9`, `configs/scoring/candidate-scoring-r1.json:5`) while the catalog the
-screening API actually serves declares `openwatchlist-runtime-normalization/ascii-v1`
-(`test/golden/runtime-mmap/ofac-fixture.info.json:12`). And no Go code reads it at all — the only
-references are `configs/scoring-activation/phase8e-example.json:2` and
+```
+$ go run ./cmd/scoring-activation status --state-dir test/fixtures/scoring-activation/state
+{"activation_id":"activation-phase8e-fixture", ... ,"status":"ok"}    # exit 0
+```
+
+That path is `LoadActive` → `validateActivation` → `validateTuple`
+(`scoringactivation/manager.go:125-131`, `:212-240`, `:243-268`), so every checksum in the tuple is
+verified. Two of its three artifacts are genuinely real:
+
+- **The projection package is real.** `test/fixtures/projection-package/packages/b652a63f…` carries
+  all four required files, its `manifest.json` and `projections.json` digests match `FILES.sha256`,
+  `PACKAGE.sha256` matches the digest of `FILES.sha256`, the directory is correctly
+  checksum-addressed, and `projections.json` holds five real projections with names, identifiers,
+  countries, and entity types.
+- **The policy is real.** `configs/scoring/candidate-scoring-r1.json` is a complete policy — twelve
+  weights, three ordered thresholds — whose canonical digest `b71fadc6…` matches the tuple's
+  declaration.
+
+**Exactly one artifact in the chain is a placeholder, and it is the catalog.** The tuple's
+`catalog.catalog_package_path` resolves to `test/fixtures/projection-package/catalog-fixture.mmap`,
+which is **41 bytes containing the literal text `openwatchlist-phase8e-catalog-fixture-v1`**. It is
+not a compiled catalog and not in the `OWMMAP01` format the real runtime packages use
+(`test/golden/runtime-mmap/ofac-fixture.owmmap`). Its SHA256 `e872179e…` does genuinely match the
+declared `catalog_package_sha256`, which is exactly why the tuple validates:
+`ValidateCatalogPackageFile` (`projectionpackage/package.go:311-320`) verifies a digest and nothing
+else, so a stub whose digest matches its descriptor is indistinguishable from a catalog.
+
+**Finding: the tuple is valid; it is simply not about a catalog `cmd/screening-api` can serve.**
+Three independent reasons, none of them a defect in the activation record:
+
+1. **The catalog is not loadable.** Its catalog package is the 41-byte stub above. There is no
+   compiled catalog for the Rust runtime to serve, so this tuple's catalog cannot be pointed at
+   `cmd/screening-api` at all.
+2. **Different catalog, different profile.** The tuple describes `ofac-direct` / `ofac-production` /
+   `sdn` at `unicode-upper-alnum-space-v1`. The screening API's runtime binding serves
+   `ofac-sdn-direct` under component `catalog_component_ed835720fdb2b3a505927488` at
+   `openwatchlist-runtime-normalization/ascii-v1` (`test/fixtures/screening-api/config.json`,
+   `test/golden/runtime-mmap/ofac-fixture.info.json:12`).
+3. **No candidate coverage.** Its five candidate IDs (`a-tie`, `candidate-exact-lei`,
+   `candidate-exact-name`, `candidate-weak`, `z-tie`) are scoring unit-test names. §3's join would
+   miss on every one of the served catalog's records (`ofac:sdn:1001` / `2002` / `3003`) even if the
+   profiles agreed.
+
+Corollary, stated because it is easy to misread: **the check that fails at startup is §4's
+runtime-profile equality check, not `LoadActive`.** Loading this tuple succeeds. Comparing its
+policy profile against the runtime package the screening API actually serves is what fails. Pairing
+this policy with the screening catalog's descriptor would additionally fail `validateTuple`'s
+policy/descriptor profile check (`manager.go:264-266`) and `validateRequest`'s lineage/policy check
+(`candidatescoring/engine.go:248-250`) — but neither of those rejects the fixture as it stands
+today.
+
+The tuple's remaining property is that nothing consumes it: no Go code reads that state directory;
+the only references are `configs/scoring-activation/phase8e-example.json:2` and
 `configs/activation-promotion/phase8f-example.json:2`, both example configs for CLIs.
-
-**Finding: this repository contains no projection package, and no activation tuple, bound to a
-catalog `cmd/screening-api` can serve.** Two independent gates would reject the attempt —
-`validateTuple`'s policy/descriptor profile check (`manager.go:264-266`) and `validateRequest`'s
-lineage/policy profile check (`candidatescoring/engine.go:248-250`).
 
 **What the implementation PR must therefore produce**, or DOM-3 lands as wiring with nothing to
 exercise it:
 
-1. A canonical projection input and compiled projection package (via `cmd/projection-package`)
-   derived from the screening fixture catalog, keyed by `ofac:sdn:1001` / `2002` / `3003` per §3's
-   join contract.
-2. A scoring policy declaring `openwatchlist-runtime-normalization/ascii-v1`. This is a new config
+1. A catalog descriptor for the **real** screening runtime package —
+   `test/golden/runtime-mmap/ofac-fixture.owmmap`, which unlike `catalog-fixture.mmap` is an actual
+   compiled 1552-byte `OWMMAP01` catalog — declaring profile
+   `openwatchlist-runtime-normalization/ascii-v1`.
+2. A canonical projection input and compiled projection package (via `cmd/projection-package`)
+   derived from that catalog, keyed by `ofac:sdn:1001` / `2002` / `3003` per §3's join contract.
+3. A scoring policy declaring `openwatchlist-runtime-normalization/ascii-v1`. This is a new config
    file, not a modification of `candidate-scoring-r1.json`, which other tests pin
-   (`cmd/candidate-score/main_test.go:53`, `cmd/scoring-activation/main_test.go:55`).
-3. An activation record binding the two, produced by `cmd/scoring-activation`.
-4. `normalization_profile` surfaced on `runtimemmapclient.PackageInfo` (§8), so §9.4's check is real.
+   (`cmd/candidate-score/main_test.go:53`, `cmd/scoring-activation/main_test.go:55`) and which the
+   existing tuple's binding checksums.
+4. An activation record binding the three, produced by `cmd/scoring-activation activate`.
+5. `normalization_profile` surfaced on `runtimemmapclient.PackageInfo` (§8), so §9.4's check is real.
 
-None of these requires a Rust change (§8). All are additive artifacts.
+None of these requires a Rust change (§8). All are additive artifacts, and none modifies the
+existing Phase 8E fixture tuple, which stays valid for the tests that already depend on it.
 
 **This ADR does not authorize skipping them.** If the implementation PR cannot produce a working
 tuple, the correct outcome is that §9's bar does not pass and DOM-3 stays open — not a
-`scoring_enabled` flag (§6) and not a placeholder projection.
+`scoring_enabled` flag (§6), and not a stub catalog standing in for a compiled one.
 
 ### Other accepted risks
 
