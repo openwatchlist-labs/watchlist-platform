@@ -49,6 +49,7 @@ func (p *PostgresSink) runBound(ctx context.Context, _ tenantsql.Bound, sql stri
 }
 
 func (p *PostgresSink) Ping(ctx context.Context) error { return p.run(ctx, "SELECT 1") }
+
 func (p *PostgresSink) Persist(ctx context.Context, e Envelope, r Receipt) error {
 	tenant, err := tenantctx.Assert(ctx, e.CreateAlertRequest.TenantID)
 	if err != nil {

@@ -3,7 +3,7 @@
   "adapter_id": "generic-json-v1",
   "version": "2026-07-15-r1",
   "vendor": "generic",
-  "description": "Strict generic external-alert JSON interchange",
+  "description": "Strict generic external-alert JSON interchange. FIXTURE: constants.tenant_id is a placeholder operator value (tenant-a), not a confirmed deployment binding -- see ADR-0006 section 7.",
   "input_format": "json-object",
   "max_source_bytes": 4194304,
   "required_paths": [
@@ -16,7 +16,6 @@
     "idempotency_key"
   ],
   "mappings": {
-    "tenant_id": "tenant_id",
     "source_system_id": "system",
     "source_alert_id": "alert_id",
     "raw_list_name": "list_name",
@@ -34,9 +33,12 @@
   "additional_evidence": {
     "matched_name": "evidence.matched_name",
     "screened_name": "evidence.screened_name",
-    "vendor_status": "status"
+    "vendor_status": "status",
+    "vendor_tenant_id": "tenant_id"
   },
-  "constants": {},
+  "constants": {
+    "tenant_id": "tenant-a"
+  },
   "list_mappings": {
     "OFAC SDN": {
       "canonical_list_id": "ofac-sdn",
@@ -51,5 +53,5 @@
       "status": "active"
     }
   },
-  "profile_sha256": "5f08ef117cfafc81e0d44c46bc53e01933f639be68ac5ac62e0196e4e6edf237"
+  "profile_sha256": "ba6973e37cc28c9c56916528882748280afda9116e5362bfae91fdca7591efdd"
 }

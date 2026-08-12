@@ -1,6 +1,6 @@
 {
   "schema_version": "review-run-bundle/v1alpha1",
-  "run_id": "review_run_14e1c20d2b2fb5c36b0cf518",
+  "run_id": "review_run_788ebd5f3b57b3a832029a21",
   "orchestrator_version": "review-orchestrator/v0.1.0",
   "tenant_id": "tenant-a",
   "effective_at": "2026-07-14T12:00:00Z",
@@ -3631,7 +3631,7 @@
   "cases": [
     {
       "schema_version": "review-case-bundle/v1alpha1",
-      "case_bundle_id": "review_case_1f1fb35d9e89d83446416384",
+      "case_bundle_id": "review_case_5db05f11b1630a407d17b495",
       "case_id": "candidate_result_c75fde262447f82adf98ccb2:diagnostic:entity_type_mismatch:ofac:sdn:3003",
       "correlation_id": "review_corr_fb6c5cff841807aedf42f8a6",
       "observation_id": "fp_observation_5b1c24fb47f43803a9e4bccd",
@@ -3642,12 +3642,13 @@
       "retrieval_status": "completed",
       "citation_package": {
         "schema_version": "rag-citation-package/v1alpha1",
-        "citation_package_id": "citation_package_365da733111956f2f1d6c3b2",
+        "citation_package_id": "citation_package_be6475ef26242a7bb2d12db5",
         "query": {
           "schema_version": "rag-retrieval-query/v1alpha1",
-          "query_id": "rag_query_e54ff9d5e480d3dd445c4691",
+          "query_id": "rag_query_79aa24292b3d8a1fb7ffa59a",
           "task": "explain_policy_route",
           "tenant_id": "tenant-a",
+          "scope": "transaction_screening",
           "decision_id": "policy_decision_69967452f4301d13c3892b50",
           "disposition": "investigate",
           "review_route": "standard_review",
@@ -3820,7 +3821,7 @@
       "note_status": "generated",
       "analyst_invocation": {
         "schema_version": "analyst-note-invocation/v1alpha1",
-        "invocation_id": "analyst_invocation_e8106dc8067e6af8d4523d16",
+        "invocation_id": "analyst_invocation_5c67be5e83f1948bd1ea688c",
         "generator_version": "governed-analyst-note/v0.1.0",
         "decision": {
           "schema_version": "transaction-screening-decision/v1alpha1",
@@ -4009,12 +4010,13 @@
         },
         "citation_package": {
           "schema_version": "rag-citation-package/v1alpha1",
-          "citation_package_id": "citation_package_365da733111956f2f1d6c3b2",
+          "citation_package_id": "citation_package_be6475ef26242a7bb2d12db5",
           "query": {
             "schema_version": "rag-retrieval-query/v1alpha1",
-            "query_id": "rag_query_e54ff9d5e480d3dd445c4691",
+            "query_id": "rag_query_79aa24292b3d8a1fb7ffa59a",
             "task": "explain_policy_route",
             "tenant_id": "tenant-a",
+            "scope": "transaction_screening",
             "decision_id": "policy_decision_69967452f4301d13c3892b50",
             "disposition": "investigate",
             "review_route": "standard_review",
@@ -4289,42 +4291,42 @@
     {
       "schema_version": "review-audit-event/v1alpha1",
       "sequence": 5,
-      "event_id": "review_event_1834cbaa9635801299787fd7",
+      "event_id": "review_event_3ce7382dc7a2620c0fc8f82d",
       "event_type": "retrieval_completed",
       "case_id": "candidate_result_c75fde262447f82adf98ccb2:diagnostic:entity_type_mismatch:ofac:sdn:3003",
-      "payload_digest": "15821a9f745210f618ffb903c8aaa2331eff1a1172da304ede67c764869067df",
+      "payload_digest": "14ec94279f587167dc3a3ce3c06db703d034c6507e3b20e3390b277f2fe5d5d4",
       "previous_hash": "6ea8d94550ffa5322480b94630e56c12c5c8115a954fd888092a8705f6da8ab8",
-      "event_hash": "85d64936d4084fbbf0adebc8a9e18bc1dcce6553da08c999c5b976e411f6dfcc"
+      "event_hash": "bfe0cf458abfba78d3d76db97f17de1c745d36cc1e6f926b79b3d88f9273f4b5"
     },
     {
       "schema_version": "review-audit-event/v1alpha1",
       "sequence": 6,
-      "event_id": "review_event_ac6fa7caa75e8ca153531d4a",
+      "event_id": "review_event_a3c35e04e62ef97217208634",
       "event_type": "analyst_note_generated",
       "case_id": "candidate_result_c75fde262447f82adf98ccb2:diagnostic:entity_type_mismatch:ofac:sdn:3003",
-      "payload_digest": "2ba1e38fc52d4dcfcec243e407adc99750181e89408b808b1d8311e94b2caee4",
-      "previous_hash": "85d64936d4084fbbf0adebc8a9e18bc1dcce6553da08c999c5b976e411f6dfcc",
-      "event_hash": "785c368c1a691f79f1fa05b8cb139eb5ea82a05effda9b55c87a8751b5469f9e"
+      "payload_digest": "2464ab66660b1f11051102f5dc3f662f27e7f14dcbc1b6a336e1eef33ce54034",
+      "previous_hash": "bfe0cf458abfba78d3d76db97f17de1c745d36cc1e6f926b79b3d88f9273f4b5",
+      "event_hash": "d745ef0797e769d47d26b047dfafe545ef1bf2f8b8e28a589f68de589f026015"
     },
     {
       "schema_version": "review-audit-event/v1alpha1",
       "sequence": 7,
-      "event_id": "review_event_ce1dec69b1947d167c40309d",
+      "event_id": "review_event_f28d65bb398a3f89bde74c9e",
       "event_type": "case_completed",
       "case_id": "candidate_result_c75fde262447f82adf98ccb2:diagnostic:entity_type_mismatch:ofac:sdn:3003",
-      "payload_digest": "2fd9d24ec1dd865e115161ab10901ba546d6397673db8420f93c828da72fbcd0",
-      "previous_hash": "785c368c1a691f79f1fa05b8cb139eb5ea82a05effda9b55c87a8751b5469f9e",
-      "event_hash": "7dc2fc6f1fe22a07f0f835ea6ef29a7131cc9854a9fa39ae20188993b2485a3d"
+      "payload_digest": "4c5fe8b389f6b61cf3c28c1a8d9fb844f319fcfa91d28c8832639110abd59387",
+      "previous_hash": "d745ef0797e769d47d26b047dfafe545ef1bf2f8b8e28a589f68de589f026015",
+      "event_hash": "c09bcf216162c8c8bd62c738e93c37af21733c9ee7eacaea252084262959602d"
     },
     {
       "schema_version": "review-audit-event/v1alpha1",
       "sequence": 8,
-      "event_id": "review_event_9a5de6374fcd70806c2e2645",
+      "event_id": "review_event_a4a3b8941027fcb0094a377a",
       "event_type": "run_completed",
       "payload_digest": "1c49c27452ffa3be3dc206be10128f3cb4329dbda1a7fab65595584cd871f346",
-      "previous_hash": "7dc2fc6f1fe22a07f0f835ea6ef29a7131cc9854a9fa39ae20188993b2485a3d",
-      "event_hash": "547ba1ad487c9db089bf9c7b656642b714f25d7d3bb73c50205e7b7161e53e26"
+      "previous_hash": "c09bcf216162c8c8bd62c738e93c37af21733c9ee7eacaea252084262959602d",
+      "event_hash": "0660fac58c93898b78054440030c8cfae9e0cd4ac17d4a9f9c022ddb31886989"
     }
   ],
-  "audit_head": "547ba1ad487c9db089bf9c7b656642b714f25d7d3bb73c50205e7b7161e53e26"
+  "audit_head": "0660fac58c93898b78054440030c8cfae9e0cd4ac17d4a9f9c022ddb31886989"
 }

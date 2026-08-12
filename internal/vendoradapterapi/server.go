@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/vendoradapter"
 	"io"
 	"net/http"
@@ -48,7 +49,7 @@ func (s *Server) Check(ctx context.Context) error {
 	}
 	return nil
 }
-func (s *Server) Handler() http.Handler {
+func (s *Server) Handler() *http.ServeMux {
 	m := http.NewServeMux()
 	m.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { write(w, 200, map[string]any{"status": "ok"}) })
 	m.HandleFunc("GET /readyz", s.ready)
@@ -70,6 +71,26 @@ func (s *Server) ingest(w http.ResponseWriter, r *http.Request) {
 	p, ok := s.Profiles[r.PathValue("adapter")]
 	if !ok {
 		write(w, 404, map[string]any{"error": "adapter profile not found"})
+		return
+	}
+	// The tenant assertion runs here, ahead of Store.Process's filesystem
+	// write, not after it: the filesystem is the authoritative read source
+	// (ADR-0001 Context), not a mirror, so a 403 that fires only after the
+	// write already happened is too late (ADR-0006 §5/D3). ValidateProfile
+	// guarantees constants.tenant_id is a non-empty string for every loaded
+	// profile (ADR-0006 D2), so a failed type assertion here means the
+	// profile-load invariant was violated, not a request-time condition.
+	declaredTenant, ok := p.Constants["tenant_id"].(string)
+	if !ok || declaredTenant == "" {
+		write(w, 500, map[string]any{"error": "adapter profile has no constants.tenant_id"})
+		return
+	}
+	if _, err := tenantctx.Assert(r.Context(), declaredTenant); err != nil {
+		if errors.Is(err, tenantctx.ErrTenantMismatch) {
+			write(w, 403, map[string]any{"error": "tenant mismatch", "detail": err.Error()})
+			return
+		}
+		write(w, 500, map[string]any{"error": "tenant binding integrity failure", "detail": err.Error()})
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, min(s.Config.MaxBodyBytes, p.MaxSourceBytes))
@@ -95,6 +116,20 @@ func (s *Server) ingest(w http.ResponseWriter, r *http.Request) {
 		receipt, re := s.Store.Receipt(p.AdapterID, env.CreateAlertRequest.IdempotencyKey)
 		if re == nil {
 			re = s.Postgres.Persist(r.Context(), env, receipt)
+		}
+		// Tenant-integrity failures are surfaced regardless of
+		// PostgresRequired: they mean the write was scoped to the wrong
+		// tenant (or no tenant at all), not that Postgres is unreachable.
+		// PostgresRequired=false is meant to tolerate the latter --
+		// degrade to the local filesystem write on an outage -- and must
+		// not silently swallow the former.
+		if errors.Is(re, tenantctx.ErrTenantMismatch) {
+			write(w, 403, map[string]any{"error": "tenant mismatch", "detail": re.Error(), "record_id": env.RecordID})
+			return
+		}
+		if errors.Is(re, tenantctx.ErrNoBoundTenant) {
+			write(w, 500, map[string]any{"error": "tenant binding integrity failure", "detail": re.Error(), "record_id": env.RecordID})
+			return
 		}
 		if re != nil && s.Config.PostgresRequired {
 			write(w, 503, map[string]any{"error": "durable PostgreSQL persistence failed", "detail": re.Error(), "record_id": env.RecordID})

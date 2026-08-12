@@ -1,11 +1,12 @@
 {
   "schema_version": "rag-citation-package/v1alpha1",
-  "citation_package_id": "citation_package_13c037a6cbf2a56ed63364ee",
+  "citation_package_id": "citation_package_3d884f9f720aecc340931727",
   "query": {
     "schema_version": "rag-retrieval-query/v1alpha1",
-    "query_id": "rag_query_5d0ea8d53047e592927f4608",
+    "query_id": "rag_query_63b93dd8ac9aa871972d17dc",
     "task": "explain_policy_route",
     "tenant_id": "tenant-a",
+    "scope": "transaction_screening",
     "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
     "disposition": "investigate",
     "review_route": "standard_review",
