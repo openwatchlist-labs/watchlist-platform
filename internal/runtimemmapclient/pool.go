@@ -11,6 +11,10 @@ type Pool struct {
 	workers chan *Worker
 	all     []*Worker
 	once    sync.Once
+
+	mu     sync.Mutex
+	closed bool
+	wg     sync.WaitGroup
 }
 
 func StartPool(ctx context.Context, binaryPath, packagePath string, size int) (*Pool, error) {
@@ -40,16 +44,28 @@ func StartPool(ctx context.Context, binaryPath, packagePath string, size int) (*
 func (pool *Pool) Info() PackageInfo { return pool.info }
 
 func (pool *Pool) Lookup(ctx context.Context, query Query) ([]Candidate, error) {
+	pool.mu.Lock()
+	if pool.closed {
+		pool.mu.Unlock()
+		return nil, fmt.Errorf("runtime worker pool is closed")
+	}
+	pool.wg.Add(1)
+	pool.mu.Unlock()
+	defer pool.wg.Done()
+
 	select {
 	case worker, ok := <-pool.workers:
 		if !ok {
 			return nil, fmt.Errorf("runtime worker pool is closed")
 		}
+		// Safe to send unconditionally: Close() marks the pool closed and
+		// waits for every in-flight Lookup (tracked by pool.wg) to finish
+		// before it closes pool.workers, so this send can never race a
+		// closed channel. The channel also can never be over capacity --
+		// each worker is either checked out by exactly one in-flight
+		// Lookup or sitting in the channel, never both.
 		defer func() {
-			select {
-			case pool.workers <- worker:
-			default:
-			}
+			pool.workers <- worker
 		}()
 		return worker.Lookup(ctx, query)
 	case <-ctx.Done():
@@ -60,6 +76,10 @@ func (pool *Pool) Lookup(ctx context.Context, query Query) ([]Candidate, error) 
 func (pool *Pool) Close() error {
 	var first error
 	pool.once.Do(func() {
+		pool.mu.Lock()
+		pool.closed = true
+		pool.mu.Unlock()
+		pool.wg.Wait()
 		close(pool.workers)
 		for _, worker := range pool.all {
 			if err := worker.Close(); err != nil && first == nil {
