@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openwatchlist-labs/watchlist-platform/internal/reviewauth"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantctx"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/tenantsql"
 )
@@ -49,8 +50,33 @@ func (p *PostgresSink) runBound(ctx context.Context, _ tenantsql.Bound, sql stri
 }
 
 func (p *PostgresSink) Ping(ctx context.Context) error { return p.run(ctx, "SELECT 1") }
+
+// assertTenant is a narrowly-scoped interim for this sink's call site only
+// (ADR-0003 SEC-1e, tracked as the sequencing dependency ADR-0003 §10
+// flags for internal/vendoradapterapi). SEC-1b deleted
+// tenantctx.Assert's body-fallback unconditionally
+// (internal/tenantctx/tenantctx.go:81-85), but internal/vendoradapterapi
+// has no auth middleware and never binds a tenant on ctx, so every write
+// through this sink started failing closed with ErrNoBoundTenant. When
+// ctx does carry a bound tenant -- the state SEC-1e will eventually put
+// this surface into -- this defers to tenantctx.Assert unchanged,
+// including its mismatch rejection. Only when ctx carries no bound tenant
+// does it fall back to resolving the body-supplied tenant_id directly,
+// mirroring tenantctx.Assert's pre-SEC-1b fallback behavior for this one
+// caller. This must NOT be generalized back into tenantctx.Assert itself
+// -- that would silently reopen the hole SEC-1b closed for
+// alertcaseapi/screeningapi. Delete this function and call
+// tenantctx.Assert directly once SEC-1e gives vendoradapterapi a bound
+// tenant of its own.
+func assertTenant(ctx context.Context, id string) (tenantctx.Tenant, error) {
+	if _, ok := tenantctx.FromContext(ctx); ok {
+		return tenantctx.Assert(ctx, id)
+	}
+	return tenantctx.Resolve(reviewauth.Claims{TenantID: id})
+}
+
 func (p *PostgresSink) Persist(ctx context.Context, e Envelope, r Receipt) error {
-	tenant, err := tenantctx.Assert(ctx, e.CreateAlertRequest.TenantID)
+	tenant, err := assertTenant(ctx, e.CreateAlertRequest.TenantID)
 	if err != nil {
 		return err
 	}
