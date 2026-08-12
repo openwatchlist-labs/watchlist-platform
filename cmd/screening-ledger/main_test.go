@@ -10,11 +10,13 @@
 // than guessing, after an initial attempt without it failed with
 // "configured ledger ID does not match durable ledger-id".
 //
-// "migrate"/"sync"/"import-audit" (need a live PostgreSQL DSN and psql)
-// and "replay" (needs a live --backend-url HTTP endpoint) are not
-// covered - the same category of real-infrastructure-dependent
+// "migrate"/"sync"/"import-audit" (need a live PostgreSQL DSN reachable
+// via pgx) and "replay" (needs a live --backend-url HTTP endpoint) are
+// not covered - the same category of real-infrastructure-dependent
 // subcommand already skipped for cmd/alert-case's "migrate" and
-// cmd/vendor-adapter's "submit".
+// cmd/vendor-adapter's "submit". See internal/screeningledger/
+// postgres_pgx_test.go for the PostgreSQL-backed coverage, gated on
+// OWL_MIGRATOR_DATABASE_URL.
 package main_test
 
 import (

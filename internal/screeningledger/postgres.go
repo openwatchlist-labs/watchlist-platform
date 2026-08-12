@@ -1,76 +1,175 @@
 package screeningledger
 
 import (
-	"bytes"
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
-type CommandRunner interface {
-	Run(context.Context, string, []string, []byte) ([]byte, error)
-}
-type ExecRunner struct{}
-
-func (ExecRunner) Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	cmd.Stdin = bytes.NewReader(stdin)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return out, fmt.Errorf("%s: %w: %s", name, err, strings.TrimSpace(string(out)))
-	}
-	return out, nil
-}
-
+// PostgresSink persists ledger events to PostgreSQL over a single
+// connection, not a pool. cmd/screening-ledger's sync and import-audit
+// loops are strictly sequential (ADR-0005 §3.1, D4) -- there is never a
+// second goroutine writing concurrently -- so a pool would hold exactly
+// one connection in use for the entire run while adding reconnect logic
+// and lifecycle knobs that buy nothing. One *pgx.Conn per invocation,
+// opened in NewPostgresSink and closed by the caller via Close, captures
+// the entire available benefit.
+//
+// The DSN this sink connects with must be an identity with DDL rights on
+// the ledger schema, not owl_app (ADR-0005 §4, "Role identity, which is
+// currently unstated"). Migrate runs CREATE TABLE / CREATE TRIGGER on
+// every sync and import-audit invocation, and owl_app is granted no
+// privileges at all on these Class C relations --
+// scripts/ci/provision_test_roles.sh grants owl_app only the tables
+// listed in db/tenant_scoped_tables.txt, which does not include any
+// screening_ledger_* or watchlist_operational_audit table. In this
+// repository's role model that means owl_migrator or an equivalent
+// DDL-capable identity. Splitting DDL (at deploy time) from DML (at sync
+// time, as owl_app) is a separate change with its own reasoning, not
+// something this migration does.
 type PostgresSink struct {
-	DSN      string
-	PSQLPath string
-	Runner   CommandRunner
-	Timeout  time.Duration
+	conn    *pgx.Conn
+	timeout time.Duration
 }
 
-func NewPostgresSink(dsn, psqlPath string, runner CommandRunner, timeout time.Duration) (*PostgresSink, error) {
+func NewPostgresSink(ctx context.Context, dsn string, timeout time.Duration) (*PostgresSink, error) {
 	if strings.TrimSpace(dsn) == "" {
 		return nil, errors.New("PostgreSQL DSN is required")
-	}
-	if psqlPath == "" {
-		psqlPath = "psql"
-	}
-	if runner == nil {
-		runner = ExecRunner{}
 	}
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
-	return &PostgresSink{DSN: dsn, PSQLPath: psqlPath, Runner: runner, Timeout: timeout}, nil
-}
-func (p *PostgresSink) run(ctx context.Context, sql string) error {
-	ctx, cancel := context.WithTimeout(ctx, p.Timeout)
+	connConfig, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	// statement_timeout is a defense-in-depth backstop (ADR-0005 §3.2,
+	// D7), set explicitly rather than left to server defaults. fork+exec
+	// previously guaranteed a hung statement died when exec.CommandContext
+	// killed the psql process on ctx expiry; a live connection has no such
+	// property on its own -- ctx cancellation asks pgx to send a cancel
+	// request, but the server-side backstop is what actually bounds a
+	// runaway statement if that race is lost.
+	connConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(timeout.Milliseconds(), 10)
+
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	_, err := p.Runner.Run(ctx, p.PSQLPath, []string{p.DSN, "-X", "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "--quiet"}, []byte(sql))
+	conn, err := pgx.ConnectConfig(connectCtx, connConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &PostgresSink{conn: conn, timeout: timeout}, nil
+}
+
+// Close releases the sink's single connection. Callers should close the
+// sink once they are done with it, typically via defer right after
+// NewPostgresSink succeeds.
+func (p *PostgresSink) Close(ctx context.Context) error {
+	return p.conn.Close(ctx)
+}
+
+func (p *PostgresSink) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	return p.conn.Ping(ctx)
+}
+
+// Migrate executes SchemaSQL as one multi-statement script via the
+// simple query protocol (PgConn.Exec), the same shape psql -f used --
+// the extended protocol pgx.Conn.Exec uses by default cannot prepare a
+// string containing multiple statements.
+func (p *PostgresSink) Migrate(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	_, err := p.conn.PgConn().Exec(ctx, SchemaSQL).ReadAll()
 	return err
 }
-func (p *PostgresSink) Ping(ctx context.Context) error    { return p.run(ctx, "SELECT 1;\n") }
-func (p *PostgresSink) Migrate(ctx context.Context) error { return p.run(ctx, SchemaSQL) }
+
 func (p *PostgresSink) Persist(ctx context.Context, event Event, request, response SnapshotEnvelope) error {
-	eventJSON, _ := json.Marshal(event)
-	reqJSON, _ := json.Marshal(request)
-	respJSON, _ := json.Marshal(response)
-	idempotencyGuard := ""
-	if event.IdempotencyKeyHash != "" {
-		idempotencyGuard = "DO $$ BEGIN IF EXISTS (SELECT 1 FROM screening_idempotency_receipt WHERE scope=" + sqlText(event.Route) + " AND idempotency_key_sha256=" + sqlText(event.IdempotencyKeyHash) + " AND (request_sha256<>" + sqlText(event.RequestSHA256) + " OR response_sha256<>" + sqlText(event.ResponseSHA256) + " OR http_status<>" + fmt.Sprint(event.HTTPStatus) + ")) THEN RAISE EXCEPTION 'idempotency receipt conflict'; END IF; END $$;\n"
+	eventJSON, err := json.Marshal(event)
+	if err != nil {
+		return err
 	}
-	sql := "BEGIN;\n" + idempotencyGuard +
-		"INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json) VALUES (" + sqlText(event.EventID) + "," + sqlText(event.LedgerID) + "," + fmt.Sprint(event.Sequence) + "," + sqlText(event.EventSHA256) + "," + sqlText(event.PreviousEventSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Route) + "," + fmt.Sprint(event.HTTPStatus) + "," + sqlText(event.RequestSHA256) + "," + sqlText(event.ResponseSHA256) + "," + sqlText(event.RequestSnapshotSHA256) + "," + sqlText(event.ResponseSnapshotSHA256) + "," + sqlText(event.RetentionClass) + "," + sqlText(event.ExpiresAt) + "::timestamptz," + sqlJSON(eventJSON) + ") ON CONFLICT (event_id) DO NOTHING;\n" +
-		insertSnapshotSQL(request, reqJSON) + insertSnapshotSQL(response, respJSON) +
-		"INSERT INTO screening_ledger_replication(event_id,replicated_at) VALUES (" + sqlText(event.EventID) + ",clock_timestamp()) ON CONFLICT (event_id) DO NOTHING;\n" +
-		"INSERT INTO screening_idempotency_receipt(scope,idempotency_key_sha256,request_sha256,response_sha256,http_status,event_id) SELECT " + sqlText(event.Route) + "," + sqlNullableText(event.IdempotencyKeyHash) + "," + sqlText(event.RequestSHA256) + "," + sqlText(event.ResponseSHA256) + "," + fmt.Sprint(event.HTTPStatus) + "," + sqlText(event.EventID) + " WHERE " + sqlNullableText(event.IdempotencyKeyHash) + " IS NOT NULL ON CONFLICT (scope,idempotency_key_sha256) DO NOTHING;\nCOMMIT;\n"
-	return p.run(ctx, sql)
+	reqJSON, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	respJSON, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	tx, err := p.conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Same idempotency-receipt conflict guard the previous DO $$ block
+	// enforced, expressed as a parameterized SELECT plus an
+	// application-side check rather than string-formatted PL/pgSQL --
+	// DO blocks take no bind parameters. Same transaction, same check,
+	// same error.
+	if event.IdempotencyKeyHash != "" {
+		var conflict bool
+		if err := tx.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM screening_idempotency_receipt WHERE scope=$1 AND idempotency_key_sha256=$2 AND (request_sha256<>$3 OR response_sha256<>$4 OR http_status<>$5))`,
+			event.Route, event.IdempotencyKeyHash, event.RequestSHA256, event.ResponseSHA256, event.HTTPStatus,
+		).Scan(&conflict); err != nil {
+			return err
+		}
+		if conflict {
+			return errors.New("idempotency receipt conflict")
+		}
+	}
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
+		 VALUES ($1,$2,$3,$4,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14::timestamptz,$15::jsonb)
+		 ON CONFLICT (event_id) DO NOTHING`,
+		event.EventID, event.LedgerID, int64(event.Sequence), event.EventSHA256, event.PreviousEventSHA256,
+		event.OccurredAt, event.Route, event.HTTPStatus, event.RequestSHA256, event.ResponseSHA256,
+		event.RequestSnapshotSHA256, event.ResponseSnapshotSHA256, event.RetentionClass, event.ExpiresAt, eventJSON,
+	); err != nil {
+		return err
+	}
+
+	if err := insertSnapshot(ctx, tx, request, reqJSON); err != nil {
+		return err
+	}
+	if err := insertSnapshot(ctx, tx, response, respJSON); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO screening_ledger_replication(event_id,replicated_at) VALUES ($1,clock_timestamp()) ON CONFLICT (event_id) DO NOTHING`,
+		event.EventID,
+	); err != nil {
+		return err
+	}
+
+	// $2 needs an explicit cast: a bare "$2 IS NOT NULL" in the WHERE
+	// clause gives Postgres' parameter type inference nothing to resolve
+	// against, even though the same parameter also feeds a text column
+	// in the SELECT list -- confirmed against a live server, not assumed.
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO screening_idempotency_receipt(scope,idempotency_key_sha256,request_sha256,response_sha256,http_status,event_id)
+		 SELECT $1,$2::text,$3,$4,$5,$6 WHERE $2 IS NOT NULL
+		 ON CONFLICT (scope,idempotency_key_sha256) DO NOTHING`,
+		event.Route, nullableText(event.IdempotencyKeyHash), event.RequestSHA256, event.ResponseSHA256, event.HTTPStatus, event.EventID,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // PersistAudit previously issued this INSERT as a bare statement, outside
@@ -81,44 +180,93 @@ func (p *PostgresSink) Persist(ctx context.Context, event Event, request, respon
 // binding applies -- screening_ledger_audit is Class C (deferred by D2,
 // ADR §4/§9), absent from db/tenant_scoped_tables.txt.
 func (p *PostgresSink) PersistAudit(ctx context.Context, event AuditEvent) error {
-	raw, _ := json.Marshal(event)
-	sql := "BEGIN;\n" +
-		"INSERT INTO screening_ledger_audit(ledger_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,event_id,audit_json) VALUES (" + sqlText(event.LedgerID) + "," + fmt.Sprint(event.Sequence) + "," + sqlText(event.AuditSHA256) + "," + sqlText(event.PreviousAuditSHA256) + "," + sqlText(event.OccurredAt) + "::timestamptz," + sqlText(event.Action) + "," + sqlNullableText(event.EventID) + "," + sqlJSON(raw) + ") ON CONFLICT (audit_sha256) DO NOTHING;\n" +
-		"COMMIT;\n"
-	return p.run(ctx, sql)
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	tx, err := p.conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO screening_ledger_audit(ledger_id,sequence,audit_sha256,previous_audit_sha256,occurred_at,action,event_id,audit_json)
+		 VALUES ($1,$2,$3,$4,$5::timestamptz,$6,$7,$8::jsonb)
+		 ON CONFLICT (audit_sha256) DO NOTHING`,
+		event.LedgerID, int64(event.Sequence), event.AuditSHA256, event.PreviousAuditSHA256, event.OccurredAt, event.Action, nullableText(event.EventID), raw,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // PurgeExpired: see PersistAudit's doc comment -- same bare-statement
 // hazard, same fix. screening_ledger_snapshot is Class C.
 func (p *PostgresSink) PurgeExpired(ctx context.Context, before, operator, reason string) error {
-	sql := "BEGIN;\n" +
-		"SELECT screening_ledger_purge_snapshots(" + sqlText(before) + "::timestamptz," + sqlText(operator) + "," + sqlText(reason) + ");\n" +
-		"COMMIT;\n"
-	return p.run(ctx, sql)
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	tx, err := p.conn.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::timestamptz,$2,$3)`, before, operator, reason); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 // PersistExternalAudit: see PersistAudit's doc comment -- same
 // bare-statement hazard, same fix. watchlist_operational_audit is Class C.
 func (p *PostgresSink) PersistExternalAudit(ctx context.Context, source, streamID string, sequence uint64, eventSHA, previous, occurred, action string, payload []byte) error {
-	sql := "BEGIN;\n" +
-		"INSERT INTO watchlist_operational_audit(source,stream_id,sequence,event_sha256,previous_event_sha256,occurred_at,action,payload_json) VALUES (" + sqlText(source) + "," + sqlText(streamID) + "," + fmt.Sprint(sequence) + "," + sqlText(eventSHA) + "," + sqlText(previous) + "," + sqlText(occurred) + "::timestamptz," + sqlText(action) + "," + sqlJSON(payload) + ") ON CONFLICT (source,event_sha256) DO NOTHING;\n" +
-		"COMMIT;\n"
-	return p.run(ctx, sql)
-}
-func insertSnapshotSQL(e SnapshotEnvelope, raw []byte) string {
-	return "INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json) VALUES (" + sqlText(e.SnapshotSHA256) + "," + sqlText(e.Kind) + "," + sqlText(e.CreatedAt) + "::timestamptz," + sqlText(e.ExpiresAt) + "::timestamptz," + sqlText(e.RetentionClass) + "," + sqlJSON(raw) + ") ON CONFLICT (snapshot_sha256) DO NOTHING;\n"
-}
-func sqlText(v string) string {
-	return "convert_from(decode('" + hex.EncodeToString([]byte(v)) + "','hex'),'UTF8')"
-}
-func sqlNullableText(v string) string {
-	if v == "" {
-		return "NULL"
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+
+	tx, err := p.conn.Begin(ctx)
+	if err != nil {
+		return err
 	}
-	return sqlText(v)
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO watchlist_operational_audit(source,stream_id,sequence,event_sha256,previous_event_sha256,occurred_at,action,payload_json)
+		 VALUES ($1,$2,$3,$4,$5,$6::timestamptz,$7,$8::jsonb)
+		 ON CONFLICT (source,event_sha256) DO NOTHING`,
+		source, streamID, int64(sequence), eventSHA, previous, occurred, action, payload,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
-func sqlJSON(raw []byte) string {
-	return "convert_from(decode('" + hex.EncodeToString(raw) + "','hex'),'UTF8')::jsonb"
+
+func insertSnapshot(ctx context.Context, tx pgx.Tx, e SnapshotEnvelope, raw []byte) error {
+	_, err := tx.Exec(ctx,
+		`INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json)
+		 VALUES ($1,$2,$3::timestamptz,$4::timestamptz,$5,$6::jsonb)
+		 ON CONFLICT (snapshot_sha256) DO NOTHING`,
+		e.SnapshotSHA256, e.Kind, e.CreatedAt, e.ExpiresAt, e.RetentionClass, raw,
+	)
+	return err
+}
+
+// nullableText turns an empty string into a bound NULL, the parameterized
+// replacement for the previous sqlNullableText's empty-string-to-NULL
+// text substitution (ADR-0005 §4).
+func nullableText(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 const SchemaSQL = `BEGIN;
