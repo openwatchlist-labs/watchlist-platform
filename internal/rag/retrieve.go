@@ -123,6 +123,13 @@ func (r *Retriever) documentAllowed(spec DocumentSpec, query RetrievalQuery, eff
 		summary.ExcludedTenantOrScope++
 		return false
 	}
+	// Enforce AccessScope: document must list the query's requested scope.
+	// On the --query CLI path, the Scope value is caller-supplied and unauthenticated (SEC-1d);
+	// enforcement here is correct given the query it checks against.
+	if !containsString(spec.AccessScope, query.Scope) {
+		summary.ExcludedTenantOrScope++
+		return false
+	}
 	if spec.EffectiveFrom != "" {
 		value, err := time.Parse("2006-01-02", spec.EffectiveFrom)
 		if err != nil || effectiveAt.Before(value) {

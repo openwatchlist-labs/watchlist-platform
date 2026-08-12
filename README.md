@@ -42,6 +42,29 @@ of birth) is extracted during ingestion but is not carried into the compiled
 runtime package, so it is not available on live candidates. See the
 [consolidated issue register](docs/backlog/README.md) for tracked work.
 
+## Current scoring capability
+
+**Scoring is now wired into the live HTTP path.** As of ADR-0004 (DOM-3), the
+screening API returns scored candidates ranked by relevance over `POST
+/v1/screenings` and `POST /v1/screenings/batch`. The `ScreeningResponse`
+carries four scoring fields per matched candidate:
+
+- `score` — integer evidence weight across matching rules
+- `strength_band` — confidence category (`WEAK`, `MEDIUM`, `STRONG`)
+- `reason_codes` — array identifying which rules fired
+- `components` — detailed evidence breakdown with per-rule scores
+
+The response also includes a `policy` object with the policy's SHA256 digest
+and normalization profile, enabling audit replay against immutable content.
+
+**Critical limitation:** Matching capability remains exact name and prefix only
+(Table 1). Scoring applies only to retrieval hits; it does not enable new
+matches. Real fuzzy matching in `internal/matcherbaseline` remains off the
+production path (DOM-1 gap still open). Corroborating evidence fields
+(nationality, dates of birth) cannot be supplied over the HTTP request and
+therefore cannot contribute to scoring (half the policy vocabulary is
+unreachable — see ADR-0004 §11).
+
 ## Current governed status
 
 The public repository has progressed beyond its clean-restart baseline:
@@ -55,10 +78,24 @@ The public repository has progressed beyond its clean-restart baseline:
 - **R2.4 r1.8.3.4** completed controlled four-role homelab deployment, smoke
   testing, full rollback qualification, and controlled reactivation.
 
+**Four security and architecture ADRs have merged since R2.4:**
+
+- **ADR-0001 (SEC-1):** Tenant isolation is now enforced via forced row-level
+  security across sixteen Postgres relations, with a verified tenant bound to
+  every transaction. Idempotency keys are scoped per tenant.
+- **ADR-0002 (REL-10):** The screening API variants (v8d–v8g) have been
+  consolidated. `cmd/screening-api` is now the sole screening entrypoint.
+- **ADR-0003 (SEC-1b):** Both `alertcaseapi` and `screeningapi` now require
+  authenticated bearer tokens (JWT, verified against `reviewauth`). Tenant
+  identity is extracted from token claims and validated against request data.
+- **ADR-0004 (DOM-3):** Candidate scoring is wired into the live screening
+  HTTP path and returns scored, ranked candidates.
+
 The R2.4 result is a controlled homelab qualification, not a production,
 customer, regulatory, or compliance certification. The catalog runtime was
 qualified with the repository's three-record synthetic conformance fixture, not
-with a full production watchlist catalog.
+with a full production watchlist catalog. The platform remains at zero deployed
+traffic anywhere (ADR-0002 §10 finding, unchanged).
 
 See:
 

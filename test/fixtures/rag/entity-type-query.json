@@ -3,6 +3,7 @@
   "query_id": "",
   "task": "explain_policy_route",
   "tenant_id": "tenant-a",
+  "scope": "transaction_screening",
   "decision_id": "policy_decision_34f5719302b5ff66d10012dd",
   "disposition": "investigate",
   "review_route": "standard_review",
