@@ -3,8 +3,9 @@ package screeningapi
 import "github.com/openwatchlist-labs/watchlist-platform/internal/candidatescoring"
 
 // Phase8CCandidateScorer is a typed bridge to the candidatescoring engine.
-// It has no caller in the current screening HTTP path; Service returns
-// unscored retrieval candidates. See DOM-3.
+// Its caller is ScoringBinding (scoring.go), held once at Service startup
+// and used from screenAt() for both single and batch screening (DOM-3,
+// ADR-0004 §4).
 type Phase8CCandidateScorer struct {
 	engine *candidatescoring.Engine
 }

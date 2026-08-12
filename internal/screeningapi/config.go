@@ -27,6 +27,7 @@ func LoadConfig(path string) (Config, error) {
 	config.IdempotencyRoot = resolvePath(base, config.IdempotencyRoot)
 	config.AuthRegistryPath = resolvePath(base, config.AuthRegistryPath)
 	config.SigningKeyPath = resolvePath(base, config.SigningKeyPath)
+	config.ScoringActivationStateDirectory = resolvePath(base, config.ScoringActivationStateDirectory)
 	for index := range config.RuntimeBindings {
 		config.RuntimeBindings[index].PackagePath = resolvePath(base, config.RuntimeBindings[index].PackagePath)
 	}

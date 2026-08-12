@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/openwatchlist-labs/watchlist-platform/internal/scoringactivation"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/screeningapi"
 )
 
@@ -34,6 +36,13 @@ func serve(args []string) {
 	_ = set.Parse(args)
 	config, service, runtime := load(*configPath)
 	defer runtime.Close()
+	if service.Scoring == nil {
+		// ADR-0004 §6: scoring is not optional at runtime. No
+		// scoring_enabled flag -- a service that starts without scoring is
+		// a service that serves unscored results forever without anyone
+		// noticing.
+		fatalf("scoring_activation_state_directory is required to serve")
+	}
 	handler := &screeningapi.Handler{Config: config, Service: service, Store: screeningapi.IdempotencyStore{Root: config.IdempotencyRoot}}
 	tokens, err := screeningapi.LoadTokenService(config)
 	if err != nil {
@@ -107,6 +116,32 @@ func load(configPath string) (screeningapi.Config, *screeningapi.Service, *scree
 		fatalf("start Rust runtime: %v", err)
 	}
 	service := &screeningapi.Service{Loader: loader, Runtime: runtime, MaxCandidates: config.MaxCandidates}
+	// ADR-0004 §4: resolved here, beside StartRuntimeManager and before the
+	// Service literal above. The field is not required by ValidateConfig --
+	// "check" needs no scoring binding to validate catalog and runtime
+	// wiring -- only "serve" (above) refuses to start without one.
+	if strings.TrimSpace(config.ScoringActivationStateDirectory) != "" {
+		manager, err := scoringactivation.NewManager(config.ScoringActivationStateDirectory)
+		if err != nil {
+			runtime.Close()
+			fatalf("construct scoring activation manager: %v", err)
+		}
+		snapshot, err := manager.LoadActive()
+		if err != nil {
+			runtime.Close()
+			fatalf("load active scoring tuple: %v", err)
+		}
+		if err := screeningapi.ValidateScoringRuntimeProfile(runtime, snapshot); err != nil {
+			runtime.Close()
+			fatalf("validate scoring runtime profile: %v", err)
+		}
+		binding, err := screeningapi.NewScoringBinding(snapshot)
+		if err != nil {
+			runtime.Close()
+			fatalf("construct scoring binding: %v", err)
+		}
+		service.Scoring = binding
+	}
 	if fixed := os.Getenv("OPENWATCHLIST_SCREENING_API_FIXED_TIME"); fixed != "" {
 		parsed, parseErr := time.Parse(time.RFC3339, fixed)
 		if parseErr != nil {

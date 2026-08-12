@@ -1,0 +1,40 @@
+{
+  "schema_version": "openwatchlist.canonical-projection-input.v1",
+  "provider": "ofac-direct",
+  "catalog_id": "ofac-sdn-direct",
+  "component_id": "catalog_component_ed835720fdb2b3a505927488",
+  "component_version": "2026-07-13-427847835cb4",
+  "catalog_package_sha256": "8c5e581ad36807c15a2ae00c5cb4e8b7f9154e208b369ff3227617294a473367",
+  "normalization_profile": "openwatchlist-runtime-normalization/ascii-v1",
+  "records": [
+    {
+      "candidate_id": "ofac:sdn:1001",
+      "retrievable": true,
+      "names": ["Acme Imports LLC", "ACME IMPORTS", "ACME GLOBAL"],
+      "identifiers": [
+        {"type": "Legal Entity Identifier", "value": "5493001KJTIIGC8Y1R12"},
+        {"type": "Account Number", "value": "ACME-OPERATING-001"}
+      ],
+      "countries": ["United States"],
+      "entity_type": "organization"
+    },
+    {
+      "candidate_id": "ofac:sdn:2002",
+      "retrievable": true,
+      "names": ["Jordan Example", "J. Example"],
+      "countries": ["United States"],
+      "dates_of_birth": ["1980-05-20"],
+      "entity_type": "individual"
+    },
+    {
+      "candidate_id": "ofac:sdn:3003",
+      "retrievable": true,
+      "names": ["Example Vessel", "MV EXAMPLE"],
+      "identifiers": [
+        {"type": "Vessel Registration Identification", "value": "IMO 1234567"}
+      ],
+      "countries": ["Panama"],
+      "entity_type": "vessel"
+    }
+  ]
+}
