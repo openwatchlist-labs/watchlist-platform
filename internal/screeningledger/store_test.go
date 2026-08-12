@@ -169,43 +169,11 @@ func TestVerifyDetectsTampering(t *testing.T) {
 	}
 }
 
-type captureRunner struct{ calls [][]byte }
-
-func (r *captureRunner) Run(_ context.Context, _ string, _ []string, stdin []byte) ([]byte, error) {
-	r.calls = append(r.calls, append([]byte(nil), stdin...))
-	return []byte("1\n"), nil
-}
-
-func TestPostgresMigrationAndPersistenceContract(t *testing.T) {
-	runner := &captureRunner{}
-	sink, err := NewPostgresSink("postgres://fixture", "psql", runner, time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := sink.Migrate(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if len(runner.calls) != 1 || !bytes.Contains(runner.calls[0], []byte("screening_ledger_event")) || !bytes.Contains(runner.calls[0], []byte("watchlist_operational_audit")) {
-		t.Fatal("migration omitted durable ledger tables")
-	}
-
-	store, _ := NewStore(t.TempDir(), testKey(), "postgres-contract")
-	result, err := store.Append(testAppendInput())
-	if err != nil {
-		t.Fatal(err)
-	}
-	request, _ := store.LoadSnapshot(result.Event.RequestSnapshotSHA256)
-	response, _ := store.LoadSnapshot(result.Event.ResponseSnapshotSHA256)
-	if err := sink.Persist(context.Background(), result.Event, request, response); err != nil {
-		t.Fatal(err)
-	}
-	sql := string(runner.calls[len(runner.calls)-1])
-	for _, required := range []string{"BEGIN;", "screening_ledger_event", "screening_ledger_snapshot", "screening_ledger_replication", "screening_idempotency_receipt", "COMMIT;"} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("persistence SQL missing %s", required)
-		}
-	}
-}
+// PostgresSink's own contract -- migration, persistence, the
+// idempotency-conflict guard, purge, and external audit -- is exercised
+// against a live Postgres connection in postgres_pgx_test.go (ADR-0005
+// §8.2). It cannot be tested with a fake command runner any more: pgx
+// speaks the wire protocol directly, there is no fork to intercept.
 
 func TestLegalHoldAndInterruptedRecovery(t *testing.T) {
 	directory := t.TempDir()
@@ -276,15 +244,9 @@ func TestPhase8FAuditVerificationAndImport(t *testing.T) {
 	if len(records) != 1 || records[0].EventSHA256 != event.EventSHA256 {
 		t.Fatalf("unexpected imported audit: %#v", records)
 	}
-	runner := &captureRunner{}
-	sink, _ := NewPostgresSink("postgres://fixture", "psql", runner, time.Second)
-	count, err := ImportExternalAudit(context.Background(), sink, "phase8f", directory)
-	if err != nil || count != 1 {
-		t.Fatalf("import failed: count=%d err=%v", count, err)
-	}
-	if !bytes.Contains(runner.calls[len(runner.calls)-1], []byte("watchlist_operational_audit")) {
-		t.Fatal("external audit was not persisted to operational audit table")
-	}
+	// ImportExternalAudit's actual persistence to watchlist_operational_audit
+	// is covered against a live Postgres connection in
+	// TestImportExternalAuditRoundTrip (postgres_pgx_test.go, ADR-0005 §8.2).
 	raw[len(raw)-1] ^= 1
 	if err := os.WriteFile(path, raw, 0o640); err != nil {
 		t.Fatal(err)

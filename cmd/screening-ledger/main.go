@@ -27,7 +27,8 @@ func main() {
 	ctx := context.Background()
 	switch command {
 	case "migrate":
-		sink := mustSink(opts)
+		sink := mustSink(ctx, opts)
+		defer closeSink(ctx, sink)
 		must(sink.Migrate(ctx))
 		output(map[string]any{"status": "ok", "operation": "migrate"})
 	case "status", "verify":
@@ -45,7 +46,8 @@ func main() {
 		output(map[string]any{"status": "ok", "head": head, "event_count": len(events), "unreplicated_count": unreplicated})
 	case "sync":
 		store := mustStore(opts)
-		sink := mustSink(opts)
+		sink := mustSink(ctx, opts)
+		defer closeSink(ctx, sink)
 		must(sink.Migrate(ctx))
 		events, err := store.ListEvents()
 		must(err)
@@ -96,14 +98,16 @@ func main() {
 		count, err := store.PurgeExpired(parsed, operator, reason)
 		must(err)
 		pgPurged := false
-		if strings.TrimSpace(opts["--postgres-dsn"]) != "" {
-			sink := mustSink(opts)
+		if strings.TrimSpace(opts["--postgres-dsn-env"]) != "" {
+			sink := mustSink(ctx, opts)
+			defer closeSink(ctx, sink)
 			must(sink.PurgeExpired(ctx, before, operator, reason))
 			pgPurged = true
 		}
 		output(map[string]any{"status": "ok", "local_snapshot_count": count, "postgres_purge_requested": pgPurged})
 	case "import-audit":
-		sink := mustSink(opts)
+		sink := mustSink(ctx, opts)
+		defer closeSink(ctx, sink)
 		must(sink.Migrate(ctx))
 		count, err := screeningledger.ImportExternalAudit(ctx, sink, opts.value("--source", "phase8f-activation-promotion"), opts.required("--audit-directory"))
 		must(err)
@@ -120,14 +124,30 @@ func mustStore(opts options) *screeningledger.Store {
 	must(err)
 	return store
 }
-func mustSink(opts options) *screeningledger.PostgresSink {
-	dsn := opts["--postgres-dsn"]
-	if dsn == "" && opts["--postgres-dsn-env"] != "" {
-		dsn = os.Getenv(opts["--postgres-dsn-env"])
-	}
-	sink, err := screeningledger.NewPostgresSink(dsn, opts.value("--psql", "psql"), nil, opts.duration("--timeout", 30*time.Second))
+
+// mustSink constructs the PostgreSQL sink from --postgres-dsn-env, which
+// names an environment variable holding the DSN rather than accepting
+// the DSN as a flag value directly. That is the whole of SEC-3's
+// CLI-argv closure for this command (ADR-0005 §11.1, D11): a DSN passed
+// as a flag lands in argv and is readable via `ps` by any local user,
+// independent of the psql fork this same ADR also removes. There must
+// be no `--postgres-dsn` sibling flag accepting the DSN directly --
+// that reopens the exposure this flag exists to close.
+//
+// The DSN this names must be an identity with DDL rights on the ledger
+// schema, not owl_app -- see the doc comment on
+// screeningledger.PostgresSink.
+func mustSink(ctx context.Context, opts options) *screeningledger.PostgresSink {
+	dsn := os.Getenv(opts.required("--postgres-dsn-env"))
+	sink, err := screeningledger.NewPostgresSink(ctx, dsn, opts.duration("--timeout", 30*time.Second))
 	must(err)
 	return sink
+}
+
+func closeSink(ctx context.Context, sink *screeningledger.PostgresSink) {
+	if err := sink.Close(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "warning: failed to close PostgreSQL connection:", err)
+	}
 }
 func parseOptions(args []string) (options, error) {
 	out := options{}

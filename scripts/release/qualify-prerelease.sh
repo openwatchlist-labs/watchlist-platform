@@ -4,6 +4,20 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd); . "$SCRIPT_DIR/common.sh"
 VERSION=""; VCS_REF=""; SOURCE_DATE_EPOCH=""; OUT=""
 while [ "$#" -gt 0 ]; do case "$1" in --version) VERSION=${2:-};shift 2;; --vcs-ref) VCS_REF=${2:-};shift 2;; --source-date-epoch) SOURCE_DATE_EPOCH=${2:-};shift 2;; --output) OUT=${2:-};shift 2;; *) release_fail "unknown argument: $1";; esac; done
 release_require_empty "$OUT"; mkdir -p "$OUT"
+# On any failure past this point, dump every captured log so the CI console
+# shows the real error instead of just "Process completed with exit code 1" --
+# every downstream step in this script redirects its own stdout/stderr into a
+# file under $OUT rather than the console, which otherwise means a real
+# failure is silent in the workflow log and only visible by reading files
+# that no CI step ever surfaces.
+release_dump_logs_on_failure(){
+  echo "--- FAILURE: dumping captured logs from $OUT ---" >&2
+  find "$OUT" -name '*.log' -print 2>/dev/null | LC_ALL=C sort | while read -r f; do
+    echo "=== $f ===" >&2
+    cat "$f" >&2
+  done
+}
+trap release_dump_logs_on_failure ERR
 [ -z "$(git status --short)" ] || release_fail "qualification requires a clean checkout"
 [ "$(git rev-parse HEAD)" = "$VCS_REF" ] || release_fail "vcs-ref must equal checkout HEAD"
 ./scripts/ci/run-ci.sh >"$OUT/native-ci.log" 2>&1
