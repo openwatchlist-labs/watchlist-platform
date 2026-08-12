@@ -18,6 +18,14 @@ type Config struct {
 	PSQLPath          string `json:"psql_path"`
 	MaxBodyBytes      int64  `json:"max_body_bytes"`
 	TimeoutSeconds    int    `json:"timeout_seconds"`
+	// AuthRegistryPath and SigningKeyPath configure the reviewauth
+	// TokenService httpauth authenticates requests with (ADR-0006 D1).
+	// Not required by LoadConfig -- "check" needs no auth to validate
+	// profile/state wiring -- but required by "serve" (D5: hard cutover,
+	// no auth_required flag to make them optional there).
+	AuthRegistryPath   string `json:"auth_registry_path,omitempty"`
+	SigningKeyPath     string `json:"signing_key_path,omitempty"`
+	MaxTokenTTLMinutes int    `json:"max_token_ttl_minutes,omitempty"`
 }
 
 func LoadConfig(path string) (Config, error) {

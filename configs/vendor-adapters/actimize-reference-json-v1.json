@@ -3,7 +3,7 @@
   "adapter_id": "actimize-reference-json-v1",
   "version": "2026-07-15-r1",
   "vendor": "actimize-reference",
-  "description": "Reference JSON mapping for Actimize-style alert exports; not a certified proprietary wire format",
+  "description": "Reference JSON mapping for Actimize-style alert exports; not a certified proprietary wire format. FIXTURE: constants.tenant_id is a placeholder operator value (tenant-a), not a confirmed deployment binding -- see ADR-0006 section 7.",
   "input_format": "json-object",
   "max_source_bytes": 4194304,
   "required_paths": [
@@ -16,7 +16,6 @@
     "transport.idempotencyKey"
   ],
   "mappings": {
-    "tenant_id": "caseAlert.tenant",
     "source_system_id": "caseAlert.product",
     "source_alert_id": "caseAlert.alertKey",
     "raw_list_name": "caseAlert.watchlistName",
@@ -34,9 +33,12 @@
   "additional_evidence": {
     "matched_name": "caseAlert.attributes.matchedName",
     "screened_name": "caseAlert.attributes.screenedName",
-    "vendor_status": "caseAlert.workflowStatus"
+    "vendor_status": "caseAlert.workflowStatus",
+    "vendor_tenant_id": "caseAlert.tenant"
   },
-  "constants": {},
+  "constants": {
+    "tenant_id": "tenant-a"
+  },
   "list_mappings": {
     "OFAC SDN": {
       "canonical_list_id": "ofac-sdn",
@@ -51,5 +53,5 @@
       "status": "active"
     }
   },
-  "profile_sha256": "cda4f01c10cbed371c39366ac72ebe504d5136901ea1c966ebecb6df2d812099"
+  "profile_sha256": "00d2b6326b6849f6330aee8c6a5c635298560c650224475eae3baa8fbc3cfdd3"
 }

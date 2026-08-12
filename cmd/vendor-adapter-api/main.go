@@ -35,7 +35,15 @@ func main() {
 		}
 		fmt.Printf("{\"status\":\"ok\",\"profile_count\":%d,\"postgres_required\":%t}\n", len(s.Profiles), cfg.PostgresRequired)
 	case "serve":
-		srv := http.Server{Addr: cfg.ListenAddress, Handler: s.Handler(), ReadHeaderTimeout: 5 * time.Second}
+		tokens, e := vendoradapterapi.LoadTokenService(cfg)
+		if e != nil {
+			fatal(e)
+		}
+		authenticated, e := s.AuthenticatedHandler(tokens, nil)
+		if e != nil {
+			fatal(e)
+		}
+		srv := http.Server{Addr: cfg.ListenAddress, Handler: authenticated, ReadHeaderTimeout: 5 * time.Second}
 		fmt.Fprintf(os.Stderr, "vendor-adapter-api listening on %s\n", cfg.ListenAddress)
 		fatal(srv.ListenAndServe())
 	default:
