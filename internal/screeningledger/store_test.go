@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,16 @@ func testAppendInput() AppendInput {
 		ResponseBytes:  []byte(`{"request_id":"req-1","activation_tuple":{"activation_id":"activation-a","catalog_package_sha256":"cat","projection_package_sha256":"proj","scoring_policy_sha256":"policy","normalization_profile":"unicode-upper-alnum-space-v1"},"promotion":{"intent_id":"promotion-a","phase":"promoted"},"candidates":[{"candidate_id":"cand-1","score":910,"band":"high_similarity","reason_codes":["name_exact"]}],"blockers":[]}`),
 		OccurredAt:     "2026-07-14T22:30:00Z",
 		Retention:      RetentionPolicy{Class: "screening-standard", RetentionDays: 1, RedactKeys: []string{"account_number"}, HashKeys: []string{"name"}, MaxSnapshotBytes: 2 * 1024 * 1024},
+	}
+}
+
+func TestMarshalAndWriteSurfacesMarshalError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "broken.json")
+	if err := marshalAndWrite(path, make(chan int), 0o640); err == nil {
+		t.Fatal("expected marshalAndWrite to return an error for a value json.Marshal cannot encode")
+	}
+	if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("expected no file to be written when marshaling fails, stat error: %v", statErr)
 	}
 }
 
