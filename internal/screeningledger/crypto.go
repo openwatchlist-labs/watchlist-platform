@@ -3,6 +3,7 @@ package screeningledger
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -89,6 +90,15 @@ func decryptSnapshot(key []byte, e SnapshotEnvelope) ([]byte, error) {
 	return plain, nil
 }
 func digestHex(raw []byte) string { sum := sha256.Sum256(raw); return hex.EncodeToString(sum[:]) }
+
+// macHex is HMAC-SHA256(key, raw), hex-encoded. hash.Hash.Write never
+// returns an error, so the discard matches the existing pattern at
+// redact.go's hmacHex.
+func macHex(key, raw []byte) string {
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(raw)
+	return hex.EncodeToString(mac.Sum(nil))
+}
 func canonicalJSON(raw []byte) ([]byte, error) {
 	var value any
 	d := json.NewDecoder(strings.NewReader(string(raw)))

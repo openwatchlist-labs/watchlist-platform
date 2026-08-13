@@ -89,11 +89,11 @@ func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPoli
 		return BundleManifest{}, err
 	}
 	if mode == "redacted" {
-		request, err = RedactJSON(request, policy, s.key)
+		request, err = RedactJSON(request, policy, s.keys.redact)
 		if err != nil {
 			return BundleManifest{}, err
 		}
-		response, err = RedactJSON(response, policy, s.key)
+		response, err = RedactJSON(response, policy, s.keys.redact)
 		if err != nil {
 			return BundleManifest{}, err
 		}

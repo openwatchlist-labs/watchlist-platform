@@ -26,7 +26,7 @@ func (s *Store) AppendAudit(action, operator, reason, eventID string, details an
 		}
 	}
 	event := AuditEvent{SchemaVersion: AuditSchemaV1, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousAuditSHA256: head.EventSHA256, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Action: action, Operator: operator, Reason: reason, EventID: eventID, Details: detailRaw}
-	auditSHA, err := hashAudit(event)
+	auditSHA, err := hashAudit(event, s.keys.chain)
 	if err != nil {
 		return AuditEvent{}, err
 	}
@@ -67,7 +67,7 @@ func (s *Store) VerifyAudit() (Head, error) {
 		if event.Sequence != uint64(i+1) || event.PreviousAuditSHA256 != previous {
 			return Head{}, errors.New("audit chain sequence mismatch")
 		}
-		auditSHA, err := hashAudit(event)
+		auditSHA, err := hashAudit(event, s.keys.chain)
 		if err != nil {
 			return Head{}, err
 		}
@@ -98,11 +98,14 @@ func (s *Store) loadAuditHead() (Head, error) {
 	err = json.Unmarshal(raw, &head)
 	return head, err
 }
-func hashAudit(event AuditEvent) (string, error) {
+
+// hashAudit is ADR-0007 D2: HMAC-SHA256 under the derived chain key,
+// replacing the pre-D2 plain sha256.Sum256(json(event)).
+func hashAudit(event AuditEvent, chainKey []byte) (string, error) {
 	event.AuditSHA256 = ""
 	raw, err := json.Marshal(event)
 	if err != nil {
 		return "", err
 	}
-	return digestHex(raw), nil
+	return macHex(chainKey, raw), nil
 }
