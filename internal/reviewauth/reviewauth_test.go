@@ -29,3 +29,43 @@ func TestToken(t *testing.T) {
 		t.Fatal("expected expiry")
 	}
 }
+
+// SEC-11: "case.*" must expand to exactly the defined case.* permissions,
+// not to any need string that happens to share the "case." prefix. Before
+// the fix, a made-up permission that was never granted to any role --
+// "case.destroy_all" -- passed PermissionAllowed purely because it starts
+// with "case.". That is not a real, intended member of the case.* scope
+// (see the case.* enumeration in configs/release/identity-registry.json
+// and internal/reviewconsoleapi/server.go's actionPermission), so it must
+// be denied.
+func TestPermissionAllowedWildcardDoesNotPrefixMatch(t *testing.T) {
+	g := []string{"case.*"}
+	if !PermissionAllowed(g, "case.read") {
+		t.Fatal("case.* must still grant a real member permission, case.read")
+	}
+	if !PermissionAllowed(g, "case.rescreen") {
+		t.Fatal("case.* must still grant a real member permission, case.rescreen")
+	}
+	if PermissionAllowed(g, "case.destroy_all") {
+		t.Fatal("case.* incorrectly granted case.destroy_all, which is not a defined case permission -- prefix match, not scope membership")
+	}
+	if PermissionAllowed(g, "case.") {
+		t.Fatal("case.* incorrectly granted the bare prefix \"case.\"")
+	}
+}
+
+func TestPermissionAllowedNonWildcardExact(t *testing.T) {
+	g := []string{"case.read"}
+	if !PermissionAllowed(g, "case.read") {
+		t.Fatal("exact permission must be granted")
+	}
+	if PermissionAllowed(g, "case.rescreen") {
+		t.Fatal("a non-wildcard grant must not match a different permission")
+	}
+}
+
+func TestPermissionAllowedSuperWildcard(t *testing.T) {
+	if !PermissionAllowed([]string{"*"}, "case.destroy_all") {
+		t.Fatal("the bare \"*\" grant must still allow any permission, defined or not")
+	}
+}

@@ -185,13 +185,37 @@ func (r Registry) Permissions(roles []string) []string {
 	sort.Strings(o)
 	return o
 }
+
+// resourcePermissions is the closed, enumerable set of concrete permission
+// strings this system checks, grouped by the resource a "resource.*" grant
+// in a role's permission list expands to. It must track every permission
+// string actually tested by internal/reviewconsoleapi (see
+// actionPermission and the permit(...) call sites in server.go) and every
+// concrete permission listed in configs/**/identity-registry*.json. A
+// "resource.*" grant is scoped to exactly this set -- not to any need
+// string that happens to share the "resource." prefix, which would also
+// match a permission string that doesn't exist yet or was never intended
+// to be covered by the wildcard.
+var resourcePermissions = map[string][]string{
+	"alert":      {"alert.read"},
+	"assistance": {"assistance.read", "assistance.request", "assistance.review"},
+	"case":       {"case.assign_any", "case.assign_self", "case.create", "case.investigate", "case.read", "case.reopen", "case.rescreen"},
+	"decision":   {"decision.approve", "decision.propose"},
+	"evidence":   {"evidence.request", "evidence.submit"},
+}
+
 func PermissionAllowed(g []string, need string) bool {
 	for _, p := range g {
 		if p == "*" || p == need {
 			return true
 		}
-		if strings.HasSuffix(p, ".*") && strings.HasPrefix(need, strings.TrimSuffix(p, "*")) {
-			return true
+		if strings.HasSuffix(p, ".*") {
+			resource := strings.TrimSuffix(p, ".*")
+			for _, m := range resourcePermissions[resource] {
+				if m == need {
+					return true
+				}
+			}
 		}
 	}
 	return false
