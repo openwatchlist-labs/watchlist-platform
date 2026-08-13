@@ -202,6 +202,7 @@ var resourcePermissions = map[string][]string{
 	"case":       {"case.assign_any", "case.assign_self", "case.create", "case.investigate", "case.read", "case.reopen", "case.rescreen"},
 	"decision":   {"decision.approve", "decision.propose"},
 	"evidence":   {"evidence.request", "evidence.submit"},
+	"security":   {"security.audit.read"},
 }
 
 func PermissionAllowed(g []string, need string) bool {
