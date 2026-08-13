@@ -31,6 +31,14 @@ type Registry struct {
 	Roles          []Role `json:"roles"`
 	Users          []User `json:"users"`
 	RegistrySHA256 string `json:"registry_sha256"`
+
+	// userIndex/roleIndex are a build-once cache mapping UserID/RoleID to
+	// their position in Users/Roles, for O(1) User()/Role() lookups.
+	// Unexported, so encoding/json ignores them entirely on both marshal
+	// and unmarshal -- they never affect the registry's JSON shape or its
+	// checksum. See buildIndex in registry.go.
+	userIndex map[string]int
+	roleIndex map[string]int
 }
 type Claims struct {
 	SchemaVersion  string   `json:"schema_version"`

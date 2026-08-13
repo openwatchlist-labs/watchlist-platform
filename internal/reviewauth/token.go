@@ -40,6 +40,7 @@ func NewTokenService(r Registry, k []byte, max time.Duration) (*TokenService, er
 	if e := VerifyRegistry(r); e != nil {
 		return nil, e
 	}
+	r.buildIndex()
 	if len(k) < 32 {
 		return nil, errors.New("signing key must contain at least 32 bytes")
 	}
