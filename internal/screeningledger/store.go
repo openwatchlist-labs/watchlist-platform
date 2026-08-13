@@ -113,7 +113,11 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	}
 	activation, promotion, candidates := extractBoundedMetadata(responseCanonical)
 	event := Event{SchemaVersion: EventSchemaV1, EventID: eventID, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousEventSHA256: head.EventSHA256, OccurredAt: input.OccurredAt, Route: input.Route, HTTPStatus: input.HTTPStatus, CorrelationIDHash: correlationHash, IdempotencyKeyHash: idempotencyHash, RequestSHA256: requestSHA, ResponseSHA256: responseSHA, RequestSnapshotSHA256: reqEnvelope.SnapshotSHA256, ResponseSnapshotSHA256: respEnvelope.SnapshotSHA256, ActivationLineage: activation, PromotionLineage: promotion, CandidateSummary: candidates, RetentionClass: input.Retention.Class, ExpiresAt: expires}
-	event.EventSHA256 = hashEvent(event)
+	eventSHA, err := hashEvent(event)
+	if err != nil {
+		return AppendResult{}, err
+	}
+	event.EventSHA256 = eventSHA
 	if err := s.writeSnapshot(reqEnvelope); err != nil {
 		return AppendResult{}, err
 	}
@@ -205,7 +209,11 @@ func (s *Store) Verify() (Head, error) {
 		if p.event.PreviousEventSHA256 != previous {
 			return Head{}, fmt.Errorf("ledger chain mismatch at sequence %d", p.event.Sequence)
 		}
-		if hashEvent(p.event) != p.event.EventSHA256 {
+		eventSHA, err := hashEvent(p.event)
+		if err != nil {
+			return Head{}, err
+		}
+		if eventSHA != p.event.EventSHA256 {
 			return Head{}, fmt.Errorf("ledger event checksum mismatch at sequence %d", p.event.Sequence)
 		}
 		if err := s.verifySnapshot(p.event.RequestSnapshotSHA256); err != nil {
@@ -363,10 +371,13 @@ func ensureLedgerID(directory string, requested []string) (string, error) {
 	}
 	return id, nil
 }
-func hashEvent(event Event) string {
+func hashEvent(event Event) (string, error) {
 	event.EventSHA256 = ""
-	raw, _ := json.Marshal(event)
-	return digestHex(raw)
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return "", err
+	}
+	return digestHex(raw), nil
 }
 func mustExpires(occurred string, days int) string {
 	parsed, err := time.Parse(time.RFC3339Nano, occurred)

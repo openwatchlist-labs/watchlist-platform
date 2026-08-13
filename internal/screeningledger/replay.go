@@ -99,7 +99,10 @@ func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPoli
 		}
 	}
 	files := map[string][]byte{}
-	eventRaw, _ := json.Marshal(event)
+	eventRaw, err := json.Marshal(event)
+	if err != nil {
+		return BundleManifest{}, err
+	}
 	files["event.json"] = eventRaw
 	files["request.json"] = request
 	files["response.json"] = response
@@ -121,7 +124,10 @@ func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPoli
 		concat.WriteByte('\n')
 	}
 	manifest.BundleSHA256 = digestHex(concat.Bytes())
-	manifestRaw, _ := json.Marshal(manifest)
+	manifestRaw, err := json.Marshal(manifest)
+	if err != nil {
+		return BundleManifest{}, err
+	}
 	files["manifest.json"] = manifestRaw
 	f, err := os.Create(outPath)
 	if err != nil {

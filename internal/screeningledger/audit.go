@@ -20,17 +20,22 @@ func (s *Store) AppendAudit(action, operator, reason, eventID string, details an
 	}
 	var detailRaw json.RawMessage
 	if details != nil {
-		detailRaw, _ = json.Marshal(details)
+		detailRaw, err = json.Marshal(details)
+		if err != nil {
+			return AuditEvent{}, err
+		}
 	}
 	event := AuditEvent{SchemaVersion: AuditSchemaV1, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousAuditSHA256: head.EventSHA256, OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Action: action, Operator: operator, Reason: reason, EventID: eventID, Details: detailRaw}
-	event.AuditSHA256 = hashAudit(event)
-	raw, _ := json.Marshal(event)
-	name := fmt.Sprintf("%020d-%s.json", event.Sequence, event.AuditSHA256)
-	if err := atomicWrite(filepath.Join(s.directory, "audit", name), raw, 0o640); err != nil {
+	auditSHA, err := hashAudit(event)
+	if err != nil {
 		return AuditEvent{}, err
 	}
-	headRaw, _ := json.Marshal(Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: event.Sequence, EventSHA256: event.AuditSHA256})
-	if err := atomicWrite(filepath.Join(s.directory, "audit-head.json"), headRaw, 0o640); err != nil {
+	event.AuditSHA256 = auditSHA
+	name := fmt.Sprintf("%020d-%s.json", event.Sequence, event.AuditSHA256)
+	if err := marshalAndWrite(filepath.Join(s.directory, "audit", name), event, 0o640); err != nil {
+		return AuditEvent{}, err
+	}
+	if err := marshalAndWrite(filepath.Join(s.directory, "audit-head.json"), Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: event.Sequence, EventSHA256: event.AuditSHA256}, 0o640); err != nil {
 		return AuditEvent{}, err
 	}
 	return event, nil
@@ -62,7 +67,11 @@ func (s *Store) VerifyAudit() (Head, error) {
 		if event.Sequence != uint64(i+1) || event.PreviousAuditSHA256 != previous {
 			return Head{}, errors.New("audit chain sequence mismatch")
 		}
-		if hashAudit(event) != event.AuditSHA256 {
+		auditSHA, err := hashAudit(event)
+		if err != nil {
+			return Head{}, err
+		}
+		if auditSHA != event.AuditSHA256 {
 			return Head{}, errors.New("audit checksum mismatch")
 		}
 		previous = event.AuditSHA256
@@ -89,8 +98,11 @@ func (s *Store) loadAuditHead() (Head, error) {
 	err = json.Unmarshal(raw, &head)
 	return head, err
 }
-func hashAudit(event AuditEvent) string {
+func hashAudit(event AuditEvent) (string, error) {
 	event.AuditSHA256 = ""
-	raw, _ := json.Marshal(event)
-	return digestHex(raw)
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return "", err
+	}
+	return digestHex(raw), nil
 }
