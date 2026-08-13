@@ -15,10 +15,13 @@ func RedactJSON(raw []byte, policy RetentionPolicy, key []byte) ([]byte, error) 
 	if err := d.Decode(&value); err != nil {
 		return nil, err
 	}
-	value = redactValue(value, lowerSet(policy.RedactKeys), lowerSet(policy.HashKeys), key)
-	return json.Marshal(value)
+	redacted, err := redactValue(value, lowerSet(policy.RedactKeys), lowerSet(policy.HashKeys), key)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(redacted)
 }
-func redactValue(value any, redact, hash map[string]struct{}, secret []byte) any {
+func redactValue(value any, redact, hash map[string]struct{}, secret []byte) (any, error) {
 	switch typed := value.(type) {
 	case map[string]any:
 		out := make(map[string]any, len(typed))
@@ -29,20 +32,32 @@ func redactValue(value any, redact, hash map[string]struct{}, secret []byte) any
 				continue
 			}
 			if _, ok := hash[lower]; ok {
-				out[field] = "hmac-sha256:" + hmacHex(secret, child)
+				hashed, err := hmacHex(secret, child)
+				if err != nil {
+					return nil, err
+				}
+				out[field] = "hmac-sha256:" + hashed
 				continue
 			}
-			out[field] = redactValue(child, redact, hash, secret)
+			redactedChild, err := redactValue(child, redact, hash, secret)
+			if err != nil {
+				return nil, err
+			}
+			out[field] = redactedChild
 		}
-		return out
+		return out, nil
 	case []any:
 		out := make([]any, len(typed))
 		for i := range typed {
-			out[i] = redactValue(typed[i], redact, hash, secret)
+			redactedItem, err := redactValue(typed[i], redact, hash, secret)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = redactedItem
 		}
-		return out
+		return out, nil
 	default:
-		return value
+		return value, nil
 	}
 }
 func lowerSet(values []string) map[string]struct{} {
@@ -52,9 +67,12 @@ func lowerSet(values []string) map[string]struct{} {
 	}
 	return out
 }
-func hmacHex(key []byte, value any) string {
-	raw, _ := json.Marshal(value)
+func hmacHex(key []byte, value any) (string, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write(raw)
-	return hex.EncodeToString(mac.Sum(nil))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }
