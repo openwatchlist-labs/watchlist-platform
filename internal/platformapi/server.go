@@ -16,6 +16,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/openwatchlist-labs/watchlist-platform/internal/productionops"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/reviewconsoleapi"
 )
@@ -31,6 +33,13 @@ type Server struct {
 	draining       atomic.Bool
 	requestCounter atomic.Uint64
 	tempFiles      []string
+
+	// pgPool backs the /readyz PostgreSQL probe. platformapi is a
+	// separate process from the three sink-holding services and never
+	// had a pool of its own to reuse (ADR-0005 §11.2) -- this is that
+	// pool, constructed once at startup, nil when PostgreSQL readiness
+	// isn't configured.
+	pgPool *pgxpool.Pool
 }
 
 type statusWriter struct {
@@ -81,7 +90,14 @@ func New(configPath string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{Config: c, Quotas: q, Review: rs, Outbox: outbox, Metrics: productionops.NewMetrics(), rate: productionops.NewRateLimiter(), concurrency: productionops.NewConcurrencyLimiter(c.GlobalConcurrency, c.DefaultTenantConcurrency)}
+	pgPool, err := productionops.NewReadinessPool(context.Background(), c)
+	if err != nil {
+		if temp != "" {
+			os.Remove(temp)
+		}
+		return nil, err
+	}
+	s := &Server{Config: c, Quotas: q, Review: rs, Outbox: outbox, Metrics: productionops.NewMetrics(), rate: productionops.NewRateLimiter(), concurrency: productionops.NewConcurrencyLimiter(c.GlobalConcurrency, c.DefaultTenantConcurrency), pgPool: pgPool}
 	if temp != "" {
 		s.tempFiles = append(s.tempFiles, temp)
 	}
@@ -148,11 +164,22 @@ func (s *Server) Close() {
 	if s.Config.Environment == "production" {
 		os.Remove(filepath.Join(s.Config.RuntimeStateDirectory, ".runtime-signing-key.hex"))
 	}
+	if s.pgPool != nil {
+		s.pgPool.Close()
+	}
 }
 func (s *Server) StartDraining()  { s.draining.Store(true) }
 func (s *Server) InFlight() int64 { return s.Metrics.InFlight() }
 func (s *Server) Check(ctx context.Context) productionops.ReadinessReport {
-	r := productionops.CheckRuntime(ctx, s.Config, s.Quotas)
+	// s.pgPool is a concrete *pgxpool.Pool; assigning a nil *pgxpool.Pool
+	// straight into the productionops.Pinger interface parameter would
+	// produce a non-nil interface wrapping a nil pointer, so pg is left
+	// as a true nil interface unless the pool actually exists.
+	var pg productionops.Pinger
+	if s.pgPool != nil {
+		pg = s.pgPool
+	}
+	r := productionops.CheckRuntime(ctx, s.Config, s.Quotas, pg)
 	if err := s.Review.Check(ctx); err != nil {
 		r.Status = "not_ready"
 		r.Checks = append(r.Checks, productionops.CheckResult{Name: "review_console", Status: "failed", Detail: err.Error()})

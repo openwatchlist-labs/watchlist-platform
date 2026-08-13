@@ -3,14 +3,28 @@ package productionops
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 )
+
+// Pinger is the /readyz PostgreSQL probe's entire contract with the
+// database: no DSN, no driver, nothing subprocess-shaped. Both
+// *pgx.Conn (the one-shot CLI shape) and *pgxpool.Pool (the long-running
+// service shape) satisfy it, which is what lets CheckRuntime stay
+// ignorant of which one it was handed (ADR-0005 §3.1, §11.2, D4/D12).
+// CheckRuntime previously forked `psql -c "SELECT 1"` on every call --
+// the highest-frequency fork+exec site in the tree, since it ran on
+// every readiness poll -- reading the DSN from the environment itself.
+// Constructing the connection is now the caller's job (see
+// NewReadinessPool, NewReadinessConn), done once at startup for a
+// service or once per invocation for a CLI, not once per probe.
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
 
 type CheckResult struct {
 	Name   string `json:"name"`
@@ -24,7 +38,7 @@ type ReadinessReport struct {
 	Checks              []CheckResult `json:"checks"`
 }
 
-func CheckRuntime(ctx context.Context, c RuntimeConfig, q QuotaRegistry) ReadinessReport {
+func CheckRuntime(ctx context.Context, c RuntimeConfig, q QuotaRegistry, pg Pinger) ReadinessReport {
 	r := ReadinessReport{Status: "ok", ConfigSHA256: c.ConfigSHA256, QuotaRegistrySHA256: q.RegistrySHA256}
 	add := func(n string, err error) {
 		x := CheckResult{Name: n, Status: "ok"}
@@ -71,17 +85,13 @@ func CheckRuntime(ctx context.Context, c RuntimeConfig, q QuotaRegistry) Readine
 		add("outbox_integrity", err)
 	}
 	if c.Readiness.PostgreSQLRequired {
-		dsn := strings.TrimSpace(os.Getenv(c.Readiness.PostgreSQLDSNEnv))
 		var err error
-		if dsn == "" {
-			err = fmt.Errorf("%s is empty", c.Readiness.PostgreSQLDSNEnv)
+		if pg == nil {
+			err = errors.New("postgresql readiness required but no connection was configured")
 		} else {
 			tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			cmd := exec.CommandContext(tctx, c.Readiness.PSQLPath, dsn, "-X", "-v", "ON_ERROR_STOP=1", "-q", "-c", "SELECT 1")
-			if out, e := cmd.CombinedOutput(); e != nil {
-				err = fmt.Errorf("postgres readiness: %w: %s", e, strings.TrimSpace(string(out)))
-			}
+			err = pg.Ping(tctx)
 		}
 		add("postgresql", err)
 	}
