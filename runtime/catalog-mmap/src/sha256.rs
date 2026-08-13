@@ -1,15 +1,12 @@
 const K: [u32; 64] = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
 pub fn digest(data: &[u8]) -> [u8; 32] {
@@ -118,6 +115,148 @@ mod tests {
         assert_eq!(
             hex(&digest(b"abc")),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
+
+    // NIST CAVS ("SHA-256 ShortMsg"/"SHA-256 LongMsg" byte-oriented test vectors,
+    // CAVS 11.0, generated 2011-03-15) taken from the official SHA test vector
+    // package published at:
+    //   https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Algorithm-Validation-Program/documents/shs/shabytetestvectors.zip
+    // (files SHA256ShortMsg.rsp / SHA256LongMsg.rsp). `Len` in that format is a
+    // bit length; message bytes and digests are reproduced verbatim below.
+    fn from_hex(s: &str) -> Vec<u8> {
+        assert!(s.len() % 2 == 0);
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    fn check(msg_hex: &str, expected_hex: &str) {
+        let msg = from_hex(msg_hex);
+        assert_eq!(
+            hex(&digest(&msg)),
+            expected_hex,
+            "mismatch for Msg={msg_hex}"
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_empty() {
+        // Len = 0
+        check(
+            "",
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_1_byte() {
+        // Len = 8
+        check(
+            "d3",
+            "28969cdfa74a12c82f3bad960b0b000aca2ac329deea5c2328ebc6f2ba9802c1",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_2_bytes() {
+        // Len = 16
+        check(
+            "11af",
+            "5ca7133fa735326081558ac312c620eeca9970d1e70a4b95533d956f072d1f98",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_3_bytes() {
+        // Len = 24
+        check(
+            "b4190e",
+            "dff2e73091f6c05e528896c4c831b9448653dc2ff043528f6769437bc7b975c2",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_4_bytes() {
+        // Len = 32
+        check(
+            "74ba2521",
+            "b16aa56be3880d18cd41e68384cf1ec8c17680c45a02b1575dc1518923ae8b0e",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_55_bytes_single_block_boundary() {
+        // Len = 440. 55 data bytes + the 0x80 terminator land exactly at the
+        // 56-byte mark, so this message fits in a single 64-byte block with no
+        // zero padding before the length suffix.
+        check(
+            "3ebfb06db8c38d5ba037f1363e118550aad94606e26835a01af05078533cc25f2f39573c04b632f62f68c294ab31f2a3e2a1a0d8c2be51",
+            "6595a2ef537a69ba8583dfbf7f5bec0ab1f93ce4c8ee1916eff44a93af5749c4",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_56_bytes_spills_second_block() {
+        // Len = 448. One byte past the single-block boundary: the 0x80
+        // terminator no longer fits before the 56-byte padding mark, so this
+        // message spills into a second 64-byte block.
+        check(
+            "2d52447d1244d2ebc28650e7b05654bad35b3a68eedc7f8515306b496d75f3e73385dd1b002625024b81a02f2fd6dffb6e6d561cb7d0bd7a",
+            "cfb88d6faf2de3a69d36195acec2e255e2af2b7d933997f348e09f6ce5758360",
+        );
+    }
+
+    #[test]
+    fn cavs_short_msg_64_bytes_full_block_plus_padding_block() {
+        // Len = 512. A message that is itself exactly one full block requires
+        // an entire second block purely for padding and the length suffix.
+        check(
+            "5a86b737eaea8ee976a0a24da63e7ed7eefad18a101c1211e2b3650c5187c2a8a650547208251f6d4237e661c7bf4c77f335390394c37fa1a9f9be836ac28509",
+            "42e61e174fbb3897d6dd6cef3dd2802fe67b331953b06114a65c772859dfc1aa",
+        );
+    }
+
+    #[test]
+    fn cavs_long_msg_163_bytes_three_blocks() {
+        // Len = 1304 (163 bytes / 3 blocks) -- a multi-block message beyond
+        // the two-block cases above.
+        check(
+            "451101250ec6f26652249d59dc974b7361d571a8101cdfd36aba3b5854d3ae086b5fdd4597721b66e3c0dc5d8c606d9657d0e323283a5217d1f53f2f284f57b85c8a61ac8924711f895c5ed90ef17745ed2d728abd22a5f7a13479a462d71b56c19a74a40b655c58edfe0a188ad2cf46cbf30524f65d423c837dd1ff2bf462ac4198007345bb44dbb7b1c861298cdf61982a833afc728fae1eda2f87aa2c9480858bec",
+            "3c593aa539fdcdae516cdf2f15000f6634185c88f505b39775fb9ab137a10aa2",
+        );
+    }
+
+    // The official CAVS ShortMsg/LongMsg vector sets step in fixed byte
+    // increments (..., 64, ..., 163, ...) and do not include entries at
+    // exactly 119 or 120 bytes -- the padding boundary one block later than
+    // the 55/56-byte case above. These two vectors cover that boundary
+    // directly: messages are the deterministic byte sequence `i % 256` for
+    // `i` in `0..n`, with digests independently computed and cross-checked
+    // against Python's standard-library `hashlib.sha256` (a separate,
+    // long-established SHA-256 implementation, not the code under test here).
+    #[test]
+    fn boundary_119_bytes_second_block_single_block_padding() {
+        // 119 data bytes + 0x80 lands exactly at the 120-byte mark (120 mod
+        // 64 == 56), the second-block analogue of the 55-byte case: no zero
+        // padding needed before the length suffix.
+        let msg: Vec<u8> = (0..119u32).map(|i| (i % 256) as u8).collect();
+        assert_eq!(
+            hex(&digest(&msg)),
+            "da18797ed7c3a777f0847f429724a2d8cd5138e6ed2895c3fa1a6d39d18f7ec6"
+        );
+    }
+
+    #[test]
+    fn boundary_120_bytes_spills_third_block() {
+        // 120 data bytes: one byte past the boundary above, so the 0x80
+        // terminator plus the mandatory zero padding spill into a third
+        // 64-byte block.
+        let msg: Vec<u8> = (0..120u32).map(|i| (i % 256) as u8).collect();
+        assert_eq!(
+            hex(&digest(&msg)),
+            "f52b23db1fbb6ded89ef42a23ce0c8922c45f25c50b568a93bf1c075420bbb7c"
         );
     }
 }
