@@ -121,17 +121,14 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 		return AppendResult{}, err
 	}
 	pending := filepath.Join(s.directory, "pending.json")
-	pendingRaw, _ := json.Marshal(event)
-	if err := atomicWrite(pending, pendingRaw, 0o640); err != nil {
+	if err := marshalAndWrite(pending, event, 0o640); err != nil {
 		return AppendResult{}, err
 	}
-	eventRaw, _ := json.Marshal(event)
-	if err := atomicWrite(path, eventRaw, 0o640); err != nil {
+	if err := marshalAndWrite(path, event, 0o640); err != nil {
 		return AppendResult{}, err
 	}
 	newHead := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256}
-	headRaw, _ := json.Marshal(newHead)
-	if err := atomicWrite(filepath.Join(s.directory, "head.json"), headRaw, 0o640); err != nil {
+	if err := marshalAndWrite(filepath.Join(s.directory, "head.json"), newHead, 0o640); err != nil {
 		return AppendResult{}, err
 	}
 	if err := os.Remove(pending); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -377,6 +374,13 @@ func mustExpires(occurred string, days int) string {
 		parsed = time.Now().UTC()
 	}
 	return parsed.Add(time.Duration(days) * 24 * time.Hour).UTC().Format(time.RFC3339Nano)
+}
+func marshalAndWrite(path string, v any, mode os.FileMode) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return atomicWrite(path, raw, mode)
 }
 func atomicWrite(path string, raw []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
