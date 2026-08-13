@@ -34,6 +34,15 @@ type phase8fAuditEvent struct {
 	EventSHA256         string         `json:"event_sha256"`
 }
 
+func phase8fEventChecksum(event phase8fAuditEvent) (string, error) {
+	event.EventSHA256 = ""
+	canonical, err := json.Marshal(event)
+	if err != nil {
+		return "", err
+	}
+	canonical = append(canonical, '\n')
+	return digestHex(canonical), nil
+}
 func LoadExternalAuditDirectory(directory string) ([]ExternalAuditRecord, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
@@ -58,10 +67,11 @@ func LoadExternalAuditDirectory(directory string) ([]ExternalAuditRecord, error)
 			return nil, err
 		}
 		expected := typed.EventSHA256
-		typed.EventSHA256 = ""
-		canonical, _ := json.Marshal(typed)
-		canonical = append(canonical, '\n')
-		if digestHex(canonical) != expected {
+		checksum, err := phase8fEventChecksum(typed)
+		if err != nil {
+			return nil, err
+		}
+		if checksum != expected {
 			return nil, fmt.Errorf("%s checksum mismatch", name)
 		}
 		if typed.Sequence != int64(len(records)+1) || typed.PreviousEventSHA256 != previous {
