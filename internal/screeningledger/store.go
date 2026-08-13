@@ -15,7 +15,7 @@ import (
 
 type Store struct {
 	directory string
-	key       []byte
+	keys      chainKeys
 	ledgerID  string
 	mu        sync.Mutex
 }
@@ -31,7 +31,11 @@ func NewStore(directory string, key []byte, requestedLedgerID ...string) (*Store
 	if err != nil {
 		return nil, err
 	}
-	store := &Store{directory: directory, key: append([]byte(nil), key...), ledgerID: ledgerID}
+	keys, err := deriveChainKeys(key, ledgerID)
+	if err != nil {
+		return nil, err
+	}
+	store := &Store{directory: directory, keys: keys, ledgerID: ledgerID}
 	for _, sub := range []string{"events", "snapshots", "audit", "replication", "holds", "purged"} {
 		if err := os.MkdirAll(filepath.Join(directory, sub), 0o750); err != nil {
 			return nil, err
@@ -75,11 +79,11 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 		return AppendResult{}, errors.New("decision snapshot exceeds configured maximum")
 	}
 	expires := mustExpires(input.OccurredAt, input.Retention.RetentionDays)
-	reqEnvelope, err := encryptSnapshot(s.key, "request", requestCanonical, input.OccurredAt, expires, input.Retention.Class)
+	reqEnvelope, err := encryptSnapshot(s.keys.snap, "request", requestCanonical, input.OccurredAt, expires, input.Retention.Class)
 	if err != nil {
 		return AppendResult{}, err
 	}
-	respEnvelope, err := encryptSnapshot(s.key, "response", responseCanonical, input.OccurredAt, expires, input.Retention.Class)
+	respEnvelope, err := encryptSnapshot(s.keys.snap, "response", responseCanonical, input.OccurredAt, expires, input.Retention.Class)
 	if err != nil {
 		return AppendResult{}, err
 	}
@@ -113,7 +117,7 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	}
 	activation, promotion, candidates := extractBoundedMetadata(responseCanonical)
 	event := Event{SchemaVersion: EventSchemaV1, EventID: eventID, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousEventSHA256: head.EventSHA256, OccurredAt: input.OccurredAt, Route: input.Route, HTTPStatus: input.HTTPStatus, CorrelationIDHash: correlationHash, IdempotencyKeyHash: idempotencyHash, RequestSHA256: requestSHA, ResponseSHA256: responseSHA, RequestSnapshotSHA256: reqEnvelope.SnapshotSHA256, ResponseSnapshotSHA256: respEnvelope.SnapshotSHA256, ActivationLineage: activation, PromotionLineage: promotion, CandidateSummary: candidates, RetentionClass: input.Retention.Class, ExpiresAt: expires}
-	eventSHA, err := hashEvent(event)
+	eventSHA, err := hashEvent(event, s.keys.chain)
 	if err != nil {
 		return AppendResult{}, err
 	}
@@ -209,7 +213,7 @@ func (s *Store) Verify() (Head, error) {
 		if p.event.PreviousEventSHA256 != previous {
 			return Head{}, fmt.Errorf("ledger chain mismatch at sequence %d", p.event.Sequence)
 		}
-		eventSHA, err := hashEvent(p.event)
+		eventSHA, err := hashEvent(p.event, s.keys.chain)
 		if err != nil {
 			return Head{}, err
 		}
@@ -280,7 +284,7 @@ func (s *Store) DecryptSnapshot(sha string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return decryptSnapshot(s.key, env)
+	return decryptSnapshot(s.keys.snap, env)
 }
 func (s *Store) MarkReplicated(eventID, occurredAt string) error {
 	if occurredAt == "" {
@@ -319,7 +323,7 @@ func (s *Store) verifySnapshot(sha string) error {
 	if env.PurgedAt != "" {
 		return nil
 	}
-	plaintext, err := decryptSnapshot(s.key, env)
+	plaintext, err := decryptSnapshot(s.keys.snap, env)
 	if err != nil {
 		return err
 	}
@@ -371,13 +375,16 @@ func ensureLedgerID(directory string, requested []string) (string, error) {
 	}
 	return id, nil
 }
-func hashEvent(event Event) (string, error) {
+
+// hashEvent is ADR-0007 D2: HMAC-SHA256 under the derived chain key,
+// replacing the pre-D2 plain sha256.Sum256(json(event)).
+func hashEvent(event Event, chainKey []byte) (string, error) {
 	event.EventSHA256 = ""
 	raw, err := json.Marshal(event)
 	if err != nil {
 		return "", err
 	}
-	return digestHex(raw), nil
+	return macHex(chainKey, raw), nil
 }
 func mustExpires(occurred string, days int) string {
 	parsed, err := time.Parse(time.RFC3339Nano, occurred)

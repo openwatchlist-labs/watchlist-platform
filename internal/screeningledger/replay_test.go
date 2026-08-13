@@ -7,7 +7,7 @@ import (
 
 func TestHashEventSurfacesMarshalError(t *testing.T) {
 	bad := Event{SchemaVersion: EventSchemaV1, ActivationLineage: json.RawMessage("not valid json")}
-	if _, err := hashEvent(bad); err == nil {
+	if _, err := hashEvent(bad, testKey()); err == nil {
 		t.Fatal("expected hashEvent to return an error for an event with an invalid ActivationLineage payload")
 	}
 }

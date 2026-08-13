@@ -24,7 +24,7 @@ func TestAppendAuditSurfacesDetailsMarshalError(t *testing.T) {
 
 func TestHashAuditSurfacesMarshalError(t *testing.T) {
 	bad := AuditEvent{SchemaVersion: AuditSchemaV1, Details: json.RawMessage("not valid json")}
-	if _, err := hashAudit(bad); err == nil {
+	if _, err := hashAudit(bad, testKey()); err == nil {
 		t.Fatal("expected hashAudit to return an error for an audit event with an invalid Details payload")
 	}
 }
