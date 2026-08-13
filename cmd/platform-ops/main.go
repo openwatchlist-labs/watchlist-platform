@@ -111,7 +111,18 @@ func main() {
 		c := loadConfig(*p)
 		q, err := productionops.LoadQuotaRegistry(c.QuotaRegistryPath)
 		check(err)
-		r := productionops.CheckRuntime(context.Background(), c, q)
+		ctx := context.Background()
+		// One connection for this one-shot invocation, not a pool
+		// (ADR-0005 §3.1, D4) -- nil when PostgreSQL readiness isn't
+		// configured, matching platformapi's pool-or-nil shape.
+		conn, err := productionops.NewReadinessConn(ctx, c)
+		check(err)
+		var pg productionops.Pinger
+		if conn != nil {
+			defer conn.Close(ctx)
+			pg = conn
+		}
+		r := productionops.CheckRuntime(ctx, c, q, pg)
 		write(r)
 		if r.Status != "ok" {
 			os.Exit(1)
@@ -213,22 +224,22 @@ func main() {
 		write(m)
 	case "sync-vendor-adapter":
 		fs := flag.NewFlagSet("sync-vendor-adapter", flag.ExitOnError)
-		dsn := fs.String("dsn", "", "dsn")
+		dsnEnv := fs.String("postgres-dsn-env", "", "environment variable holding the PostgreSQL DSN")
 		psql := fs.String("psql", "psql", "psql")
 		state := fs.String("state", "", "state")
 		_ = fs.Parse(os.Args[2:])
-		p, err := productionops.NewPSQLRunner(*dsn, *psql, 30*time.Second)
+		p, err := productionops.NewPSQLRunner(dsnFromEnv(*dsnEnv), *psql, 30*time.Second)
 		check(err)
 		counts, err := productionops.SyncVendorAdapterState(context.Background(), p, *state)
 		check(err)
 		write(map[string]any{"status": "ok", "counts": counts})
 	case "sync-outbox":
 		fs := flag.NewFlagSet("sync-outbox", flag.ExitOnError)
-		dsn := fs.String("dsn", "", "dsn")
+		dsnEnv := fs.String("postgres-dsn-env", "", "environment variable holding the PostgreSQL DSN")
 		psql := fs.String("psql", "psql", "psql")
 		state := fs.String("state", "", "state")
 		_ = fs.Parse(os.Args[2:])
-		p, err := productionops.NewPSQLRunner(*dsn, *psql, 30*time.Second)
+		p, err := productionops.NewPSQLRunner(dsnFromEnv(*dsnEnv), *psql, 30*time.Second)
 		check(err)
 		counts, err := productionops.SyncOutbox(context.Background(), p, *state)
 		check(err)
@@ -241,6 +252,18 @@ func loadConfig(p string) productionops.RuntimeConfig {
 	c, err := productionops.LoadRuntimeConfig(p)
 	check(err)
 	return c
+}
+
+// dsnFromEnv reads the PostgreSQL DSN from the named environment
+// variable rather than accepting it as a flag value directly -- a DSN on
+// argv is readable via `ps` by any local user (SEC-3, ADR-0005 §11.1,
+// D11). There must be no sibling flag accepting the DSN itself; that
+// would reopen the exposure this flag exists to close.
+func dsnFromEnv(envName string) string {
+	if strings.TrimSpace(envName) == "" {
+		fatal("--postgres-dsn-env is required")
+	}
+	return os.Getenv(envName)
 }
 func outbox(p string) *productionops.OutboxStore {
 	s, err := productionops.NewOutboxStore(p, "platform-outbox-phase9g")

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertcase"
@@ -110,10 +111,17 @@ func main() {
 		write(map[string]any{"status": "ok", "audit_event_count": count})
 	case "migrate":
 		fs := flag.NewFlagSet("migrate", flag.ExitOnError)
-		dsn := fs.String("postgres-dsn", "", "PostgreSQL DSN")
+		dsnEnv := fs.String("postgres-dsn-env", "", "environment variable holding the PostgreSQL DSN")
 		psql := fs.String("psql", "psql", "psql executable")
 		_ = fs.Parse(os.Args[2:])
-		sink, err := alertcase.NewPostgresSink(*dsn, *psql, nil, 30*time.Second)
+		if strings.TrimSpace(*dsnEnv) == "" {
+			fatal("--postgres-dsn-env is required")
+		}
+		// The DSN is read from the named environment variable, never
+		// accepted as a flag value directly -- a DSN on argv is
+		// readable via `ps` by any local user (SEC-3, ADR-0005 §11.1,
+		// D11). There must be no --postgres-dsn sibling flag.
+		sink, err := alertcase.NewPostgresSink(os.Getenv(*dsnEnv), *psql, nil, 30*time.Second)
 		check(err)
 		check(sink.Migrate(context.Background()))
 		write(map[string]any{"status": "ok"})
