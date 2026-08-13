@@ -193,6 +193,44 @@ the other three are `reviewauth`-specific and belong to that store's own pass (�
 persistence path, a Postgres mirror, and an existing key-custody mechanism to build on — and names
 every sibling, with triage, so the choice does not silently orphan the register's stated targets.
 
+### 3.4 Corrections found implementing D3 (Stage 2)
+
+Recorded here rather than silently worked around, in the same spirit as §3.1–3.3: both were checked
+against the tree at implementation time, not assumed from this ADR's own text.
+
+**§3.2 and §5.3 point 3's "all six existing protected tables lack a `BEFORE TRUNCATE` trigger" was
+already false when this ADR was drafted.** `db/migrations/012_truncate_guards.sql` (commit `c9a89d4`,
+2026-08-10) added a `BEFORE TRUNCATE ... FOR EACH STATEMENT` trigger, via `owl_reject_truncate()`, to
+exactly the six tables named there: `screening_ledger_event`, `screening_ledger_audit`,
+`screening_ledger_replication`, `screening_ledger_retention_tombstone`, `screening_ledger_snapshot`,
+`screening_idempotency_receipt`. `c9a89d4` is an ancestor of `61ca62a`, the commit this ADR states it
+verified every claim against (Context, above) — so this was not drift introduced by a later PR, the
+premise did not hold at the moment it was written. D3's actual remaining scope, once this is
+corrected, is the trigger on the *new* `screening_ledger_anchor` table only.
+
+A related, separately-tracked gap surfaced by the same check: `internal/screeningledger/postgres.go`'s
+`SchemaSQL` constant independently bootstraps those same six tables (called from every
+`cmd/screening-ledger` CLI invocation and from this package's own pgx test suite, with no dependency
+on `db/migrations/` having run first) and never carried the `BEFORE TRUNCATE` trigger `012` added —
+this is REL-9's tracked schema-duplication finding (`docs/backlog/issue-register.md:129`), shown here
+to have a real consequence rather than only a maintenance one. The Stage 2 implementation PR closes
+this one property gap in `SchemaSQL` directly; it does not attempt REL-9's broader unification of the
+two schema sources, which remains its own, larger, separate problem.
+
+**This ADR did not reconcile the new `owl_ledger_anchor` role with the existing rule in
+`docs/adr/0001-tenant-isolation.md:208`: "No migration contains `CREATE ROLE` or `GRANT`; every sink
+connects as the table owner using the DSN it was constructed with."** §5.3 point 2 specifies the role
+must exist and be distinct from the ledger writer, but says nothing about where it is provisioned, and
+the natural reading of "`owl_migrator` ... transfers ownership ... then drops its own membership" (the
+phrasing this ADR's implementation was kicked off with) describes exactly the `CREATE ROLE`/`GRANT`
+shape ADR-0001 keeps out of `db/migrations/`. Resolved, not left silent: `owl_ledger_anchor`'s
+creation, the `ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_anchor` ownership transfer, and
+`owl_migrator`'s membership-drop `REVOKE` all live in `scripts/ci/provision_test_roles.sh`, run by the
+same bootstrap superuser that provisions `owl_migrator` and `owl_app` — following ADR-0001's existing
+pattern rather than creating a new exception to it. The anchor table's own `CREATE TABLE` stays in
+`db/migrations/015_screening_ledger_anchor.sql`, run by `owl_migrator`, unchanged from how every other
+relation in this schema is created.
+
 ## 4. Decisions
 
 | ID | Decision | Rationale |
