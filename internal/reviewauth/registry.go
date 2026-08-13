@@ -21,7 +21,11 @@ func LoadRegistry(path string) (Registry, error) {
 	if e = d.Decode(&r); e != nil {
 		return r, e
 	}
-	return r, VerifyRegistry(r)
+	if e = VerifyRegistry(r); e != nil {
+		return r, e
+	}
+	r.buildIndex()
+	return r, nil
 }
 func VerifyRegistry(r Registry) error {
 	if r.SchemaVersion != RegistrySchemaV1 {
@@ -86,7 +90,44 @@ func VerifyRegistry(r Registry) error {
 	}
 	return nil
 }
+
+// buildIndex populates userIndex/roleIndex so User() and Role() become O(1)
+// lookups. The maps hold slice positions rather than copies of User/Role
+// values: User()/Role() re-read r.Users[i]/r.Roles[i] on every call, so an
+// in-place mutation to an existing entry (as several tests do, to simulate
+// session revocation or binding removal without a full registry reload) is
+// observed identically to the original linear scan. Storing value copies
+// instead would silently freeze fields like SessionEpoch at build time and
+// break revocation -- this was caught by go test -race turning up a real
+// failure (TestScreeningAuthTokenLifecycleRejections/revoked_session_epoch)
+// during development of this change.
+//
+// buildIndex must only be called synchronously, before the Registry value
+// is shared with any concurrent reader: LoadRegistry and NewTokenService
+// both call it once, right after VerifyRegistry succeeds, which is every
+// construction path that feeds the token verification hot path
+// (Parse -> User -> RolesFor). Registry values built by other means (e.g.
+// struct literals used directly in tests) are left unindexed; User()/Role()
+// fall back to the original linear scan for those, so behavior is
+// identical either way -- only the indexed path is O(1).
+func (r *Registry) buildIndex() {
+	r.userIndex = make(map[string]int, len(r.Users))
+	for i, u := range r.Users {
+		r.userIndex[u.UserID] = i
+	}
+	r.roleIndex = make(map[string]int, len(r.Roles))
+	for i, x := range r.Roles {
+		r.roleIndex[x.RoleID] = i
+	}
+}
 func (r Registry) User(id string) (User, bool) {
+	if r.userIndex != nil {
+		i, ok := r.userIndex[id]
+		if !ok {
+			return User{}, false
+		}
+		return r.Users[i], true
+	}
 	for _, u := range r.Users {
 		if u.UserID == id {
 			return u, true
@@ -95,6 +136,13 @@ func (r Registry) User(id string) (User, bool) {
 	return User{}, false
 }
 func (r Registry) Role(id string) (Role, bool) {
+	if r.roleIndex != nil {
+		i, ok := r.roleIndex[id]
+		if !ok {
+			return Role{}, false
+		}
+		return r.Roles[i], true
+	}
 	for _, x := range r.Roles {
 		if x.RoleID == id {
 			return x, true
