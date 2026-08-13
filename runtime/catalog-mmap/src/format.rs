@@ -102,7 +102,10 @@ pub fn compile(input_bytes: &[u8]) -> Result<(Vec<u8>, PackageInfo), String> {
     compile_parsed(input_bytes, &parsed)
 }
 
-fn compile_parsed(input_bytes: &[u8], parsed: &CompilerInput) -> Result<(Vec<u8>, PackageInfo), String> {
+fn compile_parsed(
+    input_bytes: &[u8],
+    parsed: &CompilerInput,
+) -> Result<(Vec<u8>, PackageInfo), String> {
     let input_digest = sha256::digest(input_bytes);
     let input_sha256 = sha256::hex(&input_digest);
     let mut pool = StringPool::new();
@@ -611,6 +614,14 @@ impl<'a> PackageView<'a> {
         Ok(output)
     }
 
+    // Compares Users/Roles-analogous fixed-size table entries against their
+    // predecessor to prove the on-disk table is sorted and non-degenerate.
+    // The comparison keys are tuples of the already zero-copy &str/usize/u8
+    // fields borrowed directly from name_entry()/identifier_entry() -- no
+    // heap allocation. (An earlier version of this code built a `String`
+    // key per entry purely to satisfy an owned-vs-borrowed type mismatch
+    // with the "previous" slot; &str already implements Ord, so the
+    // borrowed tuple works directly as the comparison key.)
     fn validate_entries(&self) -> Result<(), String> {
         let mut previous_record = "";
         for index in 0..self.records.count {
@@ -623,7 +634,7 @@ impl<'a> PackageView<'a> {
             }
             previous_record = record.record_id;
         }
-        let mut previous_name: Option<(String, usize, u8, String)> = None;
+        let mut previous_name: Option<(&str, usize, u8, &str)> = None;
         for index in 0..self.names.count {
             let entry = self.name_entry(index)?;
             if entry.normalized.is_empty()
@@ -634,17 +645,17 @@ impl<'a> PackageView<'a> {
                 return Err("invalid name index entry".to_string());
             }
             let key = (
-                entry.normalized.to_string(),
+                entry.normalized,
                 entry.record_index,
                 entry.kind,
-                entry.value.to_string(),
+                entry.value,
             );
-            if previous_name.as_ref().is_some_and(|previous| &key <= previous) {
+            if previous_name.is_some_and(|previous| key <= previous) {
                 return Err("name index is not sorted".to_string());
             }
             previous_name = Some(key);
         }
-        let mut previous_identifier: Option<(String, String, usize, String)> = None;
+        let mut previous_identifier: Option<(&str, &str, usize, &str)> = None;
         for index in 0..self.identifiers.count {
             let entry = self.identifier_entry(index)?;
             if entry.identifier_type.is_empty()
@@ -655,15 +666,12 @@ impl<'a> PackageView<'a> {
                 return Err("invalid identifier index entry".to_string());
             }
             let key = (
-                entry.identifier_type.to_string(),
-                entry.normalized.to_string(),
+                entry.identifier_type,
+                entry.normalized,
                 entry.record_index,
-                entry.value.to_string(),
+                entry.value,
             );
-            if previous_identifier
-                .as_ref()
-                .is_some_and(|previous| &key <= previous)
-            {
+            if previous_identifier.is_some_and(|previous| key <= previous) {
                 return Err("identifier index is not sorted".to_string());
             }
             previous_identifier = Some(key);
@@ -793,7 +801,10 @@ fn normalize_ascii(value: &str, uppercase: bool, spaces: bool) -> String {
 
 fn encode_metadata(values: &[String]) -> Result<Vec<u8>, String> {
     let mut bytes = Vec::new();
-    push_u32(&mut bytes, u32::try_from(values.len()).map_err(|_| "too many metadata fields")?);
+    push_u32(
+        &mut bytes,
+        u32::try_from(values.len()).map_err(|_| "too many metadata fields")?,
+    );
     for value in values {
         push_u32(
             &mut bytes,
@@ -914,8 +925,66 @@ mod tests {
 
     #[test]
     fn normalization_profile_is_stable() {
-        assert_eq!(normalize_name(" ACME---HOLDINGS, S.A. "), "acme holdings s a");
+        assert_eq!(
+            normalize_name(" ACME---HOLDINGS, S.A. "),
+            "acme holdings s a"
+        );
         assert_eq!(normalize_identifier(" P-12 34/56 "), "P123456");
         assert_eq!(normalize_name("МОСКВА Bank"), "МОСКВА bank");
+    }
+}
+
+// A dedicated test module (rather than adding to `mod tests` above) because
+// it needs to own the crate's #[global_allocator] for the lib's unit-test
+// binary. That's scoped to #[cfg(test)], so it never affects the separate
+// tests/*.rs integration binaries or the catalog-mmap bin target -- each is
+// its own compilation unit and never links this code in.
+#[cfg(test)]
+mod validate_entries_allocation_tests {
+    use super::PackageView;
+    use std::alloc::{GlobalAlloc, Layout, System};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct CountingAllocator;
+
+    static ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    unsafe impl GlobalAlloc for CountingAllocator {
+        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+            ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
+            unsafe { System.alloc(layout) }
+        }
+        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+            unsafe { System.dealloc(ptr, layout) }
+        }
+    }
+
+    #[global_allocator]
+    static GLOBAL: CountingAllocator = CountingAllocator;
+
+    const GOLDEN: &[u8] = include_bytes!("../../../test/golden/runtime-mmap/ofac-fixture.owmmap");
+
+    // validate_entries() already runs once inside PackageView::open(); this
+    // test calls it a second time directly and measures the allocator
+    // delta around only that call, isolating it from the unavoidable
+    // allocations open() does elsewhere (the section directory Vec,
+    // decode_metadata's Vec<&str>, etc). Before this change, validate_entries()
+    // allocated 2-3 heap Strings per name/identifier entry purely to compare
+    // against the previous entry, over data that was already zero-copy &str
+    // into the mmap'd package -- this test fails (allocations > 0) against
+    // that version and passes once the comparison works on the borrowed
+    // &str tuples directly.
+    #[test]
+    fn validate_entries_does_not_allocate() {
+        let view = PackageView::open(GOLDEN).expect("open fixture package");
+        let before = ALLOC_COUNT.load(Ordering::Relaxed);
+        view.validate_entries().expect("validate_entries");
+        let after = ALLOC_COUNT.load(Ordering::Relaxed);
+        assert_eq!(
+            after - before,
+            0,
+            "validate_entries() performed {} heap allocations, want 0",
+            after - before
+        );
     }
 }
