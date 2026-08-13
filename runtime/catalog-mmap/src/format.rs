@@ -943,15 +943,27 @@ mod tests {
 mod validate_entries_allocation_tests {
     use super::PackageView;
     use std::alloc::{GlobalAlloc, Layout, System};
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::cell::Cell;
 
     struct CountingAllocator;
 
-    static ALLOC_COUNT: AtomicUsize = AtomicUsize::new(0);
+    // Thread-local, not a process-global AtomicUsize: cargo test runs the
+    // lib's unit tests (this module, `format::tests`, and `sha256::tests`)
+    // concurrently on separate threads by default. A single global counter
+    // would pick up unrelated allocations from those other tests (e.g.
+    // sha256::tests builds `Vec<u8>`/`String` fixtures) racing against this
+    // test's before/after measurement window, producing an intermittent
+    // nonzero count that has nothing to do with validate_entries(). Counting
+    // per-thread instead means only allocations made by this test's own
+    // thread are ever visible to it, regardless of what else runs in
+    // parallel -- so no serialization or `--test-threads=1` is needed.
+    thread_local! {
+        static THREAD_ALLOC_COUNT: Cell<usize> = const { Cell::new(0) };
+    }
 
     unsafe impl GlobalAlloc for CountingAllocator {
         unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            ALLOC_COUNT.fetch_add(1, Ordering::Relaxed);
+            THREAD_ALLOC_COUNT.with(|c| c.set(c.get() + 1));
             unsafe { System.alloc(layout) }
         }
         unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
@@ -977,9 +989,9 @@ mod validate_entries_allocation_tests {
     #[test]
     fn validate_entries_does_not_allocate() {
         let view = PackageView::open(GOLDEN).expect("open fixture package");
-        let before = ALLOC_COUNT.load(Ordering::Relaxed);
+        let before = THREAD_ALLOC_COUNT.with(|c| c.get());
         view.validate_entries().expect("validate_entries");
-        let after = ALLOC_COUNT.load(Ordering::Relaxed);
+        let after = THREAD_ALLOC_COUNT.with(|c| c.get());
         assert_eq!(
             after - before,
             0,
