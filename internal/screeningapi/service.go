@@ -189,6 +189,36 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 		for _, candidate := range response.Candidates {
 			byRecordID[candidate.RecordID] = candidate
 		}
+
+		// The catalog runtime already confirmed a name match for every
+		// candidate.MatchKind of "primary_name" or "alias" -- that is why
+		// retrieval returned it. bestNameMatch above recomputes the name
+		// shape independently from the projection's Names, purely to
+		// produce evidence/points. If it finds no shape at all, the
+		// projection could not corroborate a name match that indisputably
+		// exists in the catalog: a data gap in the projection artifact, not
+		// a genuine non-match (issue #115). That must not be allowed to
+		// fall through as a silent score of 0 -- it gets the same loud,
+		// whole-item-blocked treatment as a missing record_id above
+		// (ADR-0004 §6).
+		var uncorroboratedRecordIDs []string
+		for _, result := range scored.Candidates {
+			candidate := byRecordID[result.CandidateID]
+			if isNameRetrievalMatch(candidate.MatchKind) && !hasNameMatchReasonCode(result.ReasonCodes) {
+				uncorroboratedRecordIDs = append(uncorroboratedRecordIDs, candidate.RecordID)
+			}
+		}
+		if len(uncorroboratedRecordIDs) > 0 {
+			response.CandidateCount = len(response.Candidates)
+			response.Status = StatusBlocked
+			response.ReviewBlockers = append(response.ReviewBlockers, BlockerNameMatchUncorroboratedByProjection)
+			for _, recordID := range uncorroboratedRecordIDs {
+				response.ReviewBlockers = append(response.ReviewBlockers, BlockerNameMatchUncorroboratedByProjection+":"+recordID)
+			}
+			response.ScreeningID = screeningID(response)
+			return response, nil
+		}
+
 		reordered := make([]Candidate, 0, len(scored.Candidates))
 		for _, result := range scored.Candidates {
 			candidate := byRecordID[result.CandidateID]
@@ -340,6 +370,31 @@ func scoringSubject(query Query) candidatescoring.Subject {
 		subject.EntityType = query.TargetEntityTypes[0]
 	}
 	return subject
+}
+
+// isNameRetrievalMatch reports whether match_kind is one the runtime's own
+// name-lookup path produces (runtime/catalog-mmap/src/format.rs:549-553):
+// "primary_name" or "alias". Identifier lookups produce
+// "exact_identifier:<type>" and record_id lookups produce "record_id" --
+// neither claims a name match, so neither needs projection name
+// corroboration.
+func isNameRetrievalMatch(matchKind string) bool {
+	return matchKind == "primary_name" || matchKind == "alias"
+}
+
+// hasNameMatchReasonCode reports whether the engine's scored reason codes
+// include one of the four name-shape reasons bestNameMatch can produce
+// (internal/candidatescoring/engine.go:154-163). Their absence means
+// bestNameMatch found no shape at all between the subject and this
+// candidate's projected Names.
+func hasNameMatchReasonCode(codes []string) bool {
+	for _, code := range codes {
+		switch code {
+		case "name_exact", "name_token_set_exact", "name_prefix", "name_containment":
+			return true
+		}
+	}
+	return false
 }
 
 func runtimeQueryKind(kind QueryKind) runtimemmapclient.QueryKind {

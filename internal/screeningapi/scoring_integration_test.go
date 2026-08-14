@@ -144,6 +144,69 @@ func TestScoringProjectionMissBlocksLoudly(t *testing.T) {
 	}
 }
 
+// TestScoringNameMatchUncorroboratedByProjectionBlocksLoudly is issue
+// #115's regression guard: a retrieval hit whose match_kind is a genuine
+// name match ("primary_name" or "alias") but whose matched name the active
+// DOM-3 scoring projection does not carry for that record must not be
+// scored as a silent 0 -- it must block loudly, the same way a missing
+// record_id does (ADR-0004 §6).
+//
+// The scenario is real, not synthesized: ofac:sdn:2002's Cyrillic alias
+// "Джордан Экзампл" is present in the compiled catalog
+// (test/fixtures/runtime-mmap/ofac-fixture.owcin:19, compiled into
+// test/golden/runtime-mmap/ofac-fixture.owmmap) but absent from the DOM-3
+// projection package testScoringBinding loads
+// (test/fixtures/projection-package/packages/1f4397.../projections.json --
+// ofac:sdn:2002 carries only "J EXAMPLE" and "JORDAN EXAMPLE"). This test
+// simulates the runtime's retrieval hit for that alias directly (a
+// fakeRuntime, not the live Rust worker -- TestDOM1LiveRuntime
+// CyrillicAliasControlIsRetrievedButBlocked in dom1_unsupported_regression_
+// test.go covers the same scenario end to end against the real worker) so
+// it stays fast and needs no cargo/rustc toolchain.
+//
+// Failing-first (CLAUDE.md rule 5): before the fix, screenAt() returns this
+// candidate with status "matched", score 0, strength_band
+// "no_candidate_support", and empty reason_codes -- indistinguishable from
+// a genuine non-match. That is exactly the silent degradation ADR-0004 §6
+// rejects.
+func TestScoringNameMatchUncorroboratedByProjectionBlocksLoudly(t *testing.T) {
+	state := loadGoldenState(t)
+	cyrillicAliasHit := runtimemmapclient.Candidate{
+		RecordID: "ofac:sdn:2002", EntityType: "individual", PrimaryName: "Jordan Example",
+		MatchKind: "alias", MatchedValue: "Джордан Экзампл", NormalizedQuery: "Джордан Экзампл",
+	}
+	runtime := &fakeRuntime{info: realCatalogPackageInfo(), values: []runtimemmapclient.Candidate{cyrillicAliasHit}}
+	service := Service{Loader: staticLoader{state}, Runtime: runtime, MaxCandidates: 20, Clock: func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") }, Scoring: testScoringBinding(t)}
+
+	request := fixtureRequest("screen-name-gap-1", "fircosoft-prod", "WLS_OFAC_001", "2026-07-20T12:00:00Z")
+	request.Query = Query{Kind: QueryName, Value: "Джордан Экзампл", Limit: 20}
+	response, err := service.Screen(context.Background(), request, "corr-name-gap", "idem-name-gap")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != StatusBlocked {
+		t.Fatalf("status = %q, want blocked: %+v", response.Status, response)
+	}
+	if len(response.Candidates) != 1 || response.Candidates[0].RecordID != "ofac:sdn:2002" {
+		t.Fatalf("retrieval evidence was not preserved: %+v", response.Candidates)
+	}
+	if response.Candidates[0].Score != 0 || response.Candidates[0].StrengthBand != "" || response.Candidates[0].ExactNameMatched {
+		t.Fatalf("a blocked candidate must not carry scored-looking fields: %+v", response.Candidates[0])
+	}
+	var foundCode, foundDetail bool
+	for _, blocker := range response.ReviewBlockers {
+		if blocker == BlockerNameMatchUncorroboratedByProjection {
+			foundCode = true
+		}
+		if blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
+			foundDetail = true
+		}
+	}
+	if !foundCode || !foundDetail {
+		t.Fatalf("expected review_blockers to name %s and the uncorroborated record_id, got %+v", BlockerNameMatchUncorroboratedByProjection, response.ReviewBlockers)
+	}
+}
+
 // TestScoringRecordIDQueryBlocksAsScoringSubjectUnavailable covers §4/§6's
 // other named blocker: a record_id query has no subject to score against,
 // so it is blocked rather than returned with an unpopulated score.
