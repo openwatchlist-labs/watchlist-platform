@@ -1,6 +1,7 @@
 package scoringactivation
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,6 +87,89 @@ func TestActivateRollbackAndActiveOnlyLookup(t *testing.T) {
 	if rolledBack.Activation.ActivationID != "activation-one" {
 		t.Fatalf("rollback selected %q", rolledBack.Activation.ActivationID)
 	}
+}
+
+func TestActivatePersistsPathsRelativeToStateDirectory(t *testing.T) {
+	descriptorPath, packagePath, policyPath := createTestTuple(t)
+	tupleDirectory := filepath.Dir(descriptorPath)
+	stateDirectory := filepath.Join(t.TempDir(), "state")
+	manager, err := NewManager(stateDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Invoke from a CWD distinct from both the tuple directory and the
+	// state directory, passing paths relative to that CWD -- mirrors how
+	// the CLI is actually invoked (see cmd/scoring-activation/main_test.go).
+	invocationDirectory := t.TempDir()
+	t.Chdir(invocationDirectory)
+	relativeDescriptor, err := filepath.Rel(invocationDirectory, descriptorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativePackage, err := filepath.Rel(invocationDirectory, packagePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativePolicy, err := filepath.Rel(invocationDirectory, policyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := manager.Activate(ActivateRequest{
+		ActivationID: "activation-portable", CatalogDescriptorPath: relativeDescriptor,
+		ProjectionPackagePath: relativePackage, ScoringPolicyPath: relativePolicy,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(manager.activationPath("activation-portable"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stored Activation
+	if err := json.Unmarshal(raw, &stored); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, path := range map[string]string{
+		"catalog.catalog_package_path": stored.Catalog.CatalogPackagePath,
+		"projection.package_path":      stored.Projection.PackagePath,
+		"policy.path":                  stored.Policy.Path,
+	} {
+		if filepath.IsAbs(path) {
+			t.Fatalf("%s was persisted as an absolute path %q -- not portable across machines/checkouts", name, path)
+		}
+		if strings.Contains(path, tupleDirectory) {
+			t.Fatalf("%s leaked the tuple directory %q into the persisted path %q", name, tupleDirectory, path)
+		}
+	}
+
+	if resolved := filepath.Clean(filepath.Join(stateDirectory, stored.Catalog.CatalogPackagePath)); resolved != filepath.Clean(descriptorPathCatalogPackage(t, descriptorPath)) {
+		t.Fatalf("catalog_package_path %q does not resolve against the state directory to the original file (got %q)", stored.Catalog.CatalogPackagePath, resolved)
+	}
+	if resolved := filepath.Clean(filepath.Join(stateDirectory, stored.Projection.PackagePath)); resolved != filepath.Clean(packagePath) {
+		t.Fatalf("package_path %q does not resolve against the state directory to %q (got %q)", stored.Projection.PackagePath, packagePath, resolved)
+	}
+	if resolved := filepath.Clean(filepath.Join(stateDirectory, stored.Policy.Path)); resolved != filepath.Clean(policyPath) {
+		t.Fatalf("policy.path %q does not resolve against the state directory to %q (got %q)", stored.Policy.Path, policyPath, resolved)
+	}
+
+	// A load from yet another, unrelated CWD must still succeed -- this is
+	// the guarantee resolvePath's relative-path convention exists to provide.
+	t.Chdir(t.TempDir())
+	if _, err := manager.LoadActive(); err != nil {
+		t.Fatalf("LoadActive from an unrelated CWD failed: %v", err)
+	}
+}
+
+func descriptorPathCatalogPackage(t *testing.T, descriptorPath string) string {
+	t.Helper()
+	descriptor, err := projectionpackage.LoadCatalogDescriptor(descriptorPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return descriptor.CatalogPackagePath
 }
 
 func TestActiveTupleRejectsPolicyTampering(t *testing.T) {
