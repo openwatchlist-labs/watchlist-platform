@@ -15,6 +15,8 @@ in the consolidated issue register; every task should reference an issue ID (`DO
 ## Commands
 
 ```bash
+# SEC-7 (audit chain integrity) fully closed 2026-08-13: all three stages plus the
+# govulncheck toolchain fix landed (PR #106, #107, #108, #109).
 scripts/ci/run-ci.sh                        # full gate: vet, test, cargo test, clippy
 go test -race -count=1 ./...                # required before any PR touching Go
 cargo test --locked --workspace --all-targets
