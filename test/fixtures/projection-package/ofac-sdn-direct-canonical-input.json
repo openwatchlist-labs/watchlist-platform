@@ -21,7 +21,7 @@
     {
       "candidate_id": "ofac:sdn:2002",
       "retrievable": true,
-      "names": ["Jordan Example", "J. Example"],
+      "names": ["Jordan Example", "J. Example", "Джордан Экзампл"],
       "countries": ["United States"],
       "dates_of_birth": ["1980-05-20"],
       "entity_type": "individual"
