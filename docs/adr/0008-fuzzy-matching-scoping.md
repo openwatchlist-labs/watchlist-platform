@@ -581,3 +581,218 @@ which the compiled catalog already carries.
 
 Nothing in this document changes behavior. `README.md` Table 1 stands unmodified until a
 stage ships with a precision result behind it.
+
+## Addendum: Stage 1 mechanism decisions (2026-08-14)
+
+- **Status:** Proposed
+- **Trigger:** an implementation attempt at Stage 1 (§7) stopped before writing code, per this
+  project's standing rule to report rather than guess when a specification is ambiguous. Two
+  pieces of §7's mechanism turned out to have no implementable answer in the base document,
+  and a third row's acceptance vehicle turned out to have an unmet prerequisite. This addendum
+  resolves all three. It is a pure addition — no existing decision (D1-D6) is revised, and
+  nothing above this section is edited.
+- Every claim below was verified against the working tree at `7561e84` (current tip of `main`
+  at the time this addendum was written), the same standard §Context sets for the base ADR.
+
+### Addendum context: §7's two silent gaps
+
+§7 Stage 1 states the mechanism as: query expansion and lookup, "then `matcherbaseline`
+rescoring over the union; then the `candidatescoring` vocabulary extension for the shapes
+produced." Two things in that sentence have no implementable answer as written:
+
+1. `matcherbaseline` has no call surface for "rescore this union." Its only exported
+   entry points are `NewProvider`, `LoadProfileSet`, `ValidateProfileSet`, and
+   `StableProfileSetChecksum` (`internal/matcherbaseline/provider.go:22`,
+   `profile.go:17,37,96`); `scoreName` and `fold` are package-private
+   (`similarity.go:13`, `normalize.go:22`). `Provider.SearchWithDiagnostics` always scans
+   every entry in the `ofacruntime.RuntimePayload` it was constructed from
+   (`provider.go:90`) — it has no notion of "score this query against this specific small
+   candidate list."
+2. `candidatescoring.bestNameMatch` recognizes exactly four shapes —
+   `exact`/`token_set`/`prefix`/`containment` (`internal/candidatescoring/engine.go:332-372`)
+   — and none of them fire for a concatenation-split or particle-stripped match. Concretely
+   verified: normalizing `"Klaas Berg"` and `"Klaas van der Berg"`
+   (`candidatescoring/normalize.go:9-25`) gives `"KLAAS BERG"` and `"KLAAS VAN DER BERG"`,
+   which are not equal, not equal token sets, not a prefix of each other, and — because
+   `"VAN DER"` interrupts the shared words — not a substring of each other either
+   (`strings.Contains`, `engine.go:355`). A retrieved particle candidate would find *no
+   shape at all* and fall straight into #116's `BlockerNameMatchUncorroboratedByProjection`
+   (`internal/screeningapi/service.go:204-220`) — correctly, since that guard cannot tell a
+   real data gap from a genuinely unmatched name, but that means Stage 1's retrieval half
+   is not sufficient by itself to flip this row from "Not supported" to "Supported."
+
+Also worth surfacing before either decision, because it bears on both: `docs/ARCHITECTURE.md:16-43`
+currently states, as a committed architectural fact, that "**two genuinely different
+retrieval/matching paths exist in this codebase, by design** ... `screeningapi` does not
+import `matcherbaseline`, `matcherprovider`, or `matchercontext` at all," and
+`docs/ARCHITECTURE.md:90-100` states `matcherbaseline` "does not feed into `candidatescoring`,
+`policyengine`, or any part of the live request lifecycle ... and there is no expectation that
+it should." `internal/matcherbaseline/doc.go:1-6` says the same thing from the other side:
+the package "is intentionally NOT the retrieval path production `cmd/screening-api` uses."
+D3 already commits DOM-1 to making this false — `matcherbaseline` becomes "the rescorer"
+(§5, D3) — but no document currently says so. **Whichever mechanism AD1 below picks,
+`docs/ARCHITECTURE.md`'s "two genuinely separate paths" framing and its "does not feed into
+`candidatescoring`" claim must be corrected in the same PR that lands Stage 1's rescoring
+call**, or committed documentation becomes wrong the moment the code merges. This is not a
+new open question — it is a known, textual edit — but naming it here means it isn't
+rediscovered post-hoc the way issue #115 was found only after digging into a different
+feature (§6.3(c)).
+
+### AD1. The `matcherbaseline` call mechanism
+
+**Option (a): export a new pair-scoring function.** Something in the shape of
+`ScorePair(query, candidateName string, profile ThresholdProfile) (score int, evidence
+[]FeatureEvidence, penalty int)`, added to `matcherbaseline` as a thin wrapper around the
+existing unexported `fold` (`normalize.go:22-70`) and `scoreName`
+(`similarity.go:13-37`) — the same two calls `Provider.SearchWithDiagnostics` already makes
+per candidate (`provider.go:84,94,100`), just addressed at one caller-supplied pair instead
+of a whole scanned payload. `ThresholdProfile` values load and checksum-validate once, at
+process startup, via the existing `LoadProfileSet`/`ValidateProfileSet` path
+(`profile.go:17-34`, `:37-94`) — the same "validate once at load, call cheaply per request"
+shape `internal/screeningapi` already uses for `candidatescoring`'s policy
+(`NewScoringBinding`, `internal/screeningapi/scoring.go:25-45`, wrapping a `LoadedPolicy`
+whose SHA256 is verified once inside `NewEngine`, `candidatescoring/engine.go:20-36`). No
+`ofacruntime.RuntimePayload` construction, no synthetic `SourceAssertions`, no per-request
+schema validation.
+
+**Option (b): synthesize a per-request `ofacruntime.RuntimePayload`.** Build a payload from
+the live candidate union and run it through the already-exported `NewProvider`/`Search`
+(`matcherbaseline/provider.go:22`,`54`). No new exported surface on `matcherbaseline` itself.
+But `ofacruntime.ValidatePayload` (`internal/ofacruntime/validate.go:67-97`) requires every
+entry to set `Exact: true` and carry a non-empty `SourceAssertions` list
+(`validate.go:94`), and requires `NormalizedQuery == normalize(MatchedValue)`
+(`validate.go:91-93`) — fields that assert a compiled, source-confirmed catalog entry, not a
+live retrieval hit whose exactness is precisely what the rescoring step exists to determine.
+Setting `Exact: true` on a query-expansion candidate to satisfy the validator would write a
+false claim into a schema whose whole purpose is provenance integrity. `NewProvider` also
+re-runs both `ValidatePayload` and `ValidateProfileSet` on every construction
+(`matcherbaseline/provider.go:22-28`) — validation work sized for compiling a whole offline
+catalog, paid again per request for a union of a handful of live candidates. And it pulls
+`internal/screeningapi` into a dependency on `internal/ofacruntime`'s compiled-package types
+(`RuntimePayload`, `CompiledEntry`, `SourceAssertions`) purely to satisfy a schema those types
+were never meant to carry live retrieval data through.
+
+**Decision: (a).** Option (b)'s validator is not a neutral compatibility shim — `Exact: true`
+and non-empty `SourceAssertions` are true, meaningful claims about how a compiled catalog
+entry was produced, and forcing them onto a live fuzzy candidate to pass validation means
+writing false provenance data to satisfy a checksum-adjacent structure — the same
+"flatteringly low FP rate" corner-cutting D6 already warns against in the recall-vs-precision
+context, here in the schema-integrity context instead. Option (a) is a narrower,
+purpose-built surface change; it costs zero per-request re-validation because profile
+loading already follows the codebase's existing load-once convention; and it leaves
+`internal/ofacruntime`'s compiled-catalog contract describing only actual compiled catalogs.
+It is also the smaller of the two changes to the architecture-boundary text flagged above —
+one new pure function, not a live-request dependency on offline-catalog-compilation types.
+
+### AD2. The `candidatescoring` vocabulary extension
+
+Two new name shapes, added to `bestNameMatch` (`candidatescoring/engine.go:332-372`):
+
+- **`concatenation_normalized`** — subject and candidate names compared with
+  `normalizeText` (`candidatescoring/normalize.go:9-25`) and then with spaces removed
+  entirely, so `"ACMEIMPORTS"` and `"ACME IMPORTS"` compare equal. This is symmetric (it
+  closes the row regardless of which side is concatenated) and needs no new normalization
+  table — a straightforward addition alongside the existing `equalTokenSet`
+  (`normalize.go:67-79`). Evidence rank: stronger than `prefix`/`containment` and arguably as
+  strong as `token_set` (it is the identical name, modulo whitespace only) — recommend
+  ranking it immediately below `exact`, i.e. inserting it into the existing rank ladder
+  (`engine.go:350-356`: `exact`=4, `token_set`=3, `prefix`=2, `containment`=1) as a new
+  rank between `exact` and `token_set`, renumbering the rest down by one.
+- **`particle_stripped`** — token-set equality (`equalTokenSet`) after dropping a small,
+  fixed, single-token particle list from both sides (starter set, matching Table 1's own
+  named examples: `AL`, `BIN`, `VAN`, `DER`, `DE`, `DA`, `DEL`, `DOS`, `DAS`, `LA`, `LE`,
+  `VON`, `IBN`). Applied at the token level so a two-word particle like "VAN DER" is handled
+  as two independently-droppable tokens — `"KLAAS VAN DER BERG"` token-set-drops to
+  `{KLAAS, BERG}`, matching `"KLAAS BERG"`'s token set exactly. Evidence rank: weaker than an
+  unmodified `token_set` match (it required removing tokens to agree), stronger than a raw
+  `prefix`/`containment` accident — recommend ranking it between `token_set` and `prefix`.
+
+  **Placement of the particle table:** `candidatescoring` should own an independent copy of
+  this list (in `candidatescoring/normalize.go`, mirroring the pattern of
+  `matcherbaseline/corporate_suffixes.go`), not import `internal/matcherbaseline`'s (once D3
+  adds one there). `candidatescoring`'s own doc comment
+  (`internal/candidatescoring/doc.go:1-13`) and `docs/ARCHITECTURE.md:142-144` both frame it
+  as a small, independently-consumed leaf package (imported by `screeningapi`,
+  `scoringactivation`, and `projectionpackage` — none of which otherwise touch
+  `matcherbaseline`); AD1 gives `screeningapi` a narrow call into `matcherbaseline` for
+  rescoring, but that is not a reason for `candidatescoring` itself to gain a
+  `matcherbaseline` dependency merely to detect a shape. This does mean two
+  independently-maintained particle lists can drift apart over time — an accepted, named
+  risk, in the same spirit as §9's R1-R4, not resolved here.
+
+**New reason codes:** `name_concatenation_normalized` and `name_particle_stripped`, following
+the existing convention (`name_exact`, `name_token_set_exact`, `name_prefix`,
+`name_containment`) and wired into the `switch nameShape` in `scoreCandidate`
+(`engine.go:154-163`). **Both new codes must also be added to
+`isNameRetrievalMatch`'s companion check, `hasNameMatchReasonCode`**
+(`internal/screeningapi/service.go:390-397`) — without that second edit, a correctly-matched
+concatenation or particle candidate would still trip #116's
+`BlockerNameMatchUncorroboratedByProjection` after correctly scoring, silently defeating the
+row instead of closing it. This is a two-sided wire and both sides land in the same PR.
+
+**Policy weight change — a `policy_sha256`-changing contract change.** `Policy.Weights`
+(`candidatescoring/types.go:34-47`) gains two new integer fields,
+`name_concatenation_normalized` and `name_particle_stripped`, alongside the existing four
+name weights. Every policy document that sets weights —
+`configs/scoring/candidate-scoring-r1.json`, `configs/scoring/candidate-scoring-r1-ascii-v1.json`,
+and any activation-bound copy under `test/fixtures/scoring-activation/**` — needs explicit
+values for both new fields; a policy that omits them decodes the fields to `0`
+(`encoding/json`'s ordinary missing-field behavior), silently scoring the new shapes as
+worthless rather than erroring — exactly the "silent absence" failure class CLAUDE.md rule 5
+names as this repository's dominant bug pattern. `validatePolicy`
+(`candidatescoring/policy.go:54-102`) already enforces that supporting weights are
+non-negative but not that they are *present*; this addendum's implementation should close
+that gap for any policy that declares these two shapes reachable. Because `Policy`'s SHA256
+is computed over the full canonical JSON (`policy.go:46-51`) and re-verified at
+`NewEngine` (`engine.go:27-34`), adding these fields with any nonzero value changes
+`policy_sha256` for every policy document that sets them, which means every activation
+pinning one — e.g.
+`test/fixtures/scoring-activation/state-ofac-sdn-direct/activations/activation-dom-3-ofac-sdn-direct.json`,
+whose `policy.policy_sha256` field is exactly this checksum
+(`internal/scoringactivation/manager.go:86-92` writes it, `:234-239` re-verifies it) — must
+be re-activated with the new value. This is §6.3(b)'s "a new weight is a new `policy_sha256`"
+cost, now named concretely rather than left general.
+
+**The point values themselves are explicitly not decided here.** Consistent with §8.3's
+treatment of the phonetic-threshold question ("a measurement decision, not an engineering
+one") and D6 ("no stage merges without a stated precision result"), the actual basis-point
+weight for `name_concatenation_normalized` and `name_particle_stripped` is a calibration
+decision gated on the same precision instrument D6 already requires for Stage 1 as a whole.
+This addendum specifies the shape, the reason codes, and the schema change; it does not
+invent numbers. The implementation PR carries the calibration alongside its stated precision
+result, not ahead of it.
+
+### AD3. The #117 fixture needs a scoring projection before it can serve as Stage 1's acceptance vehicle — small enough to be part of Stage 1's own scope
+
+`dom1ParticleService`'s own comment
+(`internal/screeningapi/dom1_unsupported_regression_test.go:538-546`) states record
+`ofac:sdn:4004` was "deliberately never added to test/fixtures/scoring-activation's
+projection index," so today the particle fixture only proves retrieval — the control case
+observes `BlockerCandidateProjectionUnavailable`, not a score. AD2's new shapes cannot flip
+`TestDOM1UnsupportedMatchingVariantParticleAndCompoundProducesNoMatchToday`'s
+`name_particles_and_compounds` case to a real match until this record is scoreable, i.e.
+present in a projection package bound to an activation, the same way `ofac:sdn:1001/2002/3003`
+already are for the shared fixture (`test/fixtures/scoring-activation/state-ofac-sdn-direct/`).
+
+This is small, not a separate undertaking: it is one record, the tooling already exists
+(`cmd/projection-package`, `cmd/scoring-activation`; `projectionpackage.Compile`,
+`LoadPackage`, and `ValidateCatalogPackageFile` at `internal/projectionpackage/package.go:69,198,311`),
+and `test/fixtures/scoring-activation/state-ofac-sdn-direct/` is a direct template to mirror.
+`dom1ParticleService` (`dom1_unsupported_regression_test.go:379-500`) already builds an
+equivalent from-scratch `catalogregistry`/`alertlistmapping` state in a `t.TempDir()` for this
+exact fixture; extending it with an equivalent from-scratch `projectionpackage`/
+`scoringactivation` state is the same shape of work, not a new category of it.
+
+**Decision: bind it as part of Stage 1's implementation PR**, not a separate follow-up. It is
+a prerequisite for Stage 1's own acceptance criterion (D5) to mean anything for the
+particles/compounds row — the same posture this ADR already took toward issue #115 in
+§6.3(c) (named and tracked as a blocking prerequisite, not deferred as unrelated cleanup).
+
+### Addendum summary
+
+AD1 (export a narrow `matcherbaseline.ScorePair`), AD2 (two new `candidatescoring` shapes,
+reason codes, and a named-but-uncalibrated policy schema change), and AD3 (bind #117's
+fixture to a projection inside Stage 1's own PR) unblock Stage 1's implementation without
+revising any of D1-D6. `docs/ARCHITECTURE.md`'s two-separate-paths framing needs a
+corresponding edit in the same PR (addendum context, above) — that edit is a consequence of
+D3's existing decision, not a new one made here.
