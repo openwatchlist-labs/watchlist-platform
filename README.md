@@ -78,7 +78,7 @@ The public repository has progressed beyond its clean-restart baseline:
 - **R2.4 r1.8.3.4** completed controlled four-role homelab deployment, smoke
   testing, full rollback qualification, and controlled reactivation.
 
-**Four security and architecture ADRs have merged since R2.4:**
+**Five security and architecture ADRs have merged since R2.4:**
 
 - **ADR-0001 (SEC-1):** Tenant isolation is now enforced via forced row-level
   security across sixteen Postgres relations, with a verified tenant bound to
@@ -90,6 +90,14 @@ The public repository has progressed beyond its clean-restart baseline:
   identity is extracted from token claims and validated against request data.
 - **ADR-0004 (DOM-3):** Candidate scoring is wired into the live screening
   HTTP path and returns scored, ranked candidates.
+- **ADR-0007 (SEC-7):** The audit chain is now HMAC-keyed (PRs #106–#107–#109,
+  three stages) and anchored to a separate, role-isolated `screening_ledger_anchor`
+  table that a filesystem-write-only or chain-key-holding attacker cannot forge.
+  An accepted residual remains: the audit sub-chain specifically has no
+  anchor-level protection against an adversary holding the chain key; only the
+  event chain is cross-checked against the anchor (ADR-0007 §10 R7: "the audit
+  chain has no anchor-level protection against an adversary holding `K_chain`;
+  only the event chain does").
 
 The R2.4 result is a controlled homelab qualification, not a production,
 customer, regulatory, or compliance certification. The catalog runtime was
