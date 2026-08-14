@@ -32,19 +32,20 @@ type Policy struct {
 // Weights are additive integer points. Exactly one name-shape weight is used,
 // and typed_identifier_exact is awarded at most once per candidate.
 type Weights struct {
-	TypedIdentifierExact int `json:"typed_identifier_exact"`
-	NameExact            int `json:"name_exact"`
-	NameTokenSet         int `json:"name_token_set"`
-	NameParticleStripped int `json:"name_particle_stripped"`
-	NamePrefix           int `json:"name_prefix"`
-	NameContainment      int `json:"name_containment"`
-	DateOfBirthExact     int `json:"date_of_birth_exact"`
-	DateOfBirthYear      int `json:"date_of_birth_year"`
-	CountryExact         int `json:"country_exact"`
-	EntityTypeExact      int `json:"entity_type_exact"`
-	DateOfBirthConflict  int `json:"date_of_birth_conflict"`
-	CountryConflict      int `json:"country_conflict"`
-	EntityTypeConflict   int `json:"entity_type_conflict"`
+	TypedIdentifierExact        int `json:"typed_identifier_exact"`
+	NameExact                   int `json:"name_exact"`
+	NameConcatenationNormalized int `json:"name_concatenation_normalized"`
+	NameTokenSet                int `json:"name_token_set"`
+	NameParticleStripped        int `json:"name_particle_stripped"`
+	NamePrefix                  int `json:"name_prefix"`
+	NameContainment             int `json:"name_containment"`
+	DateOfBirthExact            int `json:"date_of_birth_exact"`
+	DateOfBirthYear             int `json:"date_of_birth_year"`
+	CountryExact                int `json:"country_exact"`
+	EntityTypeExact             int `json:"entity_type_exact"`
+	DateOfBirthConflict         int `json:"date_of_birth_conflict"`
+	CountryConflict             int `json:"country_conflict"`
+	EntityTypeConflict          int `json:"entity_type_conflict"`
 }
 
 // Thresholds classify candidate strength only. They are not case decisions.

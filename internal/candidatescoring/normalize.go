@@ -78,6 +78,15 @@ func equalTokenSet(a, b string) bool {
 	return true
 }
 
+// equalSpacesStripped is ADR-0008 addendum 2's AD2 extension: a and b
+// (already run through normalizeText) compare equal once internal spaces
+// are removed entirely from both sides, so "ACMEIMPORTS" and "ACME
+// IMPORTS" agree regardless of which side is concatenated. Symmetric by
+// construction -- it does not care which side supplied the space.
+func equalSpacesStripped(a, b string) bool {
+	return strings.ReplaceAll(a, " ", "") == strings.ReplaceAll(b, " ", "")
+}
+
 // particleTokens is candidatescoring's own copy of the starter particle
 // list ADR-0008 addendum AD2 names, matching Table 1's own examples (AL,
 // BIN, VAN DER). Deliberately not imported from internal/matcherbaseline:

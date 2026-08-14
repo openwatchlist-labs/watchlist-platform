@@ -18,7 +18,7 @@ legacy repository.
 | Typo / character transposition | Not supported | Engine exists in internal/matcherbaseline, off the production path; DOM-1 Stage 2 |
 | Token reordering | Supported | DOM-1 Stage 1 (ADR-0008): token-sorted query expansion + existing token_set scoring shape |
 | Name particles and compounds (AL, BIN, VAN DER) | Supported | DOM-1 Stage 1 (ADR-0008 addendum AD2/AD3): first-token prefix probe + particle_stripped scoring shape |
-| Concatenation splitting (KRAYINVESTBANK ↔ KRAY INVEST BANK) | Not supported | DOM-1 Stage 1 deliberately does not close this row: no query-generation algorithm for turning a single concatenated token into split lookup candidates is specified anywhere in ADR-0008 or its addendum (confirmed by inspection of the full text) -- tracked as a required follow-up decision (a second addendum) before this row can close |
+| Concatenation splitting (KRAYINVESTBANK ↔ KRAY INVEST BANK) | Supported | DOM-1 Stage 1 (ADR-0008 addendum 2 AD4/AD5): single-space-insertion query expansion + concatenation_normalized scoring shape; two-word concatenations only |
 | Transliteration / cross-script | Not supported | DOM-1 Stage 2 |
 | Phonetic | Not supported | DOM-1 Stage 2 |
 | Non-ASCII case variants (Cyrillic, Greek, Arabic) | Not supported | normalize_ascii folds only bytes < 0x80; DOM-13, not DOM-1 (ADR-0008 D4) |
