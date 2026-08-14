@@ -197,48 +197,46 @@ func TestDOM1LiveRuntimeSanityControlsStillMatch(t *testing.T) {
 	}
 }
 
-// TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked is the same
-// harness sanity control as above, split out for a different reason: since
-// issue #115's fix, this control's expected *response shape* changed, not
-// just its assertion value. "Джордан Экзампл" is a real, exact alias of
-// ofac:sdn:2002 in the compiled catalog's source, and the live runtime does
-// retrieve it -- proving the harness is not broken, same as the ASCII
-// controls above. But the DOM-3 scoring projection this fixture tuple binds
-// (test/fixtures/projection-package/packages/1f4397.../projections.json)
-// does not carry that Cyrillic alias among ofac:sdn:2002's projected Names
-// (issue #115), so the response can no longer honestly report
-// StatusMatched: the catalog's own retrieval hit is real evidence, but the
-// projection cannot corroborate it. Before #115's fix this silently reported
-// status "matched" with score 0 -- indistinguishable from a genuine
-// non-match. After the fix it reports StatusBlocked with
-// BlockerNameMatchUncorroboratedByProjection naming the record, which is
-// what this test now asserts. The retrieval evidence (RecordID, MatchKind,
-// MatchedValue) stays in response.Candidates, unscored, so it is still
-// proof the runtime found the record.
-func TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked(t *testing.T) {
+// TestDOM1LiveRuntimeCyrillicAliasControlMatchesToday is the same harness
+// sanity control as above, split out for a different reason: its expected
+// *response shape* has changed twice now. "Джордан Экзампл" is a real,
+// exact alias of ofac:sdn:2002 in the compiled catalog's source, and the
+// live runtime does retrieve it -- proving the harness is not broken, same
+// as the ASCII controls above. Between issue #115's discovery and its
+// resolution, the DOM-3 scoring projection this fixture tuple binds
+// (test/fixtures/projection-package/packages/.../projections.json) did not
+// carry that Cyrillic alias among ofac:sdn:2002's projected Names, so the
+// response could not honestly report StatusMatched: before #116's interim
+// fix this silently reported status "matched" with score 0 --
+// indistinguishable from a genuine non-match; after #116 and before #115's
+// resolution it reported StatusBlocked with
+// BlockerNameMatchUncorroboratedByProjection naming the record instead.
+// #115 resolved by deciding the projection should carry the alias -- there
+// was no stated rationale anywhere for excluding non-ASCII names, and a
+// missed alias match is a worse failure than a slightly broader profile --
+// so the projection was regenerated from the real compiled-package pipeline
+// to include it (test/fixtures/projection-package/ofac-sdn-direct-
+// canonical-input.json). The catalog's retrieval hit is now corroborated,
+// so this asserts the same StatusMatched/name_exact shape as the ASCII
+// controls above.
+func TestDOM1LiveRuntimeCyrillicAliasControlMatchesToday(t *testing.T) {
 	service := dom1LiveService(t)
 	ctx := context.Background()
 	response, err := service.Screen(ctx, dom1Request("dom1-control-cyrillic-alias-exact-bytes", "Джордан Экзампл"), "corr-dom1-control", "idem-dom1-control-cyrillic-alias-exact-bytes")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Status != StatusBlocked || len(response.Candidates) != 1 || response.Candidates[0].RecordID != "ofac:sdn:2002" {
-		t.Fatalf("expected the runtime to retrieve ofac:sdn:2002 but the response to be blocked (issue #115), got status=%s candidates=%+v", response.Status, response.Candidates)
+	if response.Status != StatusMatched || response.CandidateCount == 0 || response.Candidates[0].RecordID != "ofac:sdn:2002" {
+		t.Fatalf("expected a match on ofac:sdn:2002 via the Cyrillic alias, got status=%s candidates=%+v", response.Status, response.Candidates)
 	}
-	if response.Candidates[0].Score != 0 || response.Candidates[0].StrengthBand != "" {
-		t.Fatalf("a blocked candidate must not carry scored-looking fields: %+v", response.Candidates[0])
+	candidate := response.Candidates[0]
+	if candidate.Score != 400 || candidate.StrengthBand != "review_candidate" || !candidate.ExactNameMatched {
+		t.Fatalf("expected a corroborated name_exact match (score 400, review_candidate, exact_name_matched), got %+v", candidate)
 	}
-	var foundCode, foundDetail bool
 	for _, blocker := range response.ReviewBlockers {
-		if blocker == BlockerNameMatchUncorroboratedByProjection {
-			foundCode = true
+		if blocker == BlockerNameMatchUncorroboratedByProjection || blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
+			t.Fatalf("expected no name_match_uncorroborated_by_projection blocker now that the projection carries the alias, got %+v", response.ReviewBlockers)
 		}
-		if blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
-			foundDetail = true
-		}
-	}
-	if !foundCode || !foundDetail {
-		t.Fatalf("expected review_blockers to name %s and ofac:sdn:2002, got %+v", BlockerNameMatchUncorroboratedByProjection, response.ReviewBlockers)
 	}
 }
 
@@ -267,9 +265,15 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 		// TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked
 		// below: the row stays "Not supported" (no real typo-tolerant
 		// scoring exists yet -- that's Stage 2's), but the response shape
-		// changes from no-candidates to retrieved-and-blocked, the same
-		// shift issue #115 already established a precedent for on the
-		// Cyrillic control case above.
+		// changes from no-candidates to retrieved-and-blocked -- issue
+		// #116's BlockerNameMatchUncorroboratedByProjection mechanism,
+		// also exercised by TestScoringProjectionMissBlocksLoudly
+		// (scoring_integration_test.go). This is not a case issue #115
+		// resolved: #115 only changed the Cyrillic control case above,
+		// from blocked to a genuinely corroborated match, because the
+		// projection now carries that specific alias. This typo case
+		// still has no name in the projection its query text exactly
+		// matches, so it stays a real, uncorroborated hit.
 		// Table 1: "Token reordering | Not supported" is NOT a case in this
 		// slice either -- DOM-1 Stage 1 closes it. See
 		// TestDOM1SupportedMatchingVariantTokenReorderingMatchesToday below.
@@ -363,9 +367,9 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 // first-token prefix probe "recalls candidates for typos that fall after
 // the blocked prefix." The scoring projection cannot corroborate "ACME
 // GLOBAL" as a name match for this query, so the response is blocked by
-// issue #116's BlockerNameMatchUncorroboratedByProjection, the same
-// retrieved-but-blocked shape TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked
-// already established a precedent for. This is expected, ADR-anticipated
+// issue #116's BlockerNameMatchUncorroboratedByProjection -- the same
+// mechanism TestScoringProjectionMissBlocksLoudly (scoring_integration_
+// test.go) exercises for a missing record_id. This is expected, ADR-anticipated
 // behavior of implementing the first-token prefix probe correctly, not a
 // bug and not a capability closing -- the row stays "Not supported" in
 // README.md's Table 1.

@@ -144,32 +144,40 @@ func TestScoringProjectionMissBlocksLoudly(t *testing.T) {
 	}
 }
 
-// TestScoringNameMatchUncorroboratedByProjectionBlocksLoudly is issue
-// #115's regression guard: a retrieval hit whose match_kind is a genuine
-// name match ("primary_name" or "alias") but whose matched name the active
-// DOM-3 scoring projection does not carry for that record must not be
-// scored as a silent 0 -- it must block loudly, the same way a missing
-// record_id does (ADR-0004 §6).
-//
-// The scenario is real, not synthesized: ofac:sdn:2002's Cyrillic alias
-// "Джордан Экзампл" is present in the compiled catalog
+// TestScoringCyrillicAliasIsCorroboratedByProjection is issue #115's
+// regression guard, updated for its resolution: the ascii-v1 DOM-3 scoring
+// projection now carries ofac:sdn:2002's Cyrillic alias "Джордан Экзампл"
+// (test/fixtures/projection-package/ofac-sdn-direct-canonical-input.json),
+// matching the compiled catalog's own name set
 // (test/fixtures/runtime-mmap/ofac-fixture.owcin:19, compiled into
-// test/golden/runtime-mmap/ofac-fixture.owmmap) but absent from the DOM-3
-// projection package testScoringBinding loads
-// (test/fixtures/projection-package/packages/1f4397.../projections.json --
-// ofac:sdn:2002 carries only "J EXAMPLE" and "JORDAN EXAMPLE"). This test
-// simulates the runtime's retrieval hit for that alias directly (a
-// fakeRuntime, not the live Rust worker -- TestDOM1LiveRuntime
-// CyrillicAliasControlIsRetrievedButBlocked in dom1_unsupported_regression_
-// test.go covers the same scenario end to end against the real worker) so
-// it stays fast and needs no cargo/rustc toolchain.
+// test/golden/runtime-mmap/ofac-fixture.owmmap) -- there was no stated
+// rationale in ADR-0004, ADR-0008, or the fixture data for excluding it,
+// and a missed alias match is a worse failure than a slightly broader
+// profile for a sanctions-screening tool. So a retrieval hit on that alias
+// must now score as a genuine name_exact match, not block.
 //
-// Failing-first (CLAUDE.md rule 5): before the fix, screenAt() returns this
-// candidate with status "matched", score 0, strength_band
-// "no_candidate_support", and empty reason_codes -- indistinguishable from
-// a genuine non-match. That is exactly the silent degradation ADR-0004 §6
-// rejects.
-func TestScoringNameMatchUncorroboratedByProjectionBlocksLoudly(t *testing.T) {
+// This test used to be TestScoringNameMatchUncorroboratedByProjection
+// BlocksLoudly and asserted the opposite (status blocked, score 0,
+// BlockerNameMatchUncorroboratedByProjection) -- that was correct for the
+// old, incomplete projection. Issue #116's blocking mechanism itself is
+// untouched and still covered: TestScoringProjectionMissBlocksLoudly above
+// exercises the missing-record_id case, and TestDOM1UnsupportedMatching
+// VariantTypoCharacterTranspositionIsRetrievedButBlocked (dom1_unsupported_
+// regression_test.go) exercises a genuinely uncorroborated name match (a
+// typo that collides with a first-token prefix probe) that this fix does
+// not and must not affect.
+//
+// This test simulates the runtime's retrieval hit for the alias directly
+// (a fakeRuntime, not the live Rust worker -- TestDOM1LiveRuntime
+// CyrillicAliasControlMatchesToday in dom1_unsupported_regression_test.go
+// covers the same scenario end to end against the real worker) so it stays
+// fast and needs no cargo/rustc toolchain.
+//
+// Failing-first (CLAUDE.md rule 5): before the projection fix, this
+// assertion set fails against the pre-fix fixture -- screenAt() returns
+// status "blocked" with BlockerNameMatchUncorroboratedByProjection, not the
+// scored match asserted below.
+func TestScoringCyrillicAliasIsCorroboratedByProjection(t *testing.T) {
 	state := loadGoldenState(t)
 	cyrillicAliasHit := runtimemmapclient.Candidate{
 		RecordID: "ofac:sdn:2002", EntityType: "individual", PrimaryName: "Jordan Example",
@@ -184,26 +192,29 @@ func TestScoringNameMatchUncorroboratedByProjectionBlocksLoudly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.Status != StatusBlocked {
-		t.Fatalf("status = %q, want blocked: %+v", response.Status, response)
+	if response.Status != StatusMatched {
+		t.Fatalf("status = %q, want matched: %+v", response.Status, response)
 	}
 	if len(response.Candidates) != 1 || response.Candidates[0].RecordID != "ofac:sdn:2002" {
-		t.Fatalf("retrieval evidence was not preserved: %+v", response.Candidates)
+		t.Fatalf("retrieval evidence missing or wrong record: %+v", response.Candidates)
 	}
-	if response.Candidates[0].Score != 0 || response.Candidates[0].StrengthBand != "" || response.Candidates[0].ExactNameMatched {
-		t.Fatalf("a blocked candidate must not carry scored-looking fields: %+v", response.Candidates[0])
+	candidate := response.Candidates[0]
+	if candidate.Score != 400 || candidate.StrengthBand != "review_candidate" || !candidate.ExactNameMatched {
+		t.Fatalf("expected a corroborated name_exact match (score 400, review_candidate, exact_name_matched), got %+v", candidate)
 	}
-	var foundCode, foundDetail bool
+	foundReasonCode := false
+	for _, code := range candidate.ReasonCodes {
+		if code == "name_exact" {
+			foundReasonCode = true
+		}
+	}
+	if !foundReasonCode {
+		t.Fatalf("expected reason_codes to contain name_exact, got %+v", candidate.ReasonCodes)
+	}
 	for _, blocker := range response.ReviewBlockers {
-		if blocker == BlockerNameMatchUncorroboratedByProjection {
-			foundCode = true
+		if blocker == BlockerNameMatchUncorroboratedByProjection || blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
+			t.Fatalf("expected no name_match_uncorroborated_by_projection blocker now that the projection carries the alias, got %+v", response.ReviewBlockers)
 		}
-		if blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
-			foundDetail = true
-		}
-	}
-	if !foundCode || !foundDetail {
-		t.Fatalf("expected review_blockers to name %s and the uncorroborated record_id, got %+v", BlockerNameMatchUncorroboratedByProjection, response.ReviewBlockers)
 	}
 }
 
