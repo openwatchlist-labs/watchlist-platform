@@ -25,6 +25,16 @@ const (
 	// BlockerScoringSubjectUnavailable is used when the query has no
 	// scorable subject (a record_id lookup; ADR-0004 §4/§6).
 	BlockerScoringSubjectUnavailable = "scoring_subject_unavailable"
+	// BlockerNameMatchUncorroboratedByProjection is used when retrieval
+	// reports a name-kind hit (match_kind "primary_name" or "alias") for a
+	// candidate whose projected Names cannot reproduce that match --
+	// i.e. the catalog's own retrieval found the name, but the scoring
+	// projection that is supposed to corroborate it does not carry it. Same
+	// posture as BlockerCandidateProjectionUnavailable (ADR-0004 §6): a data
+	// gap in an artifact, not a service fault, so the retrieval evidence is
+	// preserved and the whole item is blocked rather than silently scored
+	// zero (issue #115).
+	BlockerNameMatchUncorroboratedByProjection = "name_match_uncorroborated_by_projection"
 )
 
 // ScoreComponent and EvidenceItem alias the candidatescoring engine's own

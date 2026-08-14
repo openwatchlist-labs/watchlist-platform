@@ -164,8 +164,9 @@ func dom1Request(id, queryValue string) ScreeningRequest {
 // candidates for every query, which would make every "Not supported" case
 // below pass vacuously). Each value here is a real, exact alias in the
 // compiled catalog's source
-// (test/golden/ofac-advanced/ofac-sdn-catalog.json) and must still match
-// today per Table 1's "Exact normalized name | Supported" row.
+// (test/golden/ofac-advanced/ofac-sdn-catalog.json) and the runtime must
+// still retrieve it today per Table 1's "Exact normalized name | Supported"
+// row.
 func TestDOM1LiveRuntimeSanityControlsStillMatch(t *testing.T) {
 	service := dom1LiveService(t)
 	ctx := context.Background()
@@ -174,7 +175,6 @@ func TestDOM1LiveRuntimeSanityControlsStillMatch(t *testing.T) {
 	}{
 		{"acme-imports-alias", "ACME IMPORTS", "ofac:sdn:1001"},
 		{"mv-example-alias", "MV EXAMPLE", "ofac:sdn:3003"},
-		{"cyrillic-alias-exact-bytes", "Джордан Экзампл", "ofac:sdn:2002"},
 	}
 	for _, control := range controls {
 		t.Run(control.name, func(t *testing.T) {
@@ -186,6 +186,51 @@ func TestDOM1LiveRuntimeSanityControlsStillMatch(t *testing.T) {
 				t.Fatalf("control query %q: expected a match on %s, got status=%s candidates=%+v (if this control fails, the cases below are not a valid regression guard)", control.query, control.wantRecordID, response.Status, response.Candidates)
 			}
 		})
+	}
+}
+
+// TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked is the same
+// harness sanity control as above, split out for a different reason: since
+// issue #115's fix, this control's expected *response shape* changed, not
+// just its assertion value. "Джордан Экзампл" is a real, exact alias of
+// ofac:sdn:2002 in the compiled catalog's source, and the live runtime does
+// retrieve it -- proving the harness is not broken, same as the ASCII
+// controls above. But the DOM-3 scoring projection this fixture tuple binds
+// (test/fixtures/projection-package/packages/1f4397.../projections.json)
+// does not carry that Cyrillic alias among ofac:sdn:2002's projected Names
+// (issue #115), so the response can no longer honestly report
+// StatusMatched: the catalog's own retrieval hit is real evidence, but the
+// projection cannot corroborate it. Before #115's fix this silently reported
+// status "matched" with score 0 -- indistinguishable from a genuine
+// non-match. After the fix it reports StatusBlocked with
+// BlockerNameMatchUncorroboratedByProjection naming the record, which is
+// what this test now asserts. The retrieval evidence (RecordID, MatchKind,
+// MatchedValue) stays in response.Candidates, unscored, so it is still
+// proof the runtime found the record.
+func TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked(t *testing.T) {
+	service := dom1LiveService(t)
+	ctx := context.Background()
+	response, err := service.Screen(ctx, dom1Request("dom1-control-cyrillic-alias-exact-bytes", "Джордан Экзампл"), "corr-dom1-control", "idem-dom1-control-cyrillic-alias-exact-bytes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != StatusBlocked || len(response.Candidates) != 1 || response.Candidates[0].RecordID != "ofac:sdn:2002" {
+		t.Fatalf("expected the runtime to retrieve ofac:sdn:2002 but the response to be blocked (issue #115), got status=%s candidates=%+v", response.Status, response.Candidates)
+	}
+	if response.Candidates[0].Score != 0 || response.Candidates[0].StrengthBand != "" {
+		t.Fatalf("a blocked candidate must not carry scored-looking fields: %+v", response.Candidates[0])
+	}
+	var foundCode, foundDetail bool
+	for _, blocker := range response.ReviewBlockers {
+		if blocker == BlockerNameMatchUncorroboratedByProjection {
+			foundCode = true
+		}
+		if blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:2002" {
+			foundDetail = true
+		}
+	}
+	if !foundCode || !foundDetail {
+		t.Fatalf("expected review_blockers to name %s and ofac:sdn:2002, got %+v", BlockerNameMatchUncorroboratedByProjection, response.ReviewBlockers)
 	}
 }
 
