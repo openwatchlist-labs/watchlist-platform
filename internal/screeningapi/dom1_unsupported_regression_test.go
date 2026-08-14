@@ -2,6 +2,9 @@ package screeningapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +15,8 @@ import (
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/alertlistmapping"
 	"github.com/openwatchlist-labs/watchlist-platform/internal/catalogregistry"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/projectionpackage"
+	"github.com/openwatchlist-labs/watchlist-platform/internal/scoringactivation"
 )
 
 // This file is DOM-1's regression guard, not DOM-1 itself (see README.md's
@@ -251,19 +256,23 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 	cases := []struct {
 		name, query string
 	}{
-		{
-			// Table 1: "Typo / character transposition | Not supported".
-			// One-character transposition of the real alias "ACME IMPORTS"
-			// (ofac:sdn:1001, org): O/R swapped, IMPORTS -> IMPROTS.
-			name:  "typo_character_transposition",
-			query: "ACME IMPROTS",
-		},
-		{
-			// Table 1: "Token reordering | Not supported". Real alias
-			// "ACME IMPORTS" (ofac:sdn:1001) with its two tokens swapped.
-			name:  "token_reordering",
-			query: "IMPORTS ACME",
-		},
+		// Table 1: "Typo / character transposition | Not supported" is NOT
+		// a case in this slice. DOM-1 Stage 1's first-token prefix probe
+		// (ADR-0008 §4.1, §7) means the query "ACME IMPORTS" -> "ACME
+		// IMPROTS" no longer returns zero candidates: its first token,
+		// "ACME", is a genuine prefix hit on ofac:sdn:1001's second alias,
+		// "ACME GLOBAL" -- an anticipated leakage §4.1 names explicitly
+		// ("[a first-token prefix probe] recalls candidates for typos that
+		// fall after the blocked prefix"). See
+		// TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked
+		// below: the row stays "Not supported" (no real typo-tolerant
+		// scoring exists yet -- that's Stage 2's), but the response shape
+		// changes from no-candidates to retrieved-and-blocked, the same
+		// shift issue #115 already established a precedent for on the
+		// Cyrillic control case above.
+		// Table 1: "Token reordering | Not supported" is NOT a case in this
+		// slice either -- DOM-1 Stage 1 closes it. See
+		// TestDOM1SupportedMatchingVariantTokenReorderingMatchesToday below.
 		// Table 1: "Name particles and compounds (AL, BIN, VAN DER) | Not
 		// supported" is NOT a case in this slice. It used to live here as
 		// query "EXAMPLE" against the real vessel alias "MV EXAMPLE"
@@ -281,7 +290,7 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 		// inequality, not a prefix collision and not a particle-aware
 		// match attempt of any kind. No particle logic was exercised
 		// either way. See
-		// TestDOM1UnsupportedMatchingVariantParticleAndCompoundProducesNoMatchToday
+		// TestDOM1SupportedMatchingVariantParticleAndCompoundMatchesToday
 		// below, which tests a genuine particle/compound record (Klaas van
 		// der Berg, a real "van der" particle) in a small, dedicated
 		// compiled package instead.
@@ -340,6 +349,92 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 				t.Fatalf("query %q unexpectedly matched against the live runtime -- this test exists to prove Table 1's claim is accurate today, and must be updated (not deleted) when DOM-1 changes this behavior: status=%s candidates=%+v", testCase.query, response.Status, response.Candidates)
 			}
 		})
+	}
+}
+
+// TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked
+// is the Table 1 "Typo / character transposition | Not supported" case,
+// split out of TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday's
+// table because DOM-1 Stage 1 changes its response *shape* without closing
+// the row. The query "ACME IMPROTS" (a one-character transposition of the
+// real alias "ACME IMPORTS", ofac:sdn:1001) still never scores a match --
+// no typo-tolerant scoring exists on this path yet, that is Stage 2's
+// (ADR-0008 §7 Stage 2) -- but its first token, "ACME", is a genuine
+// prefix hit on ofac:sdn:1001's *other* alias, "ACME GLOBAL"
+// (test/golden/ofac-advanced/ofac-sdn-catalog.json), via Stage 1's
+// first-token prefix probe. ADR-0008 §4.1 names this leakage explicitly: a
+// first-token prefix probe "recalls candidates for typos that fall after
+// the blocked prefix." The scoring projection cannot corroborate "ACME
+// GLOBAL" as a name match for this query, so the response is blocked by
+// issue #116's BlockerNameMatchUncorroboratedByProjection, the same
+// retrieved-but-blocked shape TestDOM1LiveRuntimeCyrillicAliasControlIsRetrievedButBlocked
+// already established a precedent for. This is expected, ADR-anticipated
+// behavior of implementing the first-token prefix probe correctly, not a
+// bug and not a capability closing -- the row stays "Not supported" in
+// README.md's Table 1.
+func TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked(t *testing.T) {
+	service := dom1LiveService(t)
+	ctx := context.Background()
+	response, err := service.Screen(ctx, dom1Request("dom1-typo_character_transposition", "ACME IMPROTS"), "corr-typo_character_transposition", "idem-typo_character_transposition")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != StatusBlocked || len(response.Candidates) != 1 || response.Candidates[0].RecordID != "ofac:sdn:1001" {
+		t.Fatalf("expected the first-token prefix probe to retrieve ofac:sdn:1001 via its ACME GLOBAL alias but the response to be blocked, got status=%s candidates=%+v", response.Status, response.Candidates)
+	}
+	if response.Candidates[0].MatchedValue != "ACME GLOBAL" {
+		t.Fatalf("expected the retrieved candidate's matched_value to be the ACME GLOBAL alias (the prefix collision this test documents), got %+v", response.Candidates[0])
+	}
+	if response.Candidates[0].Score != 0 || response.Candidates[0].StrengthBand != "" {
+		t.Fatalf("a blocked candidate must not carry scored-looking fields: %+v", response.Candidates[0])
+	}
+	var foundCode, foundDetail bool
+	for _, blocker := range response.ReviewBlockers {
+		if blocker == BlockerNameMatchUncorroboratedByProjection {
+			foundCode = true
+		}
+		if blocker == BlockerNameMatchUncorroboratedByProjection+":ofac:sdn:1001" {
+			foundDetail = true
+		}
+	}
+	if !foundCode || !foundDetail {
+		t.Fatalf("expected review_blockers to name %s and ofac:sdn:1001, got %+v", BlockerNameMatchUncorroboratedByProjection, response.ReviewBlockers)
+	}
+}
+
+// TestDOM1SupportedMatchingVariantTokenReorderingMatchesToday is the Table 1
+// "Token reordering | Not supported" case, moved out of
+// TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday's table now that
+// DOM-1 Stage 1 closes it (ADR-0008 §7). The query "IMPORTS ACME" is the
+// real alias "ACME IMPORTS" (ofac:sdn:1001) with its two tokens swapped.
+// Stage 1's token-sorted reordering expansion (§4.1's "the sorted
+// permutation") reissues the query as "ACME IMPORTS", which retrieves the
+// record; candidatescoring's existing token_set name shape
+// (candidatescoring/engine.go's equalTokenSet, already present before
+// DOM-1 -- ADR-0008 §6.3(b) notes it "already has a concept for token
+// reordering") then corroborates it without needing any new scoring shape.
+func TestDOM1SupportedMatchingVariantTokenReorderingMatchesToday(t *testing.T) {
+	service := dom1LiveService(t)
+	ctx := context.Background()
+	response, err := service.Screen(ctx, dom1Request("dom1-token_reordering", "IMPORTS ACME"), "corr-token_reordering", "idem-token_reordering")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != StatusMatched || response.CandidateCount != 1 || response.Candidates[0].RecordID != "ofac:sdn:1001" {
+		t.Fatalf("query \"IMPORTS ACME\" expected a real match on ofac:sdn:1001 via the token-sorted expansion, got status=%s candidates=%+v", response.Status, response.Candidates)
+	}
+	candidate := response.Candidates[0]
+	foundReason := false
+	for _, code := range candidate.ReasonCodes {
+		if code == "name_token_set_exact" {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected the match to carry name_token_set_exact as real matching evidence (not an accidental score), got reason_codes=%+v", candidate.ReasonCodes)
+	}
+	if candidate.Score <= 0 {
+		t.Fatalf("expected a positive score for the token-set match, got %d", candidate.Score)
 	}
 }
 
@@ -495,8 +590,100 @@ func dom1ParticleService(t *testing.T) *Service {
 		Runtime:       manager,
 		MaxCandidates: 20,
 		Clock:         func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") },
-		Scoring:       testScoringBinding(t),
+		Scoring:       dom1ParticleScoringBinding(t, packagePath, packageSHA256, componentID, version.CatalogVersion),
 	}
+}
+
+// dom1ParticleScoringBinding is ADR-0008 addendum AD3: binding the #117
+// particle fixture record (ofac:sdn:4004) to a scoring projection, which it
+// never had before ("deliberately never added to
+// test/fixtures/scoring-activation's projection index" -- see the control
+// subtest's comment below). Without this, AD2's particle_stripped shape has
+// nothing to score against: bestNameMatch reads candidate.Names from the
+// scoring projection (internal/screeningapi/service.go), not from the
+// runtime's retrieval hit, so a record absent from the projection can never
+// produce a name shape regardless of how good the retrieval mechanism is.
+//
+// Built the same way dom1ParticleService builds catalogregistry/
+// alertlistmapping above -- fresh, from scratch, via the real
+// projectionpackage/scoringactivation Go APIs and CLI-equivalent flow
+// (projectionpackage.Compile, scoringactivation.Manager.Activate), entirely
+// under t.TempDir(), rather than extending the shared
+// test/fixtures/scoring-activation/state-ofac-sdn-direct fixture whose
+// checksums are pinned elsewhere.
+func dom1ParticleScoringBinding(t *testing.T, packagePath, packageSHA256, componentID, componentVersion string) *ScoringBinding {
+	t.Helper()
+	const (
+		candidateID          = "ofac:sdn:4004"
+		normalizationProfile = "openwatchlist-runtime-normalization/ascii-v1"
+	)
+	candidateIDsDigest := sha256.Sum256([]byte(candidateID + "\n"))
+	descriptor := projectionpackage.CatalogDescriptor{
+		SchemaVersion:                 projectionpackage.CatalogDescriptorSchemaV1,
+		Provider:                      "ofac-direct",
+		CatalogID:                     "ofac-sdn-direct",
+		ComponentID:                   componentID,
+		ComponentVersion:              componentVersion,
+		CatalogPackageSHA256:          packageSHA256,
+		CatalogPackagePath:            packagePath,
+		NormalizationProfile:          normalizationProfile,
+		RecordCount:                   1,
+		RetrievableCandidateCount:     1,
+		RetrievableCandidateIDsSHA256: hex.EncodeToString(candidateIDsDigest[:]),
+	}
+	input := projectionpackage.CanonicalInput{
+		SchemaVersion:        projectionpackage.CanonicalInputSchemaV1,
+		Provider:             descriptor.Provider,
+		CatalogID:            descriptor.CatalogID,
+		ComponentID:          descriptor.ComponentID,
+		ComponentVersion:     descriptor.ComponentVersion,
+		CatalogPackageSHA256: descriptor.CatalogPackageSHA256,
+		NormalizationProfile: descriptor.NormalizationProfile,
+		Records: []projectionpackage.SourceRecord{
+			{
+				CandidateID: candidateID,
+				Retrievable: true,
+				Names:       []string{"Klaas van der Berg"},
+				EntityType:  "individual",
+			},
+		},
+	}
+	pkg, err := projectionpackage.Compile(descriptor, input, t.TempDir())
+	if err != nil {
+		t.Fatalf("compile DOM-1 particle fixture's scoring projection: %v", err)
+	}
+
+	descriptorPath := filepath.Join(t.TempDir(), "catalog-descriptor.json")
+	descriptorRaw, err := json.Marshal(descriptor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(descriptorPath, descriptorRaw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	policyPath, err := filepath.Abs(filepath.Join("..", "..", "configs", "scoring", "candidate-scoring-r1-ascii-v1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	activationManager, err := scoringactivation.NewManager(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := activationManager.Activate(scoringactivation.ActivateRequest{
+		ActivationID:          "activation-dom1-particle-fixture",
+		CatalogDescriptorPath: descriptorPath,
+		ProjectionPackagePath: pkg.Directory,
+		ScoringPolicyPath:     policyPath,
+	})
+	if err != nil {
+		t.Fatalf("activate DOM-1 particle fixture's scoring projection: %v", err)
+	}
+	binding, err := NewScoringBinding(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return binding
 }
 
 func dom1ParticleRequest(id, queryValue string) ScreeningRequest {
@@ -511,45 +698,34 @@ func dom1ParticleRequest(id, queryValue string) ScreeningRequest {
 	}
 }
 
-// TestDOM1UnsupportedMatchingVariantParticleAndCompoundProducesNoMatchToday
-// is the Table 1 "Name particles and compounds (AL, BIN, VAN DER) | Not
-// supported" case, against a genuine particle record instead of the
-// unrelated-vessel stand-in this file used to carry (see the comment left
-// in its place in TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday's
-// cases slice). The dedicated fixture's sole record has primary_name
-// "Klaas van der Berg", carrying the real two-word particle "van der"
-// Table 1 names explicitly. The query strips that particle entirely --
-// "Klaas Berg" -- which is exactly the transformation a particle-aware
-// matcher would need to recognize as equivalent and today's exact-only
-// matching (runtime/catalog-mmap/src/format.rs's PackageView::lookup_name)
-// cannot. Confirmed against the live worker via its lookup-name CLI before
-// being committed here: the sole record's exact primary_name still
-// matches (control), and "Klaas Berg" / "Berg Klaas" both return zero
-// candidates -- and, because the package holds exactly one record, there
-// is no second record this query could accidentally collide with the way
-// the old "EXAMPLE" case collided with an unrelated vessel alias.
-func TestDOM1UnsupportedMatchingVariantParticleAndCompoundProducesNoMatchToday(t *testing.T) {
+// TestDOM1SupportedMatchingVariantParticleAndCompoundMatchesToday is the
+// Table 1 "Name particles and compounds (AL, BIN, VAN DER) | Not supported"
+// case, against a genuine particle record instead of the unrelated-vessel
+// stand-in this file used to carry (see the comment left in its place in
+// TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday's cases slice), now
+// that DOM-1 Stage 1 closes it. The dedicated fixture's sole record has
+// primary_name "Klaas van der Berg", carrying the real two-word particle
+// "van der" Table 1 names explicitly. The query strips that particle
+// entirely -- "Klaas Berg". Stage 1's first-token prefix probe (§4.1)
+// retrieves the record via its first token "Klaas"; AD2's particle_stripped
+// scoring shape (candidatescoring, ADR-0008 addendum) then corroborates it,
+// since "KLAAS VAN DER BERG" and "KLAAS BERG" agree once the particle
+// tokens are dropped from both sides.
+func TestDOM1SupportedMatchingVariantParticleAndCompoundMatchesToday(t *testing.T) {
 	service := dom1ParticleService(t)
 	ctx := context.Background()
 
 	t.Run("control_exact_stored_name_still_matches", func(t *testing.T) {
-		// This asserts the runtime layer surfaced the exact-match candidate,
-		// not response.Status == StatusMatched: ofac:sdn:4004 was deliberately
-		// never added to test/fixtures/scoring-activation's projection index
-		// (internal/candidatescoring and internal/screeningapi's scoring path
-		// are #115's separate, higher-priority fix, out of scope here), so
-		// service.go's screenAt blocks on BlockerCandidateProjectionUnavailable
-		// after the runtime match -- a scoring-data gap, not a matching
-		// failure. What this control needs to prove -- that this harness
-		// genuinely exercises live matching rather than vacuously returning
-		// zero candidates for every query -- is fully established by the
-		// runtime having found the record at all.
+		// AD3 binds ofac:sdn:4004 to a dedicated scoring projection
+		// (dom1ParticleScoringBinding), so the exact-name control now scores
+		// a real match end to end -- proof this harness exercises live
+		// matching AND scoring, not just retrieval.
 		response, err := service.Screen(ctx, dom1ParticleRequest("dom1-particle-control", "Klaas van der Berg"), "corr-dom1-particle-control", "idem-dom1-particle-control")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if response.CandidateCount != 1 || response.Candidates[0].RecordID != "ofac:sdn:4004" {
-			t.Fatalf("control query: expected the runtime to surface exactly one candidate on ofac:sdn:4004, got status=%s candidates=%+v (if this control fails, the case below is not a valid regression guard)", response.Status, response.Candidates)
+		if response.Status != StatusMatched || response.CandidateCount != 1 || response.Candidates[0].RecordID != "ofac:sdn:4004" {
+			t.Fatalf("control query: expected a real match on ofac:sdn:4004, got status=%s candidates=%+v (if this control fails, the case below is not a valid regression guard)", response.Status, response.Candidates)
 		}
 	})
 
@@ -558,8 +734,21 @@ func TestDOM1UnsupportedMatchingVariantParticleAndCompoundProducesNoMatchToday(t
 		if err != nil {
 			t.Fatal(err)
 		}
-		if response.Status != StatusNoCandidates || response.CandidateCount != 0 || len(response.Candidates) != 0 {
-			t.Fatalf("query \"Klaas Berg\" unexpectedly matched against the live runtime -- this test exists to prove Table 1's claim is accurate today, and must be updated (not deleted) when DOM-1 changes this behavior: status=%s candidates=%+v", response.Status, response.Candidates)
+		if response.Status != StatusMatched || response.CandidateCount != 1 || response.Candidates[0].RecordID != "ofac:sdn:4004" {
+			t.Fatalf("query \"Klaas Berg\" expected a real match on ofac:sdn:4004 via the particle_stripped shape, got status=%s candidates=%+v", response.Status, response.Candidates)
+		}
+		candidate := response.Candidates[0]
+		foundReason := false
+		for _, code := range candidate.ReasonCodes {
+			if code == "name_particle_stripped" {
+				foundReason = true
+			}
+		}
+		if !foundReason {
+			t.Fatalf("expected the match to carry name_particle_stripped as real matching evidence (not an accidental score), got reason_codes=%+v", candidate.ReasonCodes)
+		}
+		if candidate.Score <= 0 {
+			t.Fatalf("expected a positive score for the particle-stripped match, got %d", candidate.Score)
 		}
 	})
 }
