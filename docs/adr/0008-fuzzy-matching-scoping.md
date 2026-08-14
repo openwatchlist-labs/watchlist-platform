@@ -4,7 +4,9 @@
 - **Date:** 2026-08-14
 - **Issue:** DOM-1 (P0), scoping only
 - **Related:** DOM-2 (catalog format v2, not yet designed), DOM-3 (ADR-0004, accepted),
-  DOM-10, DOM-13, SEC-1b (ADR-0003), SEC-7 (ADR-0007), SAL-1/2/3, PR #113
+  DOM-10, DOM-13, SEC-1b (ADR-0003), SEC-7 (ADR-0007), SAL-1/2/3, PR #113, issue #115
+  (DOM-3 projection name coverage — split out of §6.3(c), blocks a projection-based
+  rescorer)
 - **Supersedes:** nothing. No prior ADR is modified. ADR-0004 is cited for the scoring
   contract it established, not amended.
 
@@ -374,33 +376,33 @@ shapes because they score substring accidents as identity evidence
 mechanism, not a scoring shape, so the two are compatible — but only if that distinction is
 made deliberately rather than discovered later (§8.6).
 
-**(c) The projection index and the compiled catalog carry different names.** This is the
-most surprising finding and the one most likely to waste implementation time if not stated
-up front.
+**(c) The compiled catalog can match on names the scoring projection cannot see — tracked
+separately as issue #115.** Found while scoping DOM-1 and moved out of this ADR, because it
+is a live DOM-3 defect on today's path rather than a DOM-1 dependency. Summarized here only
+as far as DOM-1 needs it; #115 carries the full characterization and the reproduction.
 
-For `ofac:sdn:2002`, the compiled `.owmmap` catalog contains the Cyrillic alias
-`Джордан Экзампл` (confirmed by live lookup, and present at
-`test/golden/ofac-advanced/ofac-sdn-catalog.json:109`). The DOM-3 projection for the same
-record contains only `["J EXAMPLE", "JORDAN EXAMPLE"]`, because the canonical projection
-input omits the alias entirely
-(`test/fixtures/projection-package/ofac-sdn-direct-canonical-input.json:22-24`).
+The divergence is one-directional and confined to one record: for `ofac:sdn:2002` the
+compiled `.owmmap` carries the Cyrillic alias `Джордан Экзампл`
+(`test/golden/ofac-advanced/ofac-sdn-catalog.json:109`) and the projection does not
+(`test/fixtures/projection-package/ofac-sdn-direct-canonical-input.json:22-24`). The catalog
+is a strict superset — 8 names to the projection's 7. No name exists in the projection that
+the catalog lacks, and no record ID has conflicting content.
 
-`validateInputBinding` (`internal/projectionpackage/package.go:322-340`) cross-checks
-provider, catalog ID, component ID and version, package SHA256, and normalization profile —
-metadata identity only. It never compares the projection's name content against the
-compiled catalog's name table. Nor is the canonical input generated from the catalog: it is
-loaded as a supplied file (`cmd/projection-package/main.go:48`,
-`internal/projectionpackage/package.go:58-67`).
+It is not latent. Because `candidatescoring.bestNameMatch` recomputes the name shape from
+the projection rather than trusting the retrieval hit, a live exact-alias query on that name
+returns `status: "matched"` with `score: 0`, `strength_band: "no_candidate_support"`, and
+empty `reason_codes`, `components`, and `evidence`, where the correct value is `name_exact`
+= 400 — the `review_candidate` threshold exactly. Nothing catches it: the coverage checksum
+`retrievable_candidate_ids_sha256` digests record IDs only
+(`internal/projectionpackage/package.go:99-106`), and `validateInputBinding` (`:322-340`)
+compares metadata identity, never name content.
 
-The projection *normalizer* is not the problem — `internal/projectionpackage/normalize.go:11-27`
-is Unicode-aware and would preserve Cyrillic if it were present. The gap is the unchecked
-hand-authored input.
-
-Consequence for DOM-1: a rescorer that reads candidate names from the projection index is
-blind to names retrieval can see. Any stage that rescores must either read matched values
-from the runtime result (`internal/screeningapi/service.go:113-134`, which carries
-`MatchedValue` and `PrimaryName` per candidate) or first close the divergence with a
-content-level cross-check. This is a genuine prerequisite, not a nicety.
+Consequence for DOM-1, which is all this ADR needs from it: a rescorer that reads candidate
+names from the projection index is blind to names retrieval can see. Any stage that rescores
+must read matched values from the runtime result
+(`internal/screeningapi/service.go:113-134`, which carries `MatchedValue` and `PrimaryName`
+per candidate), or wait on #115. This is a genuine prerequisite, not a nicety — but it is
+#115's prerequisite to clear, not DOM-1's to carry.
 
 **(d) A non-finding, recorded so it is not re-derived.** Widening retrieval *within the same
 catalog* does not trip `BlockerCandidateProjectionUnavailable`
@@ -435,8 +437,8 @@ re-issue. Bounded and revertible: the expansion set is a fixed, enumerable funct
 query, so the worst-case lookup count per request is known at review time rather than
 discovered in production.
 
-Prerequisite from §6.3(c): rescoring reads matched values from the runtime result, or the
-projection divergence is closed first.
+Prerequisite from §6.3(c): rescoring reads matched values from the runtime result, or issue
+#115 closes first.
 
 ### Stage 2 — Rust protocol bump: blocking-key recall
 
@@ -566,11 +568,13 @@ Only Stage 3 is a rule-6 event, it is conditional on a measurement not yet taken
 is needed it should be absorbed into DOM-2's bump rather than spending a second
 recompile-and-re-qualify cycle.
 
-Three things surface as prerequisites that were not previously tracked as such: the
-projection/catalog name divergence (§6.3(c)) blocks any projection-based rescorer; the
-particle regression case (§7.1) cannot accept its own row; and the precision instrument
-(§7.2) is unbound, so today a stage can be shown to find more and cannot be shown to be
-right. Two scoping corrections follow: Table 1's non-ASCII case row belongs to DOM-13, and
+Three things surface as prerequisites that were not previously tracked as such. One of them
+turned out not to belong to DOM-1 at all: the catalog/projection name divergence is a live
+DOM-3 scoring defect, now issue #115, and it blocks any projection-based rescorer until it
+closes (§6.3(c)). The other two are DOM-1's own — the particle regression case (§7.1) cannot
+accept its own row, and the precision instrument (§7.2) is unbound, so today a stage can be
+shown to find more and cannot be shown to be right. Two scoping corrections follow: Table 1's
+non-ASCII case row belongs to DOM-13, and
 the register's serialization of DOM-2 before DOM-1
 (`docs/backlog/issue-register.md:386`) binds Stage 3 only — Stages 1 and 2 need names,
 which the compiled catalog already carries.
