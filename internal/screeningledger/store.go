@@ -116,7 +116,11 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 		return AppendResult{}, err
 	}
 	activation, promotion, candidates := extractBoundedMetadata(responseCanonical)
-	event := Event{SchemaVersion: EventSchemaV1, EventID: eventID, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousEventSHA256: head.EventSHA256, OccurredAt: input.OccurredAt, Route: input.Route, HTTPStatus: input.HTTPStatus, CorrelationIDHash: correlationHash, IdempotencyKeyHash: idempotencyHash, RequestSHA256: requestSHA, ResponseSHA256: responseSHA, RequestSnapshotSHA256: reqEnvelope.SnapshotSHA256, ResponseSnapshotSHA256: respEnvelope.SnapshotSHA256, ActivationLineage: activation, PromotionLineage: promotion, CandidateSummary: candidates, RetentionClass: input.Retention.Class, ExpiresAt: expires}
+	// SchemaVersion is always v2 (ADR-0007 D4): every new event is written
+	// under the keyed, anchorable scheme. v1 exists only as frozen,
+	// pre-D2 history that predates this repository's only ledger writer
+	// ever appending anything -- see Verify's genesis-boundary handling.
+	event := Event{SchemaVersion: EventSchemaV2, EventID: eventID, LedgerID: s.ledgerID, Sequence: head.Sequence + 1, PreviousEventSHA256: head.EventSHA256, OccurredAt: input.OccurredAt, Route: input.Route, HTTPStatus: input.HTTPStatus, CorrelationIDHash: correlationHash, IdempotencyKeyHash: idempotencyHash, RequestSHA256: requestSHA, ResponseSHA256: responseSHA, RequestSnapshotSHA256: reqEnvelope.SnapshotSHA256, ResponseSnapshotSHA256: respEnvelope.SnapshotSHA256, ActivationLineage: activation, PromotionLineage: promotion, CandidateSummary: candidates, RetentionClass: input.Retention.Class, ExpiresAt: expires}
 	eventSHA, err := hashEvent(event, s.keys.chain)
 	if err != nil {
 		return AppendResult{}, err
@@ -135,7 +139,7 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	if err := marshalAndWrite(path, event, 0o640); err != nil {
 		return AppendResult{}, err
 	}
-	newHead := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256}
+	newHead := Head{SchemaVersion: HeadSchemaV2, LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256}
 	if err := marshalAndWrite(filepath.Join(s.directory, "head.json"), newHead, 0o640); err != nil {
 		return AppendResult{}, err
 	}
@@ -166,7 +170,7 @@ func (s *Store) recoverLocked() error {
 		return err
 	}
 	if _, err := os.Stat(s.eventPath(event.EventID)); err == nil {
-		headRaw, _ := json.Marshal(Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256})
+		headRaw, _ := json.Marshal(Head{SchemaVersion: headSchemaFor(event.SchemaVersion), LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256})
 		if err := atomicWrite(filepath.Join(s.directory, "head.json"), headRaw, 0o640); err != nil {
 			return err
 		}
@@ -174,15 +178,49 @@ func (s *Store) recoverLocked() error {
 	return os.Remove(pending)
 }
 
+// VerifyReport is Verify's full result: the event and audit chain heads,
+// plus how much of each chain, from the start, is pre-D2 frozen history
+// (ADR-0007 D4) rather than covered by the D2 keyed chain. A nonzero
+// frozen-prefix length is not itself a failure -- it is honest reporting
+// that the corresponding leading entries carry the weaker, unkeyed,
+// unanchored guarantee, per CLAUDE.md rule 5's spirit: a control that
+// silently reports "ok" without saying which portion of history it
+// actually protects is the same silent-absence bug this ADR exists to
+// fix, one level up.
+type VerifyReport struct {
+	Head                    Head
+	AuditHead               Head
+	EventFrozenPrefixLength int
+	AuditFrozenPrefixLength int
+}
+
 func (s *Store) Verify() (Head, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.recoverLocked(); err != nil {
+	report, err := s.verifyLocked()
+	if err != nil {
 		return Head{}, err
+	}
+	return report.Head, nil
+}
+
+// VerifyDetail is Verify plus the frozen-prefix accounting VerifyReport
+// carries. Verify itself keeps its original (Head, error) signature so
+// existing callers are unaffected; new callers that need to report the
+// v1/v2 boundary honestly (ADR-0007 §6 point 5) should use this instead.
+func (s *Store) VerifyDetail() (VerifyReport, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.verifyLocked()
+}
+
+func (s *Store) verifyLocked() (VerifyReport, error) {
+	if err := s.recoverLocked(); err != nil {
+		return VerifyReport{}, err
 	}
 	entries, err := os.ReadDir(filepath.Join(s.directory, "events"))
 	if err != nil {
-		return Head{}, err
+		return VerifyReport{}, err
 	}
 	type pair struct {
 		seq   uint64
@@ -195,51 +233,109 @@ func (s *Store) Verify() (Head, error) {
 		}
 		raw, err := os.ReadFile(filepath.Join(s.directory, "events", entry.Name()))
 		if err != nil {
-			return Head{}, err
+			return VerifyReport{}, err
 		}
 		var event Event
 		if err := json.Unmarshal(raw, &event); err != nil {
-			return Head{}, err
+			return VerifyReport{}, err
 		}
 		pairs = append(pairs, pair{event.Sequence, event})
 	}
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].seq < pairs[j].seq })
 	previous := ""
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
+	sawV2 := false
+	frozenPrefixLength := 0
 	for i, p := range pairs {
 		if p.event.Sequence != uint64(i+1) {
-			return Head{}, fmt.Errorf("ledger sequence gap at %d", i+1)
+			return VerifyReport{}, fmt.Errorf("ledger sequence gap at %d", i+1)
 		}
 		if p.event.PreviousEventSHA256 != previous {
-			return Head{}, fmt.Errorf("ledger chain mismatch at sequence %d", p.event.Sequence)
+			return VerifyReport{}, fmt.Errorf("ledger chain mismatch at sequence %d", p.event.Sequence)
 		}
-		eventSHA, err := hashEvent(p.event, s.keys.chain)
+		var eventSHA string
+		switch p.event.SchemaVersion {
+		case EventSchemaV1:
+			// ADR-0007 D4 point 6: any v1 entry appearing after genesis
+			// (i.e. after the first v2 entry has been seen) is a hard
+			// failure, not a downgrade -- accepting it would let an
+			// adversary insert unkeyed, forgeable entries into what is
+			// supposed to be the anchored regime.
+			if sawV2 {
+				return VerifyReport{}, fmt.Errorf("v1 (pre-D2, unkeyed) event at sequence %d appears after the v2 genesis boundary: hard failure per ADR-0007 D4 point 6", p.event.Sequence)
+			}
+			eventSHA, err = legacyHashEvent(p.event)
+			frozenPrefixLength = i + 1
+		case EventSchemaV2:
+			sawV2 = true
+			eventSHA, err = hashEvent(p.event, s.keys.chain)
+		default:
+			return VerifyReport{}, fmt.Errorf("unrecognized event schema version %q at sequence %d", p.event.SchemaVersion, p.event.Sequence)
+		}
 		if err != nil {
-			return Head{}, err
+			return VerifyReport{}, err
 		}
 		if eventSHA != p.event.EventSHA256 {
-			return Head{}, fmt.Errorf("ledger event checksum mismatch at sequence %d", p.event.Sequence)
+			return VerifyReport{}, fmt.Errorf("ledger event checksum mismatch at sequence %d", p.event.Sequence)
 		}
 		if err := s.verifySnapshot(p.event.RequestSnapshotSHA256); err != nil {
-			return Head{}, err
+			return VerifyReport{}, err
 		}
 		if err := s.verifySnapshot(p.event.ResponseSnapshotSHA256); err != nil {
-			return Head{}, err
+			return VerifyReport{}, err
 		}
 		previous = p.event.EventSHA256
-		last = Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID, Sequence: p.event.Sequence, EventID: p.event.EventID, EventSHA256: p.event.EventSHA256}
+		last = Head{SchemaVersion: headSchemaFor(p.event.SchemaVersion), LedgerID: s.ledgerID, Sequence: p.event.Sequence, EventID: p.event.EventID, EventSHA256: p.event.EventSHA256}
 	}
 	head, err := s.loadHead()
 	if err != nil {
-		return Head{}, err
+		return VerifyReport{}, err
 	}
 	if head.Sequence != last.Sequence || head.EventSHA256 != last.EventSHA256 {
-		return Head{}, errors.New("ledger head does not match event chain")
+		return VerifyReport{}, errors.New("ledger head does not match event chain")
 	}
-	if _, err := s.VerifyAudit(); err != nil {
-		return Head{}, err
+	auditHead, auditFrozenPrefixLength, err := s.verifyAuditLocked()
+	if err != nil {
+		return VerifyReport{}, err
 	}
-	return head, nil
+	return VerifyReport{Head: head, AuditHead: auditHead, EventFrozenPrefixLength: frozenPrefixLength, AuditFrozenPrefixLength: auditFrozenPrefixLength}, nil
+}
+
+// headSchemaFor picks the Head schema-version label matching an event or
+// audit entry's own SchemaVersion, so a Head built from a frozen v1
+// prefix entry is itself labeled v1, not silently promoted to v2.
+func headSchemaFor(entrySchema string) string {
+	if entrySchema == EventSchemaV1 || entrySchema == AuditSchemaV1 {
+		return HeadSchemaV1
+	}
+	return HeadSchemaV2
+}
+
+// eventAtSequence returns the event at the given chain sequence, for
+// VerifyAnchored's historical-divergence check when the anchored
+// sequence is behind the current head.
+func (s *Store) eventAtSequence(seq uint64) (Event, error) {
+	entries, err := os.ReadDir(filepath.Join(s.directory, "events"))
+	if err != nil {
+		return Event{}, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(s.directory, "events", entry.Name()))
+		if err != nil {
+			return Event{}, err
+		}
+		var event Event
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return Event{}, err
+		}
+		if event.Sequence == seq {
+			return event, nil
+		}
+	}
+	return Event{}, fmt.Errorf("no event found at sequence %d", seq)
 }
 
 func (s *Store) GetEvent(eventID string) (Event, error) {
@@ -374,6 +470,21 @@ func ensureLedgerID(directory string, requested []string) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+// legacyHashEvent is the pre-D2 algorithm, preserved so Verify can check
+// the frozen v1 prefix (ADR-0007 D4) against the same formula it was
+// originally written under: plain sha256.Sum256(json(event)), no key.
+// This is deliberately NOT reachable from Append -- every new event is
+// v2 (see Append's comment) -- it exists only for reading genuinely
+// pre-D2 history, real or, in tests, reconstructed from it.
+func legacyHashEvent(event Event) (string, error) {
+	event.EventSHA256 = ""
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return "", err
+	}
+	return digestHex(raw), nil
 }
 
 // hashEvent is ADR-0007 D2: HMAC-SHA256 under the derived chain key,

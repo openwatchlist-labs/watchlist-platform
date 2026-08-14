@@ -33,8 +33,27 @@ func main() {
 		output(map[string]any{"status": "ok", "operation": "migrate"})
 	case "status", "verify":
 		store := mustStore(opts)
-		head, err := store.Verify()
-		must(err)
+		// ADR-0007 §5.3 point 4 / Consequences: verify is anchor-aware
+		// whenever a database is configured (--postgres-dsn-env, the
+		// same flag sync/migrate already use -- verification reads via
+		// this sink's connection, which Stage 3 grants SELECT on
+		// screening_ledger_anchor). Without it, this falls back to the
+		// file-only check and reports "partial", not "ok" -- a control
+		// that silently claims "ok" while checking less than it could
+		// is the same silent-absence bug this ADR exists to fix.
+		var report screeningledger.AnchorVerifyResult
+		if dsnEnvName := opts["--postgres-dsn-env"]; strings.TrimSpace(dsnEnvName) != "" {
+			sink := mustSink(ctx, opts)
+			defer closeSink(ctx, sink)
+			kAnchor, err := screeningledger.LoadKey(opts["--anchor-key-file"], opts["--anchor-key-env"])
+			must(err)
+			report, err = store.VerifyAnchored(ctx, sink, kAnchor)
+			must(err)
+		} else {
+			detail, err := store.VerifyDetail()
+			must(err)
+			report = screeningledger.AnchorVerifyResult{VerifyReport: detail, AnchorStatus: screeningledger.AnchorStatusUnavailable}
+		}
 		events, err := store.ListEvents()
 		must(err)
 		unreplicated := 0
@@ -43,7 +62,21 @@ func main() {
 				unreplicated++
 			}
 		}
-		output(map[string]any{"status": "ok", "head": head, "event_count": len(events), "unreplicated_count": unreplicated})
+		status := "ok"
+		if report.AnchorStatus != screeningledger.AnchorStatusVerified {
+			status = "partial"
+		}
+		output(map[string]any{
+			"status":                     status,
+			"head":                       report.Head,
+			"audit_head":                 report.AuditHead,
+			"event_frozen_prefix_length": report.EventFrozenPrefixLength,
+			"audit_frozen_prefix_length": report.AuditFrozenPrefixLength,
+			"anchor_status":              report.AnchorStatus,
+			"anchor_sequence":            report.AnchorSequence,
+			"event_count":                len(events),
+			"unreplicated_count":         unreplicated,
+		})
 	case "sync":
 		store := mustStore(opts)
 		sink := mustSink(ctx, opts)

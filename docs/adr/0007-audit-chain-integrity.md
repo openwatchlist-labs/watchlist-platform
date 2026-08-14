@@ -446,6 +446,44 @@ format changes, which is the intended behavior: the fixture is regenerated under
 is retained beside it as the frozen-prefix test case, and a green run after regeneration is evidence
 the migration executed rather than evidence it was skipped.
 
+### 6.1 Correction found implementing D4 (Stage 3)
+
+Recorded here rather than silently worked around, in the same spirit as §3.4: checked against the
+tree and git history at implementation time, not assumed from this ADR's own text.
+
+**The premise above — "the `v1` copy is retained beside it" — was already false by the time Stage 3
+began.** Stage 1 (PR #106, commit `9661a5a`) regenerated `test/fixtures/screening-ledger/state/`'s
+sole event and `head.json` **in place** under the new D2 HMAC scheme, while leaving `schema_version`
+at `openwatchlist.screening-ledger-event.v1`. Stage 1's own commit message says so plainly: "D4 (the
+v1/v2 genesis-anchor bridge) is next stage, so this PR regenerates the one committed fixture ... in
+place under the new scheme rather than attempting a migration bridge here." The practical effect:
+by the time Stage 3 read the fixture, its one `v1`-labeled event already carried an HMAC digest
+(`event_sha256: a029ec78d93f...`), not the genuine pre-D2 plain-SHA256 digest
+(`855cf134fb8eb40d...`) the label claimed. Strong data was sitting under a weak-guarantee label —
+the opposite error from the one this ADR's Migration section warns against (§6's opening: retroactive
+keying "would produce a chain that *looks* as though it had been protected all along"), but still an
+inaccuracy this ADR's own honesty standard does not permit leaving uncorrected.
+
+**Resolution, decided with the operator rather than assumed:** the fixture's one event is relabeled
+`v2` (its digest recomputed under the new label, since `schema_version` is itself part of the hashed
+JSON) rather than left mislabeled `v1` — strong data does not get called weak. A genuine,
+historically-sourced frozen-`v1` fixture was built instead from git history: commit `03c0f04` (this
+repository's clean-restart baseline import, an ancestor of `9661a5a`) holds the real pre-D2 digest,
+copied byte-for-byte into `test/fixtures/screening-ledger/frozen-v1-synthetic/` (see that directory's
+own `README.md`) rather than hand-computed, so `Verify`'s frozen-prefix code path (§6 points 5–6) has
+real coverage against an actual unkeyed digest, not only data fabricated inline in a test. That
+fixture is explicitly labeled synthetic test data, not a claim of preserved production history —
+this repository has never had live traffic (§2), so no real production data was ever at stake in
+either Stage 1's regeneration or this correction. A real `v2` genesis record was then appended after
+the relabeled event via the ordinary, unmodified `Append` path (§6 point 3's predecessor-linkage
+happens automatically, since genesis is simply the next entry), followed by an audit-chain entry
+documenting the migration and a genesis anchor. **This repository's real ledger therefore has an
+event-chain frozen-prefix length of zero** — there is no genuine weaker-guarantee history left to
+report, only the relabel-and-continue-forward path above. The general frozen-prefix mechanism (D4
+points 5–6) is still built and tested, for the benefit of any future ledger — or ADR-0007 §7.2
+sibling — that has genuine pre-D2 history to bridge; it is simply not exercised by this ledger's own
+data, only by the synthetic fixture built for that purpose.
+
 ## 7. Test strategy (D5) and sibling triage (D7)
 
 ### 7.1 Prove it by breaking it

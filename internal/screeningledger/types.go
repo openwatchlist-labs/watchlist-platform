@@ -8,6 +8,15 @@ const (
 	HeadSchemaV1     = "openwatchlist.screening-ledger-head.v1"
 	AuditSchemaV1    = "openwatchlist.screening-ledger-audit.v1"
 	BundleSchemaV1   = "openwatchlist.screening-audit-bundle.v1"
+
+	// v2 (ADR-0007 D4): entries at and after genesis are HMAC-SHA256(K_chain, ...)
+	// under the D2 keyed chain and (for the event chain) anchored per D3. v1
+	// entries before genesis remain sha256.Sum256(json(...)), the pre-D2
+	// unkeyed algorithm, and verify only as a frozen, unanchored prefix -- see
+	// Verify's and VerifyAudit's genesis-boundary handling and ADR-0007 §6.
+	EventSchemaV2 = "openwatchlist.screening-ledger-event.v2"
+	HeadSchemaV2  = "openwatchlist.screening-ledger-head.v2"
+	AuditSchemaV2 = "openwatchlist.screening-ledger-audit.v2"
 )
 
 type RetentionPolicy struct {

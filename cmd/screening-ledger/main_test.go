@@ -91,8 +91,14 @@ func TestHappyPath_Status(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
-	if !bytes.Contains([]byte(stdout), []byte(`"event_count":1`)) {
-		t.Fatalf("expected event_count 1 from the fixture state, got: %s", stdout)
+	// ADR-0007 D4: the fixture was regenerated with a relabeled v2 event
+	// plus a v2 genesis marker appended after it (event count 2), where
+	// it used to be the single pre-D2 event (event count 1) -- see the
+	// ADR-0007 §6 correction note. A green run here after regeneration is
+	// evidence the migration executed, per the ADR's own "fixture is the
+	// tripwire" framing.
+	if !bytes.Contains([]byte(stdout), []byte(`"event_count":2`)) {
+		t.Fatalf("expected event_count 2 from the regenerated v2 fixture state, got: %s", stdout)
 	}
 }
 
@@ -102,8 +108,17 @@ func TestHappyPath_Verify(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
-	if !bytes.Contains([]byte(stdout), []byte(`"status":"ok"`)) {
-		t.Fatalf("expected status ok, got: %s", stdout)
+	// ADR-0007 §5.3 point 4 / Consequences: verify without a database
+	// configured (no --postgres-dsn-env here) is honestly reported as
+	// "partial", not "ok" -- it fully checks the file chain (including
+	// the frozen-prefix/genesis-boundary rules) but cannot cross-check
+	// the anchor. See internal/screeningledger/anchor_pgx_test.go for the
+	// anchor-aware "ok" case, which needs a real Postgres connection.
+	if !bytes.Contains([]byte(stdout), []byte(`"status":"partial"`)) {
+		t.Fatalf("expected status partial (no --postgres-dsn-env given), got: %s", stdout)
+	}
+	if !bytes.Contains([]byte(stdout), []byte(`"anchor_status":"unavailable"`)) {
+		t.Fatalf("expected anchor_status unavailable, got: %s", stdout)
 	}
 }
 
