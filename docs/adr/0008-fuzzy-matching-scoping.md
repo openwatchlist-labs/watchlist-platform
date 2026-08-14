@@ -796,3 +796,93 @@ fixture to a projection inside Stage 1's own PR) unblock Stage 1's implementatio
 revising any of D1-D6. `docs/ARCHITECTURE.md`'s two-separate-paths framing needs a
 corresponding edit in the same PR (addendum context, above) — that edit is a consequence of
 D3's existing decision, not a new one made here.
+
+## Addendum 2: concatenation-splitting's generation rule (2026-08-14)
+
+- **Status:** Proposed
+- **Trigger:** the first addendum's own implementation PR (#119, `fb6b0f2`) landed token
+  reordering and particles/compounds — two of Stage 1's three rows — and explicitly declined
+  to implement concatenation splitting, stating in its commit message and in a code comment
+  that "no generation algorithm for turning a single concatenated query token into split
+  lookup candidates is specified anywhere in ADR-0008 or its addendum"
+  (`internal/screeningapi/service.go:465-473`; the same sentence is echoed in
+  `README.md:21`'s Table 1 row). That claim was re-verified for this addendum: a repo-wide
+  search for "concatenat" (`grep -rn oncatenat`) turns up AD2's *scoring* shape
+  (`concatenation_normalized`, comparing two already-known names with whitespace stripped,
+  `docs/adr/0008-fuzzy-matching-scoping.md:691-700` above) and nothing anywhere that
+  specifies how to turn *one* opaque query token into a *set of candidate lookup strings*
+  in the first place. The gap is real. This addendum is a pure addition — it resolves that
+  one gap and revises nothing else in this document, including nothing in Addendum 1.
+- Every claim below was verified against the working tree at `e824ee1` (current tip of
+  `dom-1-stage1-addendum-2-split-rule`'s base, i.e. `main` after PR #120 merged), the same
+  standard §Context and Addendum 1 set for their own claims.
+
+### AD4. The split-candidate generation rule
+
+**Decision: single-space insertion at every character boundary of the query string.** For
+an N-character query token, generate the N-1 strings formed by inserting one space at each
+position between two characters, and issue each as an additional runtime `name` lookup
+alongside the mechanisms `nameQueryExpansions` already issues
+(`internal/screeningapi/service.go:474-491`). For `"ACMEIMPORTS"` (11 characters) this
+generates 10 candidates — `"A CMEIMPORTS"`, `"AC MEIMPORTS"`, ... `"ACMEIMPORT S"` — one of
+which, `"ACME IMPORTS"`, is the catalog's stored two-token form
+(`test/golden/ofac-advanced/ofac-sdn-catalog.json`, the same fixture §4.1 probed).
+
+Two alternatives were considered and rejected, for two independent reasons:
+
+1. **This platform is not building a configurable matching engine with tunable
+   risk-appetite parameters.** Bounded multi-gap search (inserting more than one space, or
+   searching for the best of several segmentations by some scored criterion) and
+   dictionary-anchored splitting (segmenting only at boundaries confirmed by a lookup
+   dictionary or corpus frequency table) both introduce a knob — a gap-count bound, a
+   dictionary, a scoring threshold for accepting a segmentation — that this project has
+   nowhere established a governance story for. Every other tunable surface in this
+   repository's matching path is checksum-bound and change-controlled (threshold profiles,
+   `internal/matcherbaseline/profile.go:35-94`; policy weights, AD2 above,
+   `candidatescoring/policy.go:54-102`). A configurable segmentation policy would need the
+   same treatment, and building that treatment is a different product decision than closing
+   one Table 1 row — a decision this ADR's own stated scope does not extend to (its header
+   line names the issue "DOM-1 (P0), scoping only," `docs/adr/0008-fuzzy-matching-scoping.md:5`).
+   Single-space-insertion needs no such governance: it is a fixed function of the query
+   string alone, with no parameter to bind, checksum, or drift.
+2. **Multi-gap search grows combinatorially with query length; single-insertion does not.**
+   Inserting up to *k* gaps into an N-character string is `C(N-1, k)` candidates — for a
+   fixed small *k* this is still polynomial, but the useful case (splitting a name that
+   should be three or more tokens) requires *k* to grow with the number of intended tokens,
+   and nothing about a query string tells the generator how many gaps are needed in advance
+   without trying all of them. Single-insertion fixes *k*=1 unconditionally, which is
+   exactly `N-1` — linear in query length, matching §7's framing of Stage 1's expansion set
+   as "a fixed, enumerable function of the query" whose "worst-case lookup count per request
+   is known at review time rather than discovered in production"
+   (`docs/adr/0008-fuzzy-matching-scoping.md:437-438` above). A combinatorial candidate count
+   does not preserve that guarantee, and re-establishing an equivalent bound for a
+   combinatorial generator is exactly the kind of governance work reason (1) says this
+   project is not taking on right now.
+
+### AD5. Accepted limitation: two-word concatenations only
+
+This mechanism closes `concatenation_splitting` **only for two-word concatenations** — a
+query token that should split into exactly two catalog tokens. A name that should split
+into three or more tokens (e.g. a concatenation of three words) is not closed by single-gap
+insertion: inserting one space into an N-character string can only ever produce a
+two-token candidate, never a three-token one, so no candidate in the generated set can match
+a three-token stored form.
+
+This is stated here as an **accepted scope boundary, not a silently-dropped gap** — the same
+posture §9 takes toward non-ASCII case folding (N2) and blocking-key selection (§8.2).
+Consistent with reason (1) above: closing three-or-more-word compounds with this same
+mechanism would require multi-gap insertion, which is the combinatorial-growth case AD4
+rejected. If three-or-more-word concatenation splitting is needed later, that is a distinct
+future decision — evaluated on its own, with its own governance story for whatever bound or
+heuristic it needs — not an implicit TODO carried by this addendum or implemented as a
+quiet extension of AD4's mechanism.
+
+### Addendum 2 summary
+
+AD4 (single-space-insertion at every character boundary, generating N-1 candidates for an
+N-character query token) gives Stage 1's concatenation-splitting row an implementable
+generation rule, chosen over bounded multi-gap search and dictionary-anchored splitting for
+the two reasons stated. AD5 records, as an explicit accepted limitation rather than an
+unstated gap, that the rule closes two-word concatenations only. Neither AD4 nor AD5 revises
+D1-D6, Addendum 1, or any other decision in this document; both are additions scoped to the
+one gap named in the Trigger above.
