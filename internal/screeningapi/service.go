@@ -415,11 +415,14 @@ func isNameRetrievalMatch(matchKind string) bool {
 // addendum AD2) alongside the particle_stripped shape in bestNameMatch --
 // both sides of that wire land together, per AD2's explicit warning that a
 // correctly-scored particle candidate would otherwise still trip #116's
-// blocker after correctly scoring.
+// blocker after correctly scoring. name_concatenation_normalized was added
+// the same way by DOM-1 Stage 1's third row (ADR-0008 addendum 2's AD2
+// extension), alongside the concatenation_normalized shape and the
+// concatenation-split retrieval probe (AD4) in nameQueryExpansions below.
 func hasNameMatchReasonCode(codes []string) bool {
 	for _, code := range codes {
 		switch code {
-		case "name_exact", "name_token_set_exact", "name_particle_stripped", "name_prefix", "name_containment":
+		case "name_exact", "name_concatenation_normalized", "name_token_set_exact", "name_particle_stripped", "name_prefix", "name_containment":
 			return true
 		}
 	}
@@ -446,10 +449,10 @@ type nameQueryExpansion struct {
 }
 
 // nameQueryExpansions returns DOM-1 Stage 1's query-expansion set
-// (ADR-0008 §7 plus its addendum): a fixed, enumerable function of the
+// (ADR-0008 §7 plus its addenda): a fixed, enumerable function of the
 // query, each variant meant to be issued as an existing runtime `name`
 // lookup and the results unioned and deduplicated by record ID by the
-// caller. Only two of §7's four named mechanisms are implemented here:
+// caller.
 //
 //   - Token-sorted reordering -- §4.1's "the sorted permutation": tokens
 //     case-insensitively sorted into a canonical order and rejoined,
@@ -461,16 +464,26 @@ type nameQueryExpansion struct {
 //     is what closes name particles/compounds once the particle_stripped
 //     scoring shape (candidatescoring, ADR-0008 addendum AD2) corroborates
 //     the retrieved candidate.
+//   - Concatenation-split probe -- addendum 2's AD4: single-space
+//     insertion at every character boundary of a single-token query. For
+//     an N-character token this issues N-1 additional exact lookups, one
+//     per possible two-token split ("ACMEIMPORTS" -> "A CMEIMPORTS", "AC
+//     MEIMPORTS", ..., "ACMEIMPORT S"). Deliberately gated on
+//     `len(tokens) == 1`: AD4/AD5 close two-word concatenations only, by
+//     inserting exactly one gap into exactly one opaque token: a query
+//     that already contains a space has nothing concatenated left in it
+//     for this probe to split, and inserting a further gap into an
+//     already multi-token query is outside what AD4 specifies (bounded
+//     multi-gap search was explicitly rejected there). Closes
+//     concatenation splitting once the concatenation_normalized scoring
+//     shape (candidatescoring, addendum 2's AD2 extension) corroborates
+//     the retrieved candidate.
 //
-// Concatenation splitting and particle/suffix stripping as *retrieval*
-// generation steps are deliberately not implemented: no generation
-// algorithm for turning a single opaque query token into split lookup
-// candidates is specified anywhere in ADR-0008 or its addendum (confirmed
-// by inspection of the full text), and this repository's standing rule is
-// to stop and report an underspecified mechanism rather than invent a
-// segmentation heuristic. A second addendum resolving that rule is being
-// drafted separately; concatenation splitting stays "Not supported" in
-// README.md's Table 1 until it lands.
+// Particle/suffix stripping as a dedicated *retrieval* generation step is
+// still not implemented -- name particles/compounds closes today only
+// because the first-token prefix probe above happens to recall a
+// particle-carrying stored name (§4.1), not because of any particle-aware
+// query rewrite.
 func nameQueryExpansions(value string) []nameQueryExpansion {
 	tokens := strings.Fields(value)
 	var expansions []nameQueryExpansion
@@ -486,6 +499,13 @@ func nameQueryExpansions(value string) []nameQueryExpansion {
 	}
 	if len(tokens) >= 1 {
 		expansions = append(expansions, nameQueryExpansion{suffix: "prefix", value: tokens[0], prefix: true})
+	}
+	if len(tokens) == 1 {
+		runes := []rune(tokens[0])
+		for position := 1; position < len(runes); position++ {
+			split := string(runes[:position]) + " " + string(runes[position:])
+			expansions = append(expansions, nameQueryExpansion{suffix: fmt.Sprintf("concat-split-%d", position), value: split, prefix: false})
+		}
 	}
 	return expansions
 }

@@ -294,15 +294,12 @@ func TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday(t *testing.T) {
 		// below, which tests a genuine particle/compound record (Klaas van
 		// der Berg, a real "van der" particle) in a small, dedicated
 		// compiled package instead.
-		{
-			// Table 1: "Concatenation splitting (KRAYINVESTBANK <-> KRAY
-			// INVEST BANK) | Not supported". Direct structural analog: the
-			// real two-token alias "ACME IMPORTS" (ofac:sdn:1001)
-			// concatenated with no space, exactly as KRAYINVESTBANK
-			// relates to KRAY INVEST BANK.
-			name:  "concatenation_splitting",
-			query: "ACMEIMPORTS",
-		},
+		// Table 1: "Concatenation splitting (KRAYINVESTBANK <-> KRAY INVEST
+		// BANK) | Not supported" is NOT a case in this slice either --
+		// DOM-1 Stage 1's third and final row, closed by addendum 2's AD4
+		// concatenation-split probe. See
+		// TestDOM1SupportedMatchingVariantConcatenationSplittingMatchesToday
+		// below.
 		{
 			// Table 1: "Transliteration / cross-script | Not supported".
 			// The real record ofac:sdn:2002 carries a genuine Cyrillic
@@ -435,6 +432,48 @@ func TestDOM1SupportedMatchingVariantTokenReorderingMatchesToday(t *testing.T) {
 	}
 	if candidate.Score <= 0 {
 		t.Fatalf("expected a positive score for the token-set match, got %d", candidate.Score)
+	}
+}
+
+// TestDOM1SupportedMatchingVariantConcatenationSplittingMatchesToday is the
+// Table 1 "Concatenation splitting (KRAYINVESTBANK <-> KRAY INVEST BANK) |
+// Not supported" case, moved out of
+// TestDOM1UnsupportedMatchingVariantsProduceNoMatchToday's table now that
+// DOM-1 Stage 1's third and final row closes it (ADR-0008 addendum 2's AD4).
+// The query "ACMEIMPORTS" is the real two-token alias "ACME IMPORTS"
+// (ofac:sdn:1001) concatenated with no space -- the direct structural
+// analog of KRAYINVESTBANK/KRAY INVEST BANK. AD4's single-space-insertion
+// probe (nameQueryExpansions in service.go) reissues the query with a space
+// at every character boundary, one of which -- "ACME IMPORTS" -- is exactly
+// the stored alias and retrieves the record; candidatescoring's new
+// concatenation_normalized name shape (addendum 2's AD2 extension) then
+// corroborates it, since "ACMEIMPORTS" and "ACME IMPORTS" agree once
+// internal spaces are stripped from both sides.
+func TestDOM1SupportedMatchingVariantConcatenationSplittingMatchesToday(t *testing.T) {
+	service := dom1LiveService(t)
+	ctx := context.Background()
+	response, err := service.Screen(ctx, dom1Request("dom1-concatenation_splitting", "ACMEIMPORTS"), "corr-concatenation_splitting", "idem-concatenation_splitting")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != StatusMatched || response.CandidateCount != 1 || response.Candidates[0].RecordID != "ofac:sdn:1001" {
+		t.Fatalf("query \"ACMEIMPORTS\" expected a real match on ofac:sdn:1001 via the concatenation-split expansion, got status=%s candidates=%+v", response.Status, response.Candidates)
+	}
+	candidate := response.Candidates[0]
+	if candidate.MatchedValue != "ACME IMPORTS" {
+		t.Fatalf("expected the retrieved candidate's matched_value to be the ACME IMPORTS alias (the split candidate that hit), got %+v", candidate)
+	}
+	foundReason := false
+	for _, code := range candidate.ReasonCodes {
+		if code == "name_concatenation_normalized" {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("expected the match to carry name_concatenation_normalized as real matching evidence (not an accidental score), got reason_codes=%+v", candidate.ReasonCodes)
+	}
+	if candidate.Score <= 0 {
+		t.Fatalf("expected a positive score for the concatenation-normalized match, got %d", candidate.Score)
 	}
 }
 

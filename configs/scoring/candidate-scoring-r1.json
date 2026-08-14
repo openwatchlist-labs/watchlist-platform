@@ -9,6 +9,7 @@
   "weights": {
     "typed_identifier_exact": 550,
     "name_exact": 400,
+    "name_concatenation_normalized": 370,
     "name_token_set": 340,
     "name_particle_stripped": 300,
     "name_prefix": 250,

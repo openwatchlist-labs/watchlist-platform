@@ -15,10 +15,11 @@ misleading before (see issue #12's `FixtureProvider` rename).
 
 **Two genuinely different retrieval/matching paths existed in this
 codebase historically, serving different purposes - not one "finished"
-path and one "not yet wired in." DOM-1 (ADR-0008, plus its addendum) is
+path and one "not yet wired in." DOM-1 (ADR-0008, plus its addenda) is
 actively closing that gap in staged, revertible steps; this section
-describes the state after Stage 1 (query expansion, token reordering and
-name particles/compounds), not the pre-DOM-1 baseline:**
+describes the state after Stage 1 (query expansion closing all three of
+its rows - token reordering, name particles/compounds, and concatenation
+splitting), not the pre-DOM-1 baseline:**
 
 1. **Production `cmd/screening-api`** retrieves candidates via
    `internal/runtimemmapclient`, a Go client for the Rust-compiled
@@ -27,12 +28,14 @@ name particles/compounds), not the pre-DOM-1 baseline:**
    and nothing else. This is still **exact-name, prefix, or
    exact-identifier lookup only** - DOM-1 does not add a new query verb.
    What changed in Stage 1: `screeningapi` now issues *more than one* such
-   lookup per name query - a token-sorted reordering and a first-token
-   prefix probe, in addition to the caller's original query - unions the
-   results, and deduplicates by record ID (ADR-0008 §7). `screeningapi`
-   still does not import `matcherbaseline`, `matcherprovider`, or
-   `matchercontext` - confirmed by checking its actual imports, not
-   assumed. This remains the live, real-time path.
+   lookup per name query - a token-sorted reordering, a first-token prefix
+   probe, and (addendum 2's AD4) a single-space-insertion concatenation-
+   split probe for single-token queries - in addition to the caller's
+   original query - unions the results, and deduplicates by record ID
+   (ADR-0008 §7 plus addendum 2). `screeningapi` still does not import
+   `matcherbaseline`, `matcherprovider`, or `matchercontext` - confirmed by
+   checking its actual imports, not assumed. This remains the live,
+   real-time path.
 2. **`internal/matcherbaseline`** (with `internal/matchercontext` layered
    on top) is the fuzzy/token-alignment/phonetic matching engine - the one
    issues #8, #9, #10, and #11 improved. Historically it was scoped purely
@@ -45,11 +48,13 @@ name particles/compounds), not the pre-DOM-1 baseline:**
    narrow exported call surface for this purpose,
    `ScorePair(query, candidate string, profile ThresholdProfile)`
    (ADR-0008 addendum AD1), but `screeningapi` does not call it yet -
-   Stage 1's two closed rows (token reordering, name particles/compounds)
-   are corroborated entirely by `internal/candidatescoring`'s own shape
-   detection (`token_set`, and a new `particle_stripped` shape, ADR-0008
-   addendum AD2), which needs no fuzzy scoring. `ScorePair` is a shared
-   prerequisite sitting unused until a later stage calls it.
+   Stage 1's three closed rows (token reordering, name particles/compounds,
+   concatenation splitting) are corroborated entirely by
+   `internal/candidatescoring`'s own shape detection (`token_set`,
+   `particle_stripped`, and `concatenation_normalized` - ADR-0008 addendum
+   AD2 and its addendum 2 extension), which needs no fuzzy scoring.
+   `ScorePair` is a shared prerequisite sitting unused until a later stage
+   calls it.
 
 Practically: live screening decisions are made on exact/prefix/identifier
 matches retrieved from the Rust runtime (now via Stage 1's query

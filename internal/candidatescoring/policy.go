@@ -76,6 +76,7 @@ func validatePolicy(policy Policy) error {
 	positive := []int{
 		policy.Weights.TypedIdentifierExact,
 		policy.Weights.NameExact,
+		policy.Weights.NameConcatenationNormalized,
 		policy.Weights.NameTokenSet,
 		policy.Weights.NameParticleStripped,
 		policy.Weights.NamePrefix,

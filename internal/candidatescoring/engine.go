@@ -154,6 +154,8 @@ func (e *Engine) scoreCandidate(subject Subject, lineage Lineage, envelope Candi
 	switch nameShape {
 	case "exact":
 		add("name", e.loaded.Policy.Weights.NameExact, "name_exact", "name", "support", subjectName, candidateName)
+	case "concatenation_normalized":
+		add("name", e.loaded.Policy.Weights.NameConcatenationNormalized, "name_concatenation_normalized", "name", "support", subjectName, candidateName)
 	case "token_set":
 		add("name", e.loaded.Policy.Weights.NameTokenSet, "name_token_set_exact", "name", "support", subjectName, candidateName)
 	case "particle_stripped":
@@ -349,7 +351,9 @@ func bestNameMatch(subject, candidate []string) (string, string, string) {
 			}
 			switch {
 			case ns == nc:
-				matches = append(matches, match{5, "exact", ns, nc})
+				matches = append(matches, match{6, "exact", ns, nc})
+			case equalSpacesStripped(ns, nc):
+				matches = append(matches, match{5, "concatenation_normalized", ns, nc})
 			case equalTokenSet(ns, nc):
 				matches = append(matches, match{4, "token_set", ns, nc})
 			case equalParticleStrippedTokenSet(ns, nc):
