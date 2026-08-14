@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Sanctions xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  Version="3"
+  xsi:schemaLocation="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADVANCED_XML.xsd">
+  <DateOfIssue CalendarTypeID="1"><Year>2026</Year><Month>8</Month><Day>14</Day></DateOfIssue>
+  <ReferenceValueSets>
+    <CalendarTypeValues><CalendarType ID="1">Gregorian</CalendarType></CalendarTypeValues>
+    <PartySubTypeValues>
+      <PartySubType ID="1">Individual</PartySubType>
+    </PartySubTypeValues>
+    <NamePartTypeValues>
+      <NamePartType ID="10">First Name</NamePartType>
+      <NamePartType ID="11">Last Name</NamePartType>
+    </NamePartTypeValues>
+    <ScriptValues><Script ID="215">Latin</Script></ScriptValues>
+    <ScriptStatusValues><ScriptStatus ID="1">Primary</ScriptStatus></ScriptStatusValues>
+    <AliasTypeValues><AliasType ID="1">a.k.a.</AliasType></AliasTypeValues>
+    <ListValues><List ID="1550">SDN List</List></ListValues>
+    <SanctionsTypeValues><SanctionsType ID="1704">Block</SanctionsType><SanctionsType ID="1705">Program</SanctionsType></SanctionsTypeValues>
+    <LegalBasisValues><LegalBasis ID="300">Synthetic authority for regression testing</LegalBasis></LegalBasisValues>
+    <EntryEventTypeValues><EntryEventType ID="301">List</EntryEventType></EntryEventTypeValues>
+  </ReferenceValueSets>
+  <DistinctParties>
+    <DistinctParty FixedRef="4004">
+      <Comment>Synthetic fixture record. Not an actual OFAC designation. Built for DOM-1's regression suite (issue #115's parent investigation) to exercise a genuine name particle/compound, unlike the other three synthetic records in test/golden/ofac-advanced/ofac-sdn-catalog.json, none of which carry one.</Comment>
+      <Profile ID="4004" PartySubTypeID="1">
+        <Identity ID="14004">
+          <Alias FixedRef="400400" ID="400400" AliasTypeID="1" Primary="true" LowQuality="false"><DocumentedName FixedRef="400400" ID="400400"><DocumentedNamePart><NamePartValue NamePartGroupID="24001" ScriptID="215" ScriptStatusID="1" Acronym="false">Klaas</NamePartValue></DocumentedNamePart><DocumentedNamePart><NamePartValue NamePartGroupID="24002" ScriptID="215" ScriptStatusID="1" Acronym="false">van der Berg</NamePartValue></DocumentedNamePart></DocumentedName></Alias>
+          <NamePartGroups><MasterNamePartGroup><NamePartGroup ID="24001" NamePartTypeID="10"/><NamePartGroup ID="24002" NamePartTypeID="11"/></MasterNamePartGroup></NamePartGroups>
+        </Identity>
+      </Profile>
+    </DistinctParty>
+  </DistinctParties>
+  <SanctionsEntries>
+    <SanctionsEntry ID="6004" ProfileID="4004" ListID="1550"><EntryEvent ID="6104" LegalBasisID="300" EntryEventTypeID="301"><Date CalendarTypeID="1"><Year>2026</Year><Month>8</Month><Day>14</Day></Date></EntryEvent><SanctionsMeasure SanctionsTypeID="1704"/><SanctionsMeasure SanctionsTypeID="1705"><Comment>DEMO</Comment></SanctionsMeasure></SanctionsEntry>
+  </SanctionsEntries>
+  <SanctionsEntryLinks/>
+</Sanctions>
