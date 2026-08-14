@@ -71,26 +71,39 @@ func (m *Manager) Activate(request ActivateRequest) (Snapshot, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Snapshot{}, err
 	}
+	relativeCatalogPackagePath, err := relativeToStateDirectory(m.stateDirectory, descriptor.CatalogPackagePath)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	relativePackagePath, err := relativeToStateDirectory(m.stateDirectory, packagePath)
+	if err != nil {
+		return Snapshot{}, err
+	}
+	relativePolicyPath, err := relativeToStateDirectory(m.stateDirectory, policyPath)
+	if err != nil {
+		return Snapshot{}, err
+	}
 	activation := Activation{
 		SchemaVersion:        ActivationSchemaV1,
 		ActivationID:         request.ActivationID,
 		PreviousActivationID: previousID,
 		Catalog:              descriptor,
 		Projection: ProjectionBinding{
-			PackagePath:        packagePath,
+			PackagePath:        relativePackagePath,
 			PackageSHA256:      pkg.PackageSHA256,
 			ProjectionsSHA256:  pkg.Manifest.ProjectionsSHA256,
 			ProjectionCount:    pkg.Manifest.ProjectionCount,
 			CandidateIDsSHA256: pkg.Manifest.CandidateIDsSHA256,
 		},
 		Policy: PolicyBinding{
-			Path:                 policyPath,
+			Path:                 relativePolicyPath,
 			PolicyID:             policy.Policy.PolicyID,
 			PolicyVersion:        policy.Policy.PolicyVersion,
 			PolicySHA256:         policy.SHA256,
 			NormalizationProfile: policy.Policy.NormalizationProfile,
 		},
 	}
+	activation.Catalog.CatalogPackagePath = relativeCatalogPackagePath
 	if err := m.ensureDirectories(); err != nil {
 		return Snapshot{}, err
 	}
@@ -279,6 +292,21 @@ func resolvePath(base, value string) string {
 		return value
 	}
 	return filepath.Clean(filepath.Join(base, value))
+}
+
+// relativeToStateDirectory expresses an absolute path relative to the
+// activation state directory, the convention resolvePath expects at load
+// time. Activation records must never persist a filesystem-absolute path:
+// that bakes in the machine/checkout that generated them (see PR #119).
+func relativeToStateDirectory(stateDirectory, absolutePath string) (string, error) {
+	if absolutePath == "" {
+		return "", nil
+	}
+	relative, err := filepath.Rel(stateDirectory, absolutePath)
+	if err != nil {
+		return "", fmt.Errorf("compute path relative to state directory: %w", err)
+	}
+	return relative, nil
 }
 
 func (m *Manager) ensureDirectories() error {
