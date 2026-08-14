@@ -35,7 +35,9 @@ inherited turned out to be wrong, §3 says so explicitly rather than quietly des
 
 ## 1. What the chain actually is
 
-Two chains share one store directory, and one verifier entry point covers both.
+Two chains share one store directory, and one verifier entry point checks both. (Stage 3 note: after
+D3/D4 landed, "checks both" no longer implies "protects both equally" — see the reworded closing
+paragraph of this section, and R7 in §10.)
 
 | | Event chain | Audit chain |
 |---|---|---|
@@ -70,8 +72,13 @@ finding: both heads are written by the same `marshalAndWrite` → `atomicWrite` 
 delete an entry can rewrite the head in the same breath. The head is an internal-consistency check
 against accident, not a commitment against intent.
 
-**One entry point covers both chains.** `Store.Verify` calls `s.VerifyAudit()` before returning
-(`store.go:235`), so anything that runs `Verify` runs both.
+**One entry point checks both chains, with materially different guarantees.** `Store.Verify` calls
+`s.VerifyAudit()` (now `verifyAuditLocked`) before returning, so anything that runs `Verify` runs
+both — that part was true when this ADR was drafted and remains true. What changed once D3's anchor
+cross-check landed (Stage 3, `Store.VerifyAnchored`) is that the two chains stopped being checked
+*equally*: the event chain is verified against the anchor, the audit chain is not (§10 R7). One
+function call, two different guarantees — the original phrasing here ("covers both") read as parity
+that no longer exists and, for the audit chain specifically, never will under this design.
 
 ### 1.1 Nothing runs verification
 
@@ -639,6 +646,23 @@ swallowed audit conflict exist today and are not caused by this change. D3 fixes
 an anchor whose sibling tables can be truncated is half a control. The `ON CONFLICT DO NOTHING` on
 `PersistAudit` (`postgres.go:200`) is **not** fixed here — it belongs with SEC-5's idempotency
 conflict work, which already owns the "catch `23505` and surface it" pattern for this schema.
+
+**R7 — the audit chain has no anchor-level protection against an adversary holding `K_chain`; only
+the event chain does.** `screening_ledger_anchor.sequence` is the event chain's sequence (§5.3,
+migration `016`'s schema comment); `audit_sha256` is captured once, at anchor time, as supplementary
+evidence, not cross-checked against the live audit chain by `Store.VerifyAnchored`. The practical
+consequence: the exact adversary §5.2/§5.3 name as the residual the anchor exists to close — a party
+who holds `K_chain` but not `K_anchor` — can rewrite any audit entry (`postgres_replicated`, `replay`,
+`export_bundle`, `purge_expired`) and re-MAC everything downstream under the real key, and
+`VerifyAnchored` will report `"anchor_status":"verified"` regardless, because it only ever compares
+the anchor's `event_sha256` against the file chain. This is the same exposure the audit chain had
+before D3's anchor mechanism existed at all — D2's HMAC is the entirety of its protection, then and
+now. This is not fixed here: extending the anchor to cover a specific audit sequence would reopen the
+`sequence`-column schema decision this stage made, which is disproportionate to what a three-stage
+implementation should still be revising. Instead, `AnchorVerifyResult.AuditAnchorCoverage` (Go) and
+`"audit_anchor_coverage":"supplementary_only"` (the CLI's `verify`/`status` JSON) carry this fact into
+the same output an operator reads `"anchor_status":"verified"` from, found and required by a security
+review of this stage rather than assumed acceptable to leave in code comments alone.
 
 ## Consequences
 

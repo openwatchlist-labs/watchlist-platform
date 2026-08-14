@@ -172,12 +172,25 @@ const (
 	AnchorStatusAbsent AnchorVerifyStatus = "absent"
 )
 
+// AuditAnchorCoverage is always AuditAnchorCoverageSupplementaryOnly.
+// It is a constant, not a per-call outcome, but it is carried on every
+// AnchorVerifyResult -- including the "verified" case -- so it appears
+// in the same output an operator reads "anchor_status":"verified" from,
+// rather than requiring them to already know to go read a doc comment.
+// A security review of this stage found that "verified" on its own
+// invites the reasonable but false inference that the audit chain
+// received the same anchor protection the event chain did; this field
+// exists to make that gap visible at the point of use. ADR-0007 §10
+// names it explicitly as an accepted risk.
+const AuditAnchorCoverageSupplementaryOnly = "supplementary_only"
+
 // AnchorVerifyResult is VerifyDetail's report plus what the anchor
 // cross-check found.
 type AnchorVerifyResult struct {
 	VerifyReport
-	AnchorStatus   AnchorVerifyStatus
-	AnchorSequence int64
+	AnchorStatus        AnchorVerifyStatus
+	AnchorSequence      int64
+	AuditAnchorCoverage string
 }
 
 // VerifyAnchored is Verify/VerifyDetail (the full file-chain check, event
@@ -198,14 +211,14 @@ func (s *Store) VerifyAnchored(ctx context.Context, anchors AnchorReader, kAncho
 		return AnchorVerifyResult{}, err
 	}
 	if anchors == nil {
-		return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusUnavailable}, nil
+		return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusUnavailable, AuditAnchorCoverage: AuditAnchorCoverageSupplementaryOnly}, nil
 	}
 	latest, found, err := anchors.LatestAnchor(ctx, s.ledgerID)
 	if err != nil {
 		return AnchorVerifyResult{}, err
 	}
 	if !found {
-		return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusAbsent}, nil
+		return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusAbsent, AuditAnchorCoverage: AuditAnchorCoverageSupplementaryOnly}, nil
 	}
 	if len(kAnchor) != 32 {
 		return AnchorVerifyResult{}, errors.New("anchor key (K_anchor) must be 32 bytes to verify an anchor row")
@@ -227,5 +240,5 @@ func (s *Store) VerifyAnchored(ctx context.Context, anchors AnchorReader, kAncho
 	if eventAtAnchor != latest.EventSHA256 {
 		return AnchorVerifyResult{}, fmt.Errorf("chain digest at sequence %d (%s) disagrees with the anchor's committed digest (%s): possible tampering after anchoring", latest.Sequence, eventAtAnchor, latest.EventSHA256)
 	}
-	return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusVerified, AnchorSequence: latest.Sequence}, nil
+	return AnchorVerifyResult{VerifyReport: report, AnchorStatus: AnchorStatusVerified, AnchorSequence: latest.Sequence, AuditAnchorCoverage: AuditAnchorCoverageSupplementaryOnly}, nil
 }

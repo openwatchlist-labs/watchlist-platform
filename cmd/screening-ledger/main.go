@@ -52,7 +52,7 @@ func main() {
 		} else {
 			detail, err := store.VerifyDetail()
 			must(err)
-			report = screeningledger.AnchorVerifyResult{VerifyReport: detail, AnchorStatus: screeningledger.AnchorStatusUnavailable}
+			report = screeningledger.AnchorVerifyResult{VerifyReport: detail, AnchorStatus: screeningledger.AnchorStatusUnavailable, AuditAnchorCoverage: screeningledger.AuditAnchorCoverageSupplementaryOnly}
 		}
 		events, err := store.ListEvents()
 		must(err)
@@ -74,6 +74,7 @@ func main() {
 			"audit_frozen_prefix_length": report.AuditFrozenPrefixLength,
 			"anchor_status":              report.AnchorStatus,
 			"anchor_sequence":            report.AnchorSequence,
+			"audit_anchor_coverage":      report.AuditAnchorCoverage,
 			"event_count":                len(events),
 			"unreplicated_count":         unreplicated,
 		})
