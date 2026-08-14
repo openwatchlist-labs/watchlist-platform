@@ -35,6 +35,7 @@ type Weights struct {
 	TypedIdentifierExact int `json:"typed_identifier_exact"`
 	NameExact            int `json:"name_exact"`
 	NameTokenSet         int `json:"name_token_set"`
+	NameParticleStripped int `json:"name_particle_stripped"`
 	NamePrefix           int `json:"name_prefix"`
 	NameContainment      int `json:"name_containment"`
 	DateOfBirthExact     int `json:"date_of_birth_exact"`

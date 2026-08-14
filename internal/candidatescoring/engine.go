@@ -156,6 +156,8 @@ func (e *Engine) scoreCandidate(subject Subject, lineage Lineage, envelope Candi
 		add("name", e.loaded.Policy.Weights.NameExact, "name_exact", "name", "support", subjectName, candidateName)
 	case "token_set":
 		add("name", e.loaded.Policy.Weights.NameTokenSet, "name_token_set_exact", "name", "support", subjectName, candidateName)
+	case "particle_stripped":
+		add("name", e.loaded.Policy.Weights.NameParticleStripped, "name_particle_stripped", "name", "support", subjectName, candidateName)
 	case "prefix":
 		add("name", e.loaded.Policy.Weights.NamePrefix, "name_prefix", "name", "support", subjectName, candidateName)
 	case "containment":
@@ -347,9 +349,11 @@ func bestNameMatch(subject, candidate []string) (string, string, string) {
 			}
 			switch {
 			case ns == nc:
-				matches = append(matches, match{4, "exact", ns, nc})
+				matches = append(matches, match{5, "exact", ns, nc})
 			case equalTokenSet(ns, nc):
-				matches = append(matches, match{3, "token_set", ns, nc})
+				matches = append(matches, match{4, "token_set", ns, nc})
+			case equalParticleStrippedTokenSet(ns, nc):
+				matches = append(matches, match{3, "particle_stripped", ns, nc})
 			case strings.HasPrefix(ns, nc) || strings.HasPrefix(nc, ns):
 				matches = append(matches, match{2, "prefix", ns, nc})
 			case strings.Contains(ns, nc) || strings.Contains(nc, ns):

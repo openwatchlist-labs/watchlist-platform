@@ -77,6 +77,7 @@ func validatePolicy(policy Policy) error {
 		policy.Weights.TypedIdentifierExact,
 		policy.Weights.NameExact,
 		policy.Weights.NameTokenSet,
+		policy.Weights.NameParticleStripped,
 		policy.Weights.NamePrefix,
 		policy.Weights.NameContainment,
 		policy.Weights.DateOfBirthExact,

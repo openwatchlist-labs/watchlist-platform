@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -109,8 +110,32 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 		PackageSHA256:       result.Info.PackageSHA256,
 		RuntimeRecordCount:  result.Info.RecordCount,
 	}
+
+	runtimeCandidates := append([]runtimemmapclient.Candidate(nil), result.Candidates...)
+	if request.Query.Kind == QueryName {
+		// DOM-1 Stage 1 (ADR-0008 §7): query expansion, each variant issued
+		// as an additional existing `name` lookup, unioned and deduplicated
+		// by record ID below.
+		for _, expansion := range nameQueryExpansions(request.Query.Value) {
+			expansionQuery := runtimeQuery
+			expansionQuery.RequestID = runtimeQuery.RequestID + "-" + expansion.suffix
+			expansionQuery.Value = expansion.value
+			expansionQuery.Prefix = expansion.prefix
+			expansionResult, err := service.Runtime.Lookup(ctx, resolution.ComponentID, pointer.VersionID, expansionQuery)
+			if err != nil {
+				return ScreeningResponse{}, fmt.Errorf("%w: %v", ErrRuntimeUnavailable, err)
+			}
+			runtimeCandidates = append(runtimeCandidates, expansionResult.Candidates...)
+		}
+	}
+
 	allowed := entityTypeSet(request.Query.TargetEntityTypes)
-	for _, candidate := range result.Candidates {
+	seenRecordIDs := make(map[string]struct{}, len(runtimeCandidates))
+	for _, candidate := range runtimeCandidates {
+		if _, duplicate := seenRecordIDs[candidate.RecordID]; duplicate {
+			continue
+		}
+		seenRecordIDs[candidate.RecordID] = struct{}{}
 		if len(allowed) > 0 {
 			if _, ok := allowed[candidate.EntityType]; !ok {
 				continue
@@ -383,14 +408,18 @@ func isNameRetrievalMatch(matchKind string) bool {
 }
 
 // hasNameMatchReasonCode reports whether the engine's scored reason codes
-// include one of the four name-shape reasons bestNameMatch can produce
-// (internal/candidatescoring/engine.go:154-163). Their absence means
-// bestNameMatch found no shape at all between the subject and this
-// candidate's projected Names.
+// include one of the name-shape reasons bestNameMatch can produce
+// (internal/candidatescoring/engine.go). Their absence means bestNameMatch
+// found no shape at all between the subject and this candidate's projected
+// Names. name_particle_stripped was added by DOM-1 Stage 1 (ADR-0008
+// addendum AD2) alongside the particle_stripped shape in bestNameMatch --
+// both sides of that wire land together, per AD2's explicit warning that a
+// correctly-scored particle candidate would otherwise still trip #116's
+// blocker after correctly scoring.
 func hasNameMatchReasonCode(codes []string) bool {
 	for _, code := range codes {
 		switch code {
-		case "name_exact", "name_token_set_exact", "name_prefix", "name_containment":
+		case "name_exact", "name_token_set_exact", "name_particle_stripped", "name_prefix", "name_containment":
 			return true
 		}
 	}
@@ -406,6 +435,59 @@ func runtimeQueryKind(kind QueryKind) runtimemmapclient.QueryKind {
 	default:
 		return runtimemmapclient.QueryRecordID
 	}
+}
+
+// nameQueryExpansion is one additional runtime `name` lookup to issue
+// alongside the caller's original query.
+type nameQueryExpansion struct {
+	suffix string
+	value  string
+	prefix bool
+}
+
+// nameQueryExpansions returns DOM-1 Stage 1's query-expansion set
+// (ADR-0008 §7 plus its addendum): a fixed, enumerable function of the
+// query, each variant meant to be issued as an existing runtime `name`
+// lookup and the results unioned and deduplicated by record ID by the
+// caller. Only two of §7's four named mechanisms are implemented here:
+//
+//   - Token-sorted reordering -- §4.1's "the sorted permutation": tokens
+//     case-insensitively sorted into a canonical order and rejoined,
+//     issued as one additional exact lookup. Closes token reordering.
+//   - First-token prefix probe -- §4.1's "a first-token prefix probe is a
+//     working blocking key today": the query's first token, issued as a
+//     prefix lookup. Verified against the live worker (§4.1) to recall a
+//     particle-carrying stored name from a particle-stripped query, which
+//     is what closes name particles/compounds once the particle_stripped
+//     scoring shape (candidatescoring, ADR-0008 addendum AD2) corroborates
+//     the retrieved candidate.
+//
+// Concatenation splitting and particle/suffix stripping as *retrieval*
+// generation steps are deliberately not implemented: no generation
+// algorithm for turning a single opaque query token into split lookup
+// candidates is specified anywhere in ADR-0008 or its addendum (confirmed
+// by inspection of the full text), and this repository's standing rule is
+// to stop and report an underspecified mechanism rather than invent a
+// segmentation heuristic. A second addendum resolving that rule is being
+// drafted separately; concatenation splitting stays "Not supported" in
+// README.md's Table 1 until it lands.
+func nameQueryExpansions(value string) []nameQueryExpansion {
+	tokens := strings.Fields(value)
+	var expansions []nameQueryExpansion
+	if len(tokens) >= 2 {
+		sorted := append([]string(nil), tokens...)
+		sort.SliceStable(sorted, func(i, j int) bool {
+			return strings.ToUpper(sorted[i]) < strings.ToUpper(sorted[j])
+		})
+		sortedValue := strings.Join(sorted, " ")
+		if sortedValue != value {
+			expansions = append(expansions, nameQueryExpansion{suffix: "token-sorted", value: sortedValue, prefix: false})
+		}
+	}
+	if len(tokens) >= 1 {
+		expansions = append(expansions, nameQueryExpansion{suffix: "prefix", value: tokens[0], prefix: true})
+	}
+	return expansions
 }
 
 func effectiveLimit(limit, maximum int) int {

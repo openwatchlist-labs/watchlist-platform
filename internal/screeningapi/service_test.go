@@ -58,8 +58,13 @@ func TestScreenUsesExactMappingAndActiveRuntime(t *testing.T) {
 	if response.ListResolution.Status != alertlistmapping.ResolutionResolved || response.Runtime == nil || response.Runtime.CatalogEpoch != 3 {
 		t.Fatalf("missing control-plane lineage: %+v", response)
 	}
-	if runtime.lookups != 1 {
-		t.Fatalf("expected one runtime lookup, got %d", runtime.lookups)
+	// DOM-1 Stage 1 (ADR-0008 §7) issues the baseline lookup plus a
+	// first-token prefix probe for every name query -- "ACME IMPORTS" is
+	// already token-sorted, so only the prefix probe adds a second lookup
+	// here (fakeRuntime ignores the query value and returns the same fixed
+	// candidate regardless, so the extra lookup doesn't change the result).
+	if runtime.lookups != 2 {
+		t.Fatalf("expected two runtime lookups (baseline + first-token prefix probe), got %d", runtime.lookups)
 	}
 }
 

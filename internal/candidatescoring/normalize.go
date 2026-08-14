@@ -78,6 +78,50 @@ func equalTokenSet(a, b string) bool {
 	return true
 }
 
+// particleTokens is candidatescoring's own copy of the starter particle
+// list ADR-0008 addendum AD2 names, matching Table 1's own examples (AL,
+// BIN, VAN DER). Deliberately not imported from internal/matcherbaseline:
+// AD2 keeps this an independently-consumed leaf-package list, the same
+// posture candidatescoring/doc.go and docs/ARCHITECTURE.md already take
+// toward this package, rather than adding a live dependency on
+// matcherbaseline merely to detect a shape. Two independently-maintained
+// particle lists can drift apart over time -- an accepted, named risk
+// (AD2), not resolved here.
+var particleTokens = map[string]struct{}{
+	"AL": {}, "BIN": {}, "VAN": {}, "DER": {}, "DE": {}, "DA": {}, "DEL": {},
+	"DOS": {}, "DAS": {}, "LA": {}, "LE": {}, "VON": {}, "IBN": {},
+}
+
+// equalParticleStrippedTokenSet reports whether a and b's token sets agree
+// once particleTokens are dropped from each side independently -- applied
+// at the token level so a multi-word particle like "VAN DER" drops as two
+// independently-droppable tokens (AD2): "KLAAS VAN DER BERG" drops to
+// {BERG, KLAAS}, matching "KLAAS BERG" exactly.
+func equalParticleStrippedTokenSet(a, b string) bool {
+	ta := stripParticleTokens(tokenSet(a))
+	tb := stripParticleTokens(tokenSet(b))
+	if len(ta) == 0 || len(ta) != len(tb) {
+		return false
+	}
+	for i := range ta {
+		if ta[i] != tb[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stripParticleTokens(tokens []string) []string {
+	out := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if _, isParticle := particleTokens[token]; isParticle {
+			continue
+		}
+		out = append(out, token)
+	}
+	return out
+}
+
 func uniqueSorted(values []string, normalizer func(string) string) []string {
 	seen := map[string]struct{}{}
 	for _, value := range values {

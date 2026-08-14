@@ -10,6 +10,7 @@
     "typed_identifier_exact": 550,
     "name_exact": 400,
     "name_token_set": 340,
+    "name_particle_stripped": 300,
     "name_prefix": 250,
     "name_containment": 180,
     "date_of_birth_exact": 120,
