@@ -130,6 +130,18 @@ grant-anchor-ownership)
   psql_super -c "GRANT owl_ledger_anchor TO owl_migrator;"
   psql_super -c "ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_anchor;"
   psql_super -c "REVOKE owl_ledger_anchor FROM owl_migrator;"
+  # SEC-7 Stage 3 (D3's remaining "Verify() becomes anchor-aware" half,
+  # ADR-0007 §5.3 point 4): the screening-ledger CLI already connects as
+  # owl_migrator for DDL purposes (PostgresSink's doc comment,
+  # postgres.go:23-34); granting SELECT on the anchor table completes its
+  # privilege set for verification without introducing owl_app or a new
+  # role into a path neither currently touches. owl_app is deliberately
+  # left with nothing on this table: it is not tenant-scoped, and giving
+  # it access here would be the first crack in the seam SEC-1 spent two
+  # days making precise. owl_migrator gets SELECT only -- ownership stays
+  # with owl_ledger_anchor, so this grant cannot be used to alter or drop
+  # the table's own protections.
+  psql_super -c "GRANT SELECT ON screening_ledger_anchor TO owl_migrator;"
   # Prove both postconditions rather than assuming the statements above
   # did what they say -- the same standard CLAUDE.md's schema-guard rule
   # applies to any control that could look installed and do nothing.
@@ -143,7 +155,17 @@ grant-anchor-ownership)
     echo "FAIL: owl_migrator is still a member of owl_ledger_anchor after REVOKE" >&2
     exit 1
   }
-  echo "PASS: screening_ledger_anchor owned by owl_ledger_anchor; owl_migrator's membership dropped"
+  can_select="$(psql_super -tAc "SELECT has_table_privilege('owl_migrator', 'screening_ledger_anchor', 'SELECT')")"
+  [[ "$can_select" == "t" ]] || {
+    echo "FAIL: owl_migrator lacks SELECT on screening_ledger_anchor" >&2
+    exit 1
+  }
+  can_insert="$(psql_super -tAc "SELECT has_table_privilege('owl_migrator', 'screening_ledger_anchor', 'INSERT')")"
+  [[ "$can_insert" == "f" ]] || {
+    echo "FAIL: owl_migrator has INSERT on screening_ledger_anchor; it must be read-only there" >&2
+    exit 1
+  }
+  echo "PASS: screening_ledger_anchor owned by owl_ledger_anchor; owl_migrator's membership dropped; owl_migrator has SELECT-only"
   ;;
 *)
   usage

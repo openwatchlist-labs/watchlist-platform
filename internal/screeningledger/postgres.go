@@ -206,6 +206,35 @@ func (p *PostgresSink) PersistAudit(ctx context.Context, event AuditEvent) error
 	return tx.Commit(ctx)
 }
 
+// LatestAnchor reads the highest-sequence row of screening_ledger_anchor
+// for ledgerID, over this sink's own connection -- i.e. as owl_migrator,
+// which Stage 3 grants SELECT (only) on that table
+// (scripts/ci/provision_test_roles.sh's grant-anchor-ownership step).
+// This is deliberately not a method on AnchorSink: AnchorSink connects as
+// owl_ledger_anchor, the write-only identity, and reusing its connection
+// for reads would blur the privilege boundary D3 exists to draw (see
+// anchor.go's package comment). ok is false with a nil error when the
+// ledger has no anchor row yet -- an unanchored ledger is a valid state
+// (e.g. before genesis), not an error.
+func (p *PostgresSink) LatestAnchor(ctx context.Context, ledgerID string) (anchor Anchor, ok bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	var sequence int64
+	var eventSHA, auditSHA, mac string
+	var anchoredAt time.Time
+	row := p.conn.QueryRow(ctx,
+		`SELECT sequence, event_sha256, audit_sha256, anchored_at, anchor_mac
+		 FROM screening_ledger_anchor WHERE ledger_id=$1 ORDER BY sequence DESC LIMIT 1`,
+		ledgerID)
+	if err := row.Scan(&sequence, &eventSHA, &auditSHA, &anchoredAt, &mac); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Anchor{}, false, nil
+		}
+		return Anchor{}, false, err
+	}
+	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
+}
+
 // PurgeExpired: see PersistAudit's doc comment -- same bare-statement
 // hazard, same fix. screening_ledger_snapshot is Class C.
 func (p *PostgresSink) PurgeExpired(ctx context.Context, before, operator, reason string) error {
