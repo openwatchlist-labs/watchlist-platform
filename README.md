@@ -92,12 +92,9 @@ The public repository has progressed beyond its clean-restart baseline:
   HTTP path and returns scored, ranked candidates.
 - **ADR-0007 (SEC-7):** The audit chain is now HMAC-keyed (PRs #106–#107–#109,
   three stages) and anchored to a separate, role-isolated `screening_ledger_anchor`
-  table that a filesystem-write-only or chain-key-holding attacker cannot forge.
-  An accepted residual remains: the audit sub-chain specifically has no
-  anchor-level protection against an adversary holding the chain key; only the
-  event chain is cross-checked against the anchor (ADR-0007 §10 R7: "the audit
-  chain has no anchor-level protection against an adversary holding `K_chain`;
-  only the event chain does").
+  table. External anchor enforcement is currently undergoing security
+  requalification. The previously stated anchored-integrity guarantee should not
+  be relied on until requalification completes.
 
 The R2.4 result is a controlled homelab qualification, not a production,
 customer, regulatory, or compliance certification. The catalog runtime was
