@@ -156,6 +156,16 @@ func (service *Service) screenAt(ctx context.Context, request ScreeningRequest, 
 			Candidate Candidate `json:"candidate"`
 		}{RequestID: request.RequestID, Component: pointer.ComponentID, Version: pointer.VersionID, Candidate: value})
 		response.Candidates = append(response.Candidates, value)
+		// Issue #125: a single lookup already stops at runtimeQuery.Limit
+		// (the runtime enforces Limit itself -- AD9 ceiling 1). DOM-1 Stage
+		// 1's expansions union multiple lookups' results together, which
+		// bypassed that bound -- a name query with E expansions could
+		// return up to limit*(E+1) distinct candidates. This restores the
+		// same guarantee for the merged/deduplicated set: stop once it
+		// reaches the same limit any individual lookup would have honored.
+		if len(response.Candidates) >= runtimeQuery.Limit {
+			break
+		}
 	}
 
 	if request.Query.Kind == QueryRecordID {
@@ -448,6 +458,25 @@ type nameQueryExpansion struct {
 	prefix bool
 }
 
+// maxConcatenationSplitTokenRunes bounds the token length AD4's
+// concatenation-split probe below (issue #124). The probe emits N-1
+// lookups for an N-rune token, one per possible two-token split -- a query
+// with no length bound (query.value is validated only as 1..4096 bytes,
+// service.go's ValidateRequest) turns into up to 4,095 serialized runtime
+// round trips for a single request. 64 runes is generous for what the
+// probe actually targets: two real words concatenated with no space (e.g.
+// "KRAYINVESTBANK", "ACMEIMPORTS"). ICAO 9303's machine-readable-zone name
+// fields cap a single name at 39 characters; two such names concatenated
+// still fits comfortably under 64. Above this length there is no
+// realistic two-word concatenation left to find, so the probe is skipped
+// entirely rather than firing partially -- the query still gets the
+// baseline exact-match lookup and the first-token prefix probe, unaffected
+// by this bound, just no concatenation-split candidates from this
+// mechanism. This keeps the probe's worst case at 63 additional round
+// trips, matching AD4's "fixed, enumerable function of the query" cost
+// claim in practice rather than only in form (ADR-0008 Addendum 3, AD10).
+const maxConcatenationSplitTokenRunes = 64
+
 // nameQueryExpansions returns DOM-1 Stage 1's query-expansion set
 // (ADR-0008 §7 plus its addenda): a fixed, enumerable function of the
 // query, each variant meant to be issued as an existing runtime `name`
@@ -468,7 +497,9 @@ type nameQueryExpansion struct {
 //     insertion at every character boundary of a single-token query. For
 //     an N-character token this issues N-1 additional exact lookups, one
 //     per possible two-token split ("ACMEIMPORTS" -> "A CMEIMPORTS", "AC
-//     MEIMPORTS", ..., "ACMEIMPORT S"). Deliberately gated on
+//     MEIMPORTS", ..., "ACMEIMPORT S"), gated by
+//     maxConcatenationSplitTokenRunes above (issue #124) so N is bounded
+//     rather than scaling with query length. Deliberately gated on
 //     `len(tokens) == 1`: AD4/AD5 close two-word concatenations only, by
 //     inserting exactly one gap into exactly one opaque token: a query
 //     that already contains a space has nothing concatenated left in it
@@ -502,9 +533,11 @@ func nameQueryExpansions(value string) []nameQueryExpansion {
 	}
 	if len(tokens) == 1 {
 		runes := []rune(tokens[0])
-		for position := 1; position < len(runes); position++ {
-			split := string(runes[:position]) + " " + string(runes[position:])
-			expansions = append(expansions, nameQueryExpansion{suffix: fmt.Sprintf("concat-split-%d", position), value: split, prefix: false})
+		if len(runes) <= maxConcatenationSplitTokenRunes {
+			for position := 1; position < len(runes); position++ {
+				split := string(runes[:position]) + " " + string(runes[position:])
+				expansions = append(expansions, nameQueryExpansion{suffix: fmt.Sprintf("concat-split-%d", position), value: split, prefix: false})
+			}
 		}
 	}
 	return expansions
