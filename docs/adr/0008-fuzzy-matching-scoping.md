@@ -886,3 +886,334 @@ the two reasons stated. AD5 records, as an explicit accepted limitation rather t
 unstated gap, that the rule closes two-word concatenations only. Neither AD4 nor AD5 revises
 D1-D6, Addendum 1, or any other decision in this document; both are additions scoped to the
 one gap named in the Trigger above.
+
+## Addendum 3: Stage 2 is not one stage (2026-08-14)
+
+- **Status:** Proposed
+- **Trigger:** a scoping pass over §7's Stage 2 paragraph, taken before any implementation PR
+  opens against it, on the same standing rule that produced Addenda 1 and 2 — report rather
+  than guess when a specification has no implementable answer. §7 Stage 2 (`:443-456`) states
+  the mechanism in two sentences: "add the blocking-key verb (Strategy B), bump
+  `WORKER_PROTOCOL_VERSION` `"1"` -> `"2"`, and feed its bounded output to the Stage 1
+  rescorer." Each clause of that sentence turned out to rest on something that is either
+  unspecified, already deferred elsewhere in this document, or no longer true after Stage 1
+  actually shipped. This addendum records what was found and re-partitions the stage. It is a
+  pure addition — no existing decision (D1-D6, AD1-AD5) is revised and nothing above this
+  section is edited.
+- Every claim below was verified against the working tree at `19c64c6` (tip of `main` after
+  PR #123 merged), the same standard §Context and both prior addenda set for their own claims.
+
+### Addendum 3 context: what Stage 2's paragraph already deferred
+
+Before anything new: §4.2 and §7 do not under-specify Stage 2 by oversight. They specify it as
+far as this document decided to, and then say so. §4.2 gives the verb's semantics — "given a
+computed key (sorted-token signature, n-gram, or Soundex bucket), return the bounded set of
+name entries that share it" (`:250-251`) — and §8.2 immediately withholds the only choice that
+makes those semantics executable: which key, on the stated ground that "no data exists anywhere
+in this repository to choose between them. This is the substantive design content of a
+follow-on ADR, not something to settle in an implementation PR" (`:516-519`). §8.1 withholds
+the measurement that decides whether the verb is viable at all (`:511-515`).
+
+**This document already says Stage 2 needs its own ADR.** Everything below is an argument about
+how much of Stage 2 that sentence covers, and the answer is: most of it, but not all of it, and
+the part it does not cover is the part that has to ship first.
+
+### AD6. Stage 2 is re-partitioned into Stage 2a (Go-only, scoring) and Stage 2b (Rust, recall)
+
+**Decision: split it.** Stage 2's three target rows in `README.md:18`, `:22`, `:23` — typo /
+character transposition, transliteration / cross-script, phonetic — do not share a blocker.
+
+**Finding 1: the typo row is already retrieved on the live path today, and is blocked at
+scoring.** `TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked`
+(`internal/screeningapi/dom1_unsupported_regression_test.go:376-404`) asserts that the query
+`ACME IMPROTS` returns `ofac:sdn:1001` today, retrieved by Stage 1's unconditional first-token
+prefix probe (`internal/screeningapi/service.go:501`), and is then blocked by #116's
+`BlockerNameMatchUncorroboratedByProjection` because `candidatescoring` has no name shape that
+fires for it. §4.1 anticipated exactly this leakage (`:236`), and PR #119 handled it correctly.
+Its consequence for staging was not drawn: the typo row splits in two, and only one half is a
+recall problem.
+
+- A typo **outside** the first token is retrieved today. It needs a *scoring* shape and
+  nothing else. Go-only.
+- A typo **inside** the first token is not retrieved, because the prefix probe blocks on the
+  whole first token (`service.go:501`) — §4.1's own stated limit (`:246-247`).
+
+**Finding 2: D3's rescoring seam does not exist. `ScorePair` has no non-test caller.** AD1
+decided the mechanism and PR #118 exported the function
+(`internal/matcherbaseline/score_pair.go:16`), but its only callers are its own test. Verified
+directly: `internal/screeningapi`'s imports do not include `internal/matcherbaseline`, and
+`docs/ARCHITECTURE.md:35-37` states that as current fact. Stage 1 closed all three of its rows
+with exact boolean predicates added to `candidatescoring` instead — `equalSpacesStripped`
+(`internal/candidatescoring/normalize.go:86`) and `equalParticleStrippedTokenSet` (`:109`) —
+and never scored a similarity.
+
+This corrects a claim in §7's "Why this order" (`:468-472`), which argued Stage 1 should go
+first partly because "it builds the rescoring seam, the reason-code vocabulary, and the
+precision-measurement harness that Stage 2 then reuses." Stage 1 built the reason-code
+vocabulary. It did not build the rescoring seam, and §7.2's precision instrument is still
+unbound. The ordering argument was still right; the inheritance it promised did not arrive, so
+Stage 2 starts with more unbuilt work than §7 assumed, not less.
+
+**Finding 3, which forces the order between the two halves: recall without a corroborating
+scoring shape makes the live path worse, not better.** Scoring compares the *original* query
+against the candidate's projected names — `scoringSubject` sets `Names` to `query.Value`
+(`service.go:390`), not to whichever expansion retrieved the record. So a fuzzy candidate
+retrieved by any Stage 2b mechanism still falls through all six shapes in `bestNameMatch`
+(`internal/candidatescoring/engine.go:353-364`), still produces no name reason code, and still
+trips `hasNameMatchReasonCode` (`service.go:422-430`) into blocking the whole item. §6.3(b)
+predicted the zero-points version of this (`:363-366`); since #116 the failure is louder and
+worse — the item is blocked, not merely mis-scored.
+
+**Shipping Stage 2b before Stage 2a would therefore convert `no_candidates` responses into
+`blocked` responses and close no row at all.** The split is not a convenience; the dependency
+runs one way.
+
+### AD7. Stage 2a — Go-only: the rescoring seam and a continuous-similarity scoring shape
+
+Scope: build D3's seam by calling `matcherbaseline.ScorePair` from `internal/screeningapi` over
+the retrieved candidate union, extend `candidatescoring` with a shape that can express "similar
+but not equal", and close the typo row for typos outside the first token (AD6, finding 1). No
+Rust change, no protocol bump, no recompile, no binding re-qualification.
+
+**The hard part is not retrieval — it is that this scoring model has no continuous-similarity
+concept anywhere.** All six shapes `bestNameMatch` recognises are exact boolean predicates
+(`engine.go:353-364`), and `Weights` is a set of additive integer point values carrying the
+comment "Exactly one name-shape weight is used"
+(`internal/candidatescoring/types.go:32-41`). `ScorePair` returns a 0-10000 basis-point score
+plus per-feature evidence (`score_pair.go:16`). Those two shapes do not compose.
+
+Two designs, neither decided here:
+
+1. **Bucket the continuous score into discrete shapes** (e.g. `name_fuzzy_strong` /
+   `name_fuzzy_moderate`) at a threshold, and give each bucket a weight. This preserves the
+   existing policy contract exactly, at the cost of introducing a *new checksum-governed
+   tunable*: the bucket boundary. That is the same governance obligation AD4 declined to take
+   on for segmentation (`:836-846`), except here it is unavoidable rather than optional, and
+   the repository already has the pattern for it — threshold profiles are checksum-bound and
+   validated on load (`internal/matcherbaseline/profile.go:35-94`), and
+   `configs/matcher-profiles/ofac-name-baseline-r1.json:22` is exactly such a boundary today.
+2. **Extend the policy contract to carry a scaled contribution**, so a 9070 bp match and a 7810
+   bp match do not earn identical points. Strictly more faithful to the evidence, and a larger
+   change to `Weights`, `validatePolicy` (`internal/candidatescoring/policy.go:54-102`), and
+   every consumer of `Components`.
+
+Either way the cost is AD2's, restated: a new weight is a new `policy_sha256`
+(`policy.go:46-51`, re-verified at `engine.go:27-34`), so every policy document under
+`configs/scoring/` and every activation pinning one must be re-issued. And either way both
+sides of AD2's two-sided wire land together — a new shape in `bestNameMatch` **and** its reason
+code in `hasNameMatchReasonCode` (`service.go:422-430`) — or the row is defeated by the #116
+blocker after scoring correctly.
+
+**No numbers are decided here**, on the same grounds AD2 gave for its own two shapes and §8.3
+gave for the phonetic threshold: the weight and any bucket boundary are calibration decisions
+gated on D6's precision instrument, which §7.2 records as still unbound
+(`test/corpus/false-positive-archetypes/archetypes.v1.json:46`).
+
+Stage 2a is addendum-sized and Stage-1-shaped. It is the only part of Stage 2 that is.
+
+### AD8. Stage 2b requires its own ADR. This addendum does not specify the verb's wire format
+
+**Decision: Stage 2b — index-side recall for transliteration / cross-script, phonetic, and
+first-token typos — is a separate initiative and gets its own ADR (proposed ADR-0009). This
+addendum deliberately does not invent its request/response wire format**, on rule 7 grounds
+(do not invent a protocol and implement it in the same pass) and because §8.2 already assigned
+that content to a follow-on ADR.
+
+What was verified, and is the justification: **Go-side query expansion — the entire mechanism
+Stage 1 is built from — is unavailable for all three of these rows, for three independent
+reasons.** Stage 1 worked because its variant sets were small, deterministic, and *forward*
+functions of the query: N-1 for AD4's split rule, one for the token-sorted permutation. Each
+row below breaks that in a different way.
+
+**Transliteration / cross-script — the inverse image is infinite, not merely large.** Closing
+this Go-side means running `fold`'s transliteration map (`internal/matcherbaseline/normalize.go:15-19`)
+*backwards*, from the Latin query to the Cyrillic byte string the index actually stores. Three
+compounding obstacles, all verifiable by reading:
+
+- `'Ь': ""` and `'Ъ': ""` (`normalize.go:19`) delete their input. Any number of soft or hard
+  signs may sit at any position in the stored name and fold to the same Latin string —
+  `ИГОРЬ` and `ИГОР` both fold to `IGOR`. The preimage of any Latin string is therefore
+  **unbounded by construction**; there is no N to enumerate.
+- The map is many-to-one elsewhere too: `E` has preimages Е, Ё and Э (`:15`, `:19`), `I` has
+  И and Й (`:16`), and the Latin diacritic block above contributes more (È É Ê Ë, Ì Í Î Ï).
+  Segmentation is ambiguous as well — `TS` is Ц or Т+С, `YA` is Я or Ы+А.
+- Even a correct letter sequence is not enough, because `normalize_ascii` passes every byte at
+  or above `0x80` through **unchanged, including its case**
+  (`runtime/catalog-mmap/src/format.rs:774-781`). The generator must reproduce the stored
+  casing exactly: 2^L candidates for an L-letter name, 2^14 = 16,384 for this repository's own
+  fixture alias `Джордан Экзампл` (`test/golden/ofac-advanced/ofac-sdn-catalog.json:109`).
+  §4.4 already recorded that case permutation is not a strategy (`:286-287`); this is the same
+  finding reached from the transliteration side.
+
+**Phonetic — the inverse image is unbounded by construction.** `soundex`
+(`internal/matcherbaseline/similarity.go:220-244`) is a four-character many-to-one hash over an
+unbounded input. Enumerating the strings that share a Soundex code is not a bounded operation
+in any length regime.
+
+**First-token typo — bounded, but two orders of magnitude past Stage 1.** See AD10.
+
+**What is genuinely settled for Stage 2b, and belongs in ADR-0009's context rather than being
+re-derived:** AD9's protocol-bump verification, AD10's cost ceilings, and the following four
+questions, which are what makes it an ADR rather than an implementation PR:
+
+1. §8.2's blocking-key selection, still undecided and still without data.
+2. §8.1's Rust scan-cost spike at 40k-100k names, still not taken.
+3. **Whether any matching algorithm gets a second implementation in Rust.** A Soundex-bucket
+   key or a transliteration-fold key must be computed over *stored* names inside the worker,
+   which means porting `soundex` or `fold`'s map into `runtime/catalog-mmap`. That creates two
+   independent implementations of a matching-critical function that must agree forever — a new
+   correctness hazard of exactly this repository's dominant class (CLAUDE.md rule 5), and one
+   the base ADR never weighs. An n-gram or length-band key needs no such port. This trade-off
+   is a first-class input to key selection, not a downstream detail of it.
+4. **A candidate-pool limit distinct from `max_candidates`** — see AD9.
+
+Note for ADR-0009's scope, not a decision here: §4.4's corollary (`:295-299`) holds. Once recall
+exists by any mechanism, `fold` closes the practical effect of the non-ASCII case row at scoring
+time without touching `normalize_ascii`. D4 stands; that row remains DOM-13's.
+
+### AD9. The `WORKER_PROTOCOL_VERSION` bump mechanism, verified end to end
+
+§4.2 asserts the bump is cheap. It is, and the assertion is confirmed — with two consequences
+and two ceilings the base document does not name.
+
+**Confirmed.** `WORKER_PROTOCOL_VERSION` is a Rust constant (`runtime/catalog-mmap/src/worker.rs:5`)
+emitted as field 1 of the hello line (`:13-25`). The Go client pins its own copy
+(`internal/runtimemmapclient/types.go:6`), parses the field (`protocol.go:36`), and enforces
+strict equality — killing the worker process on mismatch (`worker.go:63-67`);
+`internal/screeningapi` checks it again at bind time (`runtime.go:126-128`). There is **no
+negotiation and no range**: it is a fail-closed lockstep, so worker binary and Go client must
+ship together. That is the correct shape for this repository and worth keeping.
+
+**Confirmed independent of the package.** `PACKAGE_SCHEMA_VERSION` is a separate constant
+(`format.rs:9`) carried in package metadata and validated there (`:421`), and `package_sha256`
+is a digest of the package **file** (`:447`) — which is what `RuntimeBinding` pins
+(`runtime.go:137`). A protocol bump changes neither, so no catalog recompiles, no binding
+re-qualifies, and no scoring activation re-issues (§6.3(a)'s pins are untouched). **Rule 6 does
+not fire**, exactly as §4.2 claims. This is materially different from baking keys into the
+package, which changes `package_sha256` by definition and is why Strategy C is a release event.
+
+**Consequence 1, not previously named: the bump alone changes every screening ID.**
+`WorkerProtocol` is written into every response's `RuntimeLineage` (`service.go:101`,
+`internal/screeningapi/types.go:140`) and `screeningID` digests the whole response
+(`internal/screeningapi/id.go:18-25`). §6.4 establishes that a stage which changes candidates
+changes screening IDs; a protocol bump changes them even for a request whose candidate list is
+byte-identical. Any cross-boundary screening-ID comparison is invalid from the bump forward,
+including for rows Stage 2 does not touch.
+
+**Consequence 2, mechanical:** several fixtures hard-code the version and move with it —
+`internal/screeningapi/service_test.go:46`, `:90`, `auth_test.go:82`,
+`scoring_integration_test.go:33`.
+
+**Ceiling 1: a blocking verb cannot return an unbounded candidate set.** `limit` is validated
+to 1..10,000 on both sides of the wire (`worker.rs:117-125`, `protocol.go:51`), and the
+response is a single framed batch read synchronously (`worker.go:123-155`). There is no
+streaming or paging frame in this protocol. Whatever ADR-0009 designs must bound its output
+inside 10,000 entries per call, or add paging as part of the same bump.
+
+**Ceiling 2: the candidate pool has no limit of its own.** Every lookup today takes its `Limit`
+from `effectiveLimit(request.Query.Limit, service.MaxCandidates)` (`service.go:92`), which
+defaults to 20, and Stage 1's expansions inherit it verbatim (`:120-123`). A blocking verb
+exists precisely to return *many* candidates so the rescorer can rank them down to few, so
+reusing the response-facing limit as the retrieval-facing limit would silently truncate the
+blocking set to the response size. Stage 2b needs a separate, explicitly configured pool
+bound. This is a new field on a public config surface, not an internal constant.
+
+**Ceiling 3, worth stating because it sets the unit of cost:** each `Lookup` is one synchronous
+request/response round-trip taken under a per-worker mutex (`worker.go:110-156`), served from a
+pool of at most 64 workers (`internal/runtimemmapclient/pool.go:20-21`). Lookups do not
+pipeline. One extra query variant is one extra round-trip, always.
+
+### AD10. Cost model: Stage 2b needs its own bounding strategy, and Stage 1's bound is unstated rather than small
+
+§7 describes Stage 1's expansion set as "a fixed, enumerable function of the query" whose
+"worst-case lookup count per request is known at review time rather than discovered in
+production" (`:436-438`). That is true in form. The value of the bound was never stated, and it
+is not small.
+
+**Stage 1, as shipped.** `query.value` is validated only as 1..4096 bytes, with no bound on
+token count or token length (`service.go:323-325`). AD4's split probe fires on any single-token
+query and emits N-1 expansions (`:503-509`), issued one at a time in a serial loop
+(`:119-129`), each a full round-trip (AD9, ceiling 3). A 4,096-byte single-token name query
+therefore issues **4,095 additional round-trips**. `ScreenBatch` runs items serially
+(`:286-301`) and `max_batch_items` may be as high as 10,000
+(`internal/screeningapi/config.go:58`), inside a 5,000 ms `request_timeout_ms`
+(`test/fixtures/screening-api/config.json:20`). Separately, each expansion's results are
+appended to the response without re-truncation (`:132-159`, counted at `:262`), so a name query
+can return up to `limit * (N+1)` candidates — `max_candidates` no longer bounds a name
+response. Both are shipped defects rather than Stage 2 questions, and are filed as issues #124
+and #125 rather than fixed here; they are recorded in this addendum because they remove the
+option of reasoning "Stage 1's cost model held, so reuse it."
+
+**Stage 2b, if it were attempted Go-side.** The index alphabet is what `normalize_name`
+produces: 36 ASCII alphanumerics plus the space, everything else stripped or passed through
+(`format.rs:757-758`, `:782-794`). Edit-distance-1 over that alphabet on an N-character query
+is `36N` substitutions + `N` deletions + `37(N+1)` insertions = **74N + 37** lookups — about
+1,500 for a twenty-character name, against Stage 1's N-1 of 19. Edit-distance-2 is that
+squared, order 10^6. Neither fits: at any plausible per-round-trip cost, 1,500 serialized
+round-trips per item multiplied across a 1,000-item batch is far outside a 5-second timeout,
+and that is before the cross-script and phonetic rows, whose variant spaces AD8 shows are not
+finite at all.
+
+**Statement, plainly: Stage 2b does not fit inside the existing 5-second timeout and 10,000-item
+batch constraints under any Go-side generation strategy, and it needs its own bounding strategy
+rather than an inherited one.** That strategy is ADR-0009's to design, and it has at least three
+parameters to bind — the blocking-key selectivity, the candidate-pool limit (AD9, ceiling 2),
+and the per-request round-trip budget. §8.1's unmeasured Rust scan cost decides whether such a
+strategy exists at Stage 2b's scale at all; if it does not, §7's Stage 3 becomes mandatory, as
+§7 already states (`:454-456`).
+
+**Stage 2a carries no comparable cost.** It adds no lookups. `ScorePair` runs over the
+already-retrieved union, and §3.1's measured ~6 µs per candidate applies to a union of tens of
+candidates, not to a 40k-name scan.
+
+### AD11. Accepted limitation: the transposition-only shortcut, considered and rejected
+
+There is a cheap Go-side variant rule that would appear to close half of Stage 2's headline
+row, and it is recorded here so it is evaluated rather than rediscovered.
+
+The row is named "Typo / **character transposition**" (`README.md:18`) and its regression query
+is a pure adjacent transposition: `ACME IMPROTS` is `ACME IMPORTS` with `O` and `R` swapped
+(`dom1_unsupported_regression_test.go:379`). Generating the N-1 adjacent-transposition variants
+of a query is exactly AD4's shape and exactly AD4's cost — a fixed, enumerable, linear function
+of the query with no parameter to bind — and one of those variants is the stored alias.
+
+**Decision: rejected, and not merely deferred.** Two reasons, the second decisive:
+
+1. It closes the *case* without closing the *row*. Transposition is one of several typo classes;
+   substitution, insertion and deletion are untouched. Flipping the regression case on a
+   mechanism that handles none of the others is §7.1's "right result for the wrong reason" trap,
+   which this ADR has already had to correct once for the particle row.
+2. **It does not even flip the case.** Per AD6's finding 3, scoring compares the original query
+   against the projected name (`service.go:390`). Retrieving `ofac:sdn:1001` via the variant
+   `ACME IMPORTS` still leaves `bestNameMatch` comparing `ACME IMPROTS` against `ACME IMPORTS`,
+   which is not equal, not equal spaces-stripped, not an equal token set, not particle-stripped
+   equal, not a prefix and not a containment (`engine.go:353-364`). The response would remain
+   blocked. The shortcut buys N-1 additional round-trips and no behavior change whatsoever.
+
+This is stated as an accepted scope boundary in AD5's style, not a silently dropped option: the
+typo row does not get a cheap partial close, and the reason is that Stage 2a's scoring shape is
+load-bearing for it, exactly as AD6's finding 3 establishes for Stage 2b generally.
+
+### Addendum 3 summary
+
+AD6 re-partitions Stage 2 into **Stage 2a** (Go-only: the rescoring seam D3 decided and Stage 1
+did not build, plus a scoring shape for similar-but-not-equal names) and **Stage 2b** (index-side
+recall for cross-script, phonetic, and first-token typos), and establishes that the dependency
+runs one way — 2b before 2a would turn `no_candidates` into `blocked` and close no row. AD7
+scopes 2a and names its real difficulty: this scoring model has no continuous-similarity concept,
+so a policy-contract decision, not retrieval, is 2a's hard part. AD8 records that Go-side
+expansion is unavailable for every one of 2b's rows — the inverse of `fold` is infinite, the
+inverse of Soundex is unbounded, edit-distance-1 is 74N+37 — and assigns 2b its own ADR
+(proposed ADR-0009) without inventing a wire format here. AD9 verifies the protocol-bump
+mechanism end to end and adds two consequences and three ceilings the base document does not
+name. AD10 states plainly that 2b needs its own bounding strategy and that Stage 1's bound was
+unstated rather than small. AD11 records a cheap shortcut as considered and rejected.
+
+The honest summary of the sizing question this addendum was written to answer: **"a new worker
+protocol verb" undersells Stage 2 in the same way "largely integration" undersold DOM-1**, and
+in the same direction. One half of it is genuinely Stage-1-shaped. The other half is a design
+initiative whose two gating inputs — a blocking key and a latency measurement — this document
+has been recording as absent since §8.1 and §8.2 were written.
+
+Nothing here revises D1-D6, AD1-AD5, or any other decision above; all of it is addition, and
+nothing in it changes behavior. `README.md` Table 1's three Stage 2 rows stand unmodified.
