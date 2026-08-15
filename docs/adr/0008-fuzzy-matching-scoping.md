@@ -1217,3 +1217,271 @@ has been recording as absent since §8.1 and §8.2 were written.
 
 Nothing here revises D1-D6, AD1-AD5, or any other decision above; all of it is addition, and
 nothing in it changes behavior. `README.md` Table 1's three Stage 2 rows stand unmodified.
+
+## Addendum 4: Stage 2a's scoring design and precision instrument (2026-08-15)
+
+- **Status:** Proposed
+- **Trigger:** an implementation attempt at Stage 2a (Addendum 3, AD7) stopped before writing
+  code, on the same standing rule that produced Addenda 1-3. AD7 named the target row and the
+  rescoring seam correctly but left two things open by its own admission: which of two scoring
+  designs closes the row ("neither decided here", `:985-998` below), and what D6's precision
+  instrument requires specifically for this stage (§8.4 item 4, `:525-526`, still phrased as a
+  question). This addendum resolves both. It is a pure addition — no existing decision (D1-D6,
+  AD1-AD11) is revised, and nothing above this section is edited.
+- Every claim below was verified against the working tree at `2187cab` (tip of `main` after PR
+  #127 merged), the same standard prior addenda set for their own claims.
+
+### Addendum 4 context
+
+AD7 (`:971-1012` above) names the acceptance vehicle precisely —
+`TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked`
+(`internal/screeningapi/dom1_unsupported_regression_test.go:376-404`), query `ACME IMPROTS`
+against `ofac:sdn:1001`'s stored aliases — and states the hard part in one sentence: "this
+scoring model has no continuous-similarity concept anywhere" (`:978-979`). It then poses two
+designs and explicitly declines to choose:
+
+1. **Bucket** `matcherbaseline.ScorePair`'s continuous 0-10000 basis-point output into discrete
+   shapes (e.g. `name_fuzzy_strong`/`name_fuzzy_moderate`) at a checksum-governed threshold,
+   giving each bucket a flat additive weight — "the same governance obligation AD4 declined to
+   take on for segmentation... except here it is unavoidable rather than optional" (`:988-991`).
+2. **Extend the policy contract** to carry a scaled continuous contribution, so a 9070 bp match
+   and a 7810 bp match earn different points for the same reason code (`:995-998`).
+
+Re-verified before choosing between them: `ScorePair` (`internal/matcherbaseline/score_pair.go:16-29`)
+is still exported and still has zero non-test callers anywhere under `internal/screeningapi` —
+confirmed by a repository-wide search for the identifier, which returns only
+`internal/matcherbaseline/score_pair.go` and its own `score_pair_test.go`. Nothing has moved
+toward either design since Addendum 3 merged; PRs #123 and #127 did not touch
+`internal/candidatescoring` or `internal/matcherbaseline` at all.
+
+### AD12. The scoring design: bucket into discrete shapes
+
+**Decision: option 1, the discrete bucket.** Two new `candidatescoring` name shapes —
+`name_fuzzy_strong` and `name_fuzzy_moderate` — added to `bestNameMatch`'s existing ranked-match
+mechanism (`internal/candidatescoring/engine.go:336-379`), each computed by calling
+`ScorePair(subject, candidate, profile)` for a pair that clears no discrete shape already ranked
+above it, and classified into a bucket by comparing the returned score against the *same* two
+checksum-governed constants `matcherbaseline` already carries for exactly this purpose —
+`ThresholdProfile.ThresholdBasisPoints` and `.DiagnosticFloorBasisPoints`
+(`internal/matcherbaseline/profile.go`'s `ThresholdProfile` type, validated on load by
+`ValidateProfileSet`, `:35-94`, and digested by `StableProfileSetChecksum`, `:96-113`). Each
+bucket gets a flat additive `Weights` field, following the exact pattern `NameConcatenationNormalized`
+and `NameParticleStripped` already established (`internal/candidatescoring/types.go:34-49`) —
+no new arithmetic, no new field type, one more `case` arm each in the existing rank ladder
+(`engine.go:352-365`) and the existing `switch nameShape` in `scoreCandidate`
+(`engine.go:154-167`), and one more pair of entries in `validatePolicy`'s existing non-negative
+check (`internal/candidatescoring/policy.go:76-92`).
+
+**The tradeoffs, stated plainly, on the three grounds asked for:**
+
+- **Size and containment of the `policy_sha256` change.** Option 1 adds two `int` fields to
+  `Weights` — the same shape of change Stage 1 made twice already (AD2) and that this
+  repository's policy-validation and activation-re-issue tooling already handles without
+  modification. Option 2 would add at minimum a per-shape point *ceiling* plus a scaling formula
+  (`points = ceiling * ScorePair_basis_points / 10000`) applied inside `scoreCandidate`'s `add`
+  closure (`engine.go:132-143`), which today only ever receives a pre-computed flat integer —
+  every call site of `add` for name evidence would need to compute that formula first, and
+  `validatePolicy` would need new validation for the ceiling that the flat-weight loop
+  (`policy.go:76-92`) doesn't do today (is it non-negative, does the formula ever legitimately
+  produce something above it — trivially no, since the basis-point ratio is bounded by
+  construction, but that invariant needs to be asserted, not merely assumed). Option 1 is the
+  smaller, more contained change by a real margin, not just a stylistic preference — it reuses a
+  checksum-governance mechanism that already exists and is already load-once validated
+  (`profile.go:35-94`), rather than inventing a new one.
+- **Extensibility toward Stage 2b's graduated-scoring rows.** Option 2 is genuinely more
+  extensible: cross-script and phonetic candidates (AD8) will also arrive as continuous
+  `ScorePair`-shaped similarity once Stage 2b exists, and a scaled contribution generalizes to
+  them without adding new named buckets per variant class. Option 1 does not generalize for
+  free — either Stage 2b's rows reuse the same two buckets (blunt: a barely-clearing
+  transliteration match and a near-perfect one would earn identical points, collapsing
+  distinctions Option 1 was chosen to avoid losing within Stage 2a itself) or each new row
+  earns its own bucket pair, repeating AD2/AD7's "new weight, new `policy_sha256`" cost every
+  time. This is Option 2's real, non-manufactured advantage, and it is the reason this decision
+  is not a walkover.
+- **Auditor legibility.** This is the deciding ground, and it is not a generic engineering
+  preference — CLAUDE.md states this repository's correctness bar explicitly: "a missed match
+  or a corrupted audit record has regulatory consequences." `ScoreComponent`
+  (`internal/candidatescoring/types.go:127-128` and its struct definition) is the audit record: a
+  `{component, points, reason_code}` triple. Under every existing shape today, and under Option
+  1, `points` for a given `reason_code` is a fixed value an auditor can look up directly in the
+  policy document — "`name_fuzzy_strong` always contributes exactly N points, defined at
+  `configs/scoring/candidate-scoring-r1-ascii-v1.json`" is the entire audit story, no arithmetic
+  required, no dependency on re-deriving `ScorePair`'s five-feature composite from evidence
+  alone. Under Option 2, the same reason code produces a different point value on every match,
+  and confirming any one of them is correct requires the auditor to re-run
+  `ceiling * ScorePair_score / 10000` and trust that `ScorePair`'s own composite (five weighted
+  features, `internal/matcherbaseline/similarity.go:13-37`) was computed correctly upstream —
+  strictly more faithful to the underlying evidence, but a categorically higher scrutiny burden
+  per match, in a system whose own governing document names audit-record integrity as
+  outranking engineering elegance.
+
+Two of three grounds favor Option 1 outright; the third (extensibility) is Option 2's genuine
+strength but names a Stage 2b problem, not a Stage 2a one — and this repository has already
+rejected building generality ahead of an established need once in this exact arc (AD4 rejected
+a configurable segmentation policy on almost identical reasoning: no governance story exists yet
+for the knob, and building one is a different decision than closing the row in front of us,
+`:838-846`). The same posture applies here: if Stage 2b's design later needs graduated scoring
+across more variant classes, that is ADR-0009's decision to make with real data behind it, not a
+generalization Stage 2a should pre-pay for. **Accepted, named limitation:** if Option 1 ships and
+Stage 2b later needs finer graduation than two buckets provide, revisiting the choice is
+in-scope future work, not a silently-foreclosed option.
+
+**A consequence AD7 did not name, surfaced by tracing the wiring precisely:** binding a
+`ThresholdProfile` into `internal/screeningapi` requires a load-once holder for it, and none
+exists today. `ScoringBinding` (`internal/screeningapi/scoring.go:15-20`) carries `engine`,
+`lineage`, `index`, and `policy` — no matcher-profile field — and the only place
+`matcherbaseline.LoadProfileSet` is called anywhere in this repository today is
+`cmd/matcher-run/main.go:107`, from an ordinary `-matcher-profiles` command-line flag
+(`:26`), entirely outside `scoringactivation`'s pinning discipline. `scoringactivation.Activation`
+(`internal/scoringactivation/types.go:14-21`) pins exactly three bindings — `Catalog`,
+`Projection`, `Policy` — each a strict struct; `PolicyBinding` (`:31-37`) is the model to follow,
+and it pins `policy_sha256` precisely so that "config-declared" never substitutes for "content
+verified," per `ValidateScoringRuntimeProfile`'s own comment naming that exact anti-pattern
+(`internal/screeningapi/scoring.go:47-53`, referencing "precisely the check v8d only pretended
+to perform"). Loading the matcher threshold profile from an unpinned config path (mirroring
+`cmd/matcher-run`'s flag) would reintroduce the same class of defect in a new location.
+**Decision, following from AD12's own reasoning, not a separate one:** Stage 2a's implementation
+PR adds a fourth binding to `Activation` — `MatcherProfile{Path, ProfileSetID, ProfileID,
+ProfileSetChecksum, MatcherVersion}`, mirroring `PolicyBinding`'s shape — verified the same way
+`Policy` is today (`NewScoringBinding`, `scoring.go:25-45`) and re-issued alongside `policy_sha256`
+whenever either changes. This is `ActivationSchemaV1`'s first field addition since it shipped;
+existing activation documents remain valid only once regenerated with the new field, the same
+re-activation cost AD2 and AD7 already name for `policy_sha256` (`:748-754`, `:1000-1002`),
+now stated for this binding specifically rather than left implicit.
+
+**Which profile ID:** `configs/matcher-profiles/ofac-name-baseline-r1.json`'s `party_name_r1`
+entry (`threshold_basis_points: 7800`, `diagnostic_floor_basis_points: 6800`) is the same profile
+§2.1's measurements were taken against and the same one that scores `ACME IMPROTS` vs. `ACME
+IMPORTS` at 9070 — comfortably above `ThresholdBasisPoints`. This addendum does not mint new
+threshold numbers (consistent with AD2's and AD7's own "no numbers decided here" posture); it
+identifies which already-checksummed profile is the natural default, leaving the final selection
+and any recalibration to the implementation PR's own precision result (AD13, below).
+
+### AD13. What D6's precision instrument requires for Stage 2a
+
+D6 requires "a stated precision result" before any stage merges (`:317-319`); it does not specify
+that the result must come from SAL-1 (§8.4 item 4, `:525-526`, names this as open). Two candidate
+answers were checked against what actually exists in the repository today, and neither is a
+straightforward yes.
+
+**SAL-1 is not a hard prerequisite, and making it one would block Stage 2a indefinitely for a
+reason unrelated to Stage 2a's own risk.** `test/corpus/false-positive-archetypes/README.md`
+states its own status plainly: "**Status: ported, unbound.** ... No archetype is bound to a
+frozen OFAC snapshot yet" and "[b]inding archetypes to real data is a separate, later issue that
+requires a frozen OFAC snapshot; this port does not attempt it." Every one of the 35 entries in
+`archetypes.v1.json` still carries `"status": "planned_unbound"`. That binding work — sourcing
+and freezing a real OFAC snapshot, cross-walking OpenSanctions records, populating the
+`bindings/*.template.json` files the README lists as deliberately unpopulated — is its own
+initiative with its own timeline, entirely independent of whether Stage 2a's bucket design is
+correct. Gating Stage 2a on it would repeat the exact mistake this ADR's own staging already
+avoided once: making a small, contained change wait on a large, independently-scoped one (the
+same reasoning that kept Strategy C off Stage 1 and Stage 2a, §4.3, §7).
+
+**The existing adversarial scenario bank does not substitute wholesale — but an earlier pass at
+this addendum collapsed its `truth` field into a two-way "asserts match / asserts non-match"
+split, which buried five distinct categories and skipped reading any of the non-`match`
+scenarios' actual content before dismissing them. Corrected here.**
+`internal/adversarialtest` exercises `matcherbaseline` directly against 42 scenarios across
+`test/fixtures/adversarial/adversarial-scenarios-v1.json` (27) and `-v2.json` (15). Reconciled
+precisely by `truth` field: **36** `match`, **1** `match_on_name_not_identifier`, **3**
+`ambiguous_by_design`, **1** `match_on_name_dob_should_not_hard_exclude`, **1** `clear` — five
+categories, not two. Each of the six non-`match` scenarios was read in full:
+
+- `incomplete-04-truncated-identifier` (`match_on_name_not_identifier`): query name `MILAN
+  NOVAK` is an **exact** match to the target — this tests whether a truncated-prefix identifier
+  is wrongly treated as corroborating evidence, not whether a fuzzy name shape should fire. No
+  near-miss name is involved. Not usable for AD12's calibration.
+- `incomplete-03-initials-only` (`ambiguous_by_design`): query `M. NOVAK` tests
+  initialism/abbreviation handling — a different variant class from typo/transposition — and its
+  documented correct outcome, route to human review, is not a disposition `screeningapi` can
+  express today: `ScreeningStatus` has exactly three values, `matched`, `no_candidates`,
+  `blocked` (`internal/screeningapi/types.go:156-158`), no review-routing status exists. Not
+  usable, on two independent grounds.
+- `incomplete-06-missing-entity-type` (`ambiguous_by_design`): tests whether omitting
+  `entity_type` silently narrows candidate types — an entity-type-filtering question, unrelated
+  to name-shape scoring. Not usable.
+- `incomplete-07-date-format-confusion` (`match_on_name_dob_should_not_hard_exclude`): the truth
+  label's name suggests a near-miss-name case worth checking, and it was checked — the content
+  does not support it. Query name `MILAN NOVAK` is again an exact string; the axis under test is
+  whether an ambiguous-format date of birth (US `03/11` vs. international `11/03`) should be
+  allowed to hard-exclude an otherwise-strong name match. No fuzzy name comparison is exercised
+  anywhere in this scenario. Not usable — the hypothesis is refuted by the content, not confirmed
+  by the label.
+- `incomplete-08-address-only-no-name-match` (`clear`): a genuine non-match assertion
+  (`target_provider_record_id: null`), confirmed. But query `J SMITH` is not edit-distance-close
+  to any specific stored name — the scenario tests whether a shared city (Hamburg) inflates an
+  already weak/absent name match, not whether a near-miss name should score. Its own rationale
+  traces to a real catalog record, `Orion Trading GmbH` (`ofac:sdn:9004`,
+  `test/fixtures/adversarial/adversarial-catalog.direct-list.json:156-161`) — which turns out to
+  matter for the next scenario, not this one. `J SMITH` itself never gets close enough to any
+  stored name to exercise a fuzzy shape. Not usable as a typo-tolerance true-negative, though it
+  remains a legitimate control for a different evidence axis (geography).
+- `obfuscation-09-near-duplicate-disambiguation` (`ambiguous_by_design`) — **the one exception.**
+  Query `ORION HOLDING GMBH` is a genuine one-character-edit-away collision between two
+  *distinct, real* catalog entities: `Orion Trading GmbH` (`ofac:sdn:9004`) and `Orion Holdings
+  GmbH` (`ofac:sdn:9005`), both confirmed present in the exact catalog this suite compiles and
+  runs against (`adversarial-catalog.direct-list.json:156,183`), both Hamburg-based, and
+  deliberately built as a near-duplicate pair per the fixture's own remarks field on the second
+  record: "Near-duplicate pair with Orion Trading GmbH — same core name, different corporate
+  function, for disambiguation testing" (`:188`). This is exactly the shape of near-negative
+  stress case AD13 needs: a query close enough to trip a naive edit-distance bucket, where
+  resolving it to a single confident match would be wrong because two different real entities are
+  both plausible. Two things stop it from being reusable verbatim: it lives in the adversarial
+  fixture/catalog, not the DOM-1 golden fixture (`test/golden/ofac-advanced/ofac-sdn-catalog.json`)
+  the live `screeningapi`/`candidatescoring` path actually scores against; and its documented
+  correct outcome — surface both, route to review — is the same not-yet-expressible disposition
+  named for the initials-only scenario above.
+
+**Decision, outcome (b) for the probe set's near-negative half — reused, not built from
+nothing.** Stage 2a's implementation PR ports an equivalent near-duplicate pair — one character
+away, two distinct real entities sharing a stem, following `obfuscation-09`'s exact shape — into
+the DOM-1 golden/scoring-activation fixture, mirroring AD3's own precedent that extending this
+fixture by one record is "small, not a separate undertaking" (`:776-780` above). That pair
+becomes the near-negative half of the required probe set, paired with the true-positive half
+already named (`ACME IMPROTS` → `ACME IMPORTS`, the acceptance vehicle itself). Because
+`screeningapi` cannot yet express "route to review, surface both candidates" (the gap named
+twice above), the near-negative assertion is necessarily narrower than the adversarial
+scenario's own full intent: what the probe can and must check is that the chosen bucket boundary
+does not resolve the ported near-duplicate query to `StatusMatched` with a single confident
+candidate — not the richer "and correctly surfaces both for review," which stays out of reach
+until a review-routing disposition exists on this path, a gap this addendum names but does not
+attempt to close. The other five non-`match` scenarios are excluded for the scenario-specific
+reasons stated above, not by truth-label category — the corrected count changes the citation, not
+the bottom line for those five, while the sixth changes the bottom line entirely.
+
+**This explicitly carries R1's caveat forward, not around it.** The base ADR's own words apply
+verbatim: this only "establishes capability and nothing about precision" at production scale,
+and "[n]o stage may cite [it] as evidence of fitness" (`:538-539`). It is not SAL-1, is not a
+claim of production-grade false-positive measurement, and does not retire SAL-1 as DOM-1's
+eventual real precision instrument — SAL-1 remains tracked separately, on its own timeline,
+neither blocked by nor blocking Stage 2a. What it does do is give D6 a concrete, honestly-scoped
+result for *this* stage's *own* new failure mode, which is what §7.2 left as an open question
+this addendum can now close.
+
+### Addendum 4 summary
+
+AD12 decides Stage 2a's scoring design: bucket `ScorePair`'s continuous output into two new
+discrete `candidatescoring` shapes governed by `matcherbaseline`'s existing checksum-bound
+`ThresholdProfile` constants, rather than extending the policy contract with a scaled continuous
+contribution — smaller `policy_sha256` change, reuses existing governance, and materially easier
+for an auditor to verify, at the accepted cost of less graceful extension toward Stage 2b's
+eventual graduated-scoring needs. It also names a wiring consequence AD7 left unstated: binding a
+threshold profile into the live path requires a fourth `scoringactivation.Activation` binding,
+`MatcherProfile`, pinned the same way `Policy` already is, not an unpinned config flag mirroring
+`cmd/matcher-run`'s. AD13 decides D6's precision instrument for Stage 2a specifically: SAL-1
+binding is not a hard prerequisite (it is a separate, frozen-snapshot-dependent initiative on its
+own timeline). The existing adversarial bank does not substitute wholesale — reconciled precisely,
+its 42 scenarios split into five `truth` categories, not two, and each of the six non-`match`
+scenarios was read for content rather than filtered by label. Five are genuinely unusable for
+Stage 2a's own reasons (identifier evidence, initialism handling, entity-type filtering, DOB-format
+evidence, and a geography probe with no near-miss name in play). The sixth,
+`obfuscation-09-near-duplicate-disambiguation`, is a real, catalog-verified one-edit-away collision
+between two distinct entities and is reused directly: Stage 2a's implementation PR ports an
+equivalent pair into the DOM-1 fixture as the probe set's near-negative half, paired with the
+`ACME IMPROTS`/`ACME IMPORTS` true-positive half, run through the real scoring path and explicitly
+R1-caveated.
+
+Nothing here revises D1-D6, AD1-AD11, or any other decision above; both AD12 and AD13 are
+additions, and neither changes behavior on its own. `README.md` Table 1's typo/transposition row
+stands unmodified — it changes only once an implementation PR ships both AD12's design and AD13's
+precision result together.
