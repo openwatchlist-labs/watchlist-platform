@@ -185,3 +185,55 @@ func TestMaxCandidatesBoundsMergedExpansionUnion(t *testing.T) {
 		t.Fatalf("query.limit=%d but the merged/deduplicated expansion union returned %d candidates (response.CandidateCount=%d) -- max_candidates must bound the merged response set, not just each individual lookup (issue #125)", limit, len(response.Candidates), response.CandidateCount)
 	}
 }
+
+// TestBaselineCandidateSurvivesTruncationOverExpansionSourcedCandidates
+// locks in the ordering guarantee issue #125's truncation fix depends on:
+// response.Candidates is built by merging the baseline (un-expanded)
+// lookup's own results first -- `runtimeCandidates := append(nil,
+// result.Candidates...)` runs before the QueryName branch below it even
+// starts (service.go:114-130) -- and every expansion's results are only
+// ever appended onto that same slice afterward, in expansion order, never
+// prepended or reordered. The merge/dedup loop (service.go:132-169) then
+// walks runtimeCandidates in that exact order and stops once
+// response.Candidates reaches query.limit, so a baseline candidate is
+// always considered -- and, barring an entity-type filter or an earlier
+// duplicate, appended -- before any expansion-sourced candidate can claim
+// a slot in the same limit budget. This is a structural property of a
+// single, one-directional construction site, not an incidental ordering
+// of some other source list that could silently drift.
+//
+// query.limit=1 here with 3 distinct candidates available across the
+// baseline lookup and its two Stage 1 expansions (token-sorted, prefix) --
+// more than the limit, so truncation must choose. The survivor must
+// always be the baseline's own exact-match candidate, never one sourced
+// only from an expansion, regardless of which expansions also matched.
+func TestBaselineCandidateSurvivesTruncationOverExpansionSourcedCandidates(t *testing.T) {
+	state := loadGoldenState(t)
+	runtime := &sequencedFakeRuntime{
+		info: goldenOFACRuntimeInfo(),
+		calls: [][]runtimemmapclient.Candidate{
+			{{RecordID: "synthetic:baseline-exact-match", EntityType: "organization", MatchKind: "alias", MatchedValue: "IMPORTS ACME"}},
+			{{RecordID: "synthetic:token-sorted-only", EntityType: "organization", MatchKind: "alias", MatchedValue: "ACME IMPORTS"}},
+			{{RecordID: "synthetic:prefix-only", EntityType: "organization", MatchKind: "alias", MatchedValue: "IMPORTS"}},
+		},
+	}
+	service := Service{
+		Loader:        staticLoader{state},
+		Runtime:       runtime,
+		MaxCandidates: 20,
+		Clock:         func() time.Time { return mustTime(t, "2026-07-14T20:00:00Z") },
+		Scoring:       testScoringBinding(t),
+	}
+	const limit = 1
+	request := nameQueryRequest(t, "baseline-priority-125", "IMPORTS ACME", limit)
+	response, err := service.Screen(context.Background(), request, "corr-baseline-priority", "idem-baseline-priority")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.lookups != 3 {
+		t.Fatalf("expected 3 runtime lookups (baseline + token-sorted + prefix probe) to set up this reproduction, got %d -- fixture or expansion set drifted", runtime.lookups)
+	}
+	if len(response.Candidates) != 1 || response.Candidates[0].RecordID != "synthetic:baseline-exact-match" {
+		t.Fatalf("with query.limit=1 and 3 distinct candidates across the baseline lookup and its expansions, expected only the baseline's own exact-match candidate to survive truncation, got %+v", response.Candidates)
+	}
+}
