@@ -1377,32 +1377,77 @@ correct. Gating Stage 2a on it would repeat the exact mistake this ADR's own sta
 avoided once: making a small, contained change wait on a large, independently-scoped one (the
 same reasoning that kept Strategy C off Stage 1 and Stage 2a, §4.3, §7).
 
-**The existing adversarial scenario bank does not substitute either — verified by reading every
-scenario's `truth` field, not assumed.** `internal/adversarialtest` exercises `matcherbaseline`
-directly against 42 scenarios across `test/fixtures/adversarial/adversarial-scenarios-v1.json`
-and `-v2.json`. Its own package doc (`internal/adversarialtest/adversarial_test.go:1-31`) frames
-it as measuring whether the matcher *finds* variants — a recall instrument. Checked directly: of
-the 42 scenarios, 41 carry a `truth` of `match`, `match_on_name_not_identifier`,
-`match_on_name_dob_should_not_hard_exclude`, or `ambiguous_by_design` — every one of these
-asserts the matcher *should* return a candidate. Exactly one, `incomplete-08-address-only-no-name-match`,
-asserts `truth: "clear"` (should *not* match) — and its own rationale is about geography evidence
-inflating a weak name match, unrelated to typo-tolerance false positives. A bank that is 41/42
-recall assertions and 1/42 an unrelated precision assertion is not an instrument for the question
-Stage 2a's new shapes actually raise: does typo-tolerant scoring turn a genuinely different name
-into a false match. Citing it as Stage 2a's precision result would be citing data that doesn't
-measure what D6 needs measured — the same failure mode §7.2 already named for the 3-record golden
-fixture (R1, `:538-539`: "establish[es] capability and nothing about precision").
+**The existing adversarial scenario bank does not substitute wholesale — but an earlier pass at
+this addendum collapsed its `truth` field into a two-way "asserts match / asserts non-match"
+split, which buried five distinct categories and skipped reading any of the non-`match`
+scenarios' actual content before dismissing them. Corrected here.**
+`internal/adversarialtest` exercises `matcherbaseline` directly against 42 scenarios across
+`test/fixtures/adversarial/adversarial-scenarios-v1.json` (27) and `-v2.json` (15). Reconciled
+precisely by `truth` field: **36** `match`, **1** `match_on_name_not_identifier`, **3**
+`ambiguous_by_design`, **1** `match_on_name_dob_should_not_hard_exclude`, **1** `clear` — five
+categories, not two. Each of the six non-`match` scenarios was read in full:
 
-**Decision: Stage 2a's implementation PR supplies its own small, purpose-built precision probe
-set, run through the real `candidatescoring` path — not `matcherbaseline` standalone — under
-whichever bucket boundary AD12 lands on.** Concretely: at minimum one true-positive probe (the
-`ACME IMPROTS` → `ACME IMPORTS` case itself, already the acceptance vehicle) paired with at least
-one near-negative probe — a query edit-distance-close to a stored name in the same golden fixture
-(`test/golden/ofac-advanced/ofac-sdn-catalog.json`'s three records, eight names) that names a
-genuinely different entity and must **not** clear `name_fuzzy_moderate`'s bucket floor. This
-mirrors the "paired controls" principle SAL-1's own README already states as a governing
-principle (`false-positive-archetypes/README.md`, principle 5) — the same shape of evidence,
-applied at Stage 2a's own scale rather than deferred to SAL-1's.
+- `incomplete-04-truncated-identifier` (`match_on_name_not_identifier`): query name `MILAN
+  NOVAK` is an **exact** match to the target — this tests whether a truncated-prefix identifier
+  is wrongly treated as corroborating evidence, not whether a fuzzy name shape should fire. No
+  near-miss name is involved. Not usable for AD12's calibration.
+- `incomplete-03-initials-only` (`ambiguous_by_design`): query `M. NOVAK` tests
+  initialism/abbreviation handling — a different variant class from typo/transposition — and its
+  documented correct outcome, route to human review, is not a disposition `screeningapi` can
+  express today: `ScreeningStatus` has exactly three values, `matched`, `no_candidates`,
+  `blocked` (`internal/screeningapi/types.go:156-158`), no review-routing status exists. Not
+  usable, on two independent grounds.
+- `incomplete-06-missing-entity-type` (`ambiguous_by_design`): tests whether omitting
+  `entity_type` silently narrows candidate types — an entity-type-filtering question, unrelated
+  to name-shape scoring. Not usable.
+- `incomplete-07-date-format-confusion` (`match_on_name_dob_should_not_hard_exclude`): the truth
+  label's name suggests a near-miss-name case worth checking, and it was checked — the content
+  does not support it. Query name `MILAN NOVAK` is again an exact string; the axis under test is
+  whether an ambiguous-format date of birth (US `03/11` vs. international `11/03`) should be
+  allowed to hard-exclude an otherwise-strong name match. No fuzzy name comparison is exercised
+  anywhere in this scenario. Not usable — the hypothesis is refuted by the content, not confirmed
+  by the label.
+- `incomplete-08-address-only-no-name-match` (`clear`): a genuine non-match assertion
+  (`target_provider_record_id: null`), confirmed. But query `J SMITH` is not edit-distance-close
+  to any specific stored name — the scenario tests whether a shared city (Hamburg) inflates an
+  already weak/absent name match, not whether a near-miss name should score. Its own rationale
+  traces to a real catalog record, `Orion Trading GmbH` (`ofac:sdn:9004`,
+  `test/fixtures/adversarial/adversarial-catalog.direct-list.json:156-161`) — which turns out to
+  matter for the next scenario, not this one. `J SMITH` itself never gets close enough to any
+  stored name to exercise a fuzzy shape. Not usable as a typo-tolerance true-negative, though it
+  remains a legitimate control for a different evidence axis (geography).
+- `obfuscation-09-near-duplicate-disambiguation` (`ambiguous_by_design`) — **the one exception.**
+  Query `ORION HOLDING GMBH` is a genuine one-character-edit-away collision between two
+  *distinct, real* catalog entities: `Orion Trading GmbH` (`ofac:sdn:9004`) and `Orion Holdings
+  GmbH` (`ofac:sdn:9005`), both confirmed present in the exact catalog this suite compiles and
+  runs against (`adversarial-catalog.direct-list.json:156,183`), both Hamburg-based, and
+  deliberately built as a near-duplicate pair per the fixture's own remarks field on the second
+  record: "Near-duplicate pair with Orion Trading GmbH — same core name, different corporate
+  function, for disambiguation testing" (`:188`). This is exactly the shape of near-negative
+  stress case AD13 needs: a query close enough to trip a naive edit-distance bucket, where
+  resolving it to a single confident match would be wrong because two different real entities are
+  both plausible. Two things stop it from being reusable verbatim: it lives in the adversarial
+  fixture/catalog, not the DOM-1 golden fixture (`test/golden/ofac-advanced/ofac-sdn-catalog.json`)
+  the live `screeningapi`/`candidatescoring` path actually scores against; and its documented
+  correct outcome — surface both, route to review — is the same not-yet-expressible disposition
+  named for the initials-only scenario above.
+
+**Decision, outcome (b) for the probe set's near-negative half — reused, not built from
+nothing.** Stage 2a's implementation PR ports an equivalent near-duplicate pair — one character
+away, two distinct real entities sharing a stem, following `obfuscation-09`'s exact shape — into
+the DOM-1 golden/scoring-activation fixture, mirroring AD3's own precedent that extending this
+fixture by one record is "small, not a separate undertaking" (`:776-780` above). That pair
+becomes the near-negative half of the required probe set, paired with the true-positive half
+already named (`ACME IMPROTS` → `ACME IMPORTS`, the acceptance vehicle itself). Because
+`screeningapi` cannot yet express "route to review, surface both candidates" (the gap named
+twice above), the near-negative assertion is necessarily narrower than the adversarial
+scenario's own full intent: what the probe can and must check is that the chosen bucket boundary
+does not resolve the ported near-duplicate query to `StatusMatched` with a single confident
+candidate — not the richer "and correctly surfaces both for review," which stays out of reach
+until a review-routing disposition exists on this path, a gap this addendum names but does not
+attempt to close. The other five non-`match` scenarios are excluded for the scenario-specific
+reasons stated above, not by truth-label category — the corrected count changes the citation, not
+the bottom line for those five, while the sixth changes the bottom line entirely.
 
 **This explicitly carries R1's caveat forward, not around it.** The base ADR's own words apply
 verbatim: this only "establishes capability and nothing about precision" at production scale,
@@ -1425,10 +1470,16 @@ threshold profile into the live path requires a fourth `scoringactivation.Activa
 `MatcherProfile`, pinned the same way `Policy` already is, not an unpinned config flag mirroring
 `cmd/matcher-run`'s. AD13 decides D6's precision instrument for Stage 2a specifically: SAL-1
 binding is not a hard prerequisite (it is a separate, frozen-snapshot-dependent initiative on its
-own timeline), the existing adversarial bank does not substitute (verified 41 of 42 scenarios are
-recall assertions, not precision ones), and Stage 2a's own implementation PR must instead supply
-a small, explicitly R1-caveated, paired true-positive/near-negative probe set run through the
-real scoring path.
+own timeline). The existing adversarial bank does not substitute wholesale — reconciled precisely,
+its 42 scenarios split into five `truth` categories, not two, and each of the six non-`match`
+scenarios was read for content rather than filtered by label. Five are genuinely unusable for
+Stage 2a's own reasons (identifier evidence, initialism handling, entity-type filtering, DOB-format
+evidence, and a geography probe with no near-miss name in play). The sixth,
+`obfuscation-09-near-duplicate-disambiguation`, is a real, catalog-verified one-edit-away collision
+between two distinct entities and is reused directly: Stage 2a's implementation PR ports an
+equivalent pair into the DOM-1 fixture as the probe set's near-negative half, paired with the
+`ACME IMPROTS`/`ACME IMPORTS` true-positive half, run through the real scoring path and explicitly
+R1-caveated.
 
 Nothing here revises D1-D6, AD1-AD11, or any other decision above; both AD12 and AD13 are
 additions, and neither changes behavior on its own. `README.md` Table 1's typo/transposition row
