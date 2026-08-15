@@ -1485,3 +1485,387 @@ Nothing here revises D1-D6, AD1-AD11, or any other decision above; both AD12 and
 additions, and neither changes behavior on its own. `README.md` Table 1's typo/transposition row
 stands unmodified — it changes only once an implementation PR ships both AD12's design and AD13's
 precision result together.
+
+## Addendum 5: Stage 2a correctness blockers and call ownership (part 1 of 2) (2026-08-15)
+
+- **Status:** Proposed
+- **Trigger:** an external review of this ADR, taken before Stage 2a's implementation PR opens,
+  raised eight findings against Addendum 4's design. Three of them are unconditional blockers on
+  writing Stage 2a's code at all — two correctness/security defects that Stage 2a's own mechanism
+  would introduce or widen, and one ownership ambiguity in AD12's phrasing that an implementer
+  could reasonably resolve the wrong way. This addendum resolves those three and **only** those
+  three. The other five are real and are named as deferred below, to part 2, rather than bundled
+  here: bundling eight decisions into one document risks each one getting less careful review
+  than it needs, and two of these three touch the integrity guarantee issue #115/#116 exists to
+  provide. It is a pure addition — no existing decision (D1-D6, AD1-AD13) is revised except
+  AD12's phrasing on the one point AD16 names, and nothing above this section is edited.
+- Every claim below was verified against the working tree at `7e0ba04` (tip of `main` after PR
+  #128 merged), the same standard prior addenda set for their own claims. Where the review's own
+  account of a finding turned out to be imprecise, this addendum says so and restates it from the
+  code rather than repeating it.
+
+### Addendum 5 context
+
+Two of the three findings are consequences of the same structural fact: Stage 2a is the first
+change on this path that makes *ranking* meaningful. Every mechanism shipped so far returns
+exact-predicate matches — `bestNameMatch`'s six shapes are all boolean
+(`internal/candidatescoring/engine.go:353-364`), and Stage 1's retrieval expansions all resolve
+by exact or prefix lookup (`internal/screeningapi/service.go:518-544`). In that world "which
+candidates came back" and "which candidates are best" are the same question, and several places
+in the current code conflate them harmlessly. AD12's continuous-similarity bucket separates the
+two, and each conflation becomes a defect at that moment rather than gradually.
+
+### AD14. Projection corroboration of the runtime's `MatchedValue` becomes an independent step, sequenced before any fuzzy evidence exists
+
+**The finding, restated from the code, because the review understated it.** The check installed
+by issues #115/#116 reads, in full:
+
+```go
+if isNameRetrievalMatch(candidate.MatchKind) && !hasNameMatchReasonCode(result.ReasonCodes) {
+```
+
+(`internal/screeningapi/service.go:242`). The review's account is that this check "treats any
+name-shape reason code as proof the runtime's matched name exists in the scoring projection."
+That is the *effect*, but the mechanism is worse than a loose comparison: **`MatchedValue` is
+never an input to the scoring engine at all.** The envelope handed to the engine carries only the
+projected record and the match *kind* — `Retrieval: candidatescoring.RetrievalEvidence{Routes:
+[]string{candidate.MatchKind}}` (`service.go:190-193`) — and `scoreCandidate` calls
+`bestNameMatch(subject.Names, candidate.Names)` (`internal/candidatescoring/engine.go:152`),
+where `candidate.Names` is the projection's full name list for the record and `subject.Names` is
+`[]string{query.Value}` (`service.go:400`). `bestNameMatch` then loops over every
+(subject name x projected name) pair and returns the highest-ranked shape found anywhere in that
+cross product (`engine.go:342-367`, ranked and sorted at `:352-380`). The corroboration check has
+no access to the value it purports to corroborate, and never did.
+
+**Why that is tolerable today and stops being tolerable with AD12.** Under the six exact
+predicates, a shape firing means the projection contains a name that is identical to the query
+modulo whitespace, token order, particles, or a prefix/containment relation — a real, auditable
+name-identity claim, even when it is made about a different alias than the one retrieval matched.
+AD12's `name_fuzzy_strong` / `name_fuzzy_moderate` (`:1259-1273` above) change the predicate to
+"within a threshold distance," so *any* projected alias landing inside
+`ThresholdProfile.ThresholdBasisPoints` of the query satisfies the check — and the more aliases a
+record carries, the more likely that is, while telling an auditor nothing whatsoever about
+whether the runtime's actual `MatchedValue` is in the projection.
+
+**This is not hypothetical, and the demonstrating case is Stage 2a's own acceptance vehicle.**
+`TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked`
+(`internal/screeningapi/dom1_unsupported_regression_test.go:376-404`) queries `ACME IMPROTS`, and
+the candidate it retrieves via Stage 1's first-token prefix probe carries
+`MatchedValue == "ACME GLOBAL"` — asserted explicitly at `:386`, because the probe blocked on
+`ACME` and hit `ofac:sdn:1001`'s *other* alias. Once AD12 ships, the fuzzy shape that closes this
+row fires on `ScorePair("ACME IMPROTS", "ACME IMPORTS")` = 9070 (§2.1's measured value),
+i.e. against the projected alias `ACME IMPORTS`, **not** against `ACME GLOBAL`.
+`hasNameMatchReasonCode` returns true, the item unblocks, and `ACME GLOBAL` is never confirmed to
+exist in the projection at any point. In this fixture it does exist
+(`test/fixtures/projection-package/ofac-sdn-direct-canonical-input.json:13`), so nothing is
+exploitable in-tree — but the sequence above is exactly the mechanism that silently reopens
+#115's defect, and Stage 2a is what installs it.
+
+**Decision: split the single check into two checks with different meanings, and sequence the
+integrity half strictly before any scoring runs.**
+
+**Step 1 — projection corroboration of `MatchedValue`. Pre-scoring, independent of every scoring
+result.** Inside the existing projection-resolution loop (`service.go:184-194`), for every
+candidate where `isNameRetrievalMatch(candidate.MatchKind)` (`:416-418`) holds, require that the
+projected record's `Names` contain an entry equal to `candidate.MatchedValue` under
+`candidatescoring`'s name normalizer. Candidates failing it are collected by record ID; after the
+loop the whole item is blocked with `BlockerNameMatchUncorroboratedByProjection`
+(`internal/screeningapi/types.go:27-36`) plus the per-record detail lines, and returns before
+`service.Scoring.engine.Score` is reached (`:219`) — the same loud, whole-item posture ADR-0004
+§6 already establishes and the existing missing-record-ID block uses (`:195-207`, which is
+evaluated first and keeps its own distinct blocker code). The blocker constant's own doc comment
+(`types.go:27-35`) already describes precisely this check — "the catalog's own retrieval found
+the name, but the scoring projection that is supposed to corroborate it does not carry it" — so
+this decision makes the code match a contract the repository already documents.
+
+**The comparison basis is not free choice.** It must be the same normalizer `bestNameMatch`
+compares under, or the guard can disagree with the scorer it guards. That function is
+`candidatescoring`'s package-private `normalizeText`
+(`internal/candidatescoring/normalize.go:9-25`), applied to both sides at `engine.go:343` and
+`:348`. Stage 2a's implementation PR therefore exports it as a one-identifier wrapper —
+`candidatescoring.NormalizeName` — rather than copying it into `screeningapi`. A copy would be a
+second implementation of a matching-critical function that must agree forever, which is the
+correctness hazard AD8 already named as this repository's dominant class for the Rust-side port
+question (`:1062-1067` above, CLAUDE.md rule 5). Noted and deliberately left alone:
+`internal/projectionpackage/normalize.go:11-27` already holds a byte-identical private copy of
+the same function; reconciling that pre-existing duplication is not this addendum's scope and is
+not made worse by it.
+
+**The comparison is sound against what the runtime actually returns.** `matched_value` is the
+catalog's stored **display** form, not its normalized index key: the compiler interns
+`value: name.value.clone()` alongside a separately computed `normalize_name(&name.value)`
+(`runtime/catalog-mmap/src/format.rs:139,149`), and `lookup_name` returns the display field
+(`:554`). It is therefore directly comparable to a projection `Names` entry, both sides passed
+through the same Go normalizer. Non-ASCII survives intact, which matters because #115's own
+record is Cyrillic: `normalizeText` classifies with `unicode.IsLetter` and folds with
+`strings.ToUpper` (`normalize.go:9-25`), so the stored alias `Джордан Экзампл` and the projected
+alias `Джордан Экзампл`
+(`test/fixtures/projection-package/ofac-sdn-direct-canonical-input.json:24`) normalize to the
+same string and `TestScoringCyrillicAliasIsCorroboratedByProjection`
+(`internal/screeningapi/scoring_integration_test.go:180-220`) continues to pass unchanged.
+
+**Step 2 — the scored-evidence guard. Post-scoring, and no longer the integrity check.** The
+existing loop at `:239-255` stays where it is, but its meaning narrows to §6.3(b)'s original
+concern and only that: a candidate retrieved on a name route that earns *zero name points* must
+not be returned scored as though the name had not matched. Step 1 already guarantees
+`MatchedValue` is in the projection by the time this runs, so this is a policy-coverage
+statement, not a data-integrity one. **It gets its own new blocker code**, because reusing
+`BlockerNameMatchUncorroboratedByProjection` for two structurally different failures would make
+the audit record ambiguous about which one occurred — and CLAUDE.md names audit-record integrity
+as outranking convenience here. Adding a blocker constant is a response-contract addition
+(`internal/screeningapi/types.go:20-36`), stated as a cost rather than assumed free.
+
+`hasNameMatchReasonCode` (`:432-440`) gains `name_fuzzy_strong` and `name_fuzzy_moderate`, per
+AD2's two-sided-wire rule (`:723-731` above) — and that is now safe precisely because it is no
+longer the integrity check. AD2's rule is unchanged; what changes is which check it applies to.
+
+**The sequencing, stated as the decision so an implementer cannot read it two ways:**
+corroboration of the runtime's `MatchedValue` against the projection runs **before** any
+`matcherbaseline.ScorePair` call is made for any candidate, and its outcome is a function of
+`MatchedValue` and the projection alone. No fuzzy score, and no scoring result of any kind, can
+satisfy it, relax it, or be consulted by it.
+
+**Two consequences, named rather than discovered later.** First, exactly one existing test's
+expected blocker string changes:
+`TestDOM1UnsupportedMatchingVariantTypoCharacterTranspositionIsRetrievedButBlocked`
+(`dom1_unsupported_regression_test.go:392-403`) asserts
+`BlockerNameMatchUncorroboratedByProjection`, but `ACME GLOBAL` *is* in the projection, so under
+this decision that case trips step 2's new code, not step 1's. Stage 2a rewrites that test to
+assert a match regardless, so the churn is real but confined and already planned. No other test
+in the tree asserts that blocker on a case where `MatchedValue` is present in the projection —
+`TestScoringProjectionMissBlocksLoudly` exercises a missing record ID
+(`scoring_integration_test.go:113-114`, `ofac:sdn:9999`) and is untouched. Second, this addendum
+does **not** add a fuzzy comparison to step 1. Step 1 is exact-under-normalization on purpose: a
+fuzzy corroboration check would reintroduce the same defect one level down.
+
+### AD15. The candidate pool and the response limit become two bounds, not one
+
+**The finding, verified.** `service.go:166-168` truncates the merged, deduplicated candidate union
+at `runtimeQuery.Limit`, which is `effectiveLimit(request.Query.Limit, service.MaxCandidates)`
+(`:92`, body at `:546-554`, defaulting to 20). PR #127 installed that truncation to close issue
+#125, and its in-code rationale (`:159-165`) is correct **for Stage 1**: every expansion source
+returns exact or prefix matches, so no source's results rank above another's and taking the first
+`limit` distinct records discards nothing an ordering would have preferred. The comment even says
+so implicitly by framing the bound as restoring "the same guarantee any individual lookup would
+have honored."
+
+AD12 ends that. Once candidates carry a continuous similarity score, the union has a genuine
+ranking, and truncating it at the response limit *before* scoring can discard the highest-scoring
+candidate outright — with no trace, because the discarded record never reaches `Engine.Score` and
+therefore never appears in any component, evidence item, or reason code. This is the retrieval-side
+twin of the §6.3(b) failure: not a wrong score, an absent one.
+
+**Decision: two explicitly separate bounds.**
+
+**Bound 1 — the response limit, unchanged.** `effectiveLimit(request.Query.Limit,
+service.MaxCandidates)` (`:92`, `:546-554`): zero means 20, otherwise the caller's
+`query.limit`, validated at request time against `max_candidates` (`ValidateRequest`, `:336-338`;
+`ValidateConfig`, `internal/screeningapi/config.go:61-62`, itself bounded 1..10,000). Nothing
+about this field's meaning or validation changes. It is the response contract.
+
+**Bound 2 — a candidate-pool bound, new.** A `max_candidate_pool` field on `Config`
+(`internal/screeningapi/types.go:65`, alongside `MaxCandidates`), gating admission to the
+expensive per-candidate work — projection resolution, AD14 step 1, and `ScorePair`. Validated in
+`ValidateConfig` as `max_candidates <= max_candidate_pool <= 10_000`. A pool smaller than the
+response limit is incoherent, and the upper bound is not a taste call: it is the wire ceiling
+AD9 already recorded (`:1107-1111` above), enforced independently on both sides —
+`parse_limit` (`runtime/catalog-mmap/src/worker.rs:117-125`) and `encodeQuery`
+(`internal/runtimemmapclient/protocol.go:51`) each reject anything above 10,000.
+
+**When omitted, it derives as `min(10 * max_candidates, 10_000)`.** `LoadConfig` decodes strictly
+(`decodeStrict`, `config.go:20`), so an unknown field is rejected but an *omitted* known field
+decodes to `0` — the silent-absence failure CLAUDE.md rule 5 names. Two mitigations, both reusing
+existing repository convention rather than inventing one: the zero-means-default treatment is
+exactly `effectiveLimit`'s established shape in this same file (`:546-554`), and the derived value
+is emitted in the startup summary next to `max_candidates`
+(`cmd/screening-api/main.go:88-94`), so the effective bound is observable at boot rather than
+implicit. A config that sets the field explicitly is validated against the range above.
+
+**Concretely, against the two config documents in the tree.**
+`test/fixtures/screening-api/config.json:19` sets `max_candidates: 20`, deriving a pool of 200.
+`configs/screening-api/example.json:19` sets `100`, deriving a pool of 1,000.
+
+**Why 10x rather than an arbitrary multiplier.** §3.1's measured cost model is ~6 µs per
+`scoreName` call shape per candidate. A 200-candidate pool is therefore ~1.2 ms of fuzzy work per
+item, ~1.2 s across a 1,000-item batch — inside the 5,000 ms `request_timeout_ms`
+(`test/fixtures/screening-api/config.json:20`) with room to spare, and well inside the 10,000 ms
+of `configs/screening-api/example.json:20`. A 100x multiplier would not be: 2,000 candidates is
+~12 ms per item and ~12 s per 1,000-item batch, outside both timeouts. The multiplier is chosen
+against the one measurement this document actually has, per R2's constraint that §3.1's figures
+are order-of-magnitude evidence and are used for nothing finer.
+
+**Where truncation happens, stated as a pipeline.**
+
+1. **Retrieval** — the baseline lookup (`service.go:86-97`) plus Stage 1's expansions
+   (`:114-130`). Each individual lookup is already bounded worker-side at `runtimeQuery.Limit`
+   (AD9 ceiling 1; `format.rs:557-559`).
+2. **Pool bound, applied in the existing dedup loop** — the `break` at `:166` compares against
+   `max_candidate_pool` instead of `runtimeQuery.Limit`. Everything else in that loop, including
+   the entity-type filter (`:139-143`) and the record-ID dedup (`:135-138`), is unchanged.
+3. **Projection resolution and AD14 step 1** (`:184-207`), over the pooled set.
+4. **Scoring** — `Engine.Score` (`:219`), including every `ScorePair` call.
+5. **Ranking** — already exists and needs no new code: `Engine.Score` sorts results by score
+   descending with a deterministic tiebreak on exact-identifier, exact-name, then candidate ID
+   (`internal/candidatescoring/engine.go:65-76`).
+6. **Response limit** — applied to `reordered` (`:257-269`) before `CandidateCount` and `Status`
+   are set (`:272-277`), so the response carries the top `effectiveLimit(...)` candidates by
+   score rather than the first `effectiveLimit(...)` by retrieval order.
+
+**One deliberate refinement of the naive ordering, called out because it differs from how the
+finding was reported.** The pool bound is applied to the **deduplicated** set, not to raw
+retrieval output. Two reasons: it keeps the bound fused with the loop that already exists rather
+than adding a second truncation point, and a duplicate record must not consume a pool slot — a
+record retrieved by four different expansions would otherwise burn four slots and crowd out three
+distinct candidates. Dedup is cheap (a map insert) and admission to the expensive work is what
+the bound exists to gate.
+
+**A consequence that is real and not cosmetic, named here rather than discovered in production.**
+AD14's blocker and #116's are whole-item and are evaluated over the *pool*, not over the response.
+A 10x larger pool therefore surfaces roughly 10x more opportunities to trip them, and the blocked
+rate will rise. This is correct and is the intended posture — the alternative, evaluating
+integrity only over the post-ranking response set, would make the integrity check's outcome
+depend on `query.limit`, which is precisely the coupling this decision exists to remove, and
+would let a caller weaken a security control by asking for fewer results. But it is a genuine
+behavioral change, it is the strongest argument for the pool bound being an operator-visible
+configured field rather than an internal constant, and it is why AD9 already insisted this be
+"a new field on a public config surface, not an internal constant" (`:1118-1119` above) when it
+first named the ceiling for Stage 2b. Stage 2a needs it earlier than AD9 assigned it.
+
+**Accepted and named, not resolved:** `CandidateCount` (`:272`) continues to report the number of
+candidates returned, so a truncated response does not advertise that it was truncated. Making
+truncation observable in the response is a contract question, and it belongs with the other
+response-shape questions deferred to part 2.
+
+### AD16. `screeningapi` owns the `ScorePair` call. `candidatescoring` does not import `matcherbaseline`
+
+**The ambiguity, verified — and the review's citation corrected.** The ownership statement is
+AD7's, not AD3's: "build D3's seam by calling `matcherbaseline.ScorePair` from
+`internal/screeningapi` over the retrieved candidate union" (`:973` above). AD12 then describes
+the buckets as "added to `bestNameMatch`'s existing ranked-match mechanism
+(`internal/candidatescoring/engine.go:336-379`), each computed by calling `ScorePair(subject,
+candidate, profile)`" (`:1259-1264` above). Read on its own, that sentence places the call inside
+`candidatescoring` and mandates `candidatescoring -> matcherbaseline` as the dependency edge.
+AD12 did not intend to reverse AD7 — it was describing where the *bucketing* happens — but the
+phrasing is not a restatement of AD7 and an implementer following AD12 alone would build the
+opposite graph.
+
+**Decision, stated plainly and as a decision rather than an implication:**
+
+> **`internal/screeningapi` owns the `matcherbaseline.ScorePair` call. It invokes `ScorePair` for
+> each pooled candidate and constructs typed fuzzy evidence from the result.
+> `internal/candidatescoring` receives that evidence on the scoring request and buckets it into
+> `name_fuzzy_strong` / `name_fuzzy_moderate`. `internal/candidatescoring` does not import
+> `internal/matcherbaseline`.**
+
+AD16 supersedes AD12's phrasing on this one point and nothing else in AD12: the two-bucket design,
+the use of `ThresholdProfile.ThresholdBasisPoints` / `.DiagnosticFloorBasisPoints` as the
+checksum-governed boundaries, the flat additive `Weights` fields, and the `MatcherProfile`
+activation binding all stand exactly as AD12 decided them (`:1257-1358` above).
+
+**The carrier.** `candidatescoring.CandidateEnvelope` (`internal/candidatescoring/types.go:113-117`)
+gains a second evidence field alongside the existing `Retrieval RetrievalEvidence` (`:96-99`) — a
+struct owned by `candidatescoring`, built from plain integers and strings (the score in basis
+points, the profile ID it was computed under, and the subject/candidate name pair it was computed
+over), populated by `screeningapi` where it builds envelopes today (`service.go:190-193`), and
+read by `bestNameMatch` as a ranked shape below `particle_stripped`. No `matcherbaseline` or
+`matcherprovider` type crosses the package boundary. This also keeps the audit story AD12 chose
+the bucket design for: the evidence that produced the bucket travels with the request that
+produced the score.
+
+**Why the graph runs this direction — the pattern is real, not asserted.** Verified four ways:
+
+- **`internal/candidatescoring` has zero module-internal dependencies today.** Its entire import
+  set across all of its files is standard library: `bytes`, `encoding/hex`, `encoding/json`,
+  `errors`, `fmt`, `io`, `os`, `reflect`, `sort`, `strings`, `testing`, `unicode`.
+  `go list -deps ./internal/candidatescoring` returns the package itself and nothing else in this
+  module.
+- **Its other consumers would inherit the dependency.** `candidatescoring` is imported by
+  `internal/projectionpackage`, `internal/scoringactivation`, `cmd/candidate-score`, and
+  `internal/screeningapi`. None of the first three imports `matcherbaseline`, and each would gain
+  it transitively — including `projectionpackage`, which is an offline compile-time tool, and
+  `scoringactivation`, which is the pinning-and-verification layer.
+- **The cost is not one package.** `go list -deps ./internal/matcherbaseline` names ten
+  module-internal packages: `matcherprovider`, `ofacruntime`, `ofaccatalog`, `catalogruntime`,
+  `screening`, `screeningplan`, `matcherrequest`, `ofacsource`, `normalization`, `canonical`. And
+  the edge would not stop at `matcherbaseline` even in principle: `ScorePair`'s signature returns
+  `[]matcherprovider.FeatureEvidence` (`internal/matcherbaseline/score_pair.go:3,16,21`), so
+  `candidatescoring` would take a direct dependency on `matcherprovider` as well merely to name
+  the return type.
+- **The prohibition is already written into the code, by this same ADR.** AD2 decided it for the
+  particle table, and PR #119 implemented the decision as a comment on
+  `internal/candidatescoring/normalize.go:90-98`: "Deliberately not imported from
+  internal/matcherbaseline: AD2 keeps this an independently-consumed leaf-package list, the same
+  posture candidatescoring/doc.go and docs/ARCHITECTURE.md already take toward this package,
+  rather than adding a live dependency on matcherbaseline merely to detect a shape." AD16 applies
+  that same standing decision to a scoring input instead of a token list.
+
+AD1's own reasoning points the same way. It chose the narrow exported `ScorePair` over
+synthesizing an `ofacruntime.RuntimePayload` partly because option (a) "leaves
+`internal/ofacruntime`'s compiled-catalog contract describing only actual compiled catalogs"
+(`:682-683` above) — a boundary-preservation argument. Routing the call through
+`candidatescoring` would spend, on the consumer side, most of the boundary AD1 paid to protect on
+the producer side.
+
+**One thing AD16 does not decide**, and which belongs to part 2 rather than being resolved
+silently here: *which* `ThresholdProfile` `screeningapi` passes to `ScorePair` for a given request.
+AD12 identifies `configs/matcher-profiles/ofac-name-baseline-r1.json`'s `party_name_r1` as "the
+natural default" and explicitly leaves final selection to the implementation PR (`:1352-1358`
+above). Profile routing — whether selection varies by query kind or entity type, and how that
+choice is pinned — is item (2) of the deferred list below.
+
+### Deferred to Addendum 5 part 2, named here so nothing is lost
+
+The same review raised five further findings. Each is real and each is deliberately left
+unresolved by this document, so that it gets its own argument rather than riding along with three
+blockers:
+
+1. **Activation schema versioning for AD12's `MatcherProfile` binding.** AD12 adds a fourth
+   binding to `scoringactivation.Activation` and notes it is "`ActivationSchemaV1`'s first field
+   addition since it shipped" (`:1343-1350` above) without deciding whether that addition is a v1
+   extension or a v2 bump, or how already-issued activation documents are treated in the interim.
+2. **Threshold-profile routing.** Which profile applies to which query or entity type, and how
+   that selection is pinned rather than config-declared. AD16 names this above as explicitly out
+   of its own scope.
+3. **`README.md` capability-wording precision.** How Table 1's rows are worded once a row closes
+   under a bucketed fuzzy shape rather than an exact predicate — R4 already governs *when* Table 1
+   changes (`:547-549`), not what the changed text may claim.
+4. **D6/R4 governance consistency.** D6 requires a stated precision result per stage (`:317-319`)
+   and R4 requires one before Table 1 changes (`:547-549`); AD13 supplies one for Stage 2a
+   (`:1435-1459`). Whether those three now say the same thing in the same terms has not been
+   checked end to end.
+5. **Measurement terminology.** §2.1, §3.1, R1 and R2 use "measured", "cost model", "capability",
+   and "precision" with meanings that are individually stated but not reconciled against each
+   other across four addenda.
+
+### Addendum 5 summary
+
+AD14 splits issue #115/#116's single check into two: an independent, pre-scoring corroboration
+that the runtime's `MatchedValue` exists in the scoring projection under `candidatescoring`'s own
+name normalizer, and a narrower post-scoring guard against a name-route candidate earning zero
+name points, each with its own blocker code. The sequencing is the decision: corroboration runs
+before any `ScorePair` call and consults no scoring result, so AD12's fuzzy shapes cannot satisfy
+the integrity check the way they would today — a path this addendum demonstrates concretely
+against Stage 2a's own acceptance vehicle, where the retrieved `MatchedValue` (`ACME GLOBAL`) is
+not the name a fuzzy shape would fire against (`ACME IMPORTS`).
+
+AD15 separates the candidate pool from the response limit, which Stage 1 could correctly treat as
+one concept and Stage 2a cannot. The response limit is unchanged; a new `max_candidate_pool`
+config field, validated `max_candidates <= pool <= 10_000` and deriving as
+`min(10 * max_candidates, 10_000)` when omitted, gates admission to projection resolution, AD14's
+corroboration, and fuzzy scoring. Truncation to the response limit moves after
+`Engine.Score`'s existing score-descending sort. The 10x default is justified against §3.1's
+measured per-candidate cost and the configured request timeouts, and the resulting rise in blocked
+responses is named as an intended, operator-visible consequence rather than a surprise.
+
+AD16 resolves the ownership ambiguity AD12's phrasing created, plainly and as a decision:
+`screeningapi` calls `ScorePair` and constructs typed fuzzy evidence; `candidatescoring` receives
+that evidence and buckets it; `candidatescoring` does not import `matcherbaseline`. The pattern
+this preserves is verifiable rather than asserted — `candidatescoring` has no module-internal
+dependencies at all today, `matcherbaseline` would add ten plus `matcherprovider` via `ScorePair`'s
+own return type, and the prohibition is already written into
+`internal/candidatescoring/normalize.go:90-98` by AD2's earlier application of the same principle.
+
+Five further review findings are named above as deferred to part 2 rather than resolved here.
+Nothing in this addendum revises D1-D13's decisions or AD1-AD13, except AD12's phrasing on the
+single point AD16 names; all of it is addition, and none of it changes behavior on its own.
+`README.md` Table 1's typo/transposition row stands unmodified.
