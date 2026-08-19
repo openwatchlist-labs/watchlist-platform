@@ -18,6 +18,40 @@ jobs:
   release-qualification:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # This job's "Qualify deterministic prerelease assets" step below runs
+    # scripts/release/qualify-prerelease.sh, whose first action is the
+    # unmodified ./scripts/ci/run-ci.sh -- the same full clean-restart gate
+    # CI/clean-restart-gates runs (.github/workflows/ci.yml). Its own design
+    # doc (docs/release-engineering-r2-2-r2.md) states this workflow
+    # qualifies a prerelease by "running complete native CI", and
+    # qualification-summary.json's native_ci_validated field is a formal
+    # claim consumed as release evidence (docs/release-engineering-r2-4.md
+    # records it against the actual v0.1.0-rc.4 release). Provisioning here
+    # mirrors ci.yml's postgres service and role setup exactly -- see that
+    # file's comments for the per-role rationale (ADR-0001 SEC-1 §3,
+    # ADR-0007 §5.3 and Addendum 1 D17/F6) -- so that claim is genuinely
+    # proven rather than reached via run-ci.sh's every database-backed
+    # check silently self-skipping (ADR-0007 Addendum 1 D18; local issue
+    # register: REL-2-followup).
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: owl_ci
+          POSTGRES_PASSWORD: owl_ci
+          POSTGRES_DB: owl_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U owl_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      OWL_TEST_DATABASE_URL: postgresql://owl_app:owl_app@localhost:5432/owl_ci
+      OWL_MIGRATOR_DATABASE_URL: postgresql://owl_migrator:owl_migrator@localhost:5432/owl_ci
+      OWL_LEDGER_ANCHOR_DATABASE_URL: postgresql://owl_ledger_anchor:owl_ledger_anchor@localhost:5432/owl_ci
+      OWL_LEDGER_DDL_DATABASE_URL: postgresql://owl_ledger_ddl:owl_ledger_ddl@localhost:5432/owl_ci
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,6 +67,37 @@ jobs:
         run: |
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
           rustup target add --toolchain 1.97.1 x86_64-unknown-linux-gnu
+      - name: Provision owl_migrator, owl_app, owl_ledger_anchor, and owl_ledger_ddl roles
+        shell: bash
+        env:
+          PGSUPERUSER: owl_ci
+          PGSUPERPASSWORD: owl_ci
+          OWL_MIGRATOR_PASSWORD: owl_migrator
+          OWL_APP_PASSWORD: owl_app
+          OWL_LEDGER_ANCHOR_PASSWORD: owl_ledger_anchor
+          OWL_LEDGER_DDL_PASSWORD: owl_ledger_ddl
+        run: ./scripts/ci/provision_test_roles.sh create-roles
+      - name: Apply database migrations
+        shell: bash
+        env:
+          PGPASSWORD: owl_migrator
+        run: |
+          for f in db/migrations/*.sql; do
+            echo "applying $f"
+            psql -h localhost -U owl_migrator -d owl_ci -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Grant owl_app privileges on tenant-scoped tables
+        shell: bash
+        env:
+          PGSUPERUSER: owl_ci
+          PGSUPERPASSWORD: owl_ci
+        run: ./scripts/ci/provision_test_roles.sh grant-app-privileges
+      - name: Transfer screening_ledger_anchor ownership to owl_ledger_ddl
+        shell: bash
+        env:
+          PGSUPERUSER: owl_ci
+          PGSUPERPASSWORD: owl_ci
+        run: ./scripts/ci/provision_test_roles.sh grant-anchor-ownership
       - name: Qualify deterministic prerelease assets
         shell: bash
         run: |
