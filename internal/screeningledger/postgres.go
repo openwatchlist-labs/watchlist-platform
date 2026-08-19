@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // PostgresSink persists ledger events to PostgreSQL over a single
@@ -90,7 +92,19 @@ func (p *PostgresSink) Migrate(ctx context.Context) error {
 	return err
 }
 
-func (p *PostgresSink) Persist(ctx context.Context, event Event, request, response SnapshotEnvelope) error {
+// ReplicationVerification is ADR-0007 D19: verified_at/verification_mode
+// on screening_ledger_replication, written in the same transaction as
+// the replication row they describe. The immutability trigger on that
+// table (postgres.go's SchemaSQL) means a row mirrored without recording
+// this can never afterwards be corrected, annotated or removed by the
+// identity that wrote it -- so it must be recorded at write time or it
+// is unrecordable.
+type ReplicationVerification struct {
+	VerifiedAt string
+	Mode       VerificationMode
+}
+
+func (p *PostgresSink) Persist(ctx context.Context, event Event, request, response SnapshotEnvelope, verification ReplicationVerification) error {
 	eventJSON, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -150,8 +164,8 @@ func (p *PostgresSink) Persist(ctx context.Context, event Event, request, respon
 	}
 
 	if _, err := tx.Exec(ctx,
-		`INSERT INTO screening_ledger_replication(event_id,replicated_at) VALUES ($1,clock_timestamp()) ON CONFLICT (event_id) DO NOTHING`,
-		event.EventID,
+		`INSERT INTO screening_ledger_replication(event_id,replicated_at,verified_at,verification_mode) VALUES ($1,clock_timestamp(),$2::timestamptz,$3) ON CONFLICT (event_id) DO NOTHING`,
+		event.EventID, nullableText(verification.VerifiedAt), nullableText(string(verification.Mode)),
 	); err != nil {
 		return err
 	}
@@ -219,20 +233,46 @@ func (p *PostgresSink) PersistAudit(ctx context.Context, event AuditEvent) error
 func (p *PostgresSink) LatestAnchor(ctx context.Context, ledgerID string) (anchor Anchor, ok bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
-	var sequence int64
-	var eventSHA, auditSHA, mac string
+	var sequence, auditSequence int64
+	var eventSHA, auditSHA, policySHA256, mac string
 	var anchoredAt time.Time
 	row := p.conn.QueryRow(ctx,
-		`SELECT sequence, event_sha256, audit_sha256, anchored_at, anchor_mac
+		`SELECT sequence, event_sha256, audit_sha256, audit_sequence, policy_sha256, anchored_at, anchor_mac
 		 FROM screening_ledger_anchor WHERE ledger_id=$1 ORDER BY sequence DESC LIMIT 1`,
 		ledgerID)
-	if err := row.Scan(&sequence, &eventSHA, &auditSHA, &anchoredAt, &mac); err != nil {
+	if err := row.Scan(&sequence, &eventSHA, &auditSHA, &auditSequence, &policySHA256, &anchoredAt, &mac); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Anchor{}, false, nil
 		}
+		// ADR-0007 Addendum 1 F3: a database bootstrapped through Migrate
+		// alone never created screening_ledger_anchor before D15. That
+		// used to surface here as a raw undefined-relation error,
+		// accidentally fail-closed (LatestAnchor's caller sees a non-nil
+		// error and treats it as a plumbing failure) but not deliberately
+		// so -- named explicitly here per D15's requirement.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
+			return Anchor{}, false, fmt.Errorf("screening_ledger_anchor does not exist -- this database's schema is missing the SEC-7 anchor table (ADR-0007 F3): %w", err)
+		}
 		return Anchor{}, false, err
 	}
-	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
+	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AuditSequence: auditSequence, PolicySHA256: policySHA256, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
+}
+
+// IsPurgeRecorded implements PurgeChecker (ADR-0007 D13/F8): whether an
+// independent tombstone exists for a snapshot the caller found marked
+// purged in its own envelope, rather than trusting that self-reported
+// field. screening_ledger_retention_tombstone is written server-side by
+// screening_ledger_purge_snapshots, not by the envelope being checked.
+func (p *PostgresSink) IsPurgeRecorded(ctx context.Context, snapshotSHA256 string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	var exists bool
+	err := p.conn.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM screening_ledger_retention_tombstone WHERE snapshot_sha256=$1)`,
+		snapshotSHA256,
+	).Scan(&exists)
+	return exists, err
 }
 
 // PurgeExpired: see PersistAudit's doc comment -- same bare-statement
@@ -301,7 +341,7 @@ func nullableText(v string) any {
 const SchemaSQL = `BEGIN;
 CREATE TABLE IF NOT EXISTS screening_ledger_event (event_id text PRIMARY KEY,ledger_id text NOT NULL,sequence bigint NOT NULL,event_sha256 text NOT NULL UNIQUE,previous_event_sha256 text NOT NULL,occurred_at timestamptz NOT NULL,route text NOT NULL,http_status integer NOT NULL,request_sha256 text NOT NULL,response_sha256 text NOT NULL,request_snapshot_sha256 text NOT NULL,response_snapshot_sha256 text NOT NULL,retention_class text NOT NULL,expires_at timestamptz NOT NULL,event_json jsonb NOT NULL,inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(ledger_id,sequence));
 CREATE TABLE IF NOT EXISTS screening_ledger_snapshot (snapshot_sha256 text PRIMARY KEY,kind text NOT NULL CHECK(kind IN('request','response')),created_at timestamptz NOT NULL,expires_at timestamptz NOT NULL,retention_class text NOT NULL,envelope_json jsonb NOT NULL,purged_at timestamptz,purge_reason text,inserted_at timestamptz NOT NULL DEFAULT clock_timestamp());
-CREATE TABLE IF NOT EXISTS screening_ledger_replication (event_id text PRIMARY KEY REFERENCES screening_ledger_event(event_id),replicated_at timestamptz NOT NULL);
+CREATE TABLE IF NOT EXISTS screening_ledger_replication (event_id text PRIMARY KEY REFERENCES screening_ledger_event(event_id),replicated_at timestamptz NOT NULL,verified_at timestamptz,verification_mode text);
 CREATE TABLE IF NOT EXISTS screening_idempotency_receipt (scope text NOT NULL,idempotency_key_sha256 text NOT NULL,request_sha256 text NOT NULL,response_sha256 text NOT NULL,http_status integer NOT NULL,event_id text NOT NULL REFERENCES screening_ledger_event(event_id),inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(scope,idempotency_key_sha256));
 CREATE TABLE IF NOT EXISTS screening_ledger_retention_tombstone(snapshot_sha256 text PRIMARY KEY,purged_at timestamptz NOT NULL,operator text NOT NULL,reason text NOT NULL);
 CREATE TABLE IF NOT EXISTS watchlist_operational_audit(source text NOT NULL,stream_id text NOT NULL,sequence bigint NOT NULL,event_sha256 text NOT NULL,previous_event_sha256 text NOT NULL,occurred_at timestamptz NOT NULL,action text NOT NULL,payload_json jsonb NOT NULL,inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(source,event_sha256),UNIQUE(source,stream_id,sequence));
@@ -331,5 +371,38 @@ DROP TRIGGER IF EXISTS screening_idempotency_receipt_no_truncate ON screening_id
 DROP TRIGGER IF EXISTS screening_ledger_retention_tombstone_no_truncate ON screening_ledger_retention_tombstone;CREATE TRIGGER screening_ledger_retention_tombstone_no_truncate BEFORE TRUNCATE ON screening_ledger_retention_tombstone FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS watchlist_operational_audit_no_truncate ON watchlist_operational_audit;CREATE TRIGGER watchlist_operational_audit_no_truncate BEFORE TRUNCATE ON watchlist_operational_audit FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS screening_ledger_audit_no_truncate ON screening_ledger_audit;CREATE TRIGGER screening_ledger_audit_no_truncate BEFORE TRUNCATE ON screening_ledger_audit FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+-- ADR-0007 Addendum 1 D15/F3: SchemaSQL independently bootstraps this
+-- schema with no dependency on db/migrations/ ever having run (same
+-- REL-9-adjacent shape as the six tables above), and until this stage
+-- never created screening_ledger_anchor at all -- a database provisioned
+-- through Migrate() alone had zero anchor protection, silently. This
+-- brings SchemaSQL to parity with db/migrations/015 and 017: the table,
+-- its row-immutability trigger (D16), and its TRUNCATE guard.
+--
+-- Guarded on to_regclass(...) IS NULL, unlike the six tables above,
+-- because this table's ownership -- unlike theirs -- moves away from
+-- owl_migrator once scripts/ci/provision_test_roles.sh's
+-- grant-anchor-ownership step runs (D17/F6: to owl_ledger_ddl, so the
+-- runtime writer owl_ledger_anchor cannot alter or drop its own
+-- protections). Migrate() runs as owl_migrator on every CLI invocation
+-- (migrate, sync, import-audit), including every one after that
+-- ownership transfer -- DROP/CREATE TRIGGER on a table owl_migrator no
+-- longer owns would fail outright (discovered running the pgx suite
+-- against a fully-provisioned database, not assumed). This is not the
+-- fail-open "IF ... IS NOT NULL" shape CLAUDE.md warns against (which
+-- skips a control when its target is ABSENT): this skips re-touching a
+-- table only once it already exists, i.e. once its protections are
+-- already in place -- created here on true first bootstrap, or by
+-- db/migrations/015 and 017 otherwise -- and only because Postgres
+-- permissions would refuse the attempt regardless once ownership has
+-- moved on.
+DO $$
+BEGIN
+  IF to_regclass('screening_ledger_anchor') IS NULL THEN
+    EXECUTE 'CREATE TABLE screening_ledger_anchor (ledger_id text NOT NULL,sequence bigint NOT NULL,event_sha256 text NOT NULL,audit_sha256 text NOT NULL,audit_sequence bigint NOT NULL,policy_sha256 text NOT NULL,anchored_at timestamptz NOT NULL DEFAULT clock_timestamp(),anchor_mac text NOT NULL,PRIMARY KEY (ledger_id,sequence))';
+    EXECUTE 'CREATE TRIGGER screening_ledger_anchor_immutable BEFORE UPDATE OR DELETE ON screening_ledger_anchor FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()';
+    EXECUTE 'CREATE TRIGGER screening_ledger_anchor_no_truncate BEFORE TRUNCATE ON screening_ledger_anchor FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
+  END IF;
+END $$;
 COMMIT;
 `

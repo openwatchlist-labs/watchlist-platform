@@ -47,29 +47,18 @@ func (s *Store) AppendAudit(action, operator, reason, eventID string, details an
 	return event, nil
 }
 
-// VerifyAudit acquires the store lock and verifies the audit chain alone.
-// Nothing in this package calls it directly today -- verifyLocked (via
-// Verify) does the equivalent work inline while already holding the lock
-// -- but it is kept as a public, independently-lockable entry point for
-// symmetry with Verify and for future callers that want to check only
-// the audit chain.
-func (s *Store) VerifyAudit() (Head, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	head, _, err := s.verifyAuditLocked()
-	return head, err
-}
-
-// verifyAuditLocked assumes the caller already holds s.mu. It mirrors
-// verifyLocked's v1/v2 genesis-boundary handling (ADR-0007 D4): audit
-// entries stay frozen-prefix v1 verified under the legacy, unkeyed
-// algorithm up to the first v2 entry, and any v1 entry after that is a
-// hard failure. In practice this repository's audit chain has always
-// been empty pre-D2 (see AppendAudit's comment), so frozenPrefixLength is
-// 0 for the real ledger; the logic exists for symmetry and for any
-// sibling chain that adopts this package's pattern with genuine v1 audit
-// history (ADR-0007 §7.2).
-func (s *Store) verifyAuditLocked() (Head, int, error) {
+// verifyAuditPolicyLocked assumes the caller already holds s.mu. It
+// mirrors verifyPolicyLocked's EA1/EA2 handling (ADR-0007 D8): which
+// entry is even allowed to claim v1 is chosen by this entry's position
+// against policy.GenesisAuditSequence, not by the entry's own
+// SchemaVersion -- an audit-chain relabelling attack (F1's audit-chain
+// half, which has no snapshot check at all to bound it) is closed the
+// same way the event chain's is.
+func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, error) {
+	minAuditOrdinal, ok := auditSchemaOrdinal(policy.MinAuditSchema)
+	if !ok {
+		return Head{}, 0, fmt.Errorf("policy min_audit_schema %q is not a recognized audit schema version", policy.MinAuditSchema)
+	}
 	entries, err := os.ReadDir(filepath.Join(s.directory, "audit"))
 	if err != nil {
 		return Head{}, 0, err
@@ -83,7 +72,6 @@ func (s *Store) verifyAuditLocked() (Head, int, error) {
 	sort.Strings(names)
 	previous := ""
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
-	sawV2 := false
 	frozenPrefixLength := 0
 	for i, name := range names {
 		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", name))
@@ -98,18 +86,23 @@ func (s *Store) verifyAuditLocked() (Head, int, error) {
 			return Head{}, 0, errors.New("audit chain sequence mismatch")
 		}
 		var auditSHA string
-		switch event.SchemaVersion {
-		case AuditSchemaV1:
-			if sawV2 {
-				return Head{}, 0, fmt.Errorf("v1 (pre-D2, unkeyed) audit entry at sequence %d appears after the v2 genesis boundary: hard failure per ADR-0007 D4 point 6", event.Sequence)
+		if event.Sequence < policy.GenesisAuditSequence {
+			if event.SchemaVersion != AuditSchemaV1 {
+				return Head{}, 0, fmt.Errorf("audit entry at sequence %d is below the policy genesis boundary (%d) and must be schema %q, got %q", event.Sequence, policy.GenesisAuditSequence, AuditSchemaV1, event.SchemaVersion)
 			}
 			auditSHA, err = legacyHashAudit(event)
 			frozenPrefixLength = i + 1
-		case AuditSchemaV2:
-			sawV2 = true
-			auditSHA, err = hashAudit(event, s.keys.chain)
-		default:
-			return Head{}, 0, fmt.Errorf("unrecognized audit schema version %q at sequence %d", event.SchemaVersion, event.Sequence)
+		} else {
+			ordinal, recognized := auditSchemaOrdinal(event.SchemaVersion)
+			if !recognized || ordinal < minAuditOrdinal {
+				return Head{}, 0, fmt.Errorf("audit entry at sequence %d (schema %q) is at or after the policy genesis boundary (%d) and does not meet the minimum accepted schema version %q: hard failure per ADR-0007 D8 EA1/EA2", event.Sequence, event.SchemaVersion, policy.GenesisAuditSequence, policy.MinAuditSchema)
+			}
+			switch event.SchemaVersion {
+			case AuditSchemaV2:
+				auditSHA, err = hashAudit(event, s.keys.chain)
+			default:
+				return Head{}, 0, fmt.Errorf("audit entry at sequence %d has schema %q with no known digest algorithm", event.Sequence, event.SchemaVersion)
+			}
 		}
 		if err != nil {
 			return Head{}, 0, err

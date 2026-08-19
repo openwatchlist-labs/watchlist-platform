@@ -96,7 +96,7 @@ func TestPostgresSinkPersistRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := sink.Persist(ctx, result.Event, request, response); err != nil {
+	if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 		t.Fatalf("Persist: %v", err)
 	}
 
@@ -158,7 +158,7 @@ func TestPostgresSinkPersistRoundTrip(t *testing.T) {
 	// ON CONFLICT DO NOTHING (a named, deliberately preserved defect --
 	// ADR-0005 §4) must still make a repeat Persist of the identical
 	// event a no-op rather than an error.
-	if err := sink.Persist(ctx, result.Event, request, response); err != nil {
+	if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 		t.Fatalf("repeat Persist of identical event must be a no-op: %v", err)
 	}
 }
@@ -180,7 +180,7 @@ func TestPostgresSinkPersistIdempotencyConflictGuard(t *testing.T) {
 	}
 	req1, _ := store.LoadSnapshot(firstResult.Event.RequestSnapshotSHA256)
 	resp1, _ := store.LoadSnapshot(firstResult.Event.ResponseSnapshotSHA256)
-	if err := sink.Persist(ctx, firstResult.Event, req1, resp1); err != nil {
+	if err := sink.Persist(ctx, firstResult.Event, req1, resp1, ReplicationVerification{}); err != nil {
 		t.Fatalf("first Persist: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestPostgresSinkPersistIdempotencyConflictGuard(t *testing.T) {
 	req2, _ := store.LoadSnapshot(secondResult.Event.RequestSnapshotSHA256)
 	resp2, _ := store.LoadSnapshot(secondResult.Event.ResponseSnapshotSHA256)
 
-	if err := sink.Persist(ctx, secondResult.Event, req2, resp2); err == nil {
+	if err := sink.Persist(ctx, secondResult.Event, req2, resp2, ReplicationVerification{}); err == nil {
 		t.Fatal("expected idempotency receipt conflict, got nil error")
 	}
 }
@@ -356,7 +356,7 @@ func TestPostgresSinkNoProcessSpawn(t *testing.T) {
 	result.Event.LedgerID = uniqueID("ledger")
 	request, _ := store.LoadSnapshot(result.Event.RequestSnapshotSHA256)
 	response, _ := store.LoadSnapshot(result.Event.ResponseSnapshotSHA256)
-	if err := sink.Persist(ctx, result.Event, request, response); err != nil {
+	if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 		t.Fatalf("Persist with empty PATH: %v", err)
 	}
 	if err := sink.PurgeExpired(ctx, time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), "no-spawn-operator", "expired"); err != nil {

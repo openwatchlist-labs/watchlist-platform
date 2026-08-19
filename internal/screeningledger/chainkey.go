@@ -9,6 +9,16 @@ import (
 // for any primitive. Three subkeys derive from it via HKDF-SHA256, salted
 // by the ledger ID so two ledgers sharing a root secret do not share
 // subkeys, and domain-separated by these info strings.
+//
+// This claim was false on cmd/screening-ledger's default path before
+// Addendum 1 D14/F9: the CLI's --ledger-id default was the shared
+// literal "screening-ledger-cli", durably written into every
+// CLI-bootstrapped ledger that didn't pass an explicit --ledger-id, so
+// two such ledgers under one root secret derived identical subkeys. D14
+// removes that default (main.go's resolveLedgerID requires an explicit
+// --ledger-id or a signed --policy-file), which is what makes this
+// comment's claim true rather than aspirational -- corrected here, as
+// Addendum 1's own text says it would be.
 const (
 	infoSnapshotAEAD       = "openwatchlist/screening-ledger/snapshot-aead/v2"
 	infoRedactionPseudonym = "openwatchlist/screening-ledger/redaction-pseudonym/v2"

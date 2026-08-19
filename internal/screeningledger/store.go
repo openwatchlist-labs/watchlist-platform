@@ -1,6 +1,7 @@
 package screeningledger
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,71 @@ import (
 	"sync"
 	"time"
 )
+
+// VerificationMode selects how VerifyPolicy/VerifyAnchored treat the
+// facts D8 calls EA4 (the anchor) and F8 (unconfirmed purged snapshots).
+// ADR-0007 D12: anchored is the default and the only mode reachable
+// without an explicit flag; historical-unanchored requires BOTH this
+// mode selected on the command line AND the signed policy's
+// allow_unanchored set -- neither alone is sufficient.
+type VerificationMode string
+
+const (
+	VerificationModeAnchored             VerificationMode = "anchored"
+	VerificationModeHistoricalUnanchored VerificationMode = "historical-unanchored"
+)
+
+// PurgeChecker answers whether a snapshot's purged_at is backed by an
+// independent record outside the envelope being checked (ADR-0007 D13 /
+// F8) -- e.g. a row in screening_ledger_retention_tombstone. A nil
+// PurgeChecker means no such independent record is available (a
+// filesystem-only verification run); see verifySnapshotChecked.
+type PurgeChecker interface {
+	IsPurgeRecorded(ctx context.Context, snapshotSHA256 string) (bool, error)
+}
+
+// VerifyOptions carries what VerifyPolicy needs to check the file chain
+// alone, with no anchor and no database required (ADR-0007 D9's decisive
+// property: "the F1 defence becomes runnable in run-ci.sh
+// unconditionally"). Purges may be nil (filesystem-only); Mode governs
+// how an unconfirmable purged snapshot is treated in that case (D13).
+type VerifyOptions struct {
+	Policy VerificationPolicy
+	Mode   VerificationMode
+	Purges PurgeChecker
+}
+
+func (o VerifyOptions) modeOrDefault() VerificationMode {
+	if o.Mode == "" {
+		return VerificationModeAnchored
+	}
+	return o.Mode
+}
+
+// eventSchemaOrdinal and auditSchemaOrdinal give EA1's "minimum accepted
+// schema version" a total order to compare against, so a floor check is
+// "is this entry's schema at least as strong as the policy's floor",
+// not "does this entry's schema string equal one specific value".
+func eventSchemaOrdinal(v string) (int, bool) {
+	switch v {
+	case EventSchemaV1:
+		return 1, true
+	case EventSchemaV2:
+		return 2, true
+	default:
+		return 0, false
+	}
+}
+func auditSchemaOrdinal(v string) (int, bool) {
+	switch v {
+	case AuditSchemaV1:
+		return 1, true
+	case AuditSchemaV2:
+		return 2, true
+	default:
+		return 0, false
+	}
+}
 
 type Store struct {
 	directory string
@@ -178,45 +244,66 @@ func (s *Store) recoverLocked() error {
 	return os.Remove(pending)
 }
 
-// VerifyReport is Verify's full result: the event and audit chain heads,
-// plus how much of each chain, from the start, is pre-D2 frozen history
-// (ADR-0007 D4) rather than covered by the D2 keyed chain. A nonzero
-// frozen-prefix length is not itself a failure -- it is honest reporting
-// that the corresponding leading entries carry the weaker, unkeyed,
-// unanchored guarantee, per CLAUDE.md rule 5's spirit: a control that
-// silently reports "ok" without saying which portion of history it
-// actually protects is the same silent-absence bug this ADR exists to
-// fix, one level up.
+// VerifyReport is VerifyPolicy's full result: the event and audit chain
+// heads, how much of each chain, from the start, is pre-D2 frozen
+// history (ADR-0007 D4) rather than covered by the D2 keyed chain, and
+// how many snapshot checks were actually performed vs. skipped (D13) --
+// so "every snapshot was skipped" cannot look like "every snapshot
+// passed" in the output. A nonzero frozen-prefix length is not itself a
+// failure -- it is honest reporting that the corresponding leading
+// entries carry the weaker, unkeyed, unanchored guarantee, per CLAUDE.md
+// rule 5's spirit: a control that silently reports "ok" without saying
+// which portion of history it actually protects is the same
+// silent-absence bug this ADR exists to fix, one level up.
 type VerifyReport struct {
 	Head                    Head
 	AuditHead               Head
 	EventFrozenPrefixLength int
 	AuditFrozenPrefixLength int
+	SnapshotChecksTotal     int
+	SnapshotChecksPerformed int
 }
 
-func (s *Store) Verify() (Head, error) {
+// VerifyPolicy is the F1 fix's entry point (ADR-0007 D8, D9 option (c)):
+// checks the event and audit chains, the genesis boundary, and the
+// ledger identity against an externally-authenticated policy -- not
+// against any field read out of the ledger directory being checked. It
+// requires no database and no anchor row (D9's decisive property: "the
+// F1 defence becomes runnable in run-ci.sh unconditionally, with no
+// Postgres service and no credential"). VerifyAnchored layers D3's
+// anchor cross-check (EA4) on top of this.
+func (s *Store) VerifyPolicy(ctx context.Context, opts VerifyOptions) (VerifyReport, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	report, err := s.verifyLocked()
-	if err != nil {
-		return Head{}, err
-	}
-	return report.Head, nil
+	return s.verifyPolicyLocked(ctx, opts)
 }
 
-// VerifyDetail is Verify plus the frozen-prefix accounting VerifyReport
-// carries. Verify itself keeps its original (Head, error) signature so
-// existing callers are unaffected; new callers that need to report the
-// v1/v2 boundary honestly (ADR-0007 §6 point 5) should use this instead.
-func (s *Store) VerifyDetail() (VerifyReport, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.verifyLocked()
-}
-
-func (s *Store) verifyLocked() (VerifyReport, error) {
+func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (VerifyReport, error) {
 	if err := s.recoverLocked(); err != nil {
 		return VerifyReport{}, err
+	}
+	policy := opts.Policy
+	mode := opts.modeOrDefault()
+	// D12's double gate applies here too, not only in VerifyAnchored's
+	// anchor-cross-check relaxation: historical-unanchored mode requires
+	// BOTH the mode selected on the command line AND the signed policy's
+	// allow_unanchored -- otherwise a caller could pass the mode alone to
+	// relax D13/F8's purge handling without the policy owner's consent.
+	if mode == VerificationModeHistoricalUnanchored && !policy.AllowUnanchored {
+		return VerifyReport{}, errors.New("historical-unanchored mode was requested but the signed policy does not set allow_unanchored: both must agree, per ADR-0007 D12 -- neither alone is sufficient")
+	}
+	if policy.LedgerID != s.ledgerID {
+		return VerifyReport{}, fmt.Errorf("EA3: policy ledger_id %q does not match this ledger's durable ledger-id %q", policy.LedgerID, s.ledgerID)
+	}
+	if policy.GenesisEventSequence == 0 {
+		return VerifyReport{}, errors.New("policy genesis_event_sequence must be >= 1 (1 means no v1 prefix is permitted at all)")
+	}
+	if policy.GenesisAuditSequence == 0 {
+		return VerifyReport{}, errors.New("policy genesis_audit_sequence must be >= 1 (1 means no v1 prefix is permitted at all)")
+	}
+	minEventOrdinal, ok := eventSchemaOrdinal(policy.MinEventSchema)
+	if !ok {
+		return VerifyReport{}, fmt.Errorf("policy min_event_schema %q is not a recognized event schema version", policy.MinEventSchema)
 	}
 	entries, err := os.ReadDir(filepath.Join(s.directory, "events"))
 	if err != nil {
@@ -244,8 +331,9 @@ func (s *Store) verifyLocked() (VerifyReport, error) {
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].seq < pairs[j].seq })
 	previous := ""
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
-	sawV2 := false
 	frozenPrefixLength := 0
+	snapshotChecksTotal := 0
+	snapshotChecksPerformed := 0
 	for i, p := range pairs {
 		if p.event.Sequence != uint64(i+1) {
 			return VerifyReport{}, fmt.Errorf("ledger sequence gap at %d", i+1)
@@ -253,24 +341,32 @@ func (s *Store) verifyLocked() (VerifyReport, error) {
 		if p.event.PreviousEventSHA256 != previous {
 			return VerifyReport{}, fmt.Errorf("ledger chain mismatch at sequence %d", p.event.Sequence)
 		}
+		// ADR-0007 D8 EA1/EA2: which formula applies, and which schema
+		// label is even legal, is chosen by this entry's POSITION
+		// against the externally-supplied genesis boundary -- never by
+		// the entry's own SchemaVersion field. That field is the
+		// adversary's to set (§2's threat model); the boundary is not.
+		// This is the actual F1 fix: relabelling every entry to v1 no
+		// longer moves which formula verifies it, because the position
+		// in the sequence, not the label, selects the branch.
 		var eventSHA string
-		switch p.event.SchemaVersion {
-		case EventSchemaV1:
-			// ADR-0007 D4 point 6: any v1 entry appearing after genesis
-			// (i.e. after the first v2 entry has been seen) is a hard
-			// failure, not a downgrade -- accepting it would let an
-			// adversary insert unkeyed, forgeable entries into what is
-			// supposed to be the anchored regime.
-			if sawV2 {
-				return VerifyReport{}, fmt.Errorf("v1 (pre-D2, unkeyed) event at sequence %d appears after the v2 genesis boundary: hard failure per ADR-0007 D4 point 6", p.event.Sequence)
+		if p.event.Sequence < policy.GenesisEventSequence {
+			if p.event.SchemaVersion != EventSchemaV1 {
+				return VerifyReport{}, fmt.Errorf("entry at sequence %d is below the policy genesis boundary (%d) and must be schema %q, got %q", p.event.Sequence, policy.GenesisEventSequence, EventSchemaV1, p.event.SchemaVersion)
 			}
 			eventSHA, err = legacyHashEvent(p.event)
 			frozenPrefixLength = i + 1
-		case EventSchemaV2:
-			sawV2 = true
-			eventSHA, err = hashEvent(p.event, s.keys.chain)
-		default:
-			return VerifyReport{}, fmt.Errorf("unrecognized event schema version %q at sequence %d", p.event.SchemaVersion, p.event.Sequence)
+		} else {
+			ordinal, recognized := eventSchemaOrdinal(p.event.SchemaVersion)
+			if !recognized || ordinal < minEventOrdinal {
+				return VerifyReport{}, fmt.Errorf("entry at sequence %d (schema %q) is at or after the policy genesis boundary (%d) and does not meet the minimum accepted schema version %q: hard failure per ADR-0007 D8 EA1/EA2", p.event.Sequence, p.event.SchemaVersion, policy.GenesisEventSequence, policy.MinEventSchema)
+			}
+			switch p.event.SchemaVersion {
+			case EventSchemaV2:
+				eventSHA, err = hashEvent(p.event, s.keys.chain)
+			default:
+				return VerifyReport{}, fmt.Errorf("entry at sequence %d has schema %q with no known digest algorithm", p.event.Sequence, p.event.SchemaVersion)
+			}
 		}
 		if err != nil {
 			return VerifyReport{}, err
@@ -278,11 +374,15 @@ func (s *Store) verifyLocked() (VerifyReport, error) {
 		if eventSHA != p.event.EventSHA256 {
 			return VerifyReport{}, fmt.Errorf("ledger event checksum mismatch at sequence %d", p.event.Sequence)
 		}
-		if err := s.verifySnapshot(p.event.RequestSnapshotSHA256); err != nil {
-			return VerifyReport{}, err
-		}
-		if err := s.verifySnapshot(p.event.ResponseSnapshotSHA256); err != nil {
-			return VerifyReport{}, err
+		for _, sha := range []string{p.event.RequestSnapshotSHA256, p.event.ResponseSnapshotSHA256} {
+			snapshotChecksTotal++
+			performed, err := s.verifySnapshotChecked(ctx, sha, mode, opts.Purges)
+			if err != nil {
+				return VerifyReport{}, err
+			}
+			if performed {
+				snapshotChecksPerformed++
+			}
 		}
 		previous = p.event.EventSHA256
 		last = Head{SchemaVersion: headSchemaFor(p.event.SchemaVersion), LedgerID: s.ledgerID, Sequence: p.event.Sequence, EventID: p.event.EventID, EventSHA256: p.event.EventSHA256}
@@ -294,11 +394,18 @@ func (s *Store) verifyLocked() (VerifyReport, error) {
 	if head.Sequence != last.Sequence || head.EventSHA256 != last.EventSHA256 {
 		return VerifyReport{}, errors.New("ledger head does not match event chain")
 	}
-	auditHead, auditFrozenPrefixLength, err := s.verifyAuditLocked()
+	auditHead, auditFrozenPrefixLength, err := s.verifyAuditPolicyLocked(policy)
 	if err != nil {
 		return VerifyReport{}, err
 	}
-	return VerifyReport{Head: head, AuditHead: auditHead, EventFrozenPrefixLength: frozenPrefixLength, AuditFrozenPrefixLength: auditFrozenPrefixLength}, nil
+	return VerifyReport{
+		Head:                    head,
+		AuditHead:               auditHead,
+		EventFrozenPrefixLength: frozenPrefixLength,
+		AuditFrozenPrefixLength: auditFrozenPrefixLength,
+		SnapshotChecksTotal:     snapshotChecksTotal,
+		SnapshotChecksPerformed: snapshotChecksPerformed,
+	}, nil
 }
 
 // headSchemaFor picks the Head schema-version label matching an event or
@@ -338,6 +445,32 @@ func (s *Store) eventAtSequence(seq uint64) (Event, error) {
 	return Event{}, fmt.Errorf("no event found at sequence %d", seq)
 }
 
+// auditEntryAtSequence mirrors eventAtSequence for AR7's audit-chain
+// anchor cross-check.
+func (s *Store) auditEntryAtSequence(seq uint64) (AuditEvent, error) {
+	entries, err := os.ReadDir(filepath.Join(s.directory, "audit"))
+	if err != nil {
+		return AuditEvent{}, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", entry.Name()))
+		if err != nil {
+			return AuditEvent{}, err
+		}
+		var event AuditEvent
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return AuditEvent{}, err
+		}
+		if event.Sequence == seq {
+			return event, nil
+		}
+	}
+	return AuditEvent{}, fmt.Errorf("no audit entry found at sequence %d", seq)
+}
+
 func (s *Store) GetEvent(eventID string) (Event, error) {
 	raw, err := os.ReadFile(s.eventPath(eventID))
 	if err != nil {
@@ -347,6 +480,11 @@ func (s *Store) GetEvent(eventID string) (Event, error) {
 	err = json.Unmarshal(raw, &event)
 	return event, err
 }
+
+// ListEvents used to silently skip any file it could not read or parse
+// (CLAUDE.md's silent-absence trap, and ADR-0007 D19): a file that
+// cannot be parsed is a chain the caller has not seen all of, not an
+// empty slot to skip past.
 func (s *Store) ListEvents() ([]Event, error) {
 	entries, err := os.ReadDir(filepath.Join(s.directory, "events"))
 	if err != nil {
@@ -357,11 +495,15 @@ func (s *Store) ListEvents() ([]Event, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		raw, _ := os.ReadFile(filepath.Join(s.directory, "events", e.Name()))
-		var event Event
-		if json.Unmarshal(raw, &event) == nil {
-			out = append(out, event)
+		raw, err := os.ReadFile(filepath.Join(s.directory, "events", e.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("read event file %s: %w", e.Name(), err)
 		}
+		var event Event
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return nil, fmt.Errorf("unmarshal event file %s: %w", e.Name(), err)
+		}
+		out = append(out, event)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Sequence < out[j].Sequence })
 	return out, nil
@@ -408,25 +550,53 @@ func (s *Store) writeSnapshot(env SnapshotEnvelope) error {
 	raw, _ := json.Marshal(env)
 	return atomicWrite(path, raw, 0o600)
 }
-func (s *Store) verifySnapshot(sha string) error {
+
+// verifySnapshotChecked is ADR-0007 D13 (F8): env.PurgedAt is a plain
+// field inside the ledger directory the threat model already grants the
+// adversary write access to, so it is never trusted on its own to skip
+// the one key-dependent check the event chain still had. If purges is
+// non-nil (a database is configured), a purged envelope must be backed
+// by an independent tombstone row or verification fails outright -- not
+// silently skipped. If purges is nil (filesystem-only), there is no way
+// to confirm the purge is legitimate: that is a hard failure in
+// anchored mode (the default) and a tolerated, counted condition only
+// under explicitly-selected historical-unanchored mode. performed
+// reports whether a real decrypt-and-digest check actually ran, so the
+// caller can report "checks performed" vs. "checks skipped" rather than
+// letting a fully-skipped verification look identical to a fully-passed
+// one.
+func (s *Store) verifySnapshotChecked(ctx context.Context, sha string, mode VerificationMode, purges PurgeChecker) (performed bool, err error) {
 	env, err := s.LoadSnapshot(sha)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if env.SnapshotSHA256 != sha {
-		return errors.New("snapshot filename checksum mismatch")
+		return false, errors.New("snapshot filename checksum mismatch")
 	}
 	if env.PurgedAt != "" {
-		return nil
+		if purges != nil {
+			recorded, err := purges.IsPurgeRecorded(ctx, sha)
+			if err != nil {
+				return false, err
+			}
+			if !recorded {
+				return false, fmt.Errorf("snapshot %s is marked purged but no independent purge record exists: possible forged retention state (ADR-0007 D13/F8)", sha)
+			}
+			return false, nil
+		}
+		if mode == VerificationModeHistoricalUnanchored {
+			return false, nil
+		}
+		return false, fmt.Errorf("snapshot %s is marked purged and no independent purge record is available (no database configured): failing in anchored mode rather than trusting the self-reported field (ADR-0007 D13/F8)", sha)
 	}
 	plaintext, err := decryptSnapshot(s.keys.snap, env)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if digestHex(plaintext) != env.PlaintextSHA256 {
-		return errors.New("snapshot checksum mismatch")
+		return false, errors.New("snapshot checksum mismatch")
 	}
-	return nil
+	return true, nil
 }
 func (s *Store) eventPath(id string) string { return filepath.Join(s.directory, "events", id+".json") }
 func (s *Store) snapshotPath(sha string) string {
