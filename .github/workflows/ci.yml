@@ -42,9 +42,19 @@ jobs:
       # SEC-7 D3: owl_ledger_anchor, the anchor-writing identity, distinct
       # from owl_migrator by construction (docs/adr/0007-audit-chain-integrity.md
       # §5.3). Provisioned by provision_test_roles.sh create-roles below;
-      # ownership of screening_ledger_anchor transfers to it only after
-      # db/migrations/015_screening_ledger_anchor.sql creates the table.
+      # granted INSERT-only on screening_ledger_anchor after
+      # db/migrations/015_screening_ledger_anchor.sql creates the table
+      # (Addendum 1 D17/F6: it is no longer the owner -- see
+      # OWL_LEDGER_DDL_DATABASE_URL below).
       OWL_LEDGER_ANCHOR_DATABASE_URL: postgresql://owl_ledger_anchor:owl_ledger_anchor@localhost:5432/owl_ci
+      # SEC-7 repair, Addendum 1 D17/F6: owl_ledger_ddl owns
+      # screening_ledger_anchor so the runtime writer (owl_ledger_anchor)
+      # cannot ALTER or DROP the table's own protections. Nothing connects
+      # as owl_ledger_ddl at runtime -- this DSN exists only so the test
+      # suite can prove the TRUNCATE/immutability triggers hold even for
+      # the table's true owner (TestSEC7AnchorTableRejectsTruncate), the
+      # same standard already held for the six pre-existing tables.
+      OWL_LEDGER_DDL_DATABASE_URL: postgresql://owl_ledger_ddl:owl_ledger_ddl@localhost:5432/owl_ci
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,7 +70,7 @@ jobs:
         if: ${{ hashFiles('Cargo.toml') != '' }}
         shell: bash
         run: rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy
-      - name: Provision owl_migrator, owl_app, and owl_ledger_anchor roles
+      - name: Provision owl_migrator, owl_app, owl_ledger_anchor, and owl_ledger_ddl roles
         shell: bash
         env:
           PGSUPERUSER: owl_ci
@@ -68,6 +78,7 @@ jobs:
           OWL_MIGRATOR_PASSWORD: owl_migrator
           OWL_APP_PASSWORD: owl_app
           OWL_LEDGER_ANCHOR_PASSWORD: owl_ledger_anchor
+          OWL_LEDGER_DDL_PASSWORD: owl_ledger_ddl
         run: ./scripts/ci/provision_test_roles.sh create-roles
       - name: Apply database migrations
         shell: bash
@@ -84,7 +95,7 @@ jobs:
           PGSUPERUSER: owl_ci
           PGSUPERPASSWORD: owl_ci
         run: ./scripts/ci/provision_test_roles.sh grant-app-privileges
-      - name: Transfer screening_ledger_anchor ownership to owl_ledger_anchor
+      - name: Transfer screening_ledger_anchor ownership to owl_ledger_ddl
         shell: bash
         env:
           PGSUPERUSER: owl_ci

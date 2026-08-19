@@ -1262,6 +1262,34 @@ CI run that nobody chose to invoke.
 - `ListEvents` (`store.go:350-368`) must stop swallowing per-file read and unmarshal failures
   (`store.go:361-365`). A file that cannot be parsed is a chain the caller has not seen all of.
 
+### D19 correction note: "Same for `import-audit`" was a stale generalization (found implementing the repair)
+
+Checked against the tree rather than transcribed, in the same spirit as §3.4 and §6.1. D19's
+"Same for `import-audit`" does not describe `import-audit`'s actual shape, and no code change was
+needed there.
+
+`import-audit` (`main.go:142-148`) never constructs a local `Store` and never calls `Persist` on
+this package's own event/audit chains -- it calls `sink.Migrate` and then `ImportExternalAudit`,
+which writes only to `watchlist_operational_audit` via `PersistExternalAudit`. There is no local
+chain here for `anchored`-mode verification (D8-D12's mechanism) to apply to.
+
+What `import-audit` does have is `LoadExternalAuditDirectory` (`external_audit.go:46-84`), which
+reads every file in the source directory, recomputes each record's checksum
+(`phase8fEventChecksum`) and its sequence/`PreviousEventSHA256` linkage against the running
+`previous`, for the **entire** directory, before returning the validated `records` slice.
+`ImportExternalAudit` (`external_audit.go:85-102`) does not begin its `PersistExternalAudit` loop
+(`:96-99`) until that full, validated slice is in hand. So the whole external chain is verified
+before any persist call -- the identical shape `sync` is missing (F5) and D19 fixes there -- just
+under the phase8f/`activationpromotion` sibling chain's own algorithm (§7.2: "rides on
+`activationpromotion`"), not this package's D8-D12 mechanism, which is correct: `import-audit`
+imports a different chain than the one this ADR specifies.
+
+`sync`'s actual gap is structural and has no counterpart here: it calls `Persist` (`main.go:97`)
+inside a per-event loop with no verification call anywhere on the path (confirmed absent at
+implementation time). `import-audit`'s verify-before-persist property already existed by
+construction. D19's parenthetical was written by analogy to `sync` without checking that
+`import-audit`'s call shape actually matches, and it does not.
+
 ### D20. Test ownership: the reproduction's required shape, specified so nothing weaker satisfies it
 
 **Ownership is decided and is not this session's work.** The end-to-end downgrade-exploit

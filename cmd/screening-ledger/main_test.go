@@ -21,10 +21,16 @@ package main_test
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger"
 )
 
 var binaryPath string
@@ -85,9 +91,66 @@ func freshLedgerCopy(t *testing.T) string {
 	return dst
 }
 
+// policyFixture signs a verification policy for the real committed
+// fixture ledger (ADR-0007 D10) and writes both the signed policy and
+// the trust-root public key to fresh temp files, returning their paths.
+// allowUnanchored controls the policy's own allow_unanchored field --
+// D12's double gate also requires --verification-mode
+// historical-unanchored on the command line, which callers pass
+// separately.
+//
+// The real fixture's event chain has frozen-prefix length 0 (ADR-0007
+// §6.1 correction note: Stage 1 regenerated its one event in place under
+// v2 rather than preserving a genuine v1 prefix), so genesis sequence 1
+// with a v2 floor is the correct policy for it, not a special case.
+func policyFixture(t *testing.T, allowUnanchored bool) (policyPath, pubKeyPath string) {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := screeningledger.VerificationPolicy{
+		SchemaVersion:        screeningledger.VerificationPolicySchemaV1,
+		LedgerID:             fixtureLedgerID,
+		MinEventSchema:       screeningledger.EventSchemaV2,
+		MinAuditSchema:       screeningledger.AuditSchemaV2,
+		GenesisEventSequence: 1,
+		GenesisAuditSequence: 1,
+		AllowUnanchored:      allowUnanchored,
+	}
+	signed, err := screeningledger.SignVerificationPolicy(policy, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(signed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	policyPath = filepath.Join(dir, "policy.json")
+	if err := os.WriteFile(policyPath, raw, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	pubKeyPath = filepath.Join(dir, "policy-public-key.hex")
+	if err := os.WriteFile(pubKeyPath, []byte(hex.EncodeToString(pub)), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	return policyPath, pubKeyPath
+}
+
 func TestHappyPath_Status(t *testing.T) {
 	ledgerDir := freshLedgerCopy(t)
-	stdout, stderr, code := run("status", "--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	stdout, stderr, code := run("status",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		// No --postgres-dsn-env: exercising the F1 defense the way
+		// ADR-0007 D9 designed it to run, with no database at all.
+		// That requires explicitly-selected historical-unanchored mode
+		// (D12's double gate; the policy above sets allow_unanchored
+		// too) -- the default `anchored` mode's no-database behavior is
+		// TestVerifyNoDatabaseExitsNonZeroInAnchoredMode below.
+		"--verification-mode", "historical-unanchored")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
@@ -102,23 +165,51 @@ func TestHappyPath_Status(t *testing.T) {
 	}
 }
 
+// TestHappyPath_Verify is the functioning no-database path: explicit
+// historical-unanchored mode, a policy that permits it, and status "ok"
+// at exit 0 -- ADR-0007 D9's decisive property that the F1 defense
+// (EA1-EA3, checked here) needs no Postgres. The DEFAULT (anchored) mode
+// with no database is the opposite case, and is a hard failure -- see
+// TestVerifyNoDatabaseExitsNonZeroInAnchoredMode.
 func TestHappyPath_Verify(t *testing.T) {
 	ledgerDir := freshLedgerCopy(t)
-	stdout, stderr, code := run("verify", "--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	stdout, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored")
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
-	// ADR-0007 §5.3 point 4 / Consequences: verify without a database
-	// configured (no --postgres-dsn-env here) is honestly reported as
-	// "partial", not "ok" -- it fully checks the file chain (including
-	// the frozen-prefix/genesis-boundary rules) but cannot cross-check
-	// the anchor. See internal/screeningledger/anchor_pgx_test.go for the
-	// anchor-aware "ok" case, which needs a real Postgres connection.
-	if !bytes.Contains([]byte(stdout), []byte(`"status":"partial"`)) {
-		t.Fatalf("expected status partial (no --postgres-dsn-env given), got: %s", stdout)
+	if !bytes.Contains([]byte(stdout), []byte(`"status":"ok"`)) {
+		t.Fatalf("expected status ok, got: %s", stdout)
 	}
 	if !bytes.Contains([]byte(stdout), []byte(`"anchor_status":"unavailable"`)) {
-		t.Fatalf("expected anchor_status unavailable, got: %s", stdout)
+		t.Fatalf("expected anchor_status unavailable (no --postgres-dsn-env given), got: %s", stdout)
+	}
+	if !bytes.Contains([]byte(stdout), []byte(`"verification_mode":"historical-unanchored"`)) {
+		t.Fatalf("expected verification_mode historical-unanchored, got: %s", stdout)
+	}
+}
+
+// TestVerifyNoDatabaseExitsNonZeroInAnchoredMode is D20's stated
+// companion obligation for D12: verify with no database now exits
+// non-zero in the default `anchored` mode, replacing the previous
+// "status":"partial" at exit 0 -- ADR-0007 Consequences: "I could not
+// check" and "I checked and it was fine" must not share an outcome.
+func TestVerifyNoDatabaseExitsNonZeroInAnchoredMode(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	_, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath)
+	// No --verification-mode given: defaults to anchored, and no
+	// --postgres-dsn-env is given either, so VerifyAnchored must fail.
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code when verifying in anchored mode with no database configured (ADR-0007 D12)")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("anchored mode requires a database connection")) {
+		t.Fatalf("expected a message naming the missing anchored-mode database requirement, got: %q", stderr)
 	}
 }
 

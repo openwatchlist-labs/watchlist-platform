@@ -10,6 +10,7 @@ package screeningledger
 // hard failure), both file-only.
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -38,7 +39,8 @@ func TestWrongChainKeyFailsVerification(t *testing.T) {
 	if _, err := store.Append(testAppendInput()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Verify(); err != nil {
+	policy := testPolicy("ledger-wrongkey")
+	if _, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy}); err != nil {
 		t.Fatalf("chain must verify under its own key: %v", err)
 	}
 
@@ -46,7 +48,7 @@ func TestWrongChainKeyFailsVerification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reopened.Verify(); err == nil {
+	if _, err := reopened.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy}); err == nil {
 		t.Fatal("chain verified successfully under the wrong K_chain")
 	}
 }
@@ -86,7 +88,15 @@ func TestFrozenV1PrefixAcceptedAndAnchoredGenesisBoundaryEnforced(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	report, err := store.VerifyDetail()
+	// The fixture's single event is genuinely pre-D2 (sequence 1); the
+	// genesis boundary this policy declares is sequence 2, so the policy
+	// itself -- not any label the entry carries -- is what makes sequence
+	// 1 a legal frozen-v1 prefix (ADR-0007 D8 EA2).
+	policy := testPolicy("screening-api-v8g-example")
+	policy.GenesisEventSequence = 2
+	policy.GenesisAuditSequence = 1
+
+	report, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy})
 	if err != nil {
 		t.Fatalf("frozen v1 prefix must verify under the legacy formula: %v", err)
 	}
@@ -110,7 +120,7 @@ func TestFrozenV1PrefixAcceptedAndAnchoredGenesisBoundaryEnforced(t *testing.T) 
 		t.Fatal("genesis must reference the frozen v1 prefix's final digest as its predecessor")
 	}
 
-	report, err = store.VerifyDetail()
+	report, err = store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy})
 	if err != nil {
 		t.Fatalf("v1-prefix-then-v2-genesis chain must verify: %v", err)
 	}
@@ -156,11 +166,11 @@ func TestFrozenV1PrefixAcceptedAndAnchoredGenesisBoundaryEnforced(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	_, err = store.Verify()
+	_, err = store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy})
 	if err == nil {
-		t.Fatal("SEC-7 D4 point 6: a v1 entry appearing after the v2 genesis boundary was accepted")
+		t.Fatal("SEC-7 D8 EA1/EA2: a v1 entry appearing at/after the policy genesis boundary was accepted")
 	}
-	if !strings.Contains(err.Error(), "after the v2 genesis boundary") {
+	if !strings.Contains(err.Error(), "at or after the policy genesis boundary") {
 		t.Fatalf("expected the genesis-boundary hard-failure message, got: %v", err)
 	}
 }

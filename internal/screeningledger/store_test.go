@@ -18,6 +18,34 @@ import (
 
 func testKey() []byte { return bytes.Repeat([]byte{0x42}, 32) }
 
+// testPolicy is the "default secure" policy most tests want: no v1
+// prefix permitted at all (genesis sequence 1, ADR-0007 EA2's stated
+// meaning of that value), floor at v2 for both chains, unanchored not
+// allowed. Tests that need a genuine frozen v1 prefix or a relaxed
+// policy build their own.
+func testPolicy(ledgerID string) VerificationPolicy {
+	return VerificationPolicy{
+		SchemaVersion:        VerificationPolicySchemaV1,
+		LedgerID:             ledgerID,
+		MinEventSchema:       EventSchemaV2,
+		MinAuditSchema:       AuditSchemaV2,
+		GenesisEventSequence: 1,
+		GenesisAuditSequence: 1,
+	}
+}
+
+// testPolicySHA256 wraps PolicySHA256 for tests that don't care about a
+// marshal failure (VerificationPolicy has no field that can fail to
+// marshal).
+func testPolicySHA256(t *testing.T, policy VerificationPolicy) string {
+	t.Helper()
+	sha, err := PolicySHA256(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sha
+}
+
 func testAppendInput() AppendInput {
 	return AppendInput{
 		Route:          "/v1/screenings",
@@ -58,10 +86,11 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 	if second.Event.EventID != first.Event.EventID || !second.Replayed {
 		t.Fatalf("idempotent replay mismatch: %#v", second)
 	}
-	head, err := store.Verify()
+	verifyReport, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: testPolicy("ledger-test")})
 	if err != nil {
 		t.Fatal(err)
 	}
+	head := verifyReport.Head
 	if head.Sequence != 1 || head.EventID != first.Event.EventID {
 		t.Fatalf("unexpected head: %#v", head)
 	}
@@ -147,7 +176,14 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 	if _, err := store.DecryptSnapshot(first.Event.RequestSnapshotSHA256); err == nil {
 		t.Fatal("purged snapshot unexpectedly decryptable")
 	}
-	if _, err := store.Verify(); err != nil {
+	// Filesystem-only (no PurgeChecker): the purged snapshots above have
+	// no independent record available, so anchored mode's default fails
+	// them (ADR-0007 D13/F8) -- explicitly select historical-unanchored
+	// with a policy that allows it to confirm the rest of the chain still
+	// verifies.
+	unanchoredPolicy := testPolicy("ledger-test")
+	unanchoredPolicy.AllowUnanchored = true
+	if _, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: unanchoredPolicy, Mode: VerificationModeHistoricalUnanchored}); err != nil {
 		t.Fatalf("event chain must remain verifiable after purge: %v", err)
 	}
 }
@@ -175,7 +211,7 @@ func TestVerifyDetectsTampering(t *testing.T) {
 	if err := os.WriteFile(path, raw, 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Verify(); err == nil {
+	if _, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: testPolicy("ledger-tamper")}); err == nil {
 		t.Fatal("tampered event was accepted")
 	}
 }
@@ -226,10 +262,11 @@ func TestLegalHoldAndInterruptedRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	head, err := recovered.Verify()
+	report, err := recovered.VerifyPolicy(context.Background(), VerifyOptions{Policy: testPolicy("ledger-recovery")})
 	if err != nil {
 		t.Fatal(err)
 	}
+	head := report.Head
 	if head.EventID != result.Event.EventID {
 		t.Fatalf("interrupted head was not recovered: %#v", head)
 	}

@@ -3,6 +3,7 @@ package screeningledger
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -17,15 +18,9 @@ import (
 )
 
 func LoadKey(file, envName string) ([]byte, error) {
-	var raw string
-	if strings.TrimSpace(file) != "" {
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return nil, fmt.Errorf("read snapshot key: %w", err)
-		}
-		raw = strings.TrimSpace(string(data))
-	} else if strings.TrimSpace(envName) != "" {
-		raw = strings.TrimSpace(os.Getenv(envName))
+	raw, err := readKeyMaterial(file, envName)
+	if err != nil {
+		return nil, err
 	}
 	if raw == "" {
 		return nil, errors.New("snapshot encryption key is required")
@@ -37,6 +32,62 @@ func LoadKey(file, envName string) ([]byte, error) {
 		return d, nil
 	}
 	return nil, errors.New("snapshot encryption key must be 32 bytes encoded as hex or base64")
+}
+
+// LoadEd25519PublicKey loads a 32-byte Ed25519 public key from file or
+// envName, the same file-or-env-var idiom as LoadKey. This is the policy
+// trust root (ADR-0007 D10/EA5) -- distinct from LoadKey, which loads the
+// symmetric root secret R or, when pointed at anchor-key material, K_anchor.
+func LoadEd25519PublicKey(file, envName string) (ed25519.PublicKey, error) {
+	raw, err := readKeyMaterial(file, envName)
+	if err != nil {
+		return nil, err
+	}
+	if raw == "" {
+		return nil, errors.New("verification policy trust-root public key is required")
+	}
+	if d, err := hex.DecodeString(raw); err == nil && len(d) == ed25519.PublicKeySize {
+		return ed25519.PublicKey(d), nil
+	}
+	if d, err := base64.StdEncoding.DecodeString(raw); err == nil && len(d) == ed25519.PublicKeySize {
+		return ed25519.PublicKey(d), nil
+	}
+	return nil, fmt.Errorf("verification policy public key must be %d bytes encoded as hex or base64", ed25519.PublicKeySize)
+}
+
+// LoadEd25519PrivateKey loads a 64-byte Ed25519 private key (seed||public,
+// the standard library's encoding) from file or envName. Used only by
+// operator-run, out-of-band signing tooling (SignVerificationPolicy) --
+// never by the appending or verifying process.
+func LoadEd25519PrivateKey(file, envName string) (ed25519.PrivateKey, error) {
+	raw, err := readKeyMaterial(file, envName)
+	if err != nil {
+		return nil, err
+	}
+	if raw == "" {
+		return nil, errors.New("verification policy signing key is required")
+	}
+	if d, err := hex.DecodeString(raw); err == nil && len(d) == ed25519.PrivateKeySize {
+		return ed25519.PrivateKey(d), nil
+	}
+	if d, err := base64.StdEncoding.DecodeString(raw); err == nil && len(d) == ed25519.PrivateKeySize {
+		return ed25519.PrivateKey(d), nil
+	}
+	return nil, fmt.Errorf("verification policy signing key must be %d bytes encoded as hex or base64", ed25519.PrivateKeySize)
+}
+
+func readKeyMaterial(file, envName string) (string, error) {
+	if strings.TrimSpace(file) != "" {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("read key material: %w", err)
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+	if strings.TrimSpace(envName) != "" {
+		return strings.TrimSpace(os.Getenv(envName)), nil
+	}
+	return "", nil
 }
 func encryptSnapshot(key []byte, kind string, plaintext []byte, createdAt, expiresAt, retentionClass string) (SnapshotEnvelope, error) {
 	if len(key) != 32 {

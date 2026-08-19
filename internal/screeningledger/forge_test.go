@@ -12,6 +12,7 @@ package screeningledger
 // that takes no chain-key argument, which is the pre-D2 signature.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -154,8 +155,13 @@ func TestForgeAndDetect_SEC7D5LoadBearingProof(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// THE PROOF (assertion 2 above).
-	if _, err := store.Verify(); err == nil {
+	// THE PROOF (assertion 2 above). These forged entries are labeled v2
+	// (mk() above), so this exercises the transition guard on the label
+	// dimension, same as before Addendum 1 -- the D8 EA1/EA2 relabel-proof
+	// (the actual reopened finding, uniform-v1 labels, no key of any
+	// kind) is TestSEC7DowngradeExploit_Reproduction (d20_exploit_test.go).
+	policy := testPolicy("ledger-forge")
+	if _, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy}); err == nil {
 		t.Fatal("SEC-7 D5: a forged-but-internally-perfect (under the pre-D2 scheme) chain was accepted by the current keyed Verify -- this is the exact bug ADR-0007 exists to fix")
 	}
 }
