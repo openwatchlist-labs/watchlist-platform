@@ -839,13 +839,24 @@ sets the variables: `verify-clean-restart.sh:31` checks only that the file exist
 `legacy_exclusion_gate.py:247-254` checks only for `pull_request_target` and `persist-credentials`.
 
 **One thing the brief did not name, found while checking it, and worse than the skip itself.** The
-single most load-bearing negative test -- `TestSEC7LedgerWriterCannotInsertAnchor`, whose own
-comment says "if this test ever passes with `err == nil`, the anchor proves nothing"
-(`anchor_pgx_test.go:105-109`) -- is gated on `requireMigratorDSN`
-(`anchor_pgx_test.go:110` -> `postgres_pgx_test.go:30-36`), i.e. on `OWL_MIGRATOR_DATABASE_URL`,
-**not** on the anchor variable its siblings use (`requireAnchorDatabaseURL`,
-`anchor_pgx_test.go:45-52`). An environment that sets only `OWL_LEDGER_ANCHOR_DATABASE_URL` runs
-the positive test (`anchor_pgx_test.go:69`) green and silently skips the proof of separation.
+single most load-bearing negative test -- `TestSEC7LedgerWriterCannotInsertAnchor`
+(`anchor_pgx_test.go:109`), whose own doc comment says that "if this test ever passes with
+`err == nil`, the anchor proves nothing" (`anchor_pgx_test.go:103-108`; the phrase wraps across
+`:107-108`, so it does not match a single-line grep) -- is gated on `requireMigratorDSN(t)`
+(`anchor_pgx_test.go:110`), **not** on the `requireAnchorDatabaseURL` its siblings use
+(`anchor_pgx_test.go:45-52`, reading `OWL_LEDGER_ANCHOR_DATABASE_URL` at `:47` and skipping at
+`:49`; used at `:70` and `:142`).
+
+**The gate is invisible to a grep of this file, which is part of why it survived review.**
+`requireMigratorDSN` is declared in a *different file of the same package* --
+`postgres_pgx_test.go:30-36` -- where it reads `OWL_MIGRATOR_DATABASE_URL` (`:32`) and calls
+`t.Skip` (`:34`). The string `OWL_MIGRATOR_DATABASE_URL` therefore does not appear anywhere in
+`anchor_pgx_test.go`; only the anchor variable does. Grepping the test's own file for the variable
+that actually gates it returns nothing, and the file reads as correctly gated.
+
+The consequence: an environment that sets only `OWL_LEDGER_ANCHOR_DATABASE_URL` runs the positive
+test (`anchor_pgx_test.go:69`) green and silently skips the proof of separation. Both files are
+byte-identical between `f135210` and this branch's tip, so this is not drift.
 
 **F5 -- `sync` mirrors without verifying.** `sync` (`main.go:81-104`) runs
 `ListEvents` (`:86`) -> `LoadSnapshot` (`:93`, `:95`) -> `Persist` (`:97`) -> `MarkReplicated`
