@@ -18,6 +18,12 @@ python3 ./scripts/ci/check_permission_table.py
 PYTHONDONTWRITEBYTECODE=1 python3 ./scripts/ci/tests/test_permission_table.py
 python3 ./scripts/ci/check_screening_variants.py
 
+# ADR-0007 Addendum 1, D18: fail closed on the database security gates
+# before spending time on go/cargo, rather than letting `go test` below
+# silently absorb the SEC-7/SEC-1 pgx suites' self-skip. See
+# scripts/ci/check_db_gates.sh for the full rationale and the gate list.
+./scripts/ci/check_db_gates.sh
+
 if [[ -f go.mod ]]; then
   command -v go >/dev/null 2>&1 || { echo 'FAIL: Go is required' >&2; exit 1; }
   go mod verify
@@ -65,7 +71,17 @@ fi
 if [[ -n "${OWL_TEST_DATABASE_URL:-}" ]]; then
   ./scripts/ci/check_sql_invariants.sh
 else
-  printf 'SKIP: SQL security invariants (OWL_TEST_DATABASE_URL not set)\n'
+  printf 'SKIP: SQL security invariants (OWL_TEST_DATABASE_URL not set; see fail-open banner above)\n'
 fi
 
-printf 'PASS: OpenWatchlist clean-restart CI\n'
+# Mirrors check_db_gates.sh's gate list so the final line names the
+# fail-open condition too, in case a reader only skims the tail of the log.
+db_gates_unproven=0
+for gate in OWL_TEST_DATABASE_URL OWL_MIGRATOR_DATABASE_URL OWL_LEDGER_ANCHOR_DATABASE_URL OWL_LEDGER_DDL_DATABASE_URL; do
+  [[ -n "${!gate:-}" ]] || db_gates_unproven=1
+done
+if [[ "$db_gates_unproven" -eq 1 ]]; then
+  printf 'PASS: OpenWatchlist clean-restart CI -- FAIL-OPEN: database security gates unproven, NOT A SECURITY GATE (see banner above)\n'
+else
+  printf 'PASS: OpenWatchlist clean-restart CI\n'
+fi
