@@ -37,8 +37,8 @@ type VerificationPolicy struct {
 // (EA5), loaded independently via LoadEd25519PublicKey.
 type SignedVerificationPolicy struct {
 	Policy          VerificationPolicy `json:"policy"`
-	SignatureBase64 string              `json:"signature_base64"`
-	PublicKeyBase64 string              `json:"public_key_base64,omitempty"`
+	SignatureBase64 string             `json:"signature_base64"`
+	PublicKeyBase64 string             `json:"public_key_base64,omitempty"`
 }
 
 // canonicalPolicyBytes is what gets signed and what the signature is
