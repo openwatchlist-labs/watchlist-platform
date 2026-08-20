@@ -312,6 +312,14 @@ func TestSEC7AnchorWriterCannotTruncateAnchor(t *testing.T) {
 // owl_migrator, the tables' owner, for the same reason as the anchor
 // table's own case above: the guard must hold even for the owner.
 //
+// screening_ledger_retention_tombstone is deliberately absent from this
+// list since ADR-0007 Addendum 2 D27: ownership moved to owl_ledger_ddl,
+// so owl_migrator is no longer that table's owner and a TRUNCATE attempt
+// now fails on a plain privilege check (42501) before ever reaching the
+// trigger -- see TestSEC7TombstoneOwnerRejectsTruncate and
+// TestSEC7TombstoneWriterCannotTruncate below for its D27-shaped pair of
+// cases, matching the anchor table's own owner-vs-writer split.
+//
 // screening_ledger_event needs its own case: screening_ledger_replication
 // and screening_idempotency_receipt both hold a foreign key referencing
 // it, so a bare TRUNCATE screening_ledger_event is rejected by Postgres's
@@ -329,7 +337,6 @@ func TestSEC7ExistingSixTablesRejectTruncate(t *testing.T) {
 	plainTruncateTables := []string{
 		"screening_ledger_audit",
 		"screening_ledger_replication",
-		"screening_ledger_retention_tombstone",
 		"screening_ledger_snapshot",
 		"screening_idempotency_receipt",
 	}
@@ -361,4 +368,64 @@ func TestSEC7ExistingSixTablesRejectTruncate(t *testing.T) {
 		attempt(t, `TRUNCATE `+table)
 	}
 	attempt(t, `TRUNCATE screening_ledger_event CASCADE`)
+}
+
+// TestSEC7TombstoneOwnerRejectsTruncate is ADR-0007 Addendum 2 D27's
+// counterpart to TestSEC7AnchorTableRejectsTruncate: proves the TRUNCATE
+// guard on screening_ledger_retention_tombstone holds even for its new
+// owner, owl_ledger_ddl -- BEFORE TRUNCATE triggers fire regardless of
+// who executes the statement, ownership included.
+func TestSEC7TombstoneOwnerRejectsTruncate(t *testing.T) {
+	ddlDSN := requireLedgerDDLDatabaseURL(t)
+	ctx := context.Background()
+
+	conn, err := pgx.Connect(ctx, ddlDSN)
+	if err != nil {
+		t.Fatalf("connect as owl_ledger_ddl: %v", err)
+	}
+	defer conn.Close(context.Background())
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `TRUNCATE screening_ledger_retention_tombstone`)
+	if err == nil {
+		t.Fatal("TRUNCATE screening_ledger_retention_tombstone (as its own owner, owl_ledger_ddl) succeeded; TRUNCATE guard is not holding")
+	}
+	if code := pgErrorCode(err); code != "P0001" {
+		t.Fatalf("expected SQLSTATE P0001 (raise_exception, from owl_reject_truncate()), got %q: %v", code, err)
+	}
+}
+
+// TestSEC7TombstoneWriterCannotTruncate is D27's negative half: owl_migrator
+// -- no longer the tombstone table's owner -- cannot TRUNCATE it either,
+// rejected by a plain privilege check (42501) rather than reaching the
+// trigger at all. This is the case TestSEC7ExistingSixTablesRejectTruncate
+// used to cover before D27 moved ownership away from owl_migrator.
+func TestSEC7TombstoneWriterCannotTruncate(t *testing.T) {
+	migratorDSN := requireMigratorDSN(t)
+	ctx := context.Background()
+
+	conn, err := pgx.Connect(ctx, migratorDSN)
+	if err != nil {
+		t.Fatalf("connect as owl_migrator: %v", err)
+	}
+	defer conn.Close(context.Background())
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `TRUNCATE screening_ledger_retention_tombstone`)
+	if err == nil {
+		t.Fatal("TRUNCATE screening_ledger_retention_tombstone (as owl_migrator, no longer owner post-D27) succeeded; ownership separation is not holding")
+	}
+	if code := pgErrorCode(err); code != "42501" {
+		t.Fatalf("expected SQLSTATE 42501 (insufficient_privilege), got %q: %v", code, err)
+	}
 }

@@ -23,6 +23,11 @@ python3 ./scripts/ci/check_screening_variants.py
 # silently absorb the SEC-7/SEC-1 pgx suites' self-skip. See
 # scripts/ci/check_db_gates.sh for the full rationale and the gate list.
 ./scripts/ci/check_db_gates.sh
+# ADR-0007 Addendum 2 D30 (F-G): the gate script above has its own
+# regression test, which nothing was invoking -- placed here, next to the
+# gate it guards, rather than with run-ci.sh's other test_*.py siblings,
+# so the test and the script it tests read together.
+./scripts/ci/tests/test_check_db_gates.sh
 
 if [[ -f go.mod ]]; then
   command -v go >/dev/null 2>&1 || { echo 'FAIL: Go is required' >&2; exit 1; }
@@ -77,7 +82,7 @@ fi
 # Mirrors check_db_gates.sh's gate list so the final line names the
 # fail-open condition too, in case a reader only skims the tail of the log.
 db_gates_unproven=0
-for gate in OWL_TEST_DATABASE_URL OWL_MIGRATOR_DATABASE_URL OWL_LEDGER_ANCHOR_DATABASE_URL OWL_LEDGER_DDL_DATABASE_URL; do
+for gate in OWL_TEST_DATABASE_URL OWL_MIGRATOR_DATABASE_URL OWL_LEDGER_ANCHOR_DATABASE_URL OWL_LEDGER_DDL_DATABASE_URL OWL_MIGRATOR_STALE_DATABASE_URL; do
   [[ -n "${!gate:-}" ]] || db_gates_unproven=1
 done
 if [[ "$db_gates_unproven" -eq 1 ]]; then

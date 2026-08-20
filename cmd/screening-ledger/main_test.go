@@ -110,7 +110,7 @@ func policyFixture(t *testing.T, allowUnanchored bool) (policyPath, pubKeyPath s
 		t.Fatal(err)
 	}
 	policy := screeningledger.VerificationPolicy{
-		SchemaVersion:        screeningledger.VerificationPolicySchemaV1,
+		SchemaVersion:        screeningledger.VerificationPolicySchemaV2,
 		LedgerID:             fixtureLedgerID,
 		MinEventSchema:       screeningledger.EventSchemaV2,
 		MinAuditSchema:       screeningledger.AuditSchemaV2,
@@ -166,11 +166,19 @@ func TestHappyPath_Status(t *testing.T) {
 }
 
 // TestHappyPath_Verify is the functioning no-database path: explicit
-// historical-unanchored mode, a policy that permits it, and status "ok"
-// at exit 0 -- ADR-0007 D9's decisive property that the F1 defense
-// (EA1-EA3, checked here) needs no Postgres. The DEFAULT (anchored) mode
-// with no database is the opposite case, and is a hard failure -- see
+// historical-unanchored mode, a policy that permits it, and exit 0 --
+// ADR-0007 D9's decisive property that the F1 defense (EA1-EA3, checked
+// here) needs no Postgres. The DEFAULT (anchored) mode with no database
+// is the opposite case, and is a hard failure -- see
 // TestVerifyNoDatabaseExitsNonZeroInAnchoredMode.
+//
+// The top-level "status" field reads "unavailable", not "ok" --
+// ADR-0007 Addendum 2 D24 (F-C): main.go no longer hard-codes "ok" for
+// every nil-error outcome. This run genuinely did not check an anchor (no
+// --postgres-dsn-env, explicit historical-unanchored mode), and the
+// top-level field now says so, distinguishable from a genuinely verified
+// anchor without a caller needing to read the sibling anchor_status
+// field specifically.
 func TestHappyPath_Verify(t *testing.T) {
 	ledgerDir := freshLedgerCopy(t)
 	policyPath, pubKeyPath := policyFixture(t, true)
@@ -181,14 +189,34 @@ func TestHappyPath_Verify(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
-	if !bytes.Contains([]byte(stdout), []byte(`"status":"ok"`)) {
-		t.Fatalf("expected status ok, got: %s", stdout)
+	if !bytes.Contains([]byte(stdout), []byte(`"status":"unavailable"`)) {
+		t.Fatalf("expected status unavailable (ADR-0007 Addendum 2 D24: derived from anchor_status, not hard-coded ok), got: %s", stdout)
 	}
 	if !bytes.Contains([]byte(stdout), []byte(`"anchor_status":"unavailable"`)) {
 		t.Fatalf("expected anchor_status unavailable (no --postgres-dsn-env given), got: %s", stdout)
 	}
 	if !bytes.Contains([]byte(stdout), []byte(`"verification_mode":"historical-unanchored"`)) {
 		t.Fatalf("expected verification_mode historical-unanchored, got: %s", stdout)
+	}
+}
+
+// TestVerifyRejectsAllowGenesisFlag is ADR-0007 Addendum 2 D24 (F-C):
+// --allow-genesis has no legitimate meaning on verify -- its only effect,
+// before this fix, was converting AnchorStatusAbsent (the exact and only
+// signature of an anchor-table wipe, CAP §7.4) into success. Passing it
+// here must now be a clean, named error, not a silently ignored flag.
+func TestVerifyRejectsAllowGenesisFlag(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	_, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored", "--allow-genesis", "true")
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code when --allow-genesis is passed to verify (ADR-0007 Addendum 2 D24)")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("--allow-genesis has no effect on this command")) {
+		t.Fatalf("expected an error naming --allow-genesis as rejected, got: %q", stderr)
 	}
 }
 

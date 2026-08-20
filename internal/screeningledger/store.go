@@ -36,6 +36,20 @@ type PurgeChecker interface {
 	IsPurgeRecorded(ctx context.Context, snapshotSHA256 string) (bool, error)
 }
 
+// PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart
+// to PurgeChecker: records a purge as an independent decision the caller
+// cannot forge, rather than the caller directly writing the record
+// itself. eligibleSHA256 is the set Store.PurgeExpired's local pass
+// already narrowed to (legal holds honored there, the server does not
+// and should not learn about a filesystem directory); RecordPurge
+// re-validates every one of them against its own expiry floor and
+// returns exactly the subset it actually recorded -- local-narrows,
+// server-floors, per D28. Only that returned subset may be marked purged
+// in local envelopes.
+type PurgeRecorder interface {
+	RecordPurge(ctx context.Context, eligibleSHA256 []string, before time.Time, operator, reason string) (recorded []string, err error)
+}
+
 // VerifyOptions carries what VerifyPolicy needs to check the file chain
 // alone, with no anchor and no database required (ADR-0007 D9's decisive
 // property: "the F1 defence becomes runnable in run-ci.sh
@@ -397,6 +411,18 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 	auditHead, auditFrozenPrefixLength, err := s.verifyAuditPolicyLocked(policy)
 	if err != nil {
 		return VerifyReport{}, err
+	}
+	// ADR-0007 Addendum 2 D28: SnapshotChecksPerformed stops being
+	// reporting-only. D13 introduced the counter specifically to prevent
+	// "every snapshot was skipped" from looking like "every snapshot
+	// passed" -- but until now nothing actually consulted it, so a fully
+	// purged-and-recorded ledger (every snapshot legitimately skipped via
+	// an independent tombstone) still exited "status":"ok" with zero
+	// cryptographic content checked. In anchored mode (the default),
+	// zero performed checks against a nonzero total is now itself a
+	// verification failure, not merely a number in the output.
+	if mode == VerificationModeAnchored && snapshotChecksTotal > 0 && snapshotChecksPerformed == 0 {
+		return VerifyReport{}, fmt.Errorf("anchored mode requires at least one snapshot check to actually run: all %d snapshot checks were skipped (ADR-0007 Addendum 2 D28) -- select historical-unanchored explicitly if this is a legitimately fully-retired ledger", snapshotChecksTotal)
 	}
 	return VerifyReport{
 		Head:                    head,

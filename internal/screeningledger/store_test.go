@@ -25,7 +25,7 @@ func testKey() []byte { return bytes.Repeat([]byte{0x42}, 32) }
 // policy build their own.
 func testPolicy(ledgerID string) VerificationPolicy {
 	return VerificationPolicy{
-		SchemaVersion:        VerificationPolicySchemaV1,
+		SchemaVersion:        VerificationPolicySchemaV2,
 		LedgerID:             ledgerID,
 		MinEventSchema:       EventSchemaV2,
 		MinAuditSchema:       AuditSchemaV2,
@@ -44,6 +44,18 @@ func testPolicySHA256(t *testing.T, policy VerificationPolicy) string {
 		t.Fatal(err)
 	}
 	return sha
+}
+
+// fakePurgeRecorder is a PurgeRecorder for filesystem-only tests with no
+// live Postgres: it confirms every candidate the caller determined
+// eligible, standing in for D27/D28's server-side floor when there is no
+// server to floor against. The real definer-function-backed recording is
+// exercised against a live database in postgres_pgx_test.go and
+// tombstone_forgery_pgx_test.go.
+type fakePurgeRecorder struct{}
+
+func (fakePurgeRecorder) RecordPurge(_ context.Context, eligibleSHA256 []string, _ time.Time, _, _ string) ([]string, error) {
+	return eligibleSHA256, nil
 }
 
 func testAppendInput() AppendInput {
@@ -166,7 +178,7 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 		t.Fatalf("expected drift report: %#v", report)
 	}
 
-	count, err := store.PurgeExpired(time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired")
+	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", fakePurgeRecorder{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +249,7 @@ func TestLegalHoldAndInterruptedRecovery(t *testing.T) {
 	if err := os.WriteFile(holdPath, []byte("legal hold\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	count, err := store.PurgeExpired(time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired")
+	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", fakePurgeRecorder{})
 	if err != nil {
 		t.Fatal(err)
 	}
