@@ -251,6 +251,17 @@ func TestPostgresSinkPurgeExpiredRoundTrip(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed expired snapshot: %v", err)
 	}
+	// ADR-0007 Addendum 3 D32: the expiry floor now reads
+	// screening_ledger_event.expires_at, joined through
+	// request_snapshot_sha256/response_snapshot_sha256 -- a referencing
+	// event row is required for the predicate to find this snapshot.
+	if _, err := verify.Exec(ctx,
+		`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
+		 VALUES ($1,$2,1,$3,'',$4::timestamptz,'/screen',200,'req-sha','resp-sha',$5,$5,'screening-standard',$6::timestamptz,'{}'::jsonb)`,
+		uniqueID("event-for-purge"), uniqueID("ledger-for-purge"), uniqueID("event-sha-for-purge"), past, snapshotSHA, past,
+	); err != nil {
+		t.Fatalf("seed referencing event for expired snapshot: %v", err)
+	}
 
 	operator := "pgx-test-operator"
 	reason := "retention expiration"

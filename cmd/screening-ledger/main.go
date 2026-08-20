@@ -37,7 +37,20 @@ func main() {
 		// operator reading this output can tell which one they have.
 		anchorOwner, err := sink.SchemaObjectOwner(ctx, "screening_ledger_anchor")
 		must(err)
-		output(map[string]any{"status": "ok", "operation": "migrate", "screening_ledger_anchor_owner": anchorOwner})
+		// ADR-0007 Addendum 3 D33: the provisioning condition is reported
+		// here too, on the same "reported, not enforced" basis -- a
+		// SchemaSQL-only bootstrap legitimately has not run
+		// scripts/ci/provision_test_roles.sh grant-ddl-ownership yet.
+		// VerifyAnchored is where this condition is required, not migrate.
+		provisioning, err := sink.CheckProvisioningState(ctx)
+		must(err)
+		output(map[string]any{
+			"status":                        "ok",
+			"operation":                     "migrate",
+			"screening_ledger_anchor_owner": anchorOwner,
+			"provisioned":                   provisioning.Provisioned,
+			"provisioning_reason":           provisioning.Reason,
+		})
 	case "status", "verify":
 		store := mustStore(opts)
 		policy, policySHA256, pubKeyFingerprint := mustLoadPolicy(opts)
@@ -61,7 +74,7 @@ func main() {
 			kAnchor := mustAnchorKey(opts)
 			report, err = store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
-				Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
+				Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 			})
 			must(err)
 		} else {
@@ -122,7 +135,7 @@ func main() {
 		// meaning on sync -- see verificationMode.
 		verifyResult, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
-			Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
+			Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 		})
 		must(err)
 		events, err := store.ListEvents()
@@ -178,7 +191,7 @@ func main() {
 		kAnchor := mustAnchorKey(opts)
 		result, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: migratorSink},
-			Anchors:       migratorSink, KAnchor: kAnchor, PolicySHA256: policySHA256, AllowGenesis: allowGenesis,
+			Anchors:       migratorSink, Provisioning: migratorSink, KAnchor: kAnchor, PolicySHA256: policySHA256, AllowGenesis: allowGenesis,
 		})
 		must(err)
 		anchorDSN := os.Getenv(opts.required("--anchor-dsn-env"))

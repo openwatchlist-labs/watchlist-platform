@@ -217,7 +217,7 @@ func TestVerifyAnchoredDetectsAuditTailTruncation(t *testing.T) {
 	}
 	defer readerSink.Close(context.Background())
 
-	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
+	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
 	if err == nil {
 		t.Fatal("AR7: audit-chain tail truncation behind the newest anchor's audit_sequence was not detected")
 	}
@@ -269,7 +269,7 @@ func TestVerifyAnchoredDetectsAuditDivergence(t *testing.T) {
 	}
 	defer readerSink.Close(context.Background())
 
-	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
+	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
 	if err == nil {
 		t.Fatal("AR7: an audit chain valid under K_chain but diverging from the anchor's committed audit digest was not detected")
 	}
@@ -336,7 +336,7 @@ func TestVerifyAnchoredDetectsHistoricalTamperBelowAnchor(t *testing.T) {
 	}
 	defer readerSink.Close(context.Background())
 
-	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
+	_, err = store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256})
 	if err == nil {
 		t.Fatal("a historical tamper at the anchored sequence, re-MACed and re-linked through legitimate growth, was not detected")
 	}
@@ -369,7 +369,7 @@ func TestVerifyAnchoredDetectsHistoricalTamperBelowAnchor(t *testing.T) {
 		t.Fatalf("file-only VerifyPolicy must accept the audit-only re-MACed historical tamper: %v", err)
 	}
 
-	_, err = store2.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy2}, Anchors: readerSink, KAnchor: kAnchor2, PolicySHA256: policySHA2562})
+	_, err = store2.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy2}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor2, PolicySHA256: policySHA2562})
 	if err == nil {
 		t.Fatal("a historical AUDIT tamper at the anchored sequence, re-MACed and re-linked through legitimate growth, was not detected")
 	}

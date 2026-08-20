@@ -149,6 +149,148 @@ func (p *PostgresSink) checkPurgeSnapshotsDefiner(ctx context.Context) error {
 	return nil
 }
 
+// requiredEventTriggers is ADR-0007 Addendum 3 D33/D34: both DDL event
+// triggers scripts/ci/provision_test_roles.sh grant-ddl-ownership
+// installs, by name -- must exist and be ENABLE ALWAYS ('A'). This
+// enumerates protected FACTS (which schema objects count as complete),
+// which D31's principle permits; it is not an enumeration of expected
+// actions.
+var requiredEventTriggers = []string{
+	"sec7_protect_ddl_objects_on_drop",
+	"sec7_protect_ddl_objects_on_alter",
+}
+
+// requiredDDLOwnedTables is ADR-0007 Addendum 3 D33: relations that must
+// be owned by owl_ledger_ddl once provisioning has actually run.
+var requiredDDLOwnedTables = []string{
+	"screening_ledger_anchor",
+	"screening_ledger_retention_tombstone",
+}
+
+// ProvisioningState is ADR-0007 Addendum 3 D33: whether
+// scripts/ci/provision_test_roles.sh grant-ddl-ownership has actually run
+// against this database -- the second completion condition
+// checkRequiredSchemaObjects does not and must not prove (D21 point 3:
+// ownership is reported, not enforced, by the schema check, since a
+// SchemaSQL-only bootstrap legitimately leaves it false). CAP #2 built a
+// database with all migrations applied and provisioning skipped (owl_p4)
+// and found nothing anywhere observed the difference. Migrate() reports
+// this (does not fail on it); VerifyAnchored requires it whenever a
+// database is supplied.
+type ProvisioningState struct {
+	Provisioned bool
+	// Reason names the first fact found false or absent -- specific
+	// enough for an operator to act on, per D21's own diagnostic
+	// standard. Empty when Provisioned is true.
+	Reason string
+}
+
+// checkProvisioningState queries every fact D33 names, in the order
+// stated there: both event triggers by name (evtenabled='A'), the anchor
+// and tombstone tables' ownership, both purge_snapshots overloads'
+// prosecdef AND owner (tightening checkPurgeSnapshotsDefiner's
+// deliberately ownership-blind check for this different question), and
+// the three has_table_privilege facts naming what the writer/owner
+// separation must NOT confer. Every one of these is readable by
+// owl_migrator with no new role, DSN or grant -- confirmed by execution
+// during this addendum's design pass, not assumed.
+func (p *PostgresSink) checkProvisioningState(ctx context.Context) (ProvisioningState, error) {
+	for _, name := range requiredEventTriggers {
+		var enabled string
+		err := p.conn.QueryRow(ctx, `SELECT evtenabled FROM pg_event_trigger WHERE evtname=$1`, name).Scan(&enabled)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ProvisioningState{Reason: fmt.Sprintf("DDL event trigger %s does not exist (ADR-0007 Addendum 3 D33/D34): scripts/ci/provision_test_roles.sh grant-ddl-ownership has not run", name)}, nil
+		}
+		if err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking event trigger %s: %w", name, err)
+		}
+		if enabled != "A" {
+			return ProvisioningState{Reason: fmt.Sprintf("DDL event trigger %s exists but is not ENABLE ALWAYS (evtenabled=%q) (ADR-0007 Addendum 3 D33)", name, enabled)}, nil
+		}
+	}
+	for _, table := range requiredDDLOwnedTables {
+		owner, err := p.SchemaObjectOwner(ctx, table)
+		if err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owner of %s: %w", table, err)
+		}
+		if owner != "owl_ledger_ddl" {
+			return ProvisioningState{Reason: fmt.Sprintf("%s is owned by %q, not owl_ledger_ddl (ADR-0007 Addendum 3 D33): grant-ddl-ownership has not transferred ownership", table, owner)}, nil
+		}
+	}
+	for _, fn := range requiredDefinerFunctions {
+		signature := fn.name + "(" + fn.identityArgs + ")"
+		var definer bool
+		var owner string
+		if err := p.conn.QueryRow(ctx, `SELECT prosecdef, pg_get_userbyid(proowner) FROM pg_proc WHERE oid = $1::regprocedure`, signature).Scan(&definer, &owner); err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking function %s: %w", signature, err)
+		}
+		if !definer {
+			return ProvisioningState{Reason: fmt.Sprintf("function %s is not SECURITY DEFINER (ADR-0007 Addendum 3 D33)", signature)}, nil
+		}
+		if owner != "owl_ledger_ddl" {
+			return ProvisioningState{Reason: fmt.Sprintf("function %s is owned by %q, not owl_ledger_ddl (ADR-0007 Addendum 3 D33): grant-ddl-ownership has not transferred ownership", signature, owner)}, nil
+		}
+	}
+	migratorMustNotHave := []struct{ table, priv string }{
+		{"screening_ledger_retention_tombstone", "INSERT"},
+		{"screening_ledger_anchor", "INSERT"},
+	}
+	for _, check := range migratorMustNotHave {
+		var has bool
+		if err := p.conn.QueryRow(ctx, `SELECT has_table_privilege('owl_migrator', $1, $2)`, check.table, check.priv).Scan(&has); err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owl_migrator privilege on %s: %w", check.table, err)
+		}
+		if has {
+			return ProvisioningState{Reason: fmt.Sprintf("owl_migrator still holds %s on %s (ADR-0007 Addendum 3 D33): the writer/owner separation grant-ddl-ownership installs is not holding", check.priv, check.table)}, nil
+		}
+	}
+	var anchorWriterCanSelect bool
+	if err := p.conn.QueryRow(ctx, `SELECT has_table_privilege('owl_ledger_anchor', 'screening_ledger_anchor', 'SELECT')`).Scan(&anchorWriterCanSelect); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owl_ledger_anchor SELECT privilege: %w", err)
+	}
+	if anchorWriterCanSelect {
+		return ProvisioningState{Reason: "owl_ledger_anchor has SELECT on screening_ledger_anchor (ADR-0007 Addendum 3 D33): it must be INSERT-only"}, nil
+	}
+	// ADR-0007 Addendum 3 R15: "the registry is a new trust object, and a
+	// stale registry fails open... accepted only because D33 closes it:
+	// requiredProvisioningState asserts that every registry row's OID
+	// resolves to the object it claims." An OID is only meaningful while
+	// the object it names still exists -- if a protected object were
+	// legitimately dropped and recreated (which after D34 requires a
+	// superuser to remove the event triggers first), the registry would
+	// silently protect an OID nothing uses while the new object goes
+	// unprotected. pg_class/pg_proc/pg_trigger are ordinary system
+	// catalogs, readable by owl_migrator with no new grant.
+	registryExists, err := p.regclassExists(ctx, "sec7_protected_object")
+	if err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33/R15: checking sec7_protected_object: %w", err)
+	}
+	if !registryExists {
+		return ProvisioningState{Reason: "sec7_protected_object does not exist (ADR-0007 Addendum 3 D33/D34): grant-ddl-ownership has not run"}, nil
+	}
+	var staleCount int
+	if err := p.conn.QueryRow(ctx, `
+		SELECT count(*) FROM sec7_protected_object r
+		WHERE NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = r.objid)
+		  AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = r.objid)
+		  AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.oid = r.objid)
+	`).Scan(&staleCount); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33/R15: checking registry for stale OIDs: %w", err)
+	}
+	if staleCount > 0 {
+		return ProvisioningState{Reason: fmt.Sprintf("%d row(s) in sec7_protected_object have an objid that no longer resolves to any table, function or trigger (ADR-0007 Addendum 3 D33/R15): the registry is stale", staleCount)}, nil
+	}
+	return ProvisioningState{Provisioned: true}, nil
+}
+
+// CheckProvisioningState is checkProvisioningState's exported entry
+// point, satisfying ProvisioningStateReader (anchor.go) so
+// VerifyAnchored can require it without a package-internal type leaking
+// into that interface's contract.
+func (p *PostgresSink) CheckProvisioningState(ctx context.Context) (ProvisioningState, error) {
+	return p.checkProvisioningState(ctx)
+}
+
 // requiredSchemaObject is one relation Migrate() must confirm actually
 // reached its claimed state: the table itself, its row-immutability
 // trigger, its TRUNCATE-guard trigger, and any columns added after the
@@ -255,14 +397,14 @@ func (p *PostgresSink) checkRequiredSchemaObjects(ctx context.Context) error {
 		if !exists {
 			return fmt.Errorf("schema incomplete (ADR-0007 D21): relation %s does not exist (installed by %s)", obj.table, obj.tableInstalledBy)
 		}
-		immutableOK, err := p.triggerExists(ctx, obj.table, obj.immutableTrigger)
+		immutableOK, err := p.triggerEnabled(ctx, obj.table, obj.immutableTrigger)
 		if err != nil {
 			return fmt.Errorf("ADR-0007 D21: checking trigger %s on %s: %w", obj.immutableTrigger, obj.table, err)
 		}
 		if !immutableOK {
 			return fmt.Errorf("schema incomplete (ADR-0007 D21): %s is missing its row-immutability trigger %s (installed by %s) -- Migrate() will not report success on a table whose protections are not actually present", obj.table, obj.immutableTrigger, obj.immutableInstalledBy)
 		}
-		noTruncateOK, err := p.triggerExists(ctx, obj.table, obj.noTruncateTrigger)
+		noTruncateOK, err := p.triggerEnabled(ctx, obj.table, obj.noTruncateTrigger)
 		if err != nil {
 			return fmt.Errorf("ADR-0007 D21: checking trigger %s on %s: %w", obj.noTruncateTrigger, obj.table, err)
 		}
@@ -288,13 +430,26 @@ func (p *PostgresSink) regclassExists(ctx context.Context, table string) (bool, 
 	return exists, err
 }
 
-func (p *PostgresSink) triggerExists(ctx context.Context, table, trigger string) (bool, error) {
-	var exists bool
+// triggerEnabled is ADR-0007 Addendum 3 D33 (G-A): renamed from
+// triggerExists, which matched only tgname/tgrelid and never read
+// tgenabled -- so a trigger CAP #2 §7.5 left DISABLE'd via ALTER TABLE
+// still read back as "present." No legitimate state has a disabled guard
+// trigger, so this is a strict tightening with no new configuration:
+// every existing caller (checkRequiredSchemaObjects) gets the stronger
+// check automatically.
+func (p *PostgresSink) triggerEnabled(ctx context.Context, table, trigger string) (bool, error) {
+	var enabled string
 	err := p.conn.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname=$1 AND tgrelid=$2::regclass AND NOT tgisinternal)`,
+		`SELECT tgenabled FROM pg_trigger WHERE tgname=$1 AND tgrelid=$2::regclass AND NOT tgisinternal`,
 		trigger, table,
-	).Scan(&exists)
-	return exists, err
+	).Scan(&enabled)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return enabled == "O", nil
 }
 
 func (p *PostgresSink) columnExists(ctx context.Context, table, column string) (bool, error) {
@@ -630,7 +785,26 @@ CREATE TABLE IF NOT EXISTS screening_ledger_replication (event_id text PRIMARY K
 CREATE TABLE IF NOT EXISTS screening_idempotency_receipt (scope text NOT NULL,idempotency_key_sha256 text NOT NULL,request_sha256 text NOT NULL,response_sha256 text NOT NULL,http_status integer NOT NULL,event_id text NOT NULL REFERENCES screening_ledger_event(event_id),inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(scope,idempotency_key_sha256));
 CREATE TABLE IF NOT EXISTS watchlist_operational_audit(source text NOT NULL,stream_id text NOT NULL,sequence bigint NOT NULL,event_sha256 text NOT NULL,previous_event_sha256 text NOT NULL,occurred_at timestamptz NOT NULL,action text NOT NULL,payload_json jsonb NOT NULL,inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),PRIMARY KEY(source,event_sha256),UNIQUE(source,stream_id,sequence));
 CREATE TABLE IF NOT EXISTS screening_ledger_audit(ledger_id text NOT NULL,sequence bigint NOT NULL,audit_sha256 text PRIMARY KEY,previous_audit_sha256 text NOT NULL,occurred_at timestamptz NOT NULL,action text NOT NULL,event_id text,audit_json jsonb NOT NULL,inserted_at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(ledger_id,sequence));
-CREATE OR REPLACE FUNCTION screening_ledger_reject_mutation()RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'screening ledger rows are append-only';END $$;
+-- ADR-0007 Addendum 3 D34/G-D: screening_ledger_reject_mutation() is now
+-- a protected object (scripts/ci/provision_test_roles.sh
+-- grant-ddl-ownership registers it in sec7_protected_object once
+-- provisioning has run), so an unconditional CREATE OR REPLACE FUNCTION
+-- here -- executed as owl_migrator on every Migrate() call -- would trip
+-- D34's own event trigger on every invocation after provisioning. Guarded
+-- on to_regprocedure(...) IS NULL, D21's general form applied to a third
+-- object: create once, on true first bootstrap; never re-touch once it
+-- exists, because once it exists its protections either already are, or
+-- are about to be, in place. This also retires the self-heal CAP #2
+-- credited ("Migrate() re-issues this unconditionally, so a neutered body
+-- does not survive a migrate/sync") in favor of D34's stronger
+-- prevention -- owl_migrator can no longer replace this function at all
+-- once provisioned, so there is nothing left to heal.
+DO $$
+BEGIN
+  IF to_regprocedure('screening_ledger_reject_mutation()') IS NULL THEN
+    EXECUTE $exec$CREATE FUNCTION screening_ledger_reject_mutation()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'screening ledger rows are append-only';END $func$ $exec$;
+  END IF;
+END $$;
 DROP TRIGGER IF EXISTS screening_ledger_event_immutable ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_immutable BEFORE UPDATE OR DELETE ON screening_ledger_event FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
 DROP TRIGGER IF EXISTS screening_ledger_audit_immutable ON screening_ledger_audit;CREATE TRIGGER screening_ledger_audit_immutable BEFORE UPDATE OR DELETE ON screening_ledger_audit FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
 DROP TRIGGER IF EXISTS watchlist_operational_audit_immutable ON watchlist_operational_audit;CREATE TRIGGER watchlist_operational_audit_immutable BEFORE UPDATE OR DELETE ON watchlist_operational_audit FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
@@ -645,7 +819,15 @@ DROP TRIGGER IF EXISTS screening_ledger_snapshot_guard_trigger ON screening_ledg
 -- database provisioned through this path alone would never see. Same
 -- function name and body as 012 uses, so the two sources cannot diverge
 -- on behavior when both happen to run against the same database.
-CREATE OR REPLACE FUNCTION owl_reject_truncate()RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END $$;
+-- ADR-0007 Addendum 3 D34/G-D: same reasoning and same guard shape as
+-- screening_ledger_reject_mutation() above -- owl_reject_truncate() is
+-- also a protected object once provisioned.
+DO $$
+BEGIN
+  IF to_regprocedure('owl_reject_truncate()') IS NULL THEN
+    EXECUTE $exec$CREATE FUNCTION owl_reject_truncate()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END $func$ $exec$;
+  END IF;
+END $$;
 DROP TRIGGER IF EXISTS screening_ledger_event_no_truncate ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_no_truncate BEFORE TRUNCATE ON screening_ledger_event FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS screening_ledger_snapshot_no_truncate ON screening_ledger_snapshot;CREATE TRIGGER screening_ledger_snapshot_no_truncate BEFORE TRUNCATE ON screening_ledger_snapshot FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS screening_ledger_replication_no_truncate ON screening_ledger_replication;CREATE TRIGGER screening_ledger_replication_no_truncate BEFORE TRUNCATE ON screening_ledger_replication FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
@@ -710,8 +892,8 @@ BEGIN
     EXECUTE 'CREATE TABLE screening_ledger_retention_tombstone(snapshot_sha256 text PRIMARY KEY,purged_at timestamptz NOT NULL,operator text NOT NULL,reason text NOT NULL)';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_immutable BEFORE UPDATE OR DELETE ON screening_ledger_retention_tombstone FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_no_truncate BEFORE TRUNCATE ON screening_ledger_retention_tombstone FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot WHERE expires_at<p_before AND purged_at IS NULL ON CONFLICT(snapshot_sha256) DO NOTHING; UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE expires_at<p_before AND purged_at IS NULL; GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_before timestamptz,p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; BEGIN WITH eligible AS (SELECT snapshot_sha256 FROM screening_ledger_snapshot WHERE snapshot_sha256=ANY(p_snapshot_sha256) AND expires_at<p_before AND purged_at IS NULL), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible ON CONFLICT(snapshot_sha256) DO NOTHING), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT s.snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot s WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()) ON CONFLICT(snapshot_sha256) DO NOTHING; UPDATE screening_ledger_snapshot s SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()); GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_before timestamptz,p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; BEGIN WITH eligible AS (SELECT s.snapshot_sha256 FROM screening_ledger_snapshot s WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp())), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible ON CONFLICT(snapshot_sha256) DO NOTHING), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
   END IF;
 END $$;
 COMMIT;

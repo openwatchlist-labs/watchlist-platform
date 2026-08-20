@@ -69,6 +69,15 @@ func runKeygen(args []string) {
 // key, and writes the signed envelope SignVerificationPolicy produces.
 // This is the only non-test caller SignVerificationPolicy
 // (internal/screeningledger/policy.go) has ever had.
+//
+// ADR-0007 Addendum 3 D36 (G-F): the document is decoded through
+// DecodeUnsignedPolicy, not a bare json.Unmarshal into
+// VerificationPolicy -- CAP #2 §7.8 found the bare unmarshal examines no
+// field at all, so a typo'd or omitted min_anchor_sequence (the only
+// mechanism bounding anchor rollback, D25/R14) both silently signed a
+// floor of 0. DecodeUnsignedPolicy's strict decoding and
+// presence-checking catch both; SignVerificationPolicy's own Validate()
+// call is the second, independent enforcement point D36 requires.
 func runSign(args []string) {
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
 	policyFile := fs.String("policy-file", "", "path to an unsigned VerificationPolicy JSON document (required)")
@@ -79,10 +88,12 @@ func runSign(args []string) {
 	if *policyFile == "" {
 		fatal("--policy-file is required")
 	}
-	raw, err := os.ReadFile(*policyFile)
+	f, err := os.Open(*policyFile)
 	must(err)
-	var policy screeningledger.VerificationPolicy
-	must(json.Unmarshal(raw, &policy))
+	policy, err := screeningledger.DecodeUnsignedPolicy(f)
+	closeErr := f.Close()
+	must(err)
+	must(closeErr)
 	priv, err := screeningledger.LoadEd25519PrivateKey(*privKeyFile, *privKeyEnv)
 	must(err)
 	signed, err := screeningledger.SignVerificationPolicy(policy, priv)

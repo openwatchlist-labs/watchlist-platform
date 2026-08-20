@@ -78,6 +78,19 @@ func TestRecordPurgeFloorsAgainstServerExpiry(t *testing.T) {
 		); err != nil {
 			t.Fatalf("seed snapshot %s: %v", sha, err)
 		}
+		// ADR-0007 Addendum 3 D32: the expiry floor now reads
+		// screening_ledger_event.expires_at (joined through
+		// request_snapshot_sha256/response_snapshot_sha256), not
+		// screening_ledger_snapshot.expires_at -- a referencing event row
+		// is required for the predicate to find this snapshot at all.
+		eventID := uniqueID("event-for-" + sha)
+		if _, err := verify.Exec(ctx,
+			`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
+			 VALUES ($1,$2,1,$3,'',$4::timestamptz,'/screen',200,'req-sha','resp-sha',$5,$5,'screening-standard',$6::timestamptz,'{}'::jsonb)`,
+			eventID, uniqueID("ledger-for-"+sha), uniqueID("event-sha-for-"+sha), past, sha, expires,
+		); err != nil {
+			t.Fatalf("seed referencing event for snapshot %s: %v", sha, err)
+		}
 	}
 
 	// The caller claims BOTH are eligible -- exactly what an adversary,
