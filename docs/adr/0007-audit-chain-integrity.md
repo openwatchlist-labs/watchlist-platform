@@ -1442,3 +1442,661 @@ reviewable and independently provable.
 Every file:line citation in this addendum was verified against that tree. For a CAP record's
 "Audit basis commit" field, use `f135210f8bf4f466a8ad22976a0087efd78c5a07` (branch `main`, tip
 after PR #130).
+
+## Addendum 2: SEC-7 still not closed -- the CAP's four demonstrated bypasses, and the remediation design (2026-08-20)
+
+- **Status:** Proposed
+- **Trigger:** a Composition Audit Program record produced against the repaired system
+  (`docs/backlog/sec-7-cap-record-2d7ded3.md`, Part 2 format, adversarial posture, audit basis
+  commit `2d7ded3b199f6abcc67c1892ec242c92c170b28a`) returned **QUALIFIED, not PASS**: the
+  invariant Addendum 1 rebuilt holds only under five preconditions the system neither checks nor
+  asserts anywhere, and for four of them the audit executed a working bypass against a live
+  PostgreSQL 17.11 cluster with SQLSTATEs and transcripts recorded. **SEC-7 is not closed.** This
+  addendum is the remediation design for exactly those findings. It does not re-litigate whether
+  they are real -- they were proven by execution, not inspection -- and it does not re-prove them.
+- **What the CAP also found, and which this addendum does not disturb:** the cryptographic core of
+  the repair is sound. F1's downgrade break and F8's purge short-circuit are genuinely closed,
+  proven by a reproduction that builds and runs the real pre-repair `f135210` binary from a
+  `git worktree`. D17's role separation is real -- 19 of 19 escalation attempts rejected, including
+  every DDL form F6 named. AR7 is correct. The policy layer's exact-equality schema pin
+  (`policy.go:112`) is the right choice and closes F1's structural analogue one layer up. None of
+  that is reopened here.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not §3.4, §6.1 or the D19 correction note, not R1-R11. Decision numbering continues this
+  ADR's own convention at **D21**; risk numbering at **R12**. Where a prior decision's
+  *disposition* changes, the new decision says so explicitly rather than editing the old text --
+  the convention AR7 established for R7.
+- **Verification basis:** every claim below was checked against the working tree at
+  `2d7ded3b199f6abcc67c1892ec242c92c170b28a` -- the same commit the CAP audited, so `main` has not
+  moved between the audit and this design. That does not make transcription safe, and every
+  `file:line` here was re-derived from the tree rather than copied from the CAP record. Findings
+  retain the labels the CAP assigned them (F-A through F-G).
+- **Drift found in the CAP record's own citations.** Recorded rather than silently corrected, the
+  same convention §3.4, §6.1 and Addendum 1's own drift note (`0007:717-720`) set:
+  1. CAP §7.0 step 2 says "All 14 `db/migrations/*.sql` applied." There are **15** at this commit
+     (`008g` through `018`). `018_screening_ledger_replication_verification.sql` is off the anchor
+     path, so no finding is affected; the method note is off by one.
+  2. CAP §7.2 cites the provisioning postconditions at `provision_test_roles.sh:148-167`. At this
+     commit that block is `:165-216`, with the `has_table_privilege` lookups at `:181-210`.
+     `:148-167` is Addendum 1's citation against `f135210` (pre-D17), carried forward. The CAP's
+     *claim* -- that the postconditions say nothing about DDL -- still holds, and in one respect
+     understates the current script: `:211-215` is a `pg_class.relowner` check, not a
+     `has_table_privilege` lookup, so non-ownership **is** now asserted. DDL capability still is
+     not, which is the substance.
+  3. CAP §7.7 quotes D13's citation of "locally by `PurgeExpired` (`replay.go:194-201`)". The
+     envelope mutation is at `replay.go:197-201` at this commit. This is pre-existing drift in this
+     ADR's own text (`0007:1136-1137`), not CAP drift. Not edited above; recorded here.
+
+  Everything else the CAP cites was checked and is accurate at this commit.
+
+### Addendum 2 context: why these are one design and not four patches
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes: the
+`sawV2` guard was one instance of "the verified data chooses its own acceptance criteria," and D8
+replaced the class rather than the instance. The CAP's findings have the same relationship to each
+other, and naming it is what keeps this addendum from repeating the error one more time.
+
+**The class is: a control whose installation is asserted rather than checked, by the party the
+control constrains.**
+
+- **F-E** -- `SchemaSQL`'s anchor guard asserts "if the table exists its protections are in place"
+  (`postgres.go:392-398`) and never checks. `Migrate()` reports success on a schema that never
+  reached the state it claims.
+- **F-D** -- `IsPurgeRecorded` asserts a tombstone row is independent evidence
+  (`postgres.go:262-266`) and never checks who could have written it. The answer is: the role the
+  record exists to constrain.
+- **F-F** -- D17 asserts that separating owner from writer protects the table's triggers. It
+  protects them from the *writer*. Nothing protects them from the *owner*, and the owner is a real
+  login credential with a real password in CI (`.github/workflows/ci.yml:57`).
+- **F-C** -- `--allow-genesis` asserts an operator's belief that no anchor has ever been written,
+  and the verifier treats the assertion as evidence.
+- **F-A** -- D10 asserts a custody mechanism ("exposed as a package function for whatever
+  out-of-band tooling an operator runs it from", `policy.go:69-74`) that cannot be built at all,
+  because `internal/screeningledger` is a Go `internal` package.
+
+Five instances, one shape. The design below answers each instance, and states the general form once
+where it recurs (D21's closing paragraph, which D27 then depends on).
+
+### The findings, verified against this commit
+
+Restated from the code, not transcribed. Severities are the CAP's, calibrated against Addendum 1's
+F1-F9 so the two sets are comparable.
+
+**F-E (CRITICAL) -- `Migrate()` succeeds on a partial migration and leaves the anchor table
+mutable.** `SchemaSQL`'s anchor block is guarded by
+`IF to_regclass('screening_ledger_anchor') IS NULL THEN` (`postgres.go:399-406`). That predicate
+distinguishes *absent* from *present* and never *stale* from *current*, so on a database migrated
+through `015` but not `017` it skips entirely -- leaving `audit_sequence`, `policy_sha256` and
+D16's `screening_ledger_anchor_immutable` trigger absent -- while `Migrate()` (`postgres.go:88-93`)
+returns `nil`. The six unconditional tables are re-installed on every run by
+`DROP TRIGGER IF EXISTS ... CREATE TRIGGER` (`postgres.go:350-355`, `:367-373`); the anchor table
+alone is not, so a dropped trigger there is never restored either. On such a database `owl_migrator`
+-- explicitly inside §2's threat model (`0007:120-121`) -- owns the table and the CAP executed an
+in-place `UPDATE` forging `event_sha256`. That is limb **(b)** of the invariant being false through
+an ordinary deployment path, after a migration that reported success.
+
+The guard tests that exist to catch schema divergence cannot see it: both are `strings.Contains`
+checks against the `SchemaSQL` Go constant (`postgres_schema_test.go:38`, `:60`). They assert that
+text is present in a string literal. Neither asserts that a trigger exists on a live database after
+`Migrate()` runs, and no live-database assertion of the D15/D16 parity claim exists anywhere in the
+repository.
+
+**F-A (HIGH) -- D10's custody mechanism is unbuildable as specified.** Confirmed at this commit:
+`SignVerificationPolicy` (`policy.go:75`) has exactly one caller in the tree,
+`cmd/screening-ledger/main_test.go:121`. `LoadEd25519PrivateKey` (`crypto.go:62`) has zero callers
+anywhere, tests included. There is no policy-signing subcommand
+(`main.go:20` lists `migrate|status|verify|sync|anchor|replay|export|purge|import-audit`). No policy
+artifact is committed -- `test/fixtures/screening-ledger/` holds `snapshot-key.hex`, `state/`,
+`frozen-v1-synthetic/`, `request.json`, `response.json` and `fake-psql.sh`, and no policy or public
+key. The strings `--policy-file`, `policy-public-key` and "verification policy" appear nowhere in
+`docs/`, `README.md`, `SECURITY.md` or `scripts/` outside this ADR and the CAP record. Meanwhile
+`--policy-file` is `opts.required` for every verification path (`main.go:248`). With no way for any
+operator to produce a policy, verification is unreachable in any operational sense.
+
+**F-F (HIGH) -- `owl_ledger_ddl` has unrestricted authority over the anchor table.** D17 separated
+the anchor *writer* from the *owner* and that separation is real (CAP §7.2, 19 of 19). Nothing
+separates the owner from the table's own protections. The CAP executed, as `owl_ledger_ddl`:
+`DROP TRIGGER screening_ledger_anchor_immutable`, then `DELETE FROM screening_ledger_anchor`, then
+`CREATE TRIGGER` restoring it -- leaving zero anchor rows and a schema indistinguishable from an
+untouched one, which any later schema audit or `grant-anchor-ownership` re-run would report as
+correctly protected. `GRANT INSERT ... TO owl_migrator` also succeeded. The triggers do fire for
+the owner while installed, which is correct and is worth crediting to D16; the defect is that the
+owner removes them first. `owl_ledger_ddl` appears in no threat model: §2 excludes `K_anchor`, the
+`owl_ledger_anchor` role and the policy signing key, and R9 records `owl_ledger_ddl` only as an
+*operational* cost ("a fourth named role to provision", `0007:1379-1380`).
+
+**F-C (MEDIUM, composing to HIGH with F-F) -- `--allow-genesis` masks the wipe.**
+`verificationSettings` (`main.go:259-263`) is shared verbatim by `status`/`verify` (`main.go:37`),
+`sync` (`:91`) and `anchor` (`:143`). On `anchor` the flag is a legitimate bootstrap
+acknowledgment. On `verify` it converts `AnchorStatusAbsent` -- the exact and only signature of an
+anchor-table wipe -- into a nil-error return (`anchor.go:281-284`) at exit 0. Compounding it,
+`"status"` is hard-coded `"ok"` at `main.go:70` for every nil-error outcome, so a genesis-allowed
+run and a fully anchor-verified run share both the exit code and the top-level status field,
+separable only by reading the sibling `anchor_status`. That is a narrower re-introduction of the
+"I could not check" versus "I checked and it was fine" conflation D12 exists to remove.
+
+**F-D (MEDIUM) -- tombstone forgery.** `screening_ledger_retention_tombstone` is created by
+`owl_migrator` (`db/migrations/008g_screening_ledger.sql:7`, and independently by `SchemaSQL` at
+`postgres.go:346`), carries a `BEFORE UPDATE OR DELETE ... FOR EACH ROW` trigger
+(`postgres.go:355`) and a TRUNCATE guard (`:371`), and has **no INSERT constraint of any kind**.
+`IsPurgeRecorded` (`postgres.go:267-276`) trusts a bare `EXISTS`. So the mirror-writing adversary
+§2 admits by name sets `purged_at` on every local envelope, inserts matching tombstones, and
+`verifySnapshotChecked` (`store.go:576-585`) returns `(false, nil)` for all of them: every
+key-dependent snapshot check skipped, in anchored mode, with a database configured. That is F8's
+effect restored through the very record D13 chose to replace it.
+
+Second half, and it is not a smaller problem: `Store.PurgeExpired` (`replay.go:163-209`) sets
+`env.PurgedAt` at `:199` and writes **no independent record at all** -- its `AppendAudit` at `:207`
+is a chain entry, not a tombstone. `screening_ledger_purge_snapshots` (`postgres.go:358`) tombstones
+only snapshots present in the PostgreSQL mirror. A snapshot purged locally and never `sync`ed
+therefore has no tombstone, and anchored-mode verification fails permanently at `store.go:583` with
+no remediation path: legitimate retention renders the ledger unverifiable. The two paths also
+disagree on legal holds -- `replay.go:177` honours `holds/`, the SQL function does not.
+
+Related and unenforced: `SnapshotChecksPerformed` (`store.go:264`) is reported in the CLI output
+(`main.go:76`) and no caller, gate or test asserts anything about it. "Every snapshot was skipped"
+still exits 0 with `"status":"ok"` -- the counter D13 introduced to prevent exactly that confusion
+is reporting-only.
+
+**F-B (LOW) -- AR7 is correct and has no regression guard.** The CAP probed AR7's cross-check
+(`anchor.go:317-334`) directly against a live database and found all three cases detected. This was
+the finding most likely to be a latent break and it is not one. It has zero committed coverage: the
+only `VerifyAnchored` negative tests are `verify_anchor_pgx_test.go:154` (event-chain tail
+truncation) and `:220` (event-chain re-MACed tamper), and neither reaches the historical-lookup
+branch, because both anchor at the current head. Grepping every `*_test.go` in the package for
+`AuditSequence`, `eventAtSequence` and `auditEntryAtSequence` returns no test usage at all.
+
+**F-G (LOW) -- the D18 gate's own regression test is invoked by nothing.**
+`grep -rn "test_check_db_gates"` across the tree returns nothing outside the file itself. Its three
+siblings all run from `run-ci.sh` (`:14`, `:16`, `:18`); it is the only one that does not. The
+regression guard for D18's fail-closed behaviour never runs.
+
+### D21. F-E: `Migrate()` verifies the schema it claims to have produced, and refuses rather than repairs
+
+**Decision: assert the postcondition; fail loudly on any shortfall; do not attempt repair.**
+
+Repair is not merely undesirable here, it is structurally impossible for the one object that
+matters. After `provision_test_roles.sh grant-anchor-ownership` (`:146`) the anchor table is owned
+by `owl_ledger_ddl`, and `Migrate()` runs as `owl_migrator` on every CLI invocation (`main.go:32`,
+`:89`, `:200`). A `DROP TRIGGER`/`CREATE TRIGGER` attempt against a table it does not own fails
+with a permission error that reads to an operator like a plumbing fault -- which is exactly the
+diagnostic confusion D15 was written to remove. Refusal is also the direction CLAUDE.md's
+fail-open-migration rule points: `RAISE EXCEPTION` rather than silently skip.
+
+**Mechanism.**
+
+1. **A literal required-object list.** A single declaration in `postgres.go` --
+   `requiredSchemaObjects` -- enumerating, for all eight protected tables, the relation name, its
+   row-immutability trigger name, and its TRUNCATE-guard trigger name; plus, for
+   `screening_ledger_anchor`, the columns `017` adds (`audit_sequence`, `policy_sha256`). Written
+   out literally, never derived by scanning `SchemaSQL` or by inference, per CLAUDE.md's "never
+   enumerate targets by inference." It is the same eight-table set
+   `postgres_schema_test.go:28-37` already lists, and both must read the one declaration so they
+   cannot drift.
+2. **`Migrate()` checks it.** After executing `SchemaSQL`, `Migrate()` runs one postcondition query
+   against `pg_class`, `pg_trigger` and `pg_attribute` for that list, in the same call, before
+   returning. Any missing relation, trigger or column produces a named error identifying **which**
+   object is absent and **which** migration installs it -- not a generic "schema incomplete."
+   `main.go:32`, `:89` and `:200` all route the result through `must()`, so the CLI exits 1.
+3. **Ownership is reported, not enforced.** A `SchemaSQL`-only bootstrap legitimately leaves the
+   anchor table owned by `owl_migrator`; a fully provisioned database has it owned by
+   `owl_ledger_ddl`. Both are valid states, so the check reports the owner rather than failing on
+   it. This is stated explicitly so it reads as a decision rather than an omission -- and it is the
+   hook D27 depends on.
+
+**Where the schema version is recorded: nowhere, deliberately.** This repository has no
+`schema_migrations` relation and no version-tracking table of any kind -- confirmed by grep, not
+assumed. Migrations are applied by a shell loop (`.github/workflows/ci.yml:88-92`, and the same
+loop in `release-qualification.yml:85`). This addendum decides **not** to introduce one. A recorded
+version number states what the schema is supposed to be; the postcondition query observes what it
+actually is. Recording a version and trusting it would reproduce F-E's own error one level up: a
+value that looks like evidence and is only a claim, writable by the same role that writes
+everything else in the mirror. The postcondition query is strictly stronger and needs no new
+storage.
+
+**The general form, stated once because D27 relies on it.** `SchemaSQL` is a bootstrap that must
+remain idempotent across an ownership boundary it does not control. There are exactly two safe
+shapes for such a statement: unconditionally re-apply it (correct while the running role still owns
+the object), or assert its presence and fail (correct once ownership has moved). The shape that is
+never safe is the third one, present today: skip on the assumption that presence implies
+correctness. Every future guard in `SchemaSQL` picks one of the first two.
+
+**Tests, each of which fails before the change.**
+
+- `TestMigrateFailsOnStaleAnchorTable` (new, pgx, gated on `OWL_MIGRATOR_DATABASE_URL`): provision
+  a database with `008g` through `016` only, run `Migrate()`, assert a non-nil error naming
+  `screening_ledger_anchor_immutable`. Fails today, because `Migrate()` returns `nil` -- this is
+  the CAP's §7.6 state reproduced as a committed regression.
+- `TestMigrateInstallsEveryProtectedTrigger` (new, pgx): against a fresh database, run `Migrate()`,
+  then query `pg_trigger` for every entry in `requiredSchemaObjects`. This is the live-database
+  assertion the D15/D16 parity claim has never had. The two `strings.Contains` tests
+  (`postgres_schema_test.go:38`, `:60`) stay -- they are DB-free and cheap -- but stop being the
+  only evidence.
+
+### D22. F-E, second half: `42703` gets its own explicit, named failure
+
+`LatestAnchor`'s error handling matches `42P01` only (`postgres.go:253-256`). Against a
+`015`-but-not-`017` table, its SELECT (`postgres.go:240-242`) requests `audit_sequence` and
+`policy_sha256` and raises SQLSTATE `42703` (`column "audit_sequence" does not exist`), which falls
+through to the bare `return Anchor{}, false, err` at `:257` and surfaces as unnamed plumbing.
+
+`LatestAnchor` gains an explicit `42703` arm returning a distinct named error: the anchor table
+exists but lacks columns `017` adds, i.e. this database's schema is incomplete and this deployment
+is in F-E's state. Kept as its own decision rather than folded into D21 because the two do different
+jobs: D21 prevents the state being reached through `Migrate()`; D22 is the diagnostic backstop for a
+database that reached it some other way (a partially applied `db/migrations/` run, a restore from an
+older dump). Neither substitutes for the other. Exercised by the same fixture
+`TestMigrateFailsOnStaleAnchorTable` builds.
+
+### D23. F-A: the signer becomes a real binary, and custody moves from structural to operational
+
+D10's premise cannot be satisfied. `internal/screeningledger` is a Go `internal` package; no module
+outside this one can import it, now or ever, so the "out-of-band tooling" `policy.go:69-74`
+describes cannot exist. This is F1b's shape one level up -- Addendum 1 established that "a mechanism
+with no caller is not a deferred cadence, it is an absent control" and did not apply the same test
+to the artifact carrying EA1-EA3.
+
+**Decision: a separate binary, `cmd/screening-ledger-policy`.** Not a `screening-ledger` subcommand,
+and not a promotion of the policy types out of `internal/`.
+
+- **Why not a subcommand.** It would put code that reads an Ed25519 *private* key into the same
+  binary an operator runs to verify and to anchor, on the ledger host. The property D10 actually
+  wanted -- "the private half never enters the appending process, the verifying process, or CI"
+  (`0007:1038-1039`) -- is preserved by a separate executable and lost by a subcommand. The
+  distinction is not cosmetic: a subcommand makes it possible to run the signer by accident in the
+  place it must never run.
+- **Why not promoting the types out of `internal/`.** It would create a public API surface for a
+  package this repository deliberately keeps internal, and it buys nothing toward custody: the
+  private key lives wherever the operator puts it either way. The `internal` boundary is not what
+  protects the key.
+- **Shape.** Three subcommands -- `keygen` (writes a keypair; private key mode `0400`), `sign`
+  (policy document plus private key, emits the signed envelope), `fingerprint` (public key, emits
+  the same SHA-256 `PolicyPublicKeyFingerprint` already prints at `main.go:81`, so an operator can
+  compare EA5's printed value against an out-of-band record without running a verification).
+  All three reuse code that already exists and has no production caller today:
+  `SignVerificationPolicy` (`policy.go:75`), `LoadEd25519PrivateKey` (`crypto.go:62`),
+  `LoadEd25519PublicKey` (`crypto.go:41`).
+- **Deliberately absent from `runtime_executables`**
+  (`scripts/deployment/r2-4/harness/config/policy.json:150-155`). Recorded here so a later reader
+  does not add it on the reasoning that it is a `cmd/` binary like the others.
+
+**The tradeoff against what custody separation is supposed to achieve, stated rather than glossed.**
+Custody separation for this artifact becomes **operational rather than structural**: it now rests on
+where the binary is run and where the private key file lives, not on the signing code being
+unreachable from the ledger host. That is a genuine reduction against the *text* of D10 and no
+reduction at all against what D10 could ever have delivered, because D10's structural version
+presumed an external importer of an `internal` package and was therefore never available. What is
+genuinely preserved and is the whole of the property worth having: the private key never enters
+`screening-ledger`, never enters the appending or verifying process, never enters CI, and is used
+only at ledger-provisioning and policy-change time. An operator who wants stronger separation gets
+it the way this repository already gets it for `R` (§5.2's custody requirement, `0007:337-342`) --
+by where the key file lives and who owns it, not by which module the code sits in.
+
+**Three things D23 also requires, none of which exists today:**
+
+- **A committed example policy.** A signed policy and its trust-root public key under
+  `test/fixtures/screening-ledger/policy/`, labelled example material rather than operator key
+  material, so the CLI's documented happy path is exercisable without
+  `cmd/screening-ledger/main_test.go:106`'s in-test generation being the only source in existence.
+- **An operator procedure in `docs/`.** Generating the keypair; where the private key lives (an
+  offline host, mode `0400`, outside `--ledger-dir`, owned by a principal that is not the ledger
+  directory's owner -- the same custody language §5.2 already sets for `R`); how to re-sign on a
+  policy change; and that a policy change is a re-anchoring event, because `policy_sha256` enters
+  `anchorMAC` (D11, `anchor.go:33-36`).
+- **No `SECURITY.md` change yet.** R3's rule is unchanged and now has a third instance behind it:
+  nothing is said until the mechanism ships and its reproduction passes.
+
+### D24. F-C: `--allow-genesis` is scoped to the subcommand it was designed for
+
+`--allow-genesis` has a legitimate meaning on `anchor`: an operator acknowledging that this ledger
+genuinely has no anchor row and that they are about to write its first. It has no legitimate meaning
+on `status`, `verify` or `sync`, where its only effect is to convert the sole observable signature
+of an anchor-table wipe into success.
+
+- `status`/`verify`/`sync` stop reading `--allow-genesis`. Passing it becomes an **error**, not a
+  silently ignored flag. Silently ignoring it would leave a monitoring job holding a flag that looks
+  load-bearing and does nothing -- the silent-absence shape this whole ADR exists to remove.
+- `anchor` keeps it, with D25's additional constraint below.
+- `main.go:70` stops hard-coding `"status": "ok"`. The top-level status is derived from
+  `report.AnchorStatus`, so an operator or a scripted caller reading only the exit code and the
+  top-level field can distinguish "anchor verified" from "no anchor was found." Today
+  `anchor_status` is the only field that separates them, and it is the field a script is least
+  likely to read.
+
+This half is straightforward and closes the CAP's §7.4 transcript directly. It does not close F-F.
+
+### D25. F-C/F-F: the signed policy commits a minimum anchor sequence -- adopted, with its limit stated
+
+The CAP's flagged candidate, evaluated on its merits rather than defaulted to.
+
+**It works, for the attack it addresses.** `VerificationPolicy` (`policy.go:21-29`) is Ed25519-signed
+under a key `owl_ledger_ddl` does not hold and cannot forge. Adding `min_anchor_sequence` and
+refusing `AnchorStatusAbsent` whenever `min_anchor_sequence >= 1` makes a **full anchor-table wipe
+detectable** -- zero rows is below the signed floor -- and D24 has already removed the flag that
+masked it on the verification paths. It requires no new storage, no new relation and no new key
+material, exactly as the CAP said.
+
+**Both halves of the check are normative, not only the absent one.** `VerifyAnchored`
+(`anchor.go:244`) enforces two conditions against `min_anchor_sequence`, and an implementation that
+adds only the first has not discharged D25:
+
+1. `AnchorStatusAbsent` (`anchor.go:276-286`) is a failure whenever `min_anchor_sequence >= 1`, and
+   `--allow-genesis` cannot override it -- the signed policy already contradicts the assertion the
+   flag makes.
+2. A *present* anchor whose sequence is below the floor is equally a failure. `LatestAnchor` returns
+   the highest-sequence row (`postgres.go:240-242`, `ORDER BY sequence DESC LIMIT 1`), so
+   `latest.Sequence < policy.MinAnchorSequence` means the newest surviving anchor predates what the
+   policy committed to. That is `AnchorStatusFailed`, with an error naming the floor and the
+   sequence found -- not `AnchorStatusAbsent`, because something was found and it was wrong.
+
+**It does not do what a first reading suggests, and the gap must be stated.** An adversary who can
+wipe can also wipe *selectively*. Deleting every anchor above sequence `N` -- or deleting all of
+them and re-inserting a copy of the row at `N` they saved first, which the immutability trigger does
+not prevent once it has been dropped -- satisfies a floor of `N`. What they cannot do is fabricate a
+row that never existed, at any sequence, because `anchor_mac` requires `K_anchor`
+(`anchor.go:142-153`), which §2 excludes them from holding. Rollback is therefore limited to
+sequences this ledger genuinely reached, and the floor limits how far back among those they may go.
+So the mechanism **bounds rollback to the policy's committed floor; it does not prevent rollback to
+it.** And because the policy is by design a rarely-changed artifact (D9, `0007:1008-1011`: EA1-EA3
+and EA5 "change once in a ledger's lifetime"), the floor ratchets only when an operator re-signs and
+re-anchors. The exposed window is `[floor, head]`, which is structurally the same shape as R2/R11's
+anchor-cadence window one layer up, and R14 records it as such.
+
+**Cost, which is real but is paid at its cheapest moment.** `policy.go:112` is an exact-equality
+schema pin, not a floor -- correctly, as the CAP credited. Adding a field is therefore a schema
+change: the document becomes
+`openwatchlist.screening-ledger-verification-policy.v2`, `canonicalPolicyBytes` output changes,
+`PolicySHA256` (`policy.go:61`) changes, and every anchor row's D11 `policy_sha256` binding is
+invalidated. There are zero anchor rows in any environment -- `screening-ledger` remains absent from
+`runtime_executables` (`policy.json:150-155`), re-confirmed at this commit -- so the migration cost
+is zero now and unbounded later, the same argument D11 made for `017` and §6 made for the fixture.
+
+**Bootstrap ordering, decided rather than left to surface during implementation.** A ledger's first
+policy necessarily carries `min_anchor_sequence: 0`, since no anchor exists yet; at that value
+`--allow-genesis` on `anchor` is permitted and `AnchorStatusAbsent` is the honest state. Raising the
+floor is a policy re-issue, which by D11 is a re-anchoring event, so the new floor is always
+satisfiable by construction at the moment it is signed. Once the floor is above zero,
+`--allow-genesis` is refused on `anchor` as well -- it is asserting something the signed policy
+already contradicts.
+
+**Verdict: adopted as a layer, not as the answer.** It closes the demonstrated §7.4 bypass and makes
+policy re-issue cadence an explicit security parameter rather than an operational preference. F-F
+remains open after it, which is why D26 exists.
+
+### D26. F-F: a superuser-provisioned DDL event trigger binds the table's owner
+
+**This decision goes beyond the CAP's own framing, and says so.** CAP §9 states the residual as:
+"A table owner can always drop that table's triggers; PostgreSQL provides no ownership model in
+which the owner is bound by them." The first clause is true. The second is true *about ownership*
+and incomplete about PostgreSQL. **Event triggers are not owner-scoped.** `CREATE EVENT TRIGGER`
+requires superuser; the resulting trigger fires for every non-superuser role including a table's own
+owner; and no non-superuser can disable it. Every role in this cluster is created
+`NOSUPERUSER NOCREATEROLE NOCREATEDB NOBYPASSRLS` (`provision_test_roles.sh:53`, `:55`), including
+`owl_ledger_ddl` (`:64`).
+
+**Mechanism**, provisioned by the bootstrap superuser in `scripts/ci/provision_test_roles.sh` -- the
+same identity and the same file that already performs `grant-anchor-ownership` (`:119-217`), so this
+follows ADR-0001:208's "no migration contains `CREATE ROLE` or `GRANT`" rule exactly as §3.4
+reconciled the anchor role, rather than creating a new exception to it:
+
+- An event trigger on `sql_drop` whose function inspects `pg_event_trigger_dropped_objects()` and
+  raises if any dropped object is `screening_ledger_anchor`,
+  `screening_ledger_anchor_immutable`, `screening_ledger_anchor_no_truncate`, or (per D27)
+  `screening_ledger_retention_tombstone` and its own two triggers. `sql_drop` fires inside the
+  dropping transaction, so the exception rolls the drop back.
+- An event trigger on `ddl_command_end` for tag `ALTER TABLE` that raises when the target is one of
+  those relations. This is what blocks `ALTER TABLE ... DISABLE TRIGGER ALL`, which is not a drop
+  and which the CAP confirmed the owner can currently execute.
+- **Created after `db/migrations/` has run**, so `017`'s own `ALTER TABLE` and
+  `DROP TRIGGER IF EXISTS` statements (`017:28-42`) are unaffected, and narrowly scoped by object
+  identity so that no other migration, no `db/rollback/` script, and no `SchemaSQL` run is caught.
+- `ALTER EVENT TRIGGER ... ENABLE ALWAYS`, so it also fires under
+  `session_replication_role = 'replica'`. That GUC is `SUSET` and therefore already unreachable to
+  these roles; the clause is one word and removes the question rather than leaving it to be
+  re-derived.
+
+**Costs, stated with the same specificity as the benefit.**
+
+- **No precedent in this repository.** Confirmed: `EVENT TRIGGER` appears nowhere in `db/`,
+  `scripts/` or `internal/`. This is a new database-level mechanism, and it is the first control
+  here that a migration cannot install.
+- **Database-wide blast radius.** Event triggers are not per-relation. A defect in the trigger
+  function breaks unrelated DDL across the whole database, including SEC-1's RLS migrations and
+  `db/rollback/014_tenant_isolation_down.sql`. Identity-scoping the function body and creating it
+  last are the mitigations; the risk is real and is not eliminated by them.
+- **It relocates the residual rather than deleting it.** A superuser can drop the event trigger.
+  That is the correct place for the residual to terminate and is the honest statement of what this
+  buys: the party who must be trusted moves from `owl_ledger_ddl` -- a role the deployment hands out
+  with a real password in CI (`.github/workflows/ci.yml:57`) and which §2 never excluded -- to the
+  bootstrap superuser, which §2 never granted the adversary and which INFRA-3 already treats as the
+  one identity allowed to be a superuser (`provision_test_roles.sh:20-22`).
+
+**Empirical proof obligation. This design does not get to assert D26 works.** The behaviour above
+was reasoned from PostgreSQL's documented event-trigger semantics and from this repository's role
+attributes; it was **not** executed against a live cluster, because this is a design pass and
+CLAUDE.md rule 7 puts implementation in its own PR. The implementation PR discharges D26 only by
+reproducing the CAP's §7.3 sequence as a committed test and showing every row now blocked, with its
+SQLSTATE captured rather than inferred: `DROP TRIGGER screening_ledger_anchor_immutable`; the
+drop-then-`DELETE` transaction; the drop-both-then-`TRUNCATE` transaction;
+`ALTER TABLE ... DISABLE TRIGGER ALL`; and `DROP TABLE` -- each as `owl_ledger_ddl` over
+`OWL_LEDGER_DDL_DATABASE_URL`, alongside the 19 escalation attempts `anchor_pgx_test.go` already
+covers. **If that proof fails, D26 is withdrawn**, and R12/R13 below carry the residual explicitly
+and unchanged. Stating both outcomes in advance is deliberate: it is what stops the disposition
+being decided after the fact by whichever result arrived.
+
+### D27. F-D: the tombstone write path becomes a definer function the constrained role cannot alter
+
+EA1 established the pattern this finding needs: an independent, write-restricted record the party
+being constrained cannot forge. Here the constrained party is `owl_migrator`, which today both owns
+`screening_ledger_retention_tombstone` and holds unrestricted INSERT on it.
+
+**Does this need D17's full three-way role split? No, and the reason is structural rather than
+economical.** The anchor needed three roles because it has a separate runtime *writer process*
+holding a separate key -- `owl_ledger_anchor` plus `K_anchor` -- so owner, writer and reader are
+genuinely three identities with three different jobs. The tombstone has no separate writer: it is
+written as a side effect of a retention purge `owl_migrator` legitimately performs. Adding a fourth
+login role would mean the CLI carries a second DSN for `purge` and would not change who is asking
+for the write. What must be true is narrower and sharper: the **predicate** deciding which rows may
+be tombstoned has to be enforced by code the migrator cannot alter.
+
+- `screening_ledger_purge_snapshots` (`postgres.go:358`, `db/migrations/008g_screening_ledger.sql:19`
+  -- today `SECURITY INVOKER` by omission) becomes **`SECURITY DEFINER`** with an explicit
+  `SET search_path`, owned by **`owl_ledger_ddl`** -- the role D17 already introduced. No fifth
+  role. The `SET search_path` is not boilerplate: without it a definer function resolves unqualified
+  names against the caller's `search_path`, which hands the caller the very control the definer
+  boundary exists to take away.
+- `screening_ledger_retention_tombstone`'s ownership moves to `owl_ledger_ddl` in the same
+  provisioning step, which is renamed from `grant-anchor-ownership` to reflect that it now covers
+  two relations rather than one.
+- `owl_migrator` keeps `SELECT` (which `IsPurgeRecorded` needs, `postgres.go:271-274`) and gains
+  `EXECUTE` on the function. It loses `INSERT`, `UPDATE`, `DELETE` and ownership. The forged INSERT
+  the CAP executed becomes `42501`.
+- The function validates every snapshot it tombstones against `screening_ledger_snapshot`'s
+  `expires_at`, so even through the sanctioned path the migrator cannot record a purge for a
+  snapshot that is not actually expired. The record stops being "a row `owl_migrator` wrote" and
+  becomes "a row the server agreed to write, under a predicate `owl_migrator` cannot change."
+- Provisioning postconditions in the style `:181-215` already uses: assert
+  `has_table_privilege('owl_migrator', 'screening_ledger_retention_tombstone', 'INSERT')` is false;
+  assert `relowner` is `owl_ledger_ddl`; assert `prosecdef` is true and `proowner` is
+  `owl_ledger_ddl` on the function. Prove it, do not assume the statements did what they say.
+
+**Why this is one design with D21 and not a separable change.** Once ownership moves, `SchemaSQL`'s
+unconditional `CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots` (`postgres.go:358`), run
+as `owl_migrator` on every CLI invocation, would fail -- the identical situation that produced
+F-E's fail-open guard for the anchor table. The answer is D21's general form: guard on current
+state, and let the postcondition check verify rather than assume. Without D21 in the same stage,
+D27 would recreate F-E on a second object.
+
+If D26 survives its proof, the tombstone relation and its triggers join the event trigger's identity
+list, so the owner cannot drop these protections either.
+
+### D28. F-D, second half: local purge fails closed, and the two purge paths stop disagreeing
+
+Taken as one decision with D27, because what each path may consult depends on what the other
+guarantees.
+
+- **`Store.PurgeExpired` gains a recorder and refuses without one.** It takes a `PurgeRecorder`
+  and, when none is supplied, mutates no envelope and returns an error. Fail closed, matching D13's
+  direction: a purge whose independence cannot be recorded must not happen, rather than happening
+  and silently rendering the ledger permanently unverifiable at `store.go:583`.
+- **`cmd/screening-ledger purge` requires `--postgres-dsn-env`** (`main.go:180-196`, where it is
+  optional today at `:190`). The local-only purge path that produces the unrecoverable state ceases
+  to exist rather than being documented around.
+- **Eligibility is decided in exactly one place, and it is not the SQL function.** The local path
+  already knows about legal holds (`replay.go:177`); the SQL function does not and should not learn
+  about a filesystem directory. So the definer function gains a form taking an explicit
+  `snapshot_sha256[]` -- the set the local path determined is eligible -- and still validates each
+  against `expires_at` server-side. The local side **narrows** (holds, and only holds); the server
+  side **floors** (expiry, non-negotiable). That is what keeps the record independent of the caller
+  while leaving legal holds authoritative where they actually live. It also resolves the divergence
+  the CAP found, rather than leaving two functions with two answers.
+- **`SnapshotChecksPerformed` stops being reporting-only.** In `anchored` mode,
+  `SnapshotChecksPerformed == 0 && SnapshotChecksTotal > 0` becomes a verification failure. The
+  counter D13 introduced to stop "every snapshot was skipped" looking like "every snapshot passed"
+  (`0007:1141-1142`) currently gates nothing, which is the same silent-absence shape one more time.
+
+### D29. F-B: the three regression tests AR7 has never had
+
+Coverage closure, specified here so it is not lost, and explicitly **not** a design question -- the
+mechanism was probed live and is correct. All three go in `verify_anchor_pgx_test.go`, gated on
+`requireAnchorDatabaseURL` (`anchor_pgx_test.go:45`) and `requireMigratorDSN`
+(`postgres_pgx_test.go:30`) like their siblings, and each must assert **both** halves the existing
+tests assert: that `VerifyPolicy` alone accepts the manipulated chain (the shape at
+`verify_anchor_pgx_test.go:193-195` and `:268-270`), and that `VerifyAnchored` rejects it. A test
+that only shows rejection does not show that the anchor is what caught it.
+
+1. **`TestVerifyAnchoredDetectsAuditTailTruncation`** -- anchor at the current head; delete the
+   newest audit entry; rewrite `audit-head.json` consistently; assert the error matches
+   `"possible tail truncation (AR7)"` (`anchor.go:321`). The audit-chain counterpart of `:154`.
+2. **`TestVerifyAnchoredDetectsAuditDivergence`** -- anchor at the current head; tamper an audit
+   entry and re-MAC it under the real `K_chain`, modelling the `K_chain`-holder-without-`K_anchor`
+   adversary exactly as `:220` does for the event chain; assert the error matches
+   `"disagrees with the anchor's committed audit digest"` (`anchor.go:333`).
+3. **`TestVerifyAnchoredDetectsHistoricalTamperBelowAnchor`** -- anchor at sequence `N`, append
+   further legitimate entries so the head advances past `N`, then tamper the entry **at** `N` and
+   the audit entry at the anchored `audit_sequence`, re-MACing both. This is the only case that
+   drives `latest.Sequence != report.Head.Sequence` (`anchor.go:305`, `:324`), and therefore the
+   first execution by anything of `eventAtSequence` (`store.go:424`) and `auditEntryAtSequence`
+   (`store.go:450`). Both branches must be asserted; covering only one leaves half the historical
+   lookup still dead.
+
+### D30. F-G: wire the D18 gate's own regression test
+
+`scripts/ci/tests/test_check_db_gates.sh` is invoked by nothing. One line in `run-ci.sh`, placed
+next to the gate it guards (`run-ci.sh:25`) rather than with its siblings at `:14`/`:16`/`:18`, so
+the test and the script it tests read together:
+
+```sh
+./scripts/ci/tests/test_check_db_gates.sh
+```
+
+Per CLAUDE.md Boundaries gate-script changes are normally their own reviewed PR. This is a one-line
+invocation of an already-committed, already-reviewed test that adds no gate and changes no
+pass/fail semantics for any environment that was passing before, so it rides with the
+implementation rather than becoming a fourth PR -- and the PR description names the `run-ci.sh`
+change explicitly so a reviewer sees the file was touched and why.
+
+### New accepted risks
+
+**R12 -- `owl_ledger_ddl` is named in the threat model, not left as an operational cost in R9.**
+§2 gains an explicit exclusion for `owl_ledger_ddl`: a role the design assumes the adversary does
+**not** hold. §2 today has no such list -- its "Out of scope" paragraph (`0007:128-132`) covers
+confidentiality and availability, and its "Explicitly not assumed" paragraph (`0007:134-138`) is
+about live traffic. The role and key exclusions this design actually rests on are stated in §5.3
+points 1-2 (`0007:376-381`) and R1 (`0007:607-613`), and were first consolidated into one list by
+the CAP record's §2. That list is where `owl_ledger_ddl` belongs, and §2 is where it should be
+readable.
+
+Today `owl_ledger_ddl` appears only in R9 as "a fourth named role to provision" (`0007:1379-1380`), while holding
+a real login credential with a real password in CI (`.github/workflows/ci.yml:57`), and CAP §7.3
+demonstrates what holding it is worth: a full anchor-table wipe with the triggers restored and the
+schema indistinguishable from an untouched one. R9's sentence is not edited; R12 records the new
+disposition, the same way AR7 recorded R7's rather than editing §10 in place. With D26 the
+assumption is enforced by the database; without D26 it is an assumption only, and either way it is
+now stated where a reader looks for the threat model rather than where they look for provisioning
+costs.
+
+**R13 -- `--allow-genesis`'s actual guarantee, restated honestly.** After D24 it can no longer mask
+a wipe on any verification path, and after D25 a full wipe is detectable against the signed floor.
+What it still is, and what must not be overstated: on `anchor`, `--allow-genesis` records that *this
+operator believes* this is a first anchor. It is an acknowledgment, not evidence. Without D26 it
+cannot distinguish a genuine genesis from a wipe-and-recreate performed by the table's own owner,
+because at the moment it is evaluated both states are byte-identical -- zero rows, both triggers
+present, schema correct. With D26 it can, down to a superuser. The flag's name should be read as
+"the operator asserts genesis," never as "genesis was verified."
+
+**R14 -- the rollback window between policy re-issues.** D25's floor bounds how far history can be
+rolled back; it does not prevent rollback to the floor, and the floor advances only when an operator
+re-signs the policy and re-anchors. Policy re-issue cadence therefore joins anchor cadence (R2, R11)
+as a security parameter rather than an operational preference, and it is the second such parameter
+this design leaves unscheduled. `verify` already reports `anchor_age_seconds` (`main.go:79`, R11);
+the same reasoning says it should report the distance between the policy's committed floor and the
+current anchor sequence, so the window is visible rather than assumed. Recorded here rather than
+designed, because scheduling remains §8/D6/D18's separate gate concern and this addendum does not
+reopen it.
+
+### Staging
+
+Same shape and the same reason as §8 and Addendum 1's staging (`0007:1397-1414`): each stage must be
+independently reviewable and independently provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage C1 -- schema truth.** D21, D22, D27, D28, and D30 riding along. One stage rather than
+   two, because D27's ownership move is only safe once D21's postcondition check exists; splitting
+   them would recreate F-E on the tombstone relation in the interval.
+3. **Stage C2 -- genesis, wipes, and the owner.** D24, D25 (policy schema `v2`, re-signing,
+   re-anchoring), D26 with its empirical proof obligation, and D29 riding along. If D26's proof
+   fails, this stage lands D24 and D25 and R12/R13 carry the residual explicitly -- that outcome is
+   pre-declared here, not decided afterwards.
+4. **Stage C3 -- the operator can actually use this.** D23: `cmd/screening-ledger-policy`, the
+   committed example policy fixture, and the operator procedure. Sequenced last only because it
+   blocks nothing else; it is the finding that makes the whole mechanism unreachable in practice,
+   and it must not be dropped for that reason.
+5. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes --
+   Addendum 1's staging item 5 and CAP §8's "public claim containment holds" both require it, and
+   the CAP verified nothing in PR #135, #136 or #137 re-asserted the guarantee.
+
+**SEC-7 does not close on this addendum.** §8's closing condition -- "a deliberately forged chain
+fails a CI run that nobody chose to invoke" -- is met in the CI sense by `d20_exploit_test.go`. It
+is not met while no operator can produce the policy verification requires (F-A), and it is
+contradicted outright while a forged anchor is writable on a database `Migrate()` called
+successfully migrated (F-E). The closing sentence stands and now has a second addendum behind it.
+
+### Addendum 2 summary
+
+- **The CAP's verdict is QUALIFIED, not PASS**, on one CRITICAL and three HIGH findings, four of
+  them with bypasses executed against a live database. This addendum designs the remediation; it
+  does not re-litigate the findings.
+- **The class behind all five substantive findings is one shape:** a control whose installation is
+  asserted rather than checked, by the party the control constrains. F-E asserts a schema state,
+  F-D asserts a record's independence, F-F asserts that owner/writer separation protects triggers,
+  F-C asserts an operator's belief as evidence, F-A asserts a custody mechanism that cannot be
+  built.
+- **The design is D21-D30.** Postcondition verification in `Migrate()` that refuses rather than
+  repairs (D21) and its diagnostic backstop (D22); a real signing binary with the custody tradeoff
+  stated (D23); `--allow-genesis` scoped to `anchor` (D24) plus a policy-committed anchor floor
+  (D25); a superuser-provisioned event trigger that binds the table owner, carrying an explicit
+  empirical proof obligation and a pre-declared withdrawal condition (D26); a `SECURITY DEFINER`
+  tombstone write path with a narrower-than-D17 justification (D27) and a fail-closed local purge
+  that resolves the legal-holds divergence (D28); AR7's three missing regression tests (D29); and
+  the one-line gate wiring (D30).
+- **D26 departs from the CAP's own framing and says so.** CAP §9 framed the F-F residual as
+  possibly unclosable on the grounds that a table owner can always drop that table's triggers. That
+  is true about ownership and incomplete about PostgreSQL: event triggers are superuser-only and
+  bind every non-superuser role, the owner included. The claim is reasoned, not executed, and the
+  implementation PR discharges it only by reproducing CAP §7.3 with every attempt blocked.
+- **Three risks are recorded** rather than designed away: `owl_ledger_ddl` moves into the threat
+  model (R12), `--allow-genesis`'s guarantee is restated as an acknowledgment rather than evidence
+  (R13), and policy re-issue cadence joins anchor cadence as an unscheduled security parameter
+  (R14).
+- **This addendum revises no prior decision.** D1-D7 stand. D8-D20 and AR7 stand. §3.4, §6.1 and the
+  D19 correction note stand. R1-R11 stand; R9's `owl_ledger_ddl` sentence is not edited, and R12
+  records the changed disposition instead.
+
+**Audit basis commit:** `2d7ded3b199f6abcc67c1892ec242c92c170b28a`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit the CAP
+record was produced against, so no drift separates the audit from this design. For a CAP record's
+"Audit basis commit" field covering the implementation of this addendum, use the tip of whichever
+stage PR is under audit, not this value.
