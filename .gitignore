@@ -26,3 +26,4 @@
 # and the security advisory disclosure decision. Never commit these.
 docs/backlog/issue-register.md
 scripts/create-advisories.sh
+/docs/backlog/
