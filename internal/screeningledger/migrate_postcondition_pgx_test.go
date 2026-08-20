@@ -125,14 +125,14 @@ func TestMigrateInstallsEveryProtectedTrigger(t *testing.T) {
 	sink, ctx := newTestSink(t)
 
 	for _, obj := range requiredSchemaObjects {
-		ok, err := sink.triggerExists(ctx, obj.table, obj.immutableTrigger)
+		ok, err := sink.triggerEnabled(ctx, obj.table, obj.immutableTrigger)
 		if err != nil {
 			t.Fatalf("checking %s on %s: %v", obj.immutableTrigger, obj.table, err)
 		}
 		if !ok {
 			t.Fatalf("Migrate() did not install row-immutability trigger %s on %s", obj.immutableTrigger, obj.table)
 		}
-		ok, err = sink.triggerExists(ctx, obj.table, obj.noTruncateTrigger)
+		ok, err = sink.triggerEnabled(ctx, obj.table, obj.noTruncateTrigger)
 		if err != nil {
 			t.Fatalf("checking %s on %s: %v", obj.noTruncateTrigger, obj.table, err)
 		}

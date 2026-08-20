@@ -122,6 +122,37 @@ func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, e
 	}
 	return head, frozenPrefixLength, nil
 }
+
+// readAuditEntries returns every audit entry in this ledger, unsorted by
+// any particular order beyond directory iteration. ADR-0007 Addendum 3
+// D32: VerifyAnchored's purge-claim adjudication reads these back after
+// verifyAuditPolicyLocked has already digest-verified the entire audit
+// chain (as part of the same VerifyPolicy call), so trusting their
+// Details content here is safe -- the chain's own MAC already vouches
+// for it.
+func (s *Store) readAuditEntries() ([]AuditEvent, error) {
+	entries, err := os.ReadDir(filepath.Join(s.directory, "audit"))
+	if err != nil {
+		return nil, err
+	}
+	out := []AuditEvent{}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var event AuditEvent
+		if err := json.Unmarshal(raw, &event); err != nil {
+			return nil, err
+		}
+		out = append(out, event)
+	}
+	return out, nil
+}
+
 func (s *Store) loadAuditHead() (Head, error) {
 	raw, err := os.ReadFile(filepath.Join(s.directory, "audit-head.json"))
 	if errors.Is(err, os.ErrNotExist) {

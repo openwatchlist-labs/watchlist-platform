@@ -59,6 +59,27 @@ type VerifyOptions struct {
 	Policy VerificationPolicy
 	Mode   VerificationMode
 	Purges PurgeChecker
+	// allowDeferredPurgeClaims is ADR-0007 Addendum 3 D32's collect/
+	// adjudicate split, deliberately unexported: a purge claim's
+	// legitimacy requires the anchored audit chain, which is not
+	// available inside VerifyPolicy's own file-chain walk. VerifyPolicy
+	// fails closed on any unadjudicated PurgeClaim in anchored mode
+	// unless this is set -- and because it is unexported, only code in
+	// this package (VerifyAnchored) can set it. "I collected this for
+	// someone else to judge" and "I judged it" must not share a return
+	// value (D12's rule, applied to this new boundary).
+	allowDeferredPurgeClaims bool
+}
+
+// PurgeClaim is ADR-0007 Addendum 3 D32: a snapshot VerifyPolicy's
+// event-chain walk found marked purged, whose legitimacy it no longer
+// decides itself. VerifyAnchored adjudicates each claim after its own
+// anchor cross-check succeeds, against the three-condition rule D32
+// specifies (an attesting audit entry exists, at or below the anchored
+// audit sequence, corroborated by an independent tombstone).
+type PurgeClaim struct {
+	SnapshotSHA256 string
+	EventSequence  uint64
 }
 
 func (o VerifyOptions) modeOrDefault() VerificationMode {
@@ -276,6 +297,12 @@ type VerifyReport struct {
 	AuditFrozenPrefixLength int
 	SnapshotChecksTotal     int
 	SnapshotChecksPerformed int
+	// PurgeClaims (ADR-0007 Addendum 3 D32) is every snapshot this report
+	// found marked purged, collected rather than decided -- see
+	// VerifyOptions.allowDeferredPurgeClaims. Empty whenever no claim was
+	// deferred, which is the common case (no purges, or a filesystem-only
+	// run that decided them immediately).
+	PurgeClaims []PurgeClaim
 }
 
 // VerifyPolicy is the F1 fix's entry point (ADR-0007 D8, D9 option (c)):
@@ -348,6 +375,7 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 	frozenPrefixLength := 0
 	snapshotChecksTotal := 0
 	snapshotChecksPerformed := 0
+	purgeClaims := []PurgeClaim{}
 	for i, p := range pairs {
 		if p.event.Sequence != uint64(i+1) {
 			return VerifyReport{}, fmt.Errorf("ledger sequence gap at %d", i+1)
@@ -390,12 +418,15 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		}
 		for _, sha := range []string{p.event.RequestSnapshotSHA256, p.event.ResponseSnapshotSHA256} {
 			snapshotChecksTotal++
-			performed, err := s.verifySnapshotChecked(ctx, sha, mode, opts.Purges)
+			performed, claim, err := s.verifySnapshotChecked(ctx, sha, p.event.Sequence, mode, opts.Purges)
 			if err != nil {
 				return VerifyReport{}, err
 			}
 			if performed {
 				snapshotChecksPerformed++
+			}
+			if claim != nil {
+				purgeClaims = append(purgeClaims, *claim)
 			}
 		}
 		previous = p.event.EventSHA256
@@ -412,17 +443,27 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 	if err != nil {
 		return VerifyReport{}, err
 	}
-	// ADR-0007 Addendum 2 D28: SnapshotChecksPerformed stops being
-	// reporting-only. D13 introduced the counter specifically to prevent
-	// "every snapshot was skipped" from looking like "every snapshot
-	// passed" -- but until now nothing actually consulted it, so a fully
-	// purged-and-recorded ledger (every snapshot legitimately skipped via
-	// an independent tombstone) still exited "status":"ok" with zero
-	// cryptographic content checked. In anchored mode (the default),
-	// zero performed checks against a nonzero total is now itself a
-	// verification failure, not merely a number in the output.
-	if mode == VerificationModeAnchored && snapshotChecksTotal > 0 && snapshotChecksPerformed == 0 {
-		return VerifyReport{}, fmt.Errorf("anchored mode requires at least one snapshot check to actually run: all %d snapshot checks were skipped (ADR-0007 Addendum 2 D28) -- select historical-unanchored explicitly if this is a legitimately fully-retired ledger", snapshotChecksTotal)
+	// ADR-0007 Addendum 3 D32 supersedes Addendum 2 D28's inline gate here.
+	// D28 asked "did at least one snapshot check actually run" -- a
+	// partial-skip budget that CAP #2 §7.3 walked straight past by hiding
+	// exactly one snapshot of four. D32 replaces it with a stronger
+	// property enforced one layer up: every PurgeClaim below must
+	// individually adjudicate against the anchored audit chain
+	// (VerifyAnchored.adjudicatePurgeClaims) before SnapshotChecksPerformed
+	// is allowed to reach SnapshotChecksTotal -- there is no partial-skip
+	// budget left to walk past. A direct VerifyPolicy caller (anything
+	// other than VerifyAnchored) cannot reach that adjudication at all, so
+	// it fails closed on any claim right here instead.
+	if len(purgeClaims) > 0 {
+		switch {
+		case mode == VerificationModeHistoricalUnanchored:
+			// D13's existing double gate (mode + policy.AllowUnanchored,
+			// already enforced above) already tolerates skipped snapshot
+			// checks in this mode -- there is no anchor for D32's
+			// adjudication to check against, and none is required here.
+		case !opts.allowDeferredPurgeClaims:
+			return VerifyReport{}, fmt.Errorf("%d snapshot(s) are marked purged and require anchored adjudication (ADR-0007 Addendum 3 D32): call VerifyAnchored, which cross-checks each against the anchored audit chain, rather than VerifyPolicy directly", len(purgeClaims))
+		}
 	}
 	return VerifyReport{
 		Head:                    head,
@@ -431,6 +472,7 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		AuditFrozenPrefixLength: auditFrozenPrefixLength,
 		SnapshotChecksTotal:     snapshotChecksTotal,
 		SnapshotChecksPerformed: snapshotChecksPerformed,
+		PurgeClaims:             purgeClaims,
 	}, nil
 }
 
@@ -580,49 +622,49 @@ func (s *Store) writeSnapshot(env SnapshotEnvelope) error {
 // verifySnapshotChecked is ADR-0007 D13 (F8): env.PurgedAt is a plain
 // field inside the ledger directory the threat model already grants the
 // adversary write access to, so it is never trusted on its own to skip
-// the one key-dependent check the event chain still had. If purges is
-// non-nil (a database is configured), a purged envelope must be backed
-// by an independent tombstone row or verification fails outright -- not
-// silently skipped. If purges is nil (filesystem-only), there is no way
-// to confirm the purge is legitimate: that is a hard failure in
-// anchored mode (the default) and a tolerated, counted condition only
-// under explicitly-selected historical-unanchored mode. performed
-// reports whether a real decrypt-and-digest check actually ran, so the
-// caller can report "checks performed" vs. "checks skipped" rather than
-// letting a fully-skipped verification look identical to a fully-passed
-// one.
-func (s *Store) verifySnapshotChecked(ctx context.Context, sha string, mode VerificationMode, purges PurgeChecker) (performed bool, err error) {
+// the one key-dependent check the event chain still had.
+//
+// ADR-0007 Addendum 3 D32: a purged envelope no longer gets decided here.
+// CAP #2 §7.3 showed the independent tombstone this function used to
+// trust as authority is itself forgeable through the sanctioned
+// SECURITY DEFINER path (G-C) -- the same "verified data chooses its own
+// acceptance criteria" class D8 already named. Deciding legitimacy
+// requires the anchored audit chain, which this per-event walk does not
+// have; if a database is configured, this returns a PurgeClaim for
+// VerifyAnchored to adjudicate later instead. If purges is nil
+// (filesystem-only), there is no way to confirm the purge is legitimate
+// at all: that is a hard failure in anchored mode (the default) and a
+// tolerated, uncounted condition only under explicitly-selected
+// historical-unanchored mode -- unchanged from before this decision.
+// performed reports whether a real decrypt-and-digest check actually
+// ran, so the caller can report "checks performed" vs. "checks skipped"
+// rather than letting a fully-skipped verification look identical to a
+// fully-passed one.
+func (s *Store) verifySnapshotChecked(ctx context.Context, sha string, seq uint64, mode VerificationMode, purges PurgeChecker) (performed bool, claim *PurgeClaim, err error) {
 	env, err := s.LoadSnapshot(sha)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if env.SnapshotSHA256 != sha {
-		return false, errors.New("snapshot filename checksum mismatch")
+		return false, nil, errors.New("snapshot filename checksum mismatch")
 	}
 	if env.PurgedAt != "" {
 		if purges != nil {
-			recorded, err := purges.IsPurgeRecorded(ctx, sha)
-			if err != nil {
-				return false, err
-			}
-			if !recorded {
-				return false, fmt.Errorf("snapshot %s is marked purged but no independent purge record exists: possible forged retention state (ADR-0007 D13/F8)", sha)
-			}
-			return false, nil
+			return false, &PurgeClaim{SnapshotSHA256: sha, EventSequence: seq}, nil
 		}
 		if mode == VerificationModeHistoricalUnanchored {
-			return false, nil
+			return false, nil, nil
 		}
-		return false, fmt.Errorf("snapshot %s is marked purged and no independent purge record is available (no database configured): failing in anchored mode rather than trusting the self-reported field (ADR-0007 D13/F8)", sha)
+		return false, nil, fmt.Errorf("snapshot %s is marked purged and no independent purge record is available (no database configured): failing in anchored mode rather than trusting the self-reported field (ADR-0007 D13/F8)", sha)
 	}
 	plaintext, err := decryptSnapshot(s.keys.snap, env)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if digestHex(plaintext) != env.PlaintextSHA256 {
-		return false, errors.New("snapshot checksum mismatch")
+		return false, nil, errors.New("snapshot checksum mismatch")
 	}
-	return true, nil
+	return true, nil, nil
 }
 func (s *Store) eventPath(id string) string { return filepath.Join(s.directory, "events", id+".json") }
 func (s *Store) snapshotPath(sha string) string {

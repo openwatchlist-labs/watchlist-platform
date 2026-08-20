@@ -3,6 +3,7 @@ package screeningledger
 import (
 	"context"
 	"crypto/hmac"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -212,6 +213,15 @@ type AnchorVerifyResult struct {
 	AnchorAgeSeconds *float64
 }
 
+// ProvisioningStateReader is ADR-0007 Addendum 3 D33: satisfied by
+// *PostgresSink's CheckProvisioningState. A separate interface from
+// AnchorReader (rather than folding provisioning-state reading into it)
+// so a caller that wires a fake AnchorReader for a test does not
+// silently also fake provisioning as always-true.
+type ProvisioningStateReader interface {
+	CheckProvisioningState(ctx context.Context) (ProvisioningState, error)
+}
+
 // AnchorOptions is what VerifyAnchored needs beyond VerifyPolicy's own
 // VerifyOptions: the anchor reader, K_anchor, the policy's own digest
 // (for D11's policy_sha256 binding check), and the explicit,
@@ -223,6 +233,94 @@ type AnchorOptions struct {
 	KAnchor      []byte
 	PolicySHA256 string
 	AllowGenesis bool
+	// Provisioning (ADR-0007 Addendum 3 D33) is required whenever Anchors
+	// is non-nil: a verification run against a database whose D26/D34
+	// protections and D17/D27 role separation were never installed is
+	// exactly the "I could not check" outcome D12 exists to remove, and
+	// must not share an exit code with "I checked and it was fine." nil
+	// is a checked nil, same discipline as Anchors (anchor.go's existing
+	// comment on why that interface exists at all).
+	Provisioning ProvisioningStateReader
+}
+
+// purgeExpiredAuditDetails is ADR-0007 Addendum 3 D32: the shape
+// Store.PurgeExpired (replay.go) writes into an AuditEvent's Details for
+// action "purge_expired" -- the sorted, deduplicated set of snapshot
+// sha256 values that purge attested to. It replaces the previous
+// "snapshot_count" integer: a count cannot be adjudicated against a
+// specific PurgeClaim, and Details is already inside the audit chain's
+// own HMAC digest (hashAudit marshals the whole AuditEvent), so this
+// costs no format change to the chain itself.
+type purgeExpiredAuditDetails struct {
+	SnapshotSHA256 []string `json:"snapshot_sha256"`
+}
+
+// adjudicatePurgeClaims is ADR-0007 Addendum 3 D32's adjudication half of
+// the collect/adjudicate split: after VerifyAnchored's own anchor
+// cross-check has succeeded, every PurgeClaim VerifyPolicy collected
+// (rather than decided) is checked against the three-condition rule. A
+// claim is accepted if and only if (1) a verified audit entry attests to
+// it under action "purge_expired", (2) that entry's sequence is at or
+// below the anchor's committed audit_sequence, and (3) an independent
+// tombstone corroborates it. Condition 3 is corroboration, not
+// authority, after this decision -- 1 and 2 are the gate; a caller must
+// not remove 3 on the reasoning that it is redundant, nor re-strengthen
+// it on the reasoning that it is still the evidence (ADR-0007
+// Addendum 3 D32's own stated caution).
+//
+// There is no partial-skip budget: this returns on the first claim that
+// fails to adjudicate, which is what makes it strictly stronger than the
+// Addendum 2 D28 counter gate it supersedes (CAP #2 §7.3 hid exactly one
+// snapshot of four -- a budget of "at least one check ran" walks
+// straight past that).
+func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, purges PurgeChecker) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	entries, err := s.readAuditEntries()
+	if err != nil {
+		return fmt.Errorf("reading audit chain for purge-claim adjudication (ADR-0007 Addendum 3 D32): %w", err)
+	}
+	// attestedAt maps a snapshot sha to the lowest audit sequence that
+	// attests to it -- any attesting entry satisfies condition 1; the
+	// lowest is what a caller would want reported if this ever needs to
+	// explain itself, and comparing the lowest against the anchor is a
+	// strictly harder bar to clear than comparing an arbitrary one.
+	attestedAt := map[string]uint64{}
+	for _, entry := range entries {
+		if entry.Action != "purge_expired" || len(entry.Details) == 0 {
+			continue
+		}
+		var details purgeExpiredAuditDetails
+		if err := json.Unmarshal(entry.Details, &details); err != nil {
+			continue
+		}
+		for _, sha := range details.SnapshotSHA256 {
+			if existing, ok := attestedAt[sha]; !ok || entry.Sequence < existing {
+				attestedAt[sha] = entry.Sequence
+			}
+		}
+	}
+	for _, claim := range claims {
+		seq, attested := attestedAt[claim.SnapshotSHA256]
+		if !attested {
+			return fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
+		}
+		if int64(seq) > anchoredAuditSequence {
+			return fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, seq, anchoredAuditSequence)
+		}
+		if purges == nil {
+			return fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
+		}
+		recorded, err := purges.IsPurgeRecorded(ctx, claim.SnapshotSHA256)
+		if err != nil {
+			return fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
+		}
+		if !recorded {
+			return fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
+		}
+	}
+	return nil
 }
 
 // VerifyAnchored is VerifyPolicy (the full file-chain check: event and
@@ -242,7 +340,13 @@ type AnchorOptions struct {
 // this field, which would not compare equal to the nil this function
 // checks for.
 func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorVerifyResult, error) {
-	report, err := s.VerifyPolicy(ctx, opts.VerifyOptions)
+	// ADR-0007 Addendum 3 D32: VerifyAnchored is the one caller permitted
+	// to defer purge-claim adjudication -- allowDeferredPurgeClaims is
+	// unexported, so setting it here (inside the same package) is the
+	// only place it can be set at all.
+	deferredOpts := opts.VerifyOptions
+	deferredOpts.allowDeferredPurgeClaims = true
+	report, err := s.VerifyPolicy(ctx, deferredOpts)
 	if err != nil {
 		return AnchorVerifyResult{}, err
 	}
@@ -267,6 +371,23 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 			return base, nil
 		}
 		return AnchorVerifyResult{}, errors.New("anchored mode requires a database connection to cross-check the anchor (ADR-0007 D12): no AnchorReader was supplied")
+	}
+
+	// ADR-0007 Addendum 3 D33: required whenever a database is supplied,
+	// checked before the anchor cross-check so an unprovisioned database
+	// fails with a specific, named reason rather than surfacing as a
+	// missing-anchor or missing-column error that reads like a different
+	// problem.
+	if opts.Provisioning == nil {
+		return AnchorVerifyResult{}, errors.New("anchored mode requires a provisioning-state reader when a database is supplied (ADR-0007 Addendum 3 D33): no ProvisioningStateReader was configured")
+	}
+	provisioning, err := opts.Provisioning.CheckProvisioningState(ctx)
+	if err != nil {
+		return AnchorVerifyResult{}, fmt.Errorf("checking provisioning state (ADR-0007 Addendum 3 D33): %w", err)
+	}
+	if !provisioning.Provisioned {
+		base.AnchorStatus = AnchorStatusFailed
+		return base, fmt.Errorf("database is not fully provisioned (ADR-0007 Addendum 3 D33): %s", provisioning.Reason)
 	}
 
 	latest, found, err := opts.Anchors.LatestAnchor(ctx, s.ledgerID)
@@ -356,6 +477,26 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 	if auditAtAnchor != latest.AuditSHA256 {
 		base.AnchorStatus = AnchorStatusFailed
 		return base, fmt.Errorf("audit chain digest at sequence %d (%s) disagrees with the anchor's committed audit digest (%s): possible tampering after anchoring (AR7)", latest.AuditSequence, auditAtAnchor, latest.AuditSHA256)
+	}
+
+	// ADR-0007 Addendum 3 D32: purge-claim adjudication runs only in
+	// anchored mode -- historical-unanchored mode has no anchor for
+	// condition 2 to compare against (D9/D13's existing double gate
+	// already tolerates skipped snapshot checks there, unchanged). Placed
+	// after every prior cross-check has succeeded, per D32's own
+	// sequencing: "VerifyAnchored adjudicates every claim after the
+	// anchor cross-check succeeds."
+	if mode == VerificationModeAnchored {
+		if err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, opts.Purges); err != nil {
+			base.AnchorStatus = AnchorStatusFailed
+			return base, err
+		}
+		// Every claim adjudicated successfully (adjudicatePurgeClaims
+		// returns on the first failure otherwise), so each now counts as
+		// checked -- SnapshotChecksPerformed only reaches
+		// SnapshotChecksTotal once both the originally-decrypted
+		// snapshots and every legitimately-purged one are accounted for.
+		base.SnapshotChecksPerformed = report.SnapshotChecksPerformed + len(report.PurgeClaims)
 	}
 
 	base.AnchorStatus = AnchorStatusVerified

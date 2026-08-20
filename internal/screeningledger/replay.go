@@ -225,7 +225,7 @@ func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reaso
 		recordedSet[sha] = true
 	}
 
-	purged := 0
+	purgedSHA256 := []string{}
 	for _, sha := range eligible {
 		if !recordedSet[sha] {
 			// The server's own floor did not confirm this snapshot as
@@ -236,7 +236,7 @@ func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reaso
 		}
 		env, err := s.LoadSnapshot(sha)
 		if err != nil {
-			return purged, err
+			return len(purgedSHA256), err
 		}
 		env.CiphertextBase64 = ""
 		env.NonceBase64 = ""
@@ -244,10 +244,17 @@ func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reaso
 		env.PurgeReason = reason
 		raw, _ := json.Marshal(env)
 		if err := atomicWrite(s.snapshotPath(sha), raw, 0o600); err != nil {
-			return purged, err
+			return len(purgedSHA256), err
 		}
-		purged++
+		purgedSHA256 = append(purgedSHA256, sha)
 	}
-	_, err = s.AppendAudit("purge_expired", operator, reason, "", map[string]int{"snapshot_count": purged})
-	return purged, err
+	// ADR-0007 Addendum 3 D32: the audit entry attests the sorted,
+	// deduplicated set of snapshot sha256 values purged, not merely a
+	// count -- VerifyAnchored's adjudicatePurgeClaims reads this back to
+	// decide whether a specific purged snapshot is legitimate. eligible
+	// is already deduplicated (built from a map in the caller above), so
+	// sorting alone gives a deterministic, dedup set.
+	sort.Strings(purgedSHA256)
+	_, err = s.AppendAudit("purge_expired", operator, reason, "", purgeExpiredAuditDetails{SnapshotSHA256: purgedSHA256})
+	return len(purgedSHA256), err
 }

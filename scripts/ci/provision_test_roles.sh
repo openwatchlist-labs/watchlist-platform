@@ -23,7 +23,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database}" >&2
+  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database|create-unprovisioned-database}" >&2
   exit 1
 }
 [[ $# -eq 1 ]] || usage
@@ -136,37 +136,49 @@ grant-ddl-ownership)
   # point, having run the CREATE TABLE) and 017_screening_ledger_anchor_
   # policy_binding.sql has added the policy_sha256/audit_sequence columns.
   #
-  # owl_migrator briefly holds membership in owl_ledger_ddl so the
-  # subsequent REVOKE is a real membership drop, not a vacuous one, and
-  # to mirror ADR-0007's specification of this as a deliberate,
-  # structurally one-time action rather than a policy convention: without
-  # a fresh superuser session, nothing in this schema can put owl_migrator
-  # back in a position to own screening_ledger_anchor.
+  # ADR-0007 Addendum 3 D35 (G-E): this step used to briefly GRANT
+  # owl_ledger_ddl TO owl_migrator before ALTER TABLE ... OWNER TO, then
+  # REVOKE it -- a window CAP #2 §7.9 showed is cluster-wide (Postgres
+  # role membership is not per-database) and survives any failure between
+  # the GRANT and the REVOKE (an ALTER TABLE error, a SIGINT, a cancelled
+  # CI step), leaving owl_migrator privileged on every OTHER database in
+  # the cluster too, including ones the failed run never touched. The
+  # membership was never necessary: ALTER TABLE ... OWNER TO requires the
+  # executing role to be able to SET ROLE to the new owner only when that
+  # role is NOT a superuser, and this script always connects as the
+  # bootstrap superuser (psql_super, INFRA-3's PGSUPERUSER) -- confirmed
+  # by execution during this addendum's design pass. D35's decision is to
+  # remove the GRANT/REVOKE pair entirely rather than narrow the window:
+  # "do not close the hole, remove the thing that opens it." A
+  # non-membership precondition runs first (immediately below), not last,
+  # so a dangling membership left by an older script version, an
+  # interrupted run, or a manual grant is refused rather than silently
+  # inherited -- the existing postcondition later in this step stays
+  # where it is; this is an addition, checking the same property on both
+  # edges.
+  already_member="$(psql_super -tAc "SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.roleid JOIN pg_roles mm ON mm.oid = m.member WHERE r.rolname = 'owl_ledger_ddl' AND mm.rolname = 'owl_migrator'")"
+  [[ -z "$already_member" ]] || {
+    echo "FAIL: owl_migrator is already a member of owl_ledger_ddl before this step ran (ADR-0007 Addendum 3 D35/G-E) -- an older script version, an interrupted run, or a manual grant left this membership; a superuser must REVOKE owl_ledger_ddl FROM owl_migrator before re-running this step" >&2
+    exit 1
+  }
   table_exists="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
   [[ "$table_exists" == "1" ]] || {
     echo "FAIL: screening_ledger_anchor does not exist; run db/migrations/015_screening_ledger_anchor.sql first" >&2
     exit 1
   }
-  # Guarded on current ownership, not run unconditionally: once D26's
+  # Guarded on current ownership, not run unconditionally: once D26/D34's
   # event trigger exists (below), it blocks every ALTER TABLE against
   # this relation by design -- including a superuser's, which is the
   # whole point -- so a second invocation of this subcommand (a retried
   # CI step, an operator re-running provisioning) must not attempt this
   # ALTER TABLE again once ownership has already moved. Same "guard on
   # current state" form D21 established, applied here to a script rather
-  # than to Migrate().
+  # than to Migrate(). D35: no GRANT/REVOKE of role membership surrounds
+  # this -- see above.
   anchor_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
   if [[ "$anchor_owner_before" != "owl_ledger_ddl" ]]; then
-    psql_super -c "GRANT owl_ledger_ddl TO owl_migrator;"
     psql_super -c "ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_ddl;"
   fi
-  # REVOKE runs unconditionally, even when the GRANT/ALTER above were
-  # skipped as already-done: REVOKE on a membership that does not exist
-  # is a harmless no-op (a WARNING, not an error, confirmed against a
-  # live server), and this is what makes a partially-completed prior run
-  # (GRANT+ALTER succeeded, REVOKE not yet reached) self-heal on retry
-  # instead of leaving owl_migrator's membership dangling.
-  psql_super -c "REVOKE owl_ledger_ddl FROM owl_migrator;"
   # owl_ledger_anchor (the runtime writer) gets INSERT only -- never
   # ownership, never SELECT/UPDATE/DELETE, never DDL. This is the
   # privilege set ADR-0007 §5.3 point 2 and anchor.go's doc comment
@@ -258,8 +270,23 @@ grant-ddl-ownership)
   if [[ "$tombstone_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_retention_tombstone OWNER TO owl_ledger_ddl;"
   fi
-  psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) OWNER TO owl_ledger_ddl;"
-  psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) OWNER TO owl_ledger_ddl;"
+  # ADR-0007 Addendum 3 D34 registers both overloads below as protected
+  # objects, so -- exactly like the two ALTER TABLE OWNER TO statements
+  # above -- these must be guarded on current ownership rather than run
+  # unconditionally: ALTER FUNCTION ... OWNER TO fires ddl_command_end
+  # with a real objid even when the new owner equals the current one (a
+  # true no-op is not exempt), confirmed by execution during this
+  # addendum's design pass, so an unconditional re-run would trip D34's
+  # own event trigger on the second and every subsequent invocation of
+  # this script.
+  func1_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_before timestamp with time zone, p_operator text, p_reason text'")"
+  if [[ "$func1_owner_before" != "owl_ledger_ddl" ]]; then
+    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) OWNER TO owl_ledger_ddl;"
+  fi
+  func2_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_before timestamp with time zone, p_operator text, p_reason text'")"
+  if [[ "$func2_owner_before" != "owl_ledger_ddl" ]]; then
+    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) OWNER TO owl_ledger_ddl;"
+  fi
   # The definer functions run as owl_ledger_ddl regardless of caller
   # (SECURITY DEFINER), so their INSERT into screening_ledger_retention_
   # tombstone needs nothing further (owl_ledger_ddl now owns that table),
@@ -268,6 +295,13 @@ grant-ddl-ownership)
   # the function body itself would fail with insufficient privilege the
   # first time either form actually runs.
   psql_super -c "GRANT SELECT, UPDATE ON screening_ledger_snapshot TO owl_ledger_ddl;"
+  # ADR-0007 Addendum 3 D32: both overloads' predicate now reads
+  # screening_ledger_event.expires_at (joined through
+  # request_snapshot_sha256/response_snapshot_sha256) instead of trusting
+  # screening_ledger_snapshot.expires_at alone -- owl_ledger_ddl needs
+  # SELECT on that table too, or the definer function itself fails with
+  # insufficient privilege the first time either form actually runs.
+  psql_super -c "GRANT SELECT ON screening_ledger_event TO owl_ledger_ddl;"
   # owl_migrator keeps SELECT on the tombstone table -- IsPurgeRecorded
   # (postgres.go, ADR-0007 D13/F8) reads it as owl_migrator to check
   # whether a snapshot's purge is independently recorded. It does NOT get
@@ -307,56 +341,110 @@ grant-ddl-ownership)
     echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) is not SECURITY DEFINER (prosecdef)" >&2
     exit 1
   }
+  # ADR-0007 Addendum 3 D33: ownership of both overloads is now asserted
+  # here too, not only reported -- the provisioning completion condition
+  # D33 names, checked at the point that installs it rather than left to
+  # Migrate()'s deliberately ownership-blind schema check alone.
+  func1_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_before timestamp with time zone, p_operator text, p_reason text'")"
+  [[ "$func1_owner" == "owl_ledger_ddl" ]] || {
+    echo "FAIL: screening_ledger_purge_snapshots(timestamptz,text,text) owner is '$func1_owner', expected owl_ledger_ddl" >&2
+    exit 1
+  }
+  func2_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_before timestamp with time zone, p_operator text, p_reason text'")"
+  [[ "$func2_owner" == "owl_ledger_ddl" ]] || {
+    echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
+    exit 1
+  }
   echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only"
 
-  # ADR-0007 Addendum 2 D26 (F-F, HIGH -- the highest-risk item in this
-  # addendum): CAP §9 framed the residual as possibly unclosable, on the
-  # premise that a table owner can always drop that table's triggers.
-  # True about ownership, incomplete about PostgreSQL: event triggers are
-  # not owner-scoped. CREATE EVENT TRIGGER requires superuser; the
-  # resulting trigger fires for every non-superuser role including the
-  # protected table's own owner; no non-superuser can disable it. Every
-  # role in this cluster is NOSUPERUSER (create_role above), including
-  # owl_ledger_ddl -- so this is the first control in this schema a
-  # migration cannot install, and it must be provisioned here, by the
-  # bootstrap superuser, after the anchor and tombstone tables exist and
-  # after ownership of both has transferred (all true at this point in
-  # this case).
+  # ADR-0007 Addendum 3 D34 (G-B, G-D, G-G): D26's event trigger scoped
+  # itself twice -- WHEN TAG on the trigger, object_identity string
+  # comparison in the function body -- and CAP #2 walked past both scopings:
+  # DROP OWNED BY carries command tag "DROP OWNED", outside the sql_drop
+  # trigger's WHEN TAG list, so it destroyed both protected tables with no
+  # DDL the trigger watched at all (G-B); CREATE OR REPLACE FUNCTION
+  # carries tag "CREATE FUNCTION", which neither trigger watches, letting
+  # owl_migrator -- which still owns the shared guard functions every
+  # row-immutability trigger on all eight protected tables calls -- neuter
+  # them outright (G-D); and ALTER TABLE ... RENAME TO changes
+  # object_identity but not the object's OID, so the identity-string
+  # comparison missed it (G-G). D31's replacement principle, verified by
+  # execution during this addendum's design pass rather than assumed: scope
+  # by the protected object's OID (stable across RENAME TO and SET SCHEMA,
+  # unlike object_identity) and remove the WHEN TAG filters entirely, so
+  # the trigger sees every DDL statement rather than a chosen few.
   #
-  # This design does not get to assert D26 works (its own stated
-  # standard). It is discharged only by
-  # internal/screeningledger/ddl_event_trigger_pgx_test.go reproducing
-  # CAP §7.3's exact five-form attack sequence against a real Postgres,
-  # every attempt blocked, SQLSTATE captured rather than inferred.
+  # A regclass/regprocedure cast INSIDE the trigger cannot resolve a
+  # dropped object -- by the time sql_drop fires, the catalog entry is
+  # already gone (confirmed by execution: "ERROR: relation ... does not
+  # exist" from exactly this cast, run inside a sql_drop function body
+  # during this addendum's design pass). The protected set therefore has
+  # to be a REAL RELATION, its rows resolved to OIDs once, here, while the
+  # objects still exist -- not re-resolved by name inside the trigger.
+  #
+  # sec7_protected_object is itself in its own protected set (last row
+  # below), so the registry cannot be dropped without tripping the sql_drop
+  # trigger either (R15: a registry is a new trust object, and a stale one
+  # -- an OID that no longer resolves to the object it names -- fails
+  # open; D33's requiredProvisioningState is what is required to close
+  # that, by asserting every fact this step installs, not by this registry
+  # alone).
+  psql_super -c "CREATE TABLE IF NOT EXISTS sec7_protected_object (objid oid PRIMARY KEY, note text NOT NULL);"
+  psql_super -c "REVOKE ALL ON sec7_protected_object FROM PUBLIC;"
+  psql_super -c "GRANT SELECT ON sec7_protected_object TO owl_migrator;"
+  # DML, not DDL -- unaffected by the event triggers below regardless of
+  # their own installation state, so re-populating on every invocation of
+  # this step is safe and keeps the registry from drifting if this script
+  # is ever edited to protect a different object set.
+  psql_super -c "DELETE FROM sec7_protected_object;"
   psql_super -c "
-    CREATE OR REPLACE FUNCTION sec7_protect_ddl_objects() RETURNS event_trigger LANGUAGE plpgsql AS \$\$
+    INSERT INTO sec7_protected_object (objid, note) VALUES
+      ('screening_ledger_anchor'::regclass::oid, 'table: screening_ledger_anchor'),
+      ('screening_ledger_retention_tombstone'::regclass::oid, 'table: screening_ledger_retention_tombstone'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_immutable' AND tgrelid='screening_ledger_anchor'::regclass), 'trigger: screening_ledger_anchor_immutable'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_no_truncate' AND tgrelid='screening_ledger_anchor'::regclass), 'trigger: screening_ledger_anchor_no_truncate'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_immutable' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'trigger: screening_ledger_retention_tombstone_immutable'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'trigger: screening_ledger_retention_tombstone_no_truncate'),
+      ('screening_ledger_reject_mutation()'::regprocedure::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
+      ('owl_reject_truncate()'::regprocedure::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
+      ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
+      ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
+      ('sec7_protected_object'::regclass::oid, 'table: sec7_protected_object (the registry itself)')
+    ;
+  "
+  registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
+  [[ "$registry_row_count" == "11" ]] || {
+    echo "FAIL: expected 11 rows in sec7_protected_object, found $registry_row_count" >&2
+    exit 1
+  }
+  # sec7_protect_ddl_objects() becomes SECURITY DEFINER -- load-bearing,
+  # not hygiene, confirmed by execution: an INVOKER-rights version (the
+  # default) failed an UNRELATED CREATE TABLE with "permission denied for
+  # table sec7_protected_object" during this addendum's design pass,
+  # because the function's own SELECT on the registry then ran as the
+  # invoking (non-superuser) role, which this step never grants read
+  # access to the registry. That is D26's own "database-wide blast
+  # radius" risk realized -- every DDL statement in the database would
+  # have started failing, and it would have shipped. SET search_path
+  # matters for the same reason D27's definer functions need it: an
+  # unqualified reference to sec7_protected_object inside a definer body
+  # would otherwise resolve against the CALLER's search_path.
+  psql_super -c "
+    CREATE OR REPLACE FUNCTION sec7_protect_ddl_objects() RETURNS event_trigger LANGUAGE plpgsql
+    SECURITY DEFINER SET search_path = pg_catalog, public AS \$\$
     DECLARE
       obj record;
-      -- D26's own text names screening_ledger_retention_tombstone and
-      -- its own two triggers here explicitly, not the
-      -- screening_ledger_purge_snapshots functions, which stay within
-      -- owl_ledger_ddl's own authority to alter -- the same role D27
-      -- moves trust to, not a residual this event trigger claims to
-      -- close.
-      protected_tables text[] := ARRAY['public.screening_ledger_anchor', 'public.screening_ledger_retention_tombstone'];
-      protected_trigger_identities text[] := ARRAY[
-        'screening_ledger_anchor_immutable on public.screening_ledger_anchor',
-        'screening_ledger_anchor_no_truncate on public.screening_ledger_anchor',
-        'screening_ledger_retention_tombstone_immutable on public.screening_ledger_retention_tombstone',
-        'screening_ledger_retention_tombstone_no_truncate on public.screening_ledger_retention_tombstone'
-      ];
     BEGIN
       IF TG_EVENT = 'sql_drop' THEN
         FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
-          IF (obj.object_type = 'table' AND obj.object_identity = ANY(protected_tables))
-             OR (obj.object_type = 'trigger' AND obj.object_identity = ANY(protected_trigger_identities)) THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 2 D26: % is protected by a superuser-only DDL event trigger and cannot be dropped', obj.object_identity;
+          IF obj.objid IN (SELECT objid FROM sec7_protected_object) THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 3 D34: % (objid %) is protected by a superuser-only DDL event trigger and cannot be dropped', obj.object_identity, obj.objid;
           END IF;
         END LOOP;
       ELSIF TG_EVENT = 'ddl_command_end' THEN
         FOR obj IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
-          IF obj.object_type = 'table' AND obj.object_identity = ANY(protected_tables) THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 2 D26: % is protected by a superuser-only DDL event trigger; ALTER TABLE is not permitted', obj.object_identity;
+          IF obj.objid IS NOT NULL AND obj.objid IN (SELECT objid FROM sec7_protected_object) THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 3 D34: % (objid %, tag %) is protected by a superuser-only DDL event trigger', obj.object_identity, obj.objid, obj.command_tag;
           END IF;
         END LOOP;
       END IF;
@@ -365,28 +453,36 @@ grant-ddl-ownership)
   "
   psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;"
   psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;"
-  # Scoped by WHEN TAG to the specific DROP forms and to ALTER TABLE only
-  # -- narrower than "every DDL statement in the database" -- and by
-  # object identity inside the function body to exactly the anchor table
-  # and its two guard triggers, per D26's "narrowly scoped by object
-  # identity" requirement. Created only now, after db/migrations/ and
-  # grant-ddl-ownership above have both already run, so 017's own
-  # ALTER TABLE / DROP TRIGGER IF EXISTS statements and this step's own
-  # ALTER TABLE OWNER TO above are unaffected.
-  psql_super -c "CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_drop ON sql_drop WHEN TAG IN ('DROP TABLE', 'DROP TRIGGER') EXECUTE FUNCTION sec7_protect_ddl_objects();"
-  psql_super -c "CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_alter ON ddl_command_end WHEN TAG IN ('ALTER TABLE') EXECUTE FUNCTION sec7_protect_ddl_objects();"
+  # No WHEN TAG clause on either trigger -- D31's principle applied: the
+  # protected set is closed, small, and resolved by OID above; the set of
+  # DDL statement forms is open and enumerating it is what failed twice
+  # (G-B, G-D). Confirmed by execution that an unfiltered sql_drop trigger
+  # DOES see DROP OWNED BY's cascaded drops, with real OIDs and object_type
+  # per dropped object, and that GRANT/REVOKE report objid=NULL (so they
+  # are never accidentally caught by the objid membership check above,
+  # regardless of unfiltering) -- both confirmed during this addendum's
+  # design pass. Created only now, after db/migrations/ and every ALTER
+  # TABLE/ALTER FUNCTION OWNER TO above have already run, so none of this
+  # step's own DDL is caught by its own trigger.
+  psql_super -c "CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_drop ON sql_drop EXECUTE FUNCTION sec7_protect_ddl_objects();"
+  psql_super -c "CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_alter ON ddl_command_end EXECUTE FUNCTION sec7_protect_ddl_objects();"
   # ENABLE ALWAYS so this also fires under session_replication_role =
   # 'replica' -- that GUC is SUSET and already unreachable to these
   # non-superuser roles, but this removes the question rather than
-  # leaving it to be re-derived (D26's own stated reasoning).
+  # leaving it to be re-derived (D26's own stated reasoning, unchanged).
   psql_super -c "ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_drop ENABLE ALWAYS;"
   psql_super -c "ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter ENABLE ALWAYS;"
   event_trigger_count="$(psql_super -tAc "SELECT count(*) FROM pg_event_trigger WHERE evtname IN ('sec7_protect_ddl_objects_on_drop','sec7_protect_ddl_objects_on_alter') AND evtenabled = 'A'")"
   [[ "$event_trigger_count" == "2" ]] || {
-    echo "FAIL: expected both D26 event triggers to exist and be ENABLE ALWAYS ('A'), found $event_trigger_count" >&2
+    echo "FAIL: expected both D34 event triggers to exist and be ENABLE ALWAYS ('A'), found $event_trigger_count" >&2
     exit 1
   }
-  echo "PASS: D26 DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, and their guard triggers from DROP/ALTER TABLE by any non-superuser role, owner included"
+  protect_fn_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='sec7_protect_ddl_objects'")"
+  [[ "$protect_fn_definer" == "t" ]] || {
+    echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
+    exit 1
+  }
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and the registry itself from any DDL statement by any non-superuser role, owner included"
   ;;
 create-stale-anchor-database)
   # ADR-0007 Addendum 2 D21/D22 (F-E, CRITICAL): the committed regression
@@ -411,6 +507,24 @@ create-stale-anchor-database)
   psql_super -c "DROP DATABASE IF EXISTS owl_ci_sec7_stale;"
   psql_super -c "CREATE DATABASE owl_ci_sec7_stale OWNER owl_migrator;"
   echo "PASS: owl_ci_sec7_stale created, owned by owl_migrator (ADR-0007 Addendum 2 D21/D22 stale-schema fixture)"
+  ;;
+create-unprovisioned-database)
+  # ADR-0007 Addendum 3 D33/D37 (G-A): CAP #2 §7.5's owl_p4 state --
+  # db/migrations/ applied in FULL, but grant-ddl-ownership never run --
+  # is a distinct degraded state from create-stale-anchor-database above
+  # (which is a MISSING migration; this is a missing PROVISIONING step,
+  # with no migration absent at all). It cannot be reproduced against
+  # owl_ci for the same reason the stale-schema database cannot: this
+  # step above already ran there. A third, disposable database, owned by
+  # owl_migrator from creation so every migration can run in full against
+  # it and ownership of the protected tables stays with owl_migrator
+  # (grant-ddl-ownership is never run against this database, by
+  # construction), is what lets Migrate()'s and VerifyAnchored's real
+  # code paths run against a genuinely unprovisioned-but-fully-migrated
+  # schema.
+  psql_super -c "DROP DATABASE IF EXISTS owl_ci_sec7_unprovisioned;"
+  psql_super -c "CREATE DATABASE owl_ci_sec7_unprovisioned OWNER owl_migrator;"
+  echo "PASS: owl_ci_sec7_unprovisioned created, owned by owl_migrator (ADR-0007 Addendum 3 D33/G-A unprovisioned-schema fixture)"
   ;;
 *)
   usage

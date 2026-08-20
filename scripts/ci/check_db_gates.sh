@@ -28,9 +28,26 @@
 #                                     provision_test_roles.sh
 #                                     create-stale-anchor-database and
 #                                     migrated only through 016
+#   OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL - SEC-7 Addendum 3 D34/D37 (G-G):
+#                                     the RENAME TO/SET SCHEMA event-trigger
+#                                     reproduction
+#                                     (internal/screeningledger/d34_object_scoped_pgx_test.go),
+#                                     which needs a role with CREATE on
+#                                     schema public to separate "the event
+#                                     trigger blocked it" from "a privilege
+#                                     accident blocked it" -- neither
+#                                     owl_migrator nor owl_ledger_ddl can
+#                                     reach the trigger with this DDL form
+#   OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL - SEC-7 Addendum 3 D33/D37
+#                                     (G-A): every migration applied in
+#                                     full, grant-ddl-ownership never run
+#                                     (internal/screeningledger/d33_provisioning_state_pgx_test.go),
+#                                     a fourth database provisioned by
+#                                     provision_test_roles.sh
+#                                     create-unprovisioned-database
 #
 # This is the complete set: every `os.Getenv("OWL_*_DATABASE_URL")` in the
-# tree gates through one of these five, confirmed by grepping the tree
+# tree gates through one of these seven, confirmed by grepping the tree
 # rather than assumed from ADR-0007 D18's text, which names only the two
 # anchor-related ones.
 #
@@ -52,6 +69,8 @@ DB_GATES=(
   OWL_LEDGER_ANCHOR_DATABASE_URL
   OWL_LEDGER_DDL_DATABASE_URL
   OWL_MIGRATOR_STALE_DATABASE_URL
+  OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL
+  OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL
 )
 
 missing=()

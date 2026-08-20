@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 )
 
 // VerificationPolicySchemaV1 is the schema_version of a VerificationPolicy
@@ -49,6 +51,117 @@ type VerificationPolicy struct {
 	// re-anchoring event, so the new floor is always satisfiable by
 	// construction at the moment it is signed.
 	MinAnchorSequence uint64 `json:"min_anchor_sequence"`
+}
+
+// Validate is ADR-0007 Addendum 3 D36 (G-F): validity defined as a
+// property of the artifact, enforced by one function called from both
+// the producing end (SignVerificationPolicy) and the consuming end
+// (LoadSignedVerificationPolicy) -- a policy that cannot be validated can
+// be neither produced nor consumed. Before this, policy.go:135's
+// exact-equality schema check was the sole check, applied only at load;
+// CAP #2 §7.8 signed an invalid document with no complaint at all,
+// because nothing on the producing side ever asked.
+func (p VerificationPolicy) Validate() error {
+	if p.SchemaVersion != VerificationPolicySchemaV2 {
+		return fmt.Errorf("verification policy schema_version %q is not %q", p.SchemaVersion, VerificationPolicySchemaV2)
+	}
+	if strings.TrimSpace(p.LedgerID) == "" {
+		return errors.New("verification policy ledger_id must not be empty")
+	}
+	if _, ok := eventSchemaOrdinal(p.MinEventSchema); !ok {
+		return fmt.Errorf("verification policy min_event_schema %q is not a recognized event schema version", p.MinEventSchema)
+	}
+	if _, ok := auditSchemaOrdinal(p.MinAuditSchema); !ok {
+		return fmt.Errorf("verification policy min_audit_schema %q is not a recognized audit schema version", p.MinAuditSchema)
+	}
+	if p.GenesisEventSequence < 1 {
+		return errors.New("verification policy genesis_event_sequence must be >= 1 (sequence numbering starts at 1; 0 is not a boundary, it is an unset field)")
+	}
+	if p.GenesisAuditSequence < 1 {
+		return errors.New("verification policy genesis_audit_sequence must be >= 1 (sequence numbering starts at 1; 0 is not a boundary, it is an unset field)")
+	}
+	return nil
+}
+
+// unsignedPolicyInput is ADR-0007 Addendum 3 D36: the shape an unsigned
+// policy document is decoded through before signing, distinct from
+// VerificationPolicy itself. Every field is a pointer so an omitted key
+// is distinguishable from its zero value -- the gap CAP #2 §7.8 walked
+// through: a typo'd or omitted min_anchor_sequence both silently produced
+// a signed floor of 0, and min_anchor_sequence is the only mechanism
+// bounding anchor rollback (D25, R14).
+type unsignedPolicyInput struct {
+	SchemaVersion        *string `json:"schema_version"`
+	LedgerID             *string `json:"ledger_id"`
+	MinEventSchema       *string `json:"min_event_schema"`
+	MinAuditSchema       *string `json:"min_audit_schema"`
+	GenesisEventSequence *uint64 `json:"genesis_event_sequence"`
+	GenesisAuditSequence *uint64 `json:"genesis_audit_sequence"`
+	AllowUnanchored      *bool   `json:"allow_unanchored"`
+	MinAnchorSequence    *uint64 `json:"min_anchor_sequence"`
+}
+
+// DecodeUnsignedPolicy is ADR-0007 Addendum 3 D36: strict decoding
+// (json.Decoder.DisallowUnknownFields, the same established pattern
+// cmd/policy-evaluate, cmd/release-config, cmd/catalog-registry and
+// cmd/matcher-project already use) catches a misspelled field name --
+// CAP #2 §7.8's "min_anchor_seqence" -- as a decode error rather than a
+// silently ignored key; presence-checking every pointer field catches an
+// omitted one, which strict decoding alone does not. Both are required
+// before this ever reaches Validate(). This is the sole path
+// cmd/screening-ledger-policy's sign command uses to read its input --
+// see D36's own text: enforcing at only one end (the consumer) would
+// leave the producer as the gap, which is exactly what policy.go:135
+// being the sole check produced.
+func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+	var in unsignedPolicyInput
+	if err := dec.Decode(&in); err != nil {
+		return VerificationPolicy{}, fmt.Errorf("decode unsigned policy document (ADR-0007 Addendum 3 D36): %w", err)
+	}
+	var missing []string
+	if in.SchemaVersion == nil {
+		missing = append(missing, "schema_version")
+	}
+	if in.LedgerID == nil {
+		missing = append(missing, "ledger_id")
+	}
+	if in.MinEventSchema == nil {
+		missing = append(missing, "min_event_schema")
+	}
+	if in.MinAuditSchema == nil {
+		missing = append(missing, "min_audit_schema")
+	}
+	if in.GenesisEventSequence == nil {
+		missing = append(missing, "genesis_event_sequence")
+	}
+	if in.GenesisAuditSequence == nil {
+		missing = append(missing, "genesis_audit_sequence")
+	}
+	if in.AllowUnanchored == nil {
+		missing = append(missing, "allow_unanchored")
+	}
+	if in.MinAnchorSequence == nil {
+		missing = append(missing, "min_anchor_sequence")
+	}
+	if len(missing) > 0 {
+		return VerificationPolicy{}, fmt.Errorf("unsigned policy document is missing required field(s): %s (ADR-0007 Addendum 3 D36) -- an operator who genuinely wants no anchor floor must write \"min_anchor_sequence\": 0 and mean it; silence is not a value", strings.Join(missing, ", "))
+	}
+	policy := VerificationPolicy{
+		SchemaVersion:        *in.SchemaVersion,
+		LedgerID:             *in.LedgerID,
+		MinEventSchema:       *in.MinEventSchema,
+		MinAuditSchema:       *in.MinAuditSchema,
+		GenesisEventSequence: *in.GenesisEventSequence,
+		GenesisAuditSequence: *in.GenesisAuditSequence,
+		AllowUnanchored:      *in.AllowUnanchored,
+		MinAnchorSequence:    *in.MinAnchorSequence,
+	}
+	if err := policy.Validate(); err != nil {
+		return VerificationPolicy{}, err
+	}
+	return policy, nil
 }
 
 // SignedVerificationPolicy is the on-disk envelope: the policy document
@@ -99,6 +212,14 @@ func SignVerificationPolicy(policy VerificationPolicy, priv ed25519.PrivateKey) 
 	if len(priv) != ed25519.PrivateKeySize {
 		return SignedVerificationPolicy{}, fmt.Errorf("Ed25519 private key must be %d bytes", ed25519.PrivateKeySize)
 	}
+	// ADR-0007 Addendum 3 D36 (G-F): refuses to sign an invalid policy --
+	// CAP #2 §7.8 signed a typo'd/omitted min_anchor_sequence, a retired
+	// v1 document with empty fields, and {"hello":"world"}, all four
+	// producing a validly signed artifact. A signer that does not examine
+	// its input at all is the gap; this closes it at the producing end.
+	if err := policy.Validate(); err != nil {
+		return SignedVerificationPolicy{}, fmt.Errorf("refusing to sign an invalid policy (ADR-0007 Addendum 3 D36): %w", err)
+	}
 	canon, err := canonicalPolicyBytes(policy)
 	if err != nil {
 		return SignedVerificationPolicy{}, err
@@ -132,9 +253,6 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return VerificationPolicy{}, "", fmt.Errorf("parse verification policy: %w", err)
 	}
-	if envelope.Policy.SchemaVersion != VerificationPolicySchemaV2 {
-		return VerificationPolicy{}, "", fmt.Errorf("verification policy schema_version %q is not %q", envelope.Policy.SchemaVersion, VerificationPolicySchemaV2)
-	}
 	canon, err := canonicalPolicyBytes(envelope.Policy)
 	if err != nil {
 		return VerificationPolicy{}, "", err
@@ -145,6 +263,15 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 	}
 	if !ed25519.Verify(trustedPublicKey, canon, sig) {
 		return VerificationPolicy{}, "", errors.New("verification policy signature is invalid under the configured trust-root public key")
+	}
+	// ADR-0007 Addendum 3 D36: Validate() replaces the previous bare
+	// schema_version equality check -- still the same exact-equality pin
+	// (Validate's first check), now joined by every other fact D36 names,
+	// checked after the signature so an attacker who cannot forge a
+	// signature cannot use an invalid-but-signed document to reach here
+	// either.
+	if err := envelope.Policy.Validate(); err != nil {
+		return VerificationPolicy{}, "", fmt.Errorf("signed verification policy failed validation (ADR-0007 Addendum 3 D36): %w", err)
 	}
 	return envelope.Policy, digestHex(canon), nil
 }

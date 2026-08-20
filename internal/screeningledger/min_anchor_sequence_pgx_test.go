@@ -39,7 +39,7 @@ func TestVerifyAnchoredRejectsAbsentAnchorBelowFloor(t *testing.T) {
 	// AnchorStatusAbsent (CAP §7.4's exact bypass shape). With the floor
 	// set, it must fail instead.
 	if _, err := store.VerifyAnchored(ctx, AnchorOptions{
-		VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, AllowGenesis: true,
+		VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, AllowGenesis: true,
 	}); err == nil {
 		t.Fatal("expected a failure: no anchor row exists but the policy commits to min_anchor_sequence=1 (ADR-0007 Addendum 2 D25)")
 	} else if !strings.Contains(err.Error(), "min_anchor_sequence") && !strings.Contains(err.Error(), "minimum anchor sequence") {
@@ -50,7 +50,7 @@ func TestVerifyAnchoredRejectsAbsentAnchorBelowFloor(t *testing.T) {
 	unanchoredPolicy := policy
 	unanchoredPolicy.AllowUnanchored = true
 	if _, err := store.VerifyAnchored(ctx, AnchorOptions{
-		VerifyOptions: VerifyOptions{Policy: unanchoredPolicy, Mode: VerificationModeHistoricalUnanchored}, Anchors: readerSink, KAnchor: kAnchor,
+		VerifyOptions: VerifyOptions{Policy: unanchoredPolicy, Mode: VerificationModeHistoricalUnanchored}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor,
 	}); err == nil {
 		t.Fatal("expected historical-unanchored mode to still fail against an absent anchor when the policy commits to min_anchor_sequence=1")
 	}
@@ -61,7 +61,7 @@ func TestVerifyAnchoredRejectsAbsentAnchorBelowFloor(t *testing.T) {
 	genesisPolicy := policy
 	genesisPolicy.MinAnchorSequence = 0
 	result, err := store.VerifyAnchored(ctx, AnchorOptions{
-		VerifyOptions: VerifyOptions{Policy: genesisPolicy}, Anchors: readerSink, KAnchor: kAnchor, AllowGenesis: true,
+		VerifyOptions: VerifyOptions{Policy: genesisPolicy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, AllowGenesis: true,
 	})
 	if err != nil {
 		t.Fatalf("expected --allow-genesis to still work with no floor set: %v", err)
@@ -129,7 +129,7 @@ func TestVerifyAnchoredRejectsPresentAnchorBelowFloor(t *testing.T) {
 	flooredPolicy.MinAnchorSequence = 2
 
 	if _, err := store.VerifyAnchored(ctx, AnchorOptions{
-		VerifyOptions: VerifyOptions{Policy: flooredPolicy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256,
+		VerifyOptions: VerifyOptions{Policy: flooredPolicy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 	}); err == nil {
 		t.Fatal("expected a failure: the present anchor (sequence 1) is below the policy's min_anchor_sequence (2) (ADR-0007 Addendum 2 D25)")
 	} else if !strings.Contains(err.Error(), "below the signed policy's minimum anchor sequence") {
@@ -143,7 +143,7 @@ func TestVerifyAnchoredRejectsPresentAnchorBelowFloor(t *testing.T) {
 	satisfiedPolicy := policy
 	satisfiedPolicy.MinAnchorSequence = 1
 	if _, err := store.VerifyAnchored(ctx, AnchorOptions{
-		VerifyOptions: VerifyOptions{Policy: satisfiedPolicy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256,
+		VerifyOptions: VerifyOptions{Policy: satisfiedPolicy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 	}); err != nil && strings.Contains(err.Error(), "below the signed policy's minimum anchor sequence") {
 		t.Fatalf("floor check spuriously rejected an anchor that satisfies it: %v", err)
 	}

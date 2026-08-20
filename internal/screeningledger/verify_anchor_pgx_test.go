@@ -116,6 +116,7 @@ func TestVerifyAnchoredRealFixtureGenesis(t *testing.T) {
 	result, err := store.VerifyAnchored(ctx, AnchorOptions{
 		VerifyOptions: VerifyOptions{Policy: policy},
 		Anchors:       &anchorReaderForLedger{sink: readerSink, ledgerID: anchorLedgerID},
+		Provisioning:  readerSink,
 		KAnchor:       kAnchor,
 		PolicySHA256:  policySHA256,
 		AllowGenesis:  true,
@@ -200,7 +201,7 @@ func TestVerifyAnchoredDetectsTailTruncation(t *testing.T) {
 	}
 	defer readerSink.Close(context.Background())
 
-	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256}); err == nil {
+	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256}); err == nil {
 		t.Fatal("SEC-7 D5 case 2: tail truncation behind the newest anchor was not detected")
 	} else if !strings.Contains(err.Error(), "tail truncation") {
 		t.Fatalf("expected a tail-truncation error, got: %v", err)
@@ -275,7 +276,7 @@ func TestVerifyAnchoredDetectsDivergence(t *testing.T) {
 	}
 	defer readerSink.Close(context.Background())
 
-	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256}); err == nil {
+	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, PolicySHA256: policySHA256}); err == nil {
 		t.Fatal("SEC-7 D5 case 4: a chain valid under K_chain but diverging from the anchor was not detected")
 	} else if !strings.Contains(err.Error(), "disagrees with the anchor") {
 		t.Fatalf("expected an anchor-divergence error, got: %v", err)
@@ -307,14 +308,14 @@ func TestVerifyAnchoredAbsentRequiresAllowGenesis(t *testing.T) {
 	defer readerSink.Close(context.Background())
 
 	// Absent, anchored mode, no --allow-genesis: must fail.
-	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor}); err == nil {
+	if _, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor}); err == nil {
 		t.Fatal("an absent anchor in anchored mode without --allow-genesis must fail (ADR-0007 D12/D19)")
 	}
 
 	// Absent, anchored mode, --allow-genesis: must succeed, reporting
 	// AnchorStatusAbsent (not Verified -- nothing was actually checked
 	// against a committed anchor).
-	result, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, KAnchor: kAnchor, AllowGenesis: true})
+	result, err := store.VerifyAnchored(ctx, AnchorOptions{VerifyOptions: VerifyOptions{Policy: policy}, Anchors: readerSink, Provisioning: readerSink, KAnchor: kAnchor, AllowGenesis: true})
 	if err != nil {
 		t.Fatalf("an absent anchor with --allow-genesis must not error: %v", err)
 	}
