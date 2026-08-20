@@ -160,7 +160,26 @@ func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPoli
 	_, _ = s.AppendAudit("export_bundle", "", "", eventID, map[string]any{"mode": mode, "bundle_sha256": manifest.BundleSHA256})
 	return manifest, nil
 }
-func (s *Store) PurgeExpired(now time.Time, operator, reason string) (int, error) {
+
+// PurgeExpired is ADR-0007 Addendum 2 D27/D28's local-narrows/server-floors
+// purge path. It gains a required PurgeRecorder and refuses without one
+// (D28: "a purge whose independence cannot be recorded must not happen,
+// rather than happening and silently rendering the ledger permanently
+// unverifiable" -- the failure mode replay.go used to reach with no
+// independent record at all, before this fix, when a snapshot was purged
+// locally and never synced).
+//
+// The local side determines eligibility exactly as before (legal holds,
+// which the server does not and should not learn about a filesystem
+// directory -- D28's "narrows"), then hands recorder that eligible set.
+// recorder re-validates every one of them against its own expiry floor
+// and returns exactly which it actually recorded (D28's "floors") -- only
+// those may be marked purged in the local envelope, regardless of what
+// this side believed was eligible.
+func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reason string, recorder PurgeRecorder) (int, error) {
+	if recorder == nil {
+		return 0, errors.New("purge requires a PurgeRecorder (ADR-0007 Addendum 2 D28): a purge whose independence cannot be recorded must not happen")
+	}
 	events, err := s.ListEvents()
 	if err != nil {
 		return 0, err
@@ -170,29 +189,54 @@ func (s *Store) PurgeExpired(now time.Time, operator, reason string) (int, error
 		references[event.RequestSnapshotSHA256] = append(references[event.RequestSnapshotSHA256], event)
 		references[event.ResponseSnapshotSHA256] = append(references[event.ResponseSnapshotSHA256], event)
 	}
-	purged := 0
+	eligible := []string{}
 	for sha, refs := range references {
-		eligible := true
+		ok := true
 		for _, event := range refs {
 			if _, err := os.Stat(s.directory + "/holds/" + event.EventID); err == nil {
-				eligible = false
+				ok = false
 				break
 			}
 			expires, err := time.Parse(time.RFC3339Nano, event.ExpiresAt)
 			if err != nil || now.Before(expires) {
-				eligible = false
+				ok = false
 				break
 			}
 		}
-		if !eligible {
+		if !ok {
+			continue
+		}
+		env, err := s.LoadSnapshot(sha)
+		if err != nil {
+			return 0, err
+		}
+		if env.PurgedAt != "" {
+			continue
+		}
+		eligible = append(eligible, sha)
+	}
+
+	recorded, err := recorder.RecordPurge(ctx, eligible, now, operator, reason)
+	if err != nil {
+		return 0, err
+	}
+	recordedSet := make(map[string]bool, len(recorded))
+	for _, sha := range recorded {
+		recordedSet[sha] = true
+	}
+
+	purged := 0
+	for _, sha := range eligible {
+		if !recordedSet[sha] {
+			// The server's own floor did not confirm this snapshot as
+			// expired (e.g. clock skew against the local now, or it was
+			// already recorded independently) -- do not mark it purged
+			// locally on the strength of the local side's belief alone.
 			continue
 		}
 		env, err := s.LoadSnapshot(sha)
 		if err != nil {
 			return purged, err
-		}
-		if env.PurgedAt != "" {
-			continue
 		}
 		env.CiphertextBase64 = ""
 		env.NonceBase64 = ""

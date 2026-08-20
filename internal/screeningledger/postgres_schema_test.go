@@ -61,3 +61,32 @@ func TestSchemaSQLAnchorTableHasImmutabilityTrigger(t *testing.T) {
 		t.Fatal("SchemaSQL is missing a row-immutability (BEFORE UPDATE OR DELETE) trigger on screening_ledger_anchor (ADR-0007 D16/F7)")
 	}
 }
+
+// TestRequiredSchemaObjectsMatchProtectedTables is ADR-0007 Addendum 2
+// D21: postgres.go's requiredSchemaObjects (Migrate()'s live-database
+// postcondition check) and this file's protectedTables (SchemaSQL's own
+// text) are two separately hand-written enumerations of the same
+// eight-table set, per CLAUDE.md's "never enumerate targets by
+// inference." This is the guard that keeps them from silently
+// drifting apart -- a table present in one list and not the other is
+// exactly the kind of gap that class of bug hides in.
+func TestRequiredSchemaObjectsMatchProtectedTables(t *testing.T) {
+	protectedTables := []string{
+		"screening_ledger_event",
+		"screening_ledger_snapshot",
+		"screening_ledger_replication",
+		"screening_idempotency_receipt",
+		"screening_ledger_retention_tombstone",
+		"watchlist_operational_audit",
+		"screening_ledger_audit",
+		"screening_ledger_anchor",
+	}
+	if len(requiredSchemaObjects) != len(protectedTables) {
+		t.Fatalf("requiredSchemaObjects has %d entries, protectedTables has %d -- they must name the same tables", len(requiredSchemaObjects), len(protectedTables))
+	}
+	for i, table := range protectedTables {
+		if requiredSchemaObjects[i].table != table {
+			t.Fatalf("requiredSchemaObjects[%d] = %q, protectedTables[%d] = %q -- the two enumerations have drifted apart", i, requiredSchemaObjects[i].table, i, table)
+		}
+	}
+}

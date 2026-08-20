@@ -274,6 +274,20 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 		return AnchorVerifyResult{}, fmt.Errorf("reading latest anchor: %w", err)
 	}
 	if !found {
+		// ADR-0007 Addendum 2 D25 point 1 (F-C/F-F): the signed policy's
+		// min_anchor_sequence is itself an externally-authenticated
+		// commitment that at least that many anchors were genuinely
+		// written. An absent anchor is inconsistent with that commitment
+		// regardless of mode or --allow-genesis -- both are ways of
+		// saying "I could not check" or "I am not checking," and the
+		// policy already asserts something stronger than either. This is
+		// what makes a full anchor-table wipe (owl_ledger_ddl's residual,
+		// CAP §7.3/§7.4) detectable without D26: zero rows is below any
+		// floor >= 1.
+		if opts.Policy.MinAnchorSequence >= 1 {
+			base.AnchorStatus = AnchorStatusFailed
+			return base, fmt.Errorf("no anchor row exists for this ledger, but the signed policy commits to a minimum anchor sequence of %d (ADR-0007 Addendum 2 D25): an anchor-table wipe cannot be reported as a legitimate absence once a floor is set", opts.Policy.MinAnchorSequence)
+		}
 		if mode == VerificationModeHistoricalUnanchored {
 			base.AnchorStatus = AnchorStatusAbsent
 			return base, nil
@@ -295,6 +309,17 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 	if opts.PolicySHA256 != "" && latest.PolicySHA256 != opts.PolicySHA256 {
 		base.AnchorStatus = AnchorStatusFailed
 		return base, fmt.Errorf("anchor's policy_sha256 (%s) does not match the policy in use (%s): a policy change requires re-anchoring (ADR-0007 D11)", latest.PolicySHA256, opts.PolicySHA256)
+	}
+	// ADR-0007 Addendum 2 D25 point 2: a PRESENT anchor below the policy's
+	// floor is equally a failure, distinct from AnchorStatusAbsent because
+	// something was found and it was wrong -- e.g. every anchor above
+	// sequence N deleted (or deleted and replaced with a saved copy of the
+	// row at N), which the immutability trigger does not prevent once it
+	// has been dropped. This bounds rollback to the policy's committed
+	// floor; it does not prevent rollback to it (D25's own stated limit).
+	if opts.Policy.MinAnchorSequence > 0 && latest.Sequence < int64(opts.Policy.MinAnchorSequence) {
+		base.AnchorStatus = AnchorStatusFailed
+		return base, fmt.Errorf("anchor sequence %d is below the signed policy's minimum anchor sequence %d (ADR-0007 Addendum 2 D25): the newest surviving anchor predates what the policy committed to", latest.Sequence, opts.Policy.MinAnchorSequence)
 	}
 
 	if latest.Sequence > int64(report.Head.Sequence) {

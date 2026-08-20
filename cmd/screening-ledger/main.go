@@ -30,17 +30,30 @@ func main() {
 		sink := mustSink(ctx, opts)
 		defer closeSink(ctx, sink)
 		must(sink.Migrate(ctx))
-		output(map[string]any{"status": "ok", "operation": "migrate"})
+		// ADR-0007 Addendum 2 D21 point 3: ownership is reported, not
+		// enforced by Migrate() itself -- a SchemaSQL-only bootstrap
+		// (owl_migrator) and a fully-provisioned deployment
+		// (owl_ledger_ddl) are both valid post-Migrate states, so an
+		// operator reading this output can tell which one they have.
+		anchorOwner, err := sink.SchemaObjectOwner(ctx, "screening_ledger_anchor")
+		must(err)
+		output(map[string]any{"status": "ok", "operation": "migrate", "screening_ledger_anchor_owner": anchorOwner})
 	case "status", "verify":
 		store := mustStore(opts)
 		policy, policySHA256, pubKeyFingerprint := mustLoadPolicy(opts)
-		mode, allowGenesis := verificationSettings(opts)
+		mode := verificationMode(opts)
 		// ADR-0007 D12 (Addendum 1): every outcome other than a fully
 		// checked, successful verification is now a non-nil error --
 		// including "no database configured" and "no anchor row yet
 		// without --allow-genesis". must() exits 1 on any of them. There
 		// is no more "partial" status at exit 0: "I could not check" and
 		// "I checked and it was fine" no longer share an outcome.
+		//
+		// ADR-0007 Addendum 2 D24: AllowGenesis is always false here --
+		// --allow-genesis has no legitimate meaning on this command (see
+		// verificationMode, which rejects the flag outright), so there is
+		// no way to reach AnchorStatusAbsent in anchored mode from this
+		// path other than a genuine absence.
 		var report screeningledger.AnchorVerifyResult
 		if dsnEnvName := opts["--postgres-dsn-env"]; strings.TrimSpace(dsnEnvName) != "" {
 			sink := mustSink(ctx, opts)
@@ -48,13 +61,13 @@ func main() {
 			kAnchor := mustAnchorKey(opts)
 			report, err = store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
-				Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256, AllowGenesis: allowGenesis,
+				Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 			})
 			must(err)
 		} else {
 			report, err = store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode},
-				Anchors:       nil, AllowGenesis: allowGenesis,
+				Anchors:       nil,
 			})
 			must(err)
 		}
@@ -67,7 +80,15 @@ func main() {
 			}
 		}
 		output(map[string]any{
-			"status":                        "ok",
+			// ADR-0007 Addendum 2 D24 (F-C): no longer hard-coded "ok" for
+			// every nil-error outcome. Before this, a genesis-allowed run
+			// and a fully anchor-verified run shared both the exit code
+			// and this top-level field, separable only by reading the
+			// sibling anchor_status -- exactly the field a scripted
+			// caller checking only status/exit-code is least likely to
+			// read. Derived from report.AnchorStatus so "anchor verified"
+			// and "no anchor was found" are distinguishable here too.
+			"status":                        topLevelStatus(report.AnchorStatus),
 			"head":                          report.Head,
 			"audit_head":                    report.AuditHead,
 			"event_frozen_prefix_length":    report.EventFrozenPrefixLength,
@@ -88,7 +109,7 @@ func main() {
 		defer closeSink(ctx, sink)
 		must(sink.Migrate(ctx))
 		policy, policySHA256, _ := mustLoadPolicy(opts)
-		mode, allowGenesis := verificationSettings(opts)
+		mode := verificationMode(opts)
 		kAnchor := mustAnchorKey(opts)
 		// ADR-0007 D19/F5: sync used to mirror every unreplicated event
 		// with no verification anywhere on the path, reporting "ok"
@@ -96,9 +117,12 @@ func main() {
 		// BEFORE the first Persist and aborts (must() exits 1) on
 		// failure, rather than after mirroring forged rows into tables
 		// an immutability trigger then makes permanent.
+		//
+		// ADR-0007 Addendum 2 D24: --allow-genesis has no legitimate
+		// meaning on sync -- see verificationMode.
 		verifyResult, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
-			Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256, AllowGenesis: allowGenesis,
+			Anchors:       sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 		})
 		must(err)
 		events, err := store.ListEvents()
@@ -140,7 +164,17 @@ func main() {
 		migratorSink := mustSink(ctx, opts)
 		defer closeSink(ctx, migratorSink)
 		policy, policySHA256, _ := mustLoadPolicy(opts)
-		mode, allowGenesis := verificationSettings(opts)
+		mode, allowGenesis := anchorVerificationSettings(opts)
+		// ADR-0007 Addendum 2 D25 bootstrap ordering: once the signed
+		// policy's floor is above zero, --allow-genesis on anchor is
+		// refused too -- it would assert something the signed policy
+		// already contradicts (that no anchor has ever existed, when the
+		// policy itself commits to at least min_anchor_sequence having
+		// been reached). A ledger's first policy necessarily carries
+		// min_anchor_sequence 0, so this never blocks a genuine genesis.
+		if allowGenesis && policy.MinAnchorSequence > 0 {
+			fatal(fmt.Sprintf("--allow-genesis was passed but the signed policy commits to a minimum anchor sequence of %d (ADR-0007 Addendum 2 D25): a genuine genesis is only possible under a policy with min_anchor_sequence 0", policy.MinAnchorSequence))
+		}
 		kAnchor := mustAnchorKey(opts)
 		result, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: migratorSink},
@@ -178,22 +212,24 @@ func main() {
 		must(err)
 		output(manifest)
 	case "purge":
+		// ADR-0007 Addendum 2 D28: --postgres-dsn-env is now required,
+		// not optional. The local-only purge path this used to allow
+		// (no --postgres-dsn-env given) produced the state D28 fixes:
+		// PurgeExpired mutating envelopes with no independent record
+		// anywhere, permanently unverifiable in anchored mode with no
+		// remediation. That path ceases to exist rather than being
+		// documented around.
 		store := mustStore(opts)
+		sink := mustSink(ctx, opts)
+		defer closeSink(ctx, sink)
 		before := opts.value("--before", time.Now().UTC().Format(time.RFC3339Nano))
 		parsed, err := time.Parse(time.RFC3339Nano, before)
 		must(err)
 		operator := opts.value("--operator", "screening-ledger-cli")
 		reason := opts.value("--reason", "retention expiration")
-		count, err := store.PurgeExpired(parsed, operator, reason)
+		count, err := store.PurgeExpired(ctx, parsed, operator, reason, sink)
 		must(err)
-		pgPurged := false
-		if strings.TrimSpace(opts["--postgres-dsn-env"]) != "" {
-			sink := mustSink(ctx, opts)
-			defer closeSink(ctx, sink)
-			must(sink.PurgeExpired(ctx, before, operator, reason))
-			pgPurged = true
-		}
-		output(map[string]any{"status": "ok", "local_snapshot_count": count, "postgres_purge_requested": pgPurged})
+		output(map[string]any{"status": "ok", "local_snapshot_count": count})
 	case "import-audit":
 		sink := mustSink(ctx, opts)
 		defer closeSink(ctx, sink)
@@ -250,16 +286,42 @@ func mustLoadPolicy(opts options) (screeningledger.VerificationPolicy, string, s
 	return policy, policySHA256, screeningledger.PolicyPublicKeyFingerprint(pubKey)
 }
 
-// verificationSettings reads --verification-mode (default "anchored")
-// and --allow-genesis (default "false", must be passed as the literal
-// string "true" -- this CLI's minimal option parser has no separate
-// boolean-flag shape). ADR-0007 D12/D19: --allow-genesis is required
-// every time AnchorStatusAbsent is reached in anchored mode, not only
-// "the first time" -- see this PR's description.
-func verificationSettings(opts options) (screeningledger.VerificationMode, bool) {
+// verificationMode reads --verification-mode (default "anchored") for
+// status/verify/sync. ADR-0007 Addendum 2 D24: --allow-genesis has no
+// legitimate meaning on any of these -- its only effect, before this fix,
+// was converting AnchorStatusAbsent (the exact and only signature of an
+// anchor-table wipe) into success on verify. Passing it here is now an
+// error rather than a silently ignored flag: silently ignoring it would
+// leave a monitoring job holding a flag that looks load-bearing and does
+// nothing, the same silent-absence shape this ADR exists to remove.
+func verificationMode(opts options) screeningledger.VerificationMode {
+	if _, present := opts["--allow-genesis"]; present {
+		fatal("--allow-genesis has no effect on this command (ADR-0007 Addendum 2 D24) -- it is meaningful only on `anchor`, where it acknowledges a genuine first anchor")
+	}
+	return screeningledger.VerificationMode(opts.value("--verification-mode", string(screeningledger.VerificationModeAnchored)))
+}
+
+// anchorVerificationSettings reads --verification-mode and
+// --allow-genesis (default "false", must be passed as the literal string
+// "true" -- this CLI's minimal option parser has no separate boolean-flag
+// shape), for `anchor` only -- the one command D24 leaves this flag on.
+// ADR-0007 D12/D19: --allow-genesis is required every time
+// AnchorStatusAbsent is reached in anchored mode, not only "the first
+// time" -- see this PR's description.
+func anchorVerificationSettings(opts options) (screeningledger.VerificationMode, bool) {
 	mode := screeningledger.VerificationMode(opts.value("--verification-mode", string(screeningledger.VerificationModeAnchored)))
 	allowGenesis := opts.value("--allow-genesis", "false") == "true"
 	return mode, allowGenesis
+}
+
+// topLevelStatus is ADR-0007 Addendum 2 D24 (F-C): the top-level "status"
+// field on status/verify's output, derived from the anchor status rather
+// than hard-coded "ok" for every nil-error outcome.
+func topLevelStatus(anchorStatus screeningledger.AnchorVerifyStatus) string {
+	if anchorStatus == screeningledger.AnchorStatusVerified {
+		return "ok"
+	}
+	return string(anchorStatus)
 }
 
 // mustAnchorKey loads K_anchor via the same LoadKey used for the

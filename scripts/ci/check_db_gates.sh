@@ -21,9 +21,16 @@
 #                                     (internal/screeningledger/anchor_pgx_test.go)
 #   OWL_LEDGER_DDL_DATABASE_URL    - SEC-7 anchor role-separation suite
 #                                     (internal/screeningledger/anchor_pgx_test.go)
+#   OWL_MIGRATOR_STALE_DATABASE_URL - SEC-7 Addendum 2 F-E/D21/D22
+#                                     migration-completeness regression
+#                                     (internal/screeningledger/postgres_pgx_test.go),
+#                                     a second database provisioned by
+#                                     provision_test_roles.sh
+#                                     create-stale-anchor-database and
+#                                     migrated only through 016
 #
 # This is the complete set: every `os.Getenv("OWL_*_DATABASE_URL")` in the
-# tree gates through one of these four, confirmed by grepping the tree
+# tree gates through one of these five, confirmed by grepping the tree
 # rather than assumed from ADR-0007 D18's text, which names only the two
 # anchor-related ones.
 #
@@ -44,6 +51,7 @@ DB_GATES=(
   OWL_MIGRATOR_DATABASE_URL
   OWL_LEDGER_ANCHOR_DATABASE_URL
   OWL_LEDGER_DDL_DATABASE_URL
+  OWL_MIGRATOR_STALE_DATABASE_URL
 )
 
 missing=()

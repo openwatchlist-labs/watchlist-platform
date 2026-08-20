@@ -10,13 +10,30 @@ import (
 )
 
 // VerificationPolicySchemaV1 is the schema_version of a VerificationPolicy
-// document (ADR-0007 D10).
+// document as originally specified by ADR-0007 D10. Retired by Addendum 2
+// D25 -- LoadSignedVerificationPolicy no longer accepts it (see the
+// exact-equality check below) -- kept only so error messages and any
+// historical reference to it stay meaningful.
 const VerificationPolicySchemaV1 = "openwatchlist.screening-ledger-verification-policy.v1"
 
+// VerificationPolicySchemaV2 is ADR-0007 Addendum 2 D25: adds
+// MinAnchorSequence (EA4's floor, committed under the same Ed25519
+// signature as EA1-EA3) to the policy document. This is a schema change,
+// not an additive field on v1 -- policy.go:112's exact-equality pin
+// means a v1-labeled document is rejected outright by a v2 verifier
+// rather than silently narrowed to the fields the old struct knows,
+// exactly as D8 chose for the analogous chain-schema check. Adding the
+// field is free now (zero anchor rows exist in any environment --
+// screening-ledger remains absent from runtime_executables) and never
+// free again, the same argument D11 made for db/migrations/017.
+const VerificationPolicySchemaV2 = "openwatchlist.screening-ledger-verification-policy.v2"
+
 // VerificationPolicy carries the externally-authenticated facts ADR-0007
-// D8 names EA1-EA3: the minimum accepted schema version per chain, the
-// genesis boundary as a sequence number, and the ledger this policy
-// authenticates. It is never read out of the ledger directory -- see
+// D8 names EA1-EA3, plus Addendum 2 D25's MinAnchorSequence (EA4's
+// floor): the minimum accepted schema version per chain, the genesis
+// boundary as a sequence number, the ledger this policy authenticates,
+// and the minimum anchor sequence a verified anchor must be at or above.
+// It is never read out of the ledger directory -- see
 // LoadSignedVerificationPolicy.
 type VerificationPolicy struct {
 	SchemaVersion        string `json:"schema_version"`
@@ -26,6 +43,12 @@ type VerificationPolicy struct {
 	GenesisEventSequence uint64 `json:"genesis_event_sequence"`
 	GenesisAuditSequence uint64 `json:"genesis_audit_sequence"`
 	AllowUnanchored      bool   `json:"allow_unanchored"`
+	// MinAnchorSequence (D25): 0 means no floor is asserted -- the correct
+	// value for a ledger's first policy, since no anchor exists yet.
+	// Raising it above zero is a policy re-issue, which by D11 is a
+	// re-anchoring event, so the new floor is always satisfiable by
+	// construction at the moment it is signed.
+	MinAnchorSequence uint64 `json:"min_anchor_sequence"`
 }
 
 // SignedVerificationPolicy is the on-disk envelope: the policy document
@@ -109,8 +132,8 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return VerificationPolicy{}, "", fmt.Errorf("parse verification policy: %w", err)
 	}
-	if envelope.Policy.SchemaVersion != VerificationPolicySchemaV1 {
-		return VerificationPolicy{}, "", fmt.Errorf("verification policy schema_version %q is not %q", envelope.Policy.SchemaVersion, VerificationPolicySchemaV1)
+	if envelope.Policy.SchemaVersion != VerificationPolicySchemaV2 {
+		return VerificationPolicy{}, "", fmt.Errorf("verification policy schema_version %q is not %q", envelope.Policy.SchemaVersion, VerificationPolicySchemaV2)
 	}
 	canon, err := canonicalPolicyBytes(envelope.Policy)
 	if err != nil {
