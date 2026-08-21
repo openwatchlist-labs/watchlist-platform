@@ -4,4 +4,6 @@
 // related constants. It has no dependencies on other internal packages
 // and exists specifically so those types have one authoritative
 // definition instead of being redeclared per package.
+//
+// throwaway: paths-ignore child-PR verification, reverted before merge.
 package canonical
