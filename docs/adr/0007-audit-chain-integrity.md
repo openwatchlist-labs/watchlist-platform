@@ -3632,3 +3632,794 @@ policy that passes `Validate()`. The closing sentence stands and now has a fourt
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #3
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 5: the population a control is meaningful over -- I-A's scope gap, I-B's unchecked referent, and the first CAP with no bypass (2026-08-21)
+
+- **Status:** Proposed
+- **Trigger:** a fourth Composition Audit Program record produced against the implemented Addendum 4
+  (`docs/backlog/sec-7-cap-record-8b36c91.md`, adversarial posture, audit basis commit
+  `8b36c91f7ef58e11048116d8c7e0e45f7da18024`) returned **QUALIFIED, not PASS** for the fourth
+  consecutive audit -- but on materially different grounds, and this addendum must not be read as a
+  fourth repetition of the same result. **No bypass of the stated invariant was found.** An
+  adversary holding everything §2 grants -- ledger filesystem write, `K_chain`, `K_snap`, the
+  Postgres mirror as `owl_migrator`, and an adversarially-authored policy document -- could not
+  forge a history or a retention claim the current verifier accepts. H-A, CAP #3's CRITICAL, was
+  reproduced end to end through this repository's own D20-certified forgery machinery against a live
+  database and is refused at the exact point D38(b) specifies. Two findings remain, one MEDIUM
+  (I-A) and one LOW (I-B), and **neither is a forgery**: both concern states the system reaches
+  through ordinary operation, with no adversary anywhere.
+- **What CAP #4 confirmed and this addendum does not disturb.** D38 is credited as the strongest
+  single decision in the four addenda: eleven ambiguity forms refused including four no prior CAP
+  tried, six legitimate documents accepted as controls, and the genesis pin separating
+  `genesis = head + 1`'s legitimate and malicious forms by the pin's *value* -- the distinction the
+  ADR itself identified as the one a length bound cannot make. D40's second phase held against
+  sixteen owner-level DDL forms including six no prior CAP attempted, and is transaction- and
+  concurrency-safe. D39 catches all four column-grant routes. D41's cross-catalog identity
+  comparison closes a state the shipped CAP #3 query returned clean for. Provisioning is idempotent
+  and the D18 gate still fails closed on all seven DSNs. **D31's scoping principle and Addendum 4's
+  referent principle compose correctly, and this addendum reopens neither.**
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not §3.4, §6.1 or the D19 correction note, not
+  R1-R20. Decision numbering continues at **D43**, risk numbering at **R21**. Where a prior
+  decision's *text* is stricter than what the code enforces -- R19's bypass precondition, which
+  CAP #4 found overstated -- the new decision says so in its own words and states what the old claim
+  actually rests on afterwards, the convention AR7 established for R7, Addendum 3 followed for D21
+  point 3, and Addendum 4 followed for D35's biconditional.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `8b36c91f7ef58e11048116d8c7e0e45f7da18024` rather than copied from the CAP record.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addendum 4
+  held to -- and this time three of them changed the design.** Every PostgreSQL and
+  deployment-mechanism claim this addendum depends on was run against a purpose-built disposable
+  PostgreSQL 17.11 cluster before the decision that relies on it was written, and **both I-A
+  variants were reproduced against the real schema** (all seventeen `db/migrations/*.sql` applied as
+  `owl_migrator`, then `scripts/ci/provision_test_roles.sh create-roles`, `grant-app-privileges` and
+  `grant-ddl-ownership`, in CI's order per `.github/workflows/ci.yml:97-140`). The cluster was torn
+  down; no repository file was modified during the investigation. The three refutations, each with
+  its transcript in the section that relies on it:
+  1. **A name-keyed registry -- Direction B's core proposal -- reopens G-G**, which D31 closed. The
+     escape was executed: two statements, by the table's own owner, and the row-immutability trigger
+     is gone (D44).
+  2. **`system_identifier` alone does not detect a copy.** It is *identical* between a database and
+     a `pg_dump`-based restore into another database of the same cluster -- the exact case CAP §7.6
+     demonstrated. Only the database OID discriminates (D43, D45).
+  3. **`CREATE DATABASE ... TEMPLATE` preserves relation OIDs**, so the controls remain live and
+     enforcing while any instance-binding marker would report a mismatch. That refutes making such
+     a marker a gate, and is why D45 is diagnostic-only (D45).
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention §3.4, §6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160` and `0007:2804-2826` set.
+
+1. **Addendum 4's `file:line` citations resolve against `3c7e5be`, not against this tree.** PR #143
+   moved several -- `store.go:395` became `:410` for the genesis branch, `store.go:719` became
+   `:756` for `legacyHashEvent`, `policy.go:77` became the pin-shape helper at `:125`. Addendum 4
+   says as much at `0007:3632-3634` and CAP #4 §13 re-confirmed it. This is expected and is not a
+   defect. Citations *into a prior addendum's own prose* (`0007:NNNN`) are unaffected and are used
+   below where the claim is about the text rather than about the code.
+2. **CAP #4 §7.6's variant-1 transcript understates which control catches an ordinary restore.**
+   The record dumped with `pg_dump --no-owner --no-privileges`, so `screening_ledger_anchor` arrived
+   owned by the restoring superuser and D33's owner check (`postgres.go:211-219`) fired first. Under
+   an ordinary `pg_dump -d <src> | psql -d <dst>` run as the superuser -- the shape an operator
+   actually types -- **owners are preserved**: re-executed against the real schema, the restored
+   database reported `anchor owner=owl_ledger_ddl`, and the detector is D41's identity assertion,
+   with **0 of 12** `sec7_protected_object` rows resolving via `pg_identify_object`. The finding is
+   unaffected and its severity is unchanged; what changes is the credit. **D41 is carrying more of
+   this than the CAP record attributes to it**, which matters because D43 below rests on exactly
+   that.
+3. **CAP #4's I-A severity rationale rests on a document that is not living guidance.** See D48;
+   recorded there rather than here because it is a decision, not a citation slip.
+
+---
+
+### Addendum 5 context: the referent was fixed and the population drifted
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes
+(`0007:1494-1497`). Addendum 2 named its findings as one class -- "a control whose installation is
+asserted rather than checked, by the party the control constrains" (`0007:1499-1500`). Addendum 3
+sharpened it to "a control that decides what to protect, or what to protect against, by listing
+members of an open set" (`0007:2172-2173`), and produced D31. Addendum 4 sharpened it again to "the
+enumeration was fixed and the referent drifted" (`0007:2853-2857`), and produced D40's replacement
+of an open set of *ways a statement can refer to an object* with a closed set of *properties of the
+object*.
+
+CAP #4 §0.1 looked for a fifth turn of that screw **inside the security boundary and did not find
+one**, and §12 states the honest reason: D31's and Addendum 4's principles compose. What it found
+instead is the same question asked about a different axis, and CAP #4 §12 phrases it exactly:
+
+> **A control scoped by an identifier the adversary cannot change is also scoped by an identifier
+> that does not survive the operations the system legitimately performs on itself. Ask not only
+> "what does it compare, and is that the thing that matters?" but "over what population of databases
+> is that comparison meaningful, and what routine operation moves the schema outside it?"**
+
+Both findings are that question answered incompletely, in two different places:
+
+| Mechanism | What it compares | Why it is incomplete | Finding |
+|---|---|---|---|
+| D34/D40 registries | raw OIDs (`provision_test_roles.sh:430-456`, `:540-579`) | an OID is a fact about one running database, not about the schema; every mechanism that copies a schema carries the rows and not their meaning | **I-A** |
+| D41 relation registry | `objid` resolved via `pg_identify_object` (`postgres.go:419-431`) | the *other seven columns* are what D40's second phase compares live state against, and nothing compares them to anything | **I-B** |
+
+**The principle this addendum adopts, stated once and applied twice:**
+
+> **A control's referent has a population over which it is meaningful, and that population is part
+> of the control. State it, detect departure from it, and say which of the system's own routine
+> operations leave it -- but do not weaken the referent to widen the population.**
+
+The last clause is the substantive move and it is the one the investigation forced. The obvious
+response to I-A is to replace the OID with something portable. D44 shows by execution that the only
+portable identifier a relation has is its name, that a name-keyed registry reopens G-G, and that the
+two properties -- adversary-immutable and dump-portable -- are in **genuine tension for a referent**
+and **not in tension at all for a marker**. That distinction is what makes D43 and D45 the right
+shape and D44 a rejection rather than an adoption.
+
+---
+
+### D43. I-A (MEDIUM): the population D34/D40/D41 are meaningful over, stated as a fact and not a caveat
+
+**The finding, restated from the code.** `sec7_protected_object` and `sec7_protected_relation` store
+raw OIDs (`provision_test_roles.sh:430-439`, `:449-456`, `:464-477`), and `sec7_protect_ddl_objects()`
+compares against them by OID in both phases (`:513`, `:519`, `:540-579`). An OID identifies an object
+inside one running database; it is not a property of the schema. `pg_dump` emits both registries
+**and** both event triggers, so a copy always arrives with the enforcement machinery present and its
+referents wrong, in one of two directions. Both were reproduced against the real schema during this
+design pass:
+
+```
+variant 2 -- pg_dump --schema-only | psql (the "clone production into staging" command)
+  registry rows:        obj=0/12  rel=0/2      <- a schema-only dump carries no rows
+  event triggers:       both present, evtenabled='A'
+  anchor owner:         owl_ledger_ddl          <- correct
+  as owl_ledger_ddl, the exact role D26/D34/D40 exist to bind:
+    DROP TRIGGER screening_ledger_anchor_immutable ON screening_ledger_anchor  => SUCCEEDED
+    CREATE RULE ... ON INSERT TO screening_ledger_anchor DO INSTEAD NOTHING    => SUCCEEDED
+    ALTER TABLE screening_ledger_anchor DISABLE TRIGGER ALL                    => SUCCEEDED
+
+variant 1 -- pg_dump | psql, owners preserved (no --no-owner)
+  registry rows:        obj=12/12 rel=2/2       <- rows carried faithfully
+  identities resolving: 0 of 12                 <- and meaning carried not at all
+  anchor owner:         owl_ledger_ddl          <- correct
+  [superuser]    CREATE TABLE p (x int)
+      => ERROR: ADR-0007 Addendum 4 D40: protected relation (objid 16665) no longer exists
+  [owl_migrator] GRANT SELECT ON screening_ledger_event TO owl_app
+      => ERROR: ADR-0007 Addendum 4 D40: protected relation (objid 16665) no longer exists
+```
+
+Variant 2 is G-A's shape -- a control present in the catalog and doing nothing -- reached by a
+supported tool with no flags that would avoid it. Variant 1 is R18's blast radius realised without
+any drift and without any superuser mistake.
+
+**Decision: state the population, and add no new security control, because the one that is needed is
+already installed.**
+
+This is the conclusion the investigation produced and it is the opposite of what this section was
+expected to reach, so it is stated with the evidence rather than asserted. **D41 is already the
+correct detector, and it is exact.** The four operations that copy this schema partition cleanly:
+
+| Operation | Relation OIDs | Registries | Controls actually enforcing? | D41's verdict |
+|---|---|---|---|---|
+| `pg_dump --schema-only` restore | reassigned | **empty** | **no** | `has 0 row(s), expected exactly 12` |
+| `pg_dump` full restore | reassigned | rows carried, all dangling | no -- all DDL fails | `no row whose OID resolves ... to pg_class public.screening_ledger_anchor` |
+| `CREATE DATABASE ... TEMPLATE` | **preserved** | rows carried and **valid** | **yes** | provisioned |
+| physical basebackup / replica | **preserved** | rows carried and **valid** | **yes** | provisioned |
+
+The third row was executed, not reasoned about, because it is the row that decides D45's shape:
+
+```
+CREATE DATABASE owl_tmpl TEMPLATE owl_ci;
+  relation OIDs preserved?  prot oid here = 16387 ; registry rel row objid = 16387
+  as owl_ledger_ddl in the TEMPLATE clone:
+    DROP TRIGGER prot_immutable ON prot   => ERROR: D34: prot_immutable on public.prot (objid 16396) is protected
+    CREATE RULE r2 ... DO INSTEAD NOTHING => ERROR: D40: protected relation (objid 16387): a rewrite RULE exists on it
+```
+
+**The load-bearing consequence: there is no state in which a copy's controls are inert and D41
+accepts it, and no state in which a copy's controls are live and D41 refuses it.** In every copy
+whose OIDs were reassigned, D41 fails; in every copy whose OIDs were preserved, the controls
+genuinely enforce. The stated invariant is therefore not falsified by any of the four operations,
+which is why I-A is MEDIUM and not HIGH, and why this addendum adds **no** new gate. What I-A
+actually exposes is three absences, and D45, D46, D48 and D49 answer them one for one: nothing
+**diagnoses** the state, nothing **documents** it, and nothing **tests** it.
+
+**The population, stated so a later reader inherits it rather than re-deriving it.** D34's, D40's
+and D41's guarantees hold over exactly one database: **the one whose protected relations still carry
+the OIDs `grant-ddl-ownership` recorded, in the instance it recorded them in.** A database leaves
+that population when and only when its relation OIDs are reassigned, which is what every *logical*
+copy does and no *physical* copy does. Re-running
+`scripts/ci/provision_test_roles.sh grant-ddl-ownership` re-enters it, and that was verified rather
+than assumed: after re-populating a schema-only clone's registries, the same owner-level attack that
+had succeeded returned `D34: prot_immutable on public.prot (objid 16583) is protected`.
+
+**One suggestion in CAP #4 §12 is wrong as literally phrased, and correcting it here stops it being
+re-derived.** §12 point 1(a) proposes that provisioning "record a database identity
+(`system_identifier` from `pg_control_system()`, say) that a copy cannot carry." A copy carries it
+perfectly whenever the copy lands in the same cluster, which is the case §7.6 itself demonstrated:
+
+```
+source   database  sysid=7676522240524753513  dboid=16616
+restored database  sysid=7676522240524753513  dboid=17177      <- sysid IDENTICAL
+```
+
+`system_identifier` is a property of the *cluster*, not of the database. The pair
+`(system_identifier, database OID)` does discriminate, both halves are readable by `owl_migrator`
+with no new role, DSN or grant (executed), and neither `owl_migrator` nor `owl_ledger_ddl` can change
+either (`ALTER DATABASE ... RENAME` -> `must be owner of database`, for both). D45 uses the pair.
+D45 also explains why it may not gate.
+
+---
+
+### D44. Direction B investigated and rejected: the portable identifier is the mutable one
+
+The remediation brief asked for both directions to be investigated with real reasoning and for the
+answer to say plainly whether adversary-immutability and dump-portability are in genuine tension,
+rather than proposing something that quietly gives up one to gain the other. Both halves were built
+and run.
+
+**Decision: the registries keep raw OIDs. A name-keyed -- or any dump-portable -- referent is
+rejected, because it reopens G-G, which D31 closed by execution.**
+
+**What was built.** A second lab database with the same protected table, the same guard triggers and
+the same two event triggers, but with the registry keyed by `object_identity` strings rather than
+`objid`, and with D40's second phase resolving each protected relation by name. Then the escape, as
+`owl_ledger_ddl`, the table's own owner:
+
+```
+name-keyed registry:
+  DROP TRIGGER prot_immutable ON prot                  => ERROR: BYNAME-DROP blocked  (the easy case)
+  ALTER TRIGGER prot_immutable ON prot RENAME TO zzz   => ALTER TRIGGER      <-- SUCCEEDED
+  DROP TRIGGER zzz ON prot                             => DROP TRIGGER       <-- SUCCEEDED
+  non-internal triggers left on prot: 0
+
+shipped OID-keyed registry, same two statements:
+  ALTER TRIGGER prot_immutable ON prot RENAME TO zzz
+      => ERROR: D34: zzz on public.prot (objid 16396, tag ALTER TRIGGER) is protected
+  DROP TRIGGER prot_immutable ON prot
+      => ERROR: D34: prot_immutable on public.prot (objid 16396) is protected
+  non-internal triggers left on prot: 2
+```
+
+Two statements, no privilege the shipped configuration does not already grant, and the anchor's
+row-immutability trigger is gone. The reason is the one D31 recorded at `0007:2216-2228` and this
+pass re-confirmed directly:
+
+```
+t1 oid before rename                                     16505
+ALTER TRIGGER t1 ON prot RENAME TO t1_renamed
+NOTICE: tag=ALTER TRIGGER type=trigger objid=16505 identity=t1_renamed on public.prot
+t1_renamed oid after rename                              16505
+```
+
+The OID is stable across the rename; the reported identity is the **new** name. A registry keyed by
+identity therefore stops matching the moment the adversary renames, which is precisely G-G. D31's
+second sub-decision compounds it: by the time `sql_drop` fires the object is already gone from the
+catalog, so a name cannot be resolved there at all (`0007:2230-2243`) -- a name-keyed drop phase can
+only compare the reported identity string, which is the comparison that just failed.
+
+**So the answer to the brief's question is: yes, the two properties are in genuine tension -- for a
+referent. They are not in tension at all for a marker, and conflating the two is what makes this
+look like a closer call than it is.** A marker only has to be *recognised*; a referent has to be
+*dereferenced* to an object. Executed:
+
+```
+COMMENT ON TABLE sec7_protected_relation IS 'SEC7-MARKER-superuser-owned';   -- superuser-owned relation
+  occurrences in pg_dump --schema-only output   1        <- DUMP-PORTABLE
+  occurrences in pg_dump (full) output          1
+  owl_ledger_ddl, in the SOURCE database  => ERROR: must be owner of table sec7_protected_relation
+  owl_migrator,   in the SOURCE database  => ERROR: must be owner of table sec7_protected_relation
+  owl_ledger_ddl, in the schema-only CLONE => ERROR: must be owner of table sec7_protected_relation
+  owl_migrator,   in the schema-only CLONE => ERROR: must be owner of table sec7_protected_relation
+                                                        <- ADVERSARY-IMMUTABLE, in the copy too
+```
+
+A `COMMENT ON` a superuser-owned relation is both dump-portable and adversary-immutable, in the
+source and in the copy. **What it cannot do is name an object in a way that survives a rename**,
+because the only portable name is the mutable one. That is the whole of the tension, and stating it
+this precisely is what stops the next reader adopting a portable referent on the strength of the
+marker result.
+
+Two further candidates were considered and are recorded so they are not re-derived:
+
+- **`SECURITY LABEL`** is unavailable in this deployment: `SECURITY LABEL ON TABLE ... IS 'x'` fails
+  with `no security label providers have been loaded`, confirmed by execution and consistent with
+  CAP #4 §7.3, which found the same when trying it as an attack. It would in any case have the
+  identity problem above.
+- **Extension membership (`ALTER EXTENSION ... ADD`)** was already rejected by D31
+  (`0007:2269-2272`) for requiring a `.control` file and a packaging story this repository does not
+  have. A second reason applies here and is worth adding: `pg_dump` deliberately emits only
+  `CREATE EXTENSION` for extension members, so making the ledger relations extension members would
+  mean a dump carried **no ledger tables at all**. That is a different failure, not a fix.
+
+**What survives from Direction B is the marker, and it is demoted from referent to diagnostic.**
+D45 adopts it in that role, and D46 spends it on the failure D45 cannot prevent.
+
+---
+
+### D45. `sec7_instance_binding`: a copy marker that diagnoses and must never gate
+
+D43 establishes that D41 already refuses every copy whose OIDs were reassigned. What no mechanism
+does is **say why**, and I-A's variant-1 transcript is the cost: an operator running a DR exercise
+gets `protected relation (objid 16665) no longer exists` -- a bare integer -- from every DDL
+statement in the database, including their own unrelated ones, with no path from that message to a
+cause or a fix.
+
+**Decision: provisioning records one row binding the registries to the instance whose OIDs they
+hold. It is read only on an already-failing path, and it is never a gate.**
+
+Illustrative only -- the implementation PR owns the real shape:
+
+```sql
+CREATE TABLE IF NOT EXISTS sec7_instance_binding (
+  system_identifier text        NOT NULL,
+  database_oid      oid         NOT NULL,
+  database_name     text        NOT NULL,
+  provisioned_at    timestamptz NOT NULL);
+```
+
+- **Written by `scripts/ci/provision_test_roles.sh grant-ddl-ownership`** (`:119`), in the same step
+  and by the same bootstrap superuser that creates and populates both registries, from
+  `pg_control_system()` and `pg_database`. Exactly one row; the step deletes and re-inserts, as it
+  already does for both registries (`:447`, `:462`), so re-provisioning is idempotent.
+- **Same posture as the two registries:** superuser-owned, `REVOKE ALL ... FROM PUBLIC`, `SELECT`
+  granted to `owl_migrator`, and **itself a member of `sec7_protected_object`** so it cannot be
+  dropped or altered without tripping the trigger that reads it. Confirmed by execution that
+  `owl_ledger_ddl` and `owl_migrator` are both refused `UPDATE` on it (`permission denied for
+  table sec7_instance_binding`), matching the 24-attempt result CAP #4 §7.5 recorded for
+  `sec7_protected_relation`.
+- **Both fields are readable by `owl_migrator` with no new role, DSN or grant** -- executed, not
+  assumed, the same property D33's and D41's existing facts have (`0007:2422-2425`,
+  `0007:3404-3406`).
+
+**Why the pair, and not `system_identifier` alone.** D43's transcript: a restore into another
+database of the same cluster carries `system_identifier` unchanged. The database OID is what moves.
+
+**Why this must never gate, which is the decision and not a hedge.** `CREATE DATABASE ... TEMPLATE`
+changes the database OID while **preserving every relation OID**, so the binding reports a mismatch
+on a database whose controls are demonstrably live (D43's third transcript). A blocking binding
+check would refuse a correctly protected database -- a false refusal, which is exactly the class
+D12 exists to remove, arriving from the other side. Executed across all three states:
+
+```
+source database                       BINDING MATCHES -- OIDs in this database were assigned here
+full restore (same cluster, new db)   BINDING MISMATCH -- recorded 7676522240524753513/16384 (owl_ci)
+                                                        live     7676522240524753513/16513 (owl_full2)
+schema-only clone                     NO BINDING ROW (a schema-only dump carries no rows)
+```
+
+The third line is worth reading carefully: in variant 2 the binding row is absent for the same
+reason the registry rows are, so **the binding adds nothing to variant 2's detection** -- D41's
+population assertion already names it, and D45 simply joins that assertion so the message can name
+the binding too. The binding earns its place in variant 1 and nowhere else.
+
+**Cost, stated plainly because it is the cost CAP #4 §10.2 names as this design's real risk.**
+Adding a thirteenth protected object means three coordinated edits, none of which cross-checks the
+others: `provision_test_roles.sh:464-477`'s `INSERT`, `:481`'s `[[ "$registry_row_count" == "12" ]]`,
+and `requiredProtectedObjects` (`internal/screeningledger/postgres.go:337-350`). The row-count
+assertions fail *closed*, which is why the arrangement survives, and R23 records that the surface
+grew again rather than glossing it.
+
+---
+
+### D46. I-A's second sub-case: the diagnostic names the relation and the instance, or says why it cannot
+
+CAP #4 separates I-A's two variants and is right to: variant 2 is the security gap and variant 1 is
+a **diagnosability problem, not a bypass**. This decision is that smaller, separate item, and it is
+deliberately kept out of D43 so neither is read as the other's justification.
+
+**Decision: `sec7_protected_relation` gains an `identity` column recorded at provisioning, used only
+in the error text, and D40's existence branch resolves it to produce one of three named messages.**
+
+- `identity` is written by `grant-ddl-ownership` from `pg_identify_object`, exactly as
+  `requiredProtectedRelations` (`postgres.go:393-396`) already declares the same two strings
+  independently. Two declarations of one fact, which is D41's own arrangement
+  (`0007:3429-3433`), so D47's comparison covers this column too.
+- D40's first check (`provision_test_roles.sh:541-543`) keeps its `objid` existence test **exactly
+  as it is**. Only the `RAISE` changes.
+- **The resolution must be exception-free, and `to_regclass` is not.** Executed:
+  `to_regclass('public.nope')` returns NULL without raising, but `to_regclass('a.b.c.d')` raises
+  `improper relation name (too many dotted names)`. A new exception path inside an event-trigger
+  function that already runs on every DDL statement is precisely R17's accepted risk realised, so
+  the resolver is a plain catalog join that cannot raise:
+
+```sql
+SELECT c.oid INTO live
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ WHERE n.nspname || '.' || c.relname = rel.identity;
+```
+
+**The three messages**, executed end to end against a restored database during this design pass:
+
+```
+(a) name resolves to a DIFFERENT oid, and the binding mismatches -> this is a copy
+    ERROR: protected relation "public.prot" (registry objid 16387) no longer exists; "public.prot"
+    is present with objid 16450. This database is a copy or restore of another (registry recorded
+    instance 7676522240524753513/16384 "owl_ci"; live instance 7676522240524753513/16446
+    "owl_full"). The SEC-7 registries hold raw OIDs and do not survive pg_dump/pg_restore.
+    Recovery: scripts/ci/provision_test_roles.sh grant-ddl-ownership -- see docs/operations/...
+
+(b) name resolves to a DIFFERENT oid, binding MATCHES -> dropped and recreated in place
+    ERROR: protected relation "public.prot" (registry objid 16387) no longer exists; "public.prot"
+    is present with objid 16450 -- the relation was dropped and recreated. Re-run
+    grant-ddl-ownership.
+
+(c) the name does not resolve at all
+    ERROR: protected relation "public.absent" (registry objid 16387) no longer exists and no
+    relation of that name is present.
+```
+
+Case (b) is R15's own literal scenario (`0007:2666-2674`), which until now produced the same bare
+integer as case (a) despite being a completely different situation with a completely different
+cause.
+
+**The structural property that makes this safe, stated because it is the only reason a diagnostic
+belongs inside a security control's trigger function at all:** `identity` and the binding row are
+read **only after** `NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = rel.objid)` has already
+fired. The control's decision is made before either value is consulted. **A wrong, stale, or absent
+`identity` can therefore change only an error message and can never widen what passes**, and there
+is no steady-state cost: on the passing path neither column is touched, so D40's measured
+~0.06 ms per statement (`0007:3335-3336`) is unchanged. This is deliberately the opposite
+arrangement from D41's `note` column, which H-E found carrying a claim nothing checked -- `identity`
+carries a claim nothing *relies on*, and D47 checks it anyway.
+
+---
+
+### D47. I-B (LOW): the recorded state columns get a referent of their own, and R19 is corrected forward
+
+**The finding, restated from the code.** `sec7_protected_relation` carries eight columns
+(`provision_test_roles.sh:430-439`). `objid` is asserted by D41. The other seven -- `relowner`,
+`relkind`, `relrowsecurity`, `relforcerowsecurity`, `trigger_oids`, `index_oids`, `policy_oids` --
+are exactly what D40's second phase compares live catalog state *against* (`:544-579`), and
+`protectedRelationIdentityReason` (`internal/screeningledger/postgres.go:404-433`) reads **none of
+them**: it counts rows (`:412-418`) and resolves each row's `objid` to an identity (`:419-431`), and
+stops. CAP #4 §7.5 case G demonstrated the consequence, and this design pass reproduced it against
+the real schema:
+
+```
+UPDATE sec7_protected_relation SET trigger_oids = <the real set> || ARRAY[999999]::oid[]
+  shipped check:  rows=2  all identities resolve: 2   -> Provisioned=true
+```
+
+The registry now records a trigger set that does not exist, and the verifier certifies the database
+as provisioned.
+
+**CAP #4 §12 point 2 doubts this is worth fixing, on the reasoning that "the natural check is 'the
+recorded state equals the state `grant-ddl-ownership` would record now,' which is close to
+re-running provisioning and may not be worth it." That is the right question and the answer is no --
+it is not close to re-running provisioning, and this was established by building the check rather
+than estimating it.** All seven columns reduce to literals, and five of them to literals this
+repository already declares:
+
+| Column | Asserted against | Source of the literal |
+|---|---|---|
+| `relowner` | `owl_ledger_ddl` | `requiredDDLOwnedTables` (`postgres.go:165-168`) -- already declared, already asserted live by D33 (`postgres.go:211-219`) |
+| `relkind` | `'r'` | new, one character |
+| `relrowsecurity`, `relforcerowsecurity` | `false`, `false` | new, and true of both relations today (verified) |
+| `trigger_oids` | exactly the OIDs of the two trigger names declared for that table | `requiredSchemaObjects` (`postgres.go:485`) -- already declared per table |
+| `index_oids` | exactly the OID of `<table>_pkey` | new, one name per table |
+| `policy_oids` | empty | new |
+
+**Decision: `protectedRelationIdentityReason` gains a per-column comparison against a literal
+declaration written beside `requiredProtectedRelations` (`postgres.go:393-396`), reconciling recorded
+OIDs to declared *names* through the catalog.** This is a **name-to-OID reconciliation between two
+independent literals**, not a re-execution of provisioning: it never reads the provisioning script,
+never re-derives the set by scanning, and asks no question whose answer provisioning has to supply.
+Illustrative shape only:
+
+```sql
+r.trigger_oids = (SELECT coalesce(array_agg(t.oid ORDER BY t.oid), ARRAY[]::oid[])
+                    FROM pg_trigger t
+                   WHERE t.tgrelid = r.objid AND NOT t.tgisinternal
+                     AND t.tgname = ANY($1))          -- $1: the two declared trigger names
+```
+
+Executed against the real schema, both directions:
+
+```
+CAP #4 §7.5 case G state:   owner_ok=t kind_ok=t rls_ok=t triggers_ok=f indexes_ok=t policies_ok=t
+                            (the shipped check returns Provisioned=true for this exact state)
+clean provisioned state:    all seven columns match declared literals for both relations: true
+```
+
+Note what the reconciliation buys beyond catching the demonstrated state: because the live side
+filters to the **declared** trigger names, a recorded set containing an OID that is not one of them
+fails whether that OID is fabricated, stale, or belongs to a real but undeclared trigger. It is
+D41's own move -- compare against an independent literal rather than against the artifact's own
+account of itself -- applied to the seven columns D41 skipped. `identity` (D46) is covered by the
+same comparison, so the diagnostic column is not a new unchecked claim.
+
+**Severity is LOW and this decision does not inflate it.** Reaching the state requires the bootstrap
+superuser, who can drop the event triggers outright, so it confers no capability a superuser does
+not already have -- CAP #4's own reasoning, adopted unchanged. `relowner`, the one recorded fact
+that maps directly to a live protection, is independently asserted by D33 already. And the
+manipulations in the other direction are loud rather than silent: a recorded value that does not
+match reality makes `IS DISTINCT FROM` true on every DDL statement, which breaks all DDL rather than
+permitting anything. **This is a correctness-of-the-check fix, not a hole being closed**, and the
+next section is the part that actually matters.
+
+**R19's text is stricter than what the code enforces, and this addendum says so rather than patching
+around it.** `0007:3551-3556` reads:
+
+> *"D41 asserts its identity and population, and D40 puts it under `sec7_protected_object`'s
+> protection, but **an adversary who can rewrite both the registry and the reality it records
+> passes every check.**"*
+
+**The conjunction is false as written.** Rewriting `trigger_oids`, `index_oids`, `policy_oids`,
+`relkind` or either RLS flag **alone** neuters D40's second phase for that property with reality
+untouched, and D41 is silent -- demonstrated above. Per this document's convention the sentence at
+`0007:3551-3556` is **not edited**; it is withdrawn here, and what remains true of R19 after the
+withdrawal is stated exactly:
+
+- **R19's substantive decision stands.** `sec7_protected_relation` *is* a second trust object; it
+  *is* a member of `sec7_protected_object`; D41 *does* assert its identity and population; and the
+  residual *does* terminate at the bootstrap superuser, R12/R17's terminus. CAP #4 §7.5 confirmed by
+  execution that no non-superuser write path of any kind exists -- 24 attempts across four roles.
+  None of that is disturbed.
+- **What was overstated is the precondition.** Before D47 the bypass required rewriting the registry
+  **only**. After D47 it requires rewriting the registry **and** the reality it records, which is
+  what R19 already described. **R19's sentence is made true by D47; it was not true when it was
+  written.** That distinction matters for the same reason D39 gave when withdrawing D35's
+  biconditional (`0007:3199-3201`): a later reader deciding what may safely be changed reasons from
+  the sentence, and an acceptance rationale naming a stronger precondition than the code enforces
+  licenses the next change to remove the wrong thing.
+
+---
+
+### D48. Where operator-facing guidance lives -- and why the legacy design document is not edited
+
+**A premise the remediation brief inherited from CAP #4 does not survive verification, and recording
+that is this document's own standard (§3, §3.4, §6.1).**
+
+CAP #4 rates I-A partly on this basis (§7.6, §12): *"`docs/design/deployment.md:39` instructs
+operators to do exactly this"*, and the remediation brief accordingly asked that the file be
+corrected to stop instructing an unpaired clone pattern. Checked against the tree at this commit:
+
+- `docs/design/README.md:3` -- **"Status: historical record -- not living documentation."**
+- `:11` -- the files are **"byte-preserving copies of the frozen legacy source"**, restored under
+  SAL-4, SAL-5, SAL-6 and SAL-9 from `watchlist-platform-legacy` frozen at
+  `31aa23f516018f7577f4dcec95142f981142a6f8`.
+- `:19-20` -- **"Nothing else here was rewritten, re-wrapped, or fact-checked against the current
+  codebase."**
+- `:22` -- **"Read these as intent, not as fact."**
+- `git log -- docs/design/deployment.md` returns exactly one commit, `86350b7` ("SAL-5, SAL-6,
+  SAL-9: restore remaining legacy design/testing/migration docs"), and the only reference to the
+  file anywhere in the tree is that same README's own table row (`docs/design/README.md:53`).
+- The only other `pg_dump` mention in the repository,
+  `docs/governance/openwatchlist-clean-restart-r0.md:22-28` (`pg_dump -Fc`,
+  `pg_restore --clean --if-exists`), is from the same SAL commit and describes the backup contract
+  of the legacy homelab deployment that the same document's R0 section retires.
+
+**So the repository does not currently instruct anyone to do this.** I-A's severity rationale is
+inaccurate on that point, and the addendum says so plainly rather than inheriting it.
+
+**I-A itself is undiminished, and the correction makes the remedy clearer rather than smaller.**
+`pg_dump` is *the* PostgreSQL logical backup and clone tool; an operator performing a DR exercise or
+refreshing a staging environment reaches for it without being told to. What CAP #4 found is
+therefore not a wrong instruction to correct but **a warning that does not exist** -- and the
+correction sharpens exactly which absence is the finding. §10.3's second risk states it precisely
+and is unaffected: *"the safe operating envelope is not written down anywhere an operator would
+look."*
+
+**Decision: `docs/design/deployment.md` is not edited. The living document that does not exist is
+written, in the place operator-facing guidance already lives.**
+
+Editing a byte-preserving salvage copy to correct a claim about the *present* would break the
+convention `docs/design/README.md:11` and the SAL-* work established, and would be a strange act in
+any case: it would amend a historical record of what the legacy system did, to describe a control
+that legacy system never had. The document is accurate as history.
+
+- **New: `docs/operations/sec7-database-copies.md`**, the second file in a directory that currently
+  holds exactly one (`screening-ledger-policy-signing.md`). Its scope is D43's population, written
+  for an operator rather than a reviewer:
+  - the registries hold raw OIDs and **do not survive a logical dump**, stated first;
+  - D43's four-row table -- which copy operations preserve the OIDs and which reassign them;
+  - **what to do before cloning for staging**: re-run
+    `scripts/ci/provision_test_roles.sh grant-ddl-ownership` on the clone, and treat a clone that
+    has not been re-provisioned as not representative of production for any SEC-7 purpose;
+  - **how to read each of D46's three messages**, and what each one means;
+  - **the recovery path for a bricked restore**, both verified branches: `ALTER EVENT TRIGGER
+    sec7_protect_ddl_objects_on_alter DISABLE` (which succeeds even while drifted) or
+    `SET event_triggers = off`, then re-run `grant-ddl-ownership`, then re-enable. Re-verified
+    during this design pass on a genuinely bricked restore of the real schema.
+  - that `event_triggers` is `SUSET` and so is not a bypass for any non-superuser
+    (`permission denied to set parameter "event_triggers"`, re-confirmed) -- R18's point, repeated
+    where an operator will meet it.
+- **`docs/operations/screening-ledger-policy-signing.md` gains one cross-reference**, so the
+  directory's two documents point at each other and neither is reachable only by knowing it exists.
+- **`SECURITY.md` and `README.md` are unchanged.** R3's rule is unchanged and now has a fifth
+  instance behind it. `README.md:93-97`'s requalification notice stays.
+
+**This discharges R18's own unmet requirement.** R18 (`0007:3527-3549`) states that "the recovery
+path must be documented rather than discovered" and treats that as satisfied by having written it
+into a risk note at line 3536 of this document, inside a section headed "New accepted risks."
+CAP #4 §7.6 point 2 is right that it is not. D48 is where it is actually discharged, and R18's text
+is not edited -- this decision records the change, the convention AR7 set for R7.
+
+---
+
+### D49. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26 (`0007:1874-1885`), D37
+(`0007:2623-2662`) and D42 (`0007:3455-3523`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #4 transcript
+exists, the test reproduces that transcript, not a paraphrase of it.
+
+1. **The copy states become permanent CI fixtures, which is CAP #4 §12 point 1(c)'s question
+   answered yes.** `grep -rn "pg_dump\|pg_restore"` across `internal/`, `scripts/` and `.github/`
+   returns nothing at this commit, so **no test anywhere exercises a dumped or restored database**.
+   `provision_test_roles.sh` gains a **`create-restored-database`** subcommand following the
+   existing degraded-state fixture pattern exactly -- `create-stale-anchor-database` (`:616`) and
+   `create-unprovisioned-database` (`:640`) already exist for precisely this purpose, and
+   `.github/workflows/ci.yml` already invokes both. It builds **both** variants:
+   `owl_ci_sec7_restored` (full `pg_dump | psql`, owners preserved -- note the drift item above:
+   **not** `--no-owner`, or the test proves D33's owner check rather than D41's identity assertion)
+   and `owl_ci_sec7_cloned` (`--schema-only`).
+2. **D43.** `TestVerifyAnchoredRefusesRestoredDatabase` and
+   `TestVerifyAnchoredRefusesSchemaOnlyClone` (pgx, against the two new fixtures): assert
+   `CheckProvisioningState` returns a **specifically named** failure for each -- the identity
+   failure for the restore, the population failure for the clone -- and that `VerifyAnchored`
+   refuses. Both must assert the *reason string*, not merely `Provisioned=false`: the two states
+   fail for different reasons and a test that cannot tell them apart would pass if either detector
+   were removed.
+3. **D43, the positive that stops the check being over-tightened.**
+   `TestProvisioningStateAcceptsTemplateClone` (pgx): `CREATE DATABASE ... TEMPLATE`, assert
+   `Provisioned=true` and that a `CREATE RULE` against a protected table is still blocked. This is
+   the collateral-damage case for this addendum, and D37's rule applies verbatim: **a suite that
+   proves only the refusals has not proven the design is safe to install.**
+4. **D45.** `TestInstanceBindingIsRecordedAndNeverGates`: assert the row exists and matches after
+   provisioning; assert `owl_ledger_ddl` and `owl_migrator` are both refused `UPDATE`; and assert
+   that a **mismatched binding with valid registries returns `Provisioned=true`** -- the test that
+   would fail if anyone later made the binding a gate.
+5. **D46.** `TestD40DiagnosticNamesTheRelationAndTheInstance` (pgx): all three messages, each
+   asserted on its own fixture -- copy, drop-and-recreate-in-place, name-absent -- with the SQLSTATE
+   captured rather than inferred. Plus the negative that makes the safety property real:
+   **corrupt `identity` to a value that resolves to nothing, on an otherwise healthy database, and
+   assert every DDL statement still succeeds** -- proving the diagnostic column cannot affect the
+   passing path.
+6. **D47.** `TestCheckProvisioningStateDetectsRewrittenRecordedState` (pgx): CAP #4 §7.5 case G's
+   exact `UPDATE`, asserting `Provisioned=true` **today** and a distinct named failure after --
+   that direction is deliberate, per D42's note (`0007:3461-3465`): the current behaviour is
+   acceptance, so a test asserting only the post-fix refusal cannot distinguish a working fix from a
+   test that never exercised the path. Table-driven over all seven columns, not only
+   `trigger_oids`, plus a clean-state positive.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **If the instance binding is ever made a gate, D45 is withdrawn.** The `TEMPLATE` transcript in
+  D43 shows a blocking binding refuses a database whose controls are demonstrably live. A
+  diagnostic that becomes a gate is not a stronger version of D45; it is a different and worse
+  decision, and test 4 above exists to make the change fail loudly.
+- **If D47's clean-state positive fails against the real schema** -- if any of the seven columns
+  turns out not to be a stable literal for both protected relations in the shipped configuration --
+  the implementation stops and this addendum is amended. It does **not** ship a comparison covering
+  some columns and not others: a check that runs on part of its referent is the shape of every
+  finding in this document. In particular, if a future migration adds a second index or a third
+  trigger to either relation, the literal changes and the two declarations must move together.
+- **D46 must not be split from D45.** Message (a) -- the one that names the situation an operator is
+  actually in -- requires the binding row. Shipping the `identity` column alone yields cases (b) and
+  (c) and silently degrades case (a) into (b), which would tell a DR operator their relation was
+  "dropped and recreated." That is a worse message than the bare integer it replaces.
+
+**Addendum 4's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #4's confirmation. D40's
+collateral-damage cases pass, so the `pg_depend` fallback is **not** required and **must not** be
+adopted (CAP #4 §12 confirms this independently). D38(a) and D38(b) shipped together as D42
+required. Nothing in this addendum touches D38, D39, D40's comparison set, or D41's `objid`
+assertion.
+
+### New accepted risks
+
+**R21 -- the instance binding is a diagnostic, and a physical copy is undetectable by it. That is
+correct, not a gap.** A `pg_basebackup`, a streaming replica, or a volume snapshot carries
+`pg_control`'s `system_identifier` and `pg_database`'s OIDs byte-for-byte, so the binding matches
+and no copy is reported. It should not be: such a copy also carries every relation OID, so D34, D40
+and D41 are genuinely enforcing in it -- D43's fourth table row. The binding answers "were these
+OIDs assigned here?", which is the question that matters, and not "is this the original database?",
+which is not. Recorded so that a later reader does not add a stronger identity test to close a gap
+that is not one.
+
+**R22 -- `pg_upgrade`'s preservation of database OIDs was not verified in this pass, and is stated
+as unverified rather than asserted.** `pg_upgrade` is designed to preserve relation OIDs, and
+preserves database OIDs on recent majors; if that holds, a major-version upgrade stays inside D43's
+population and the binding continues to match. It was not executed here, and this document does not
+assert PostgreSQL behaviour it has not run -- the standard Addendum 3 set (`0007:2129-2139`). The
+failure direction if it does not hold is benign and worth stating: the registries would already be
+failing D41 on their own account, and the binding would add a diagnostic to an
+already-failing path. It can produce a spurious *message*, never a spurious *refusal* -- which is
+D45's whole design. This joins CAP #4 §11 point 1's standing condition that a different PostgreSQL
+major invalidates the DDL results.
+
+**R23 -- the coordinated-edit surface grew again, and this addendum does not pretend otherwise.**
+CAP #4 §10.2 already records that adding a ninth protected relation requires coordinated edits to
+`db/migrations/`, `SchemaSQL`, `provision_test_roles.sh`'s two registry populations and its two
+hard-coded row-count assertions, and `postgres.go`'s four literal declarations, with nothing
+cross-checking them. D45 adds a thirteenth registry member (so `:481`'s `== "12"` and
+`requiredProtectedObjects` both move), D46 adds a column, and D47 adds a fifth literal declaration.
+The mitigating property is unchanged and is the reason this arrangement survives: **every one of
+those assertions fails closed.** The aggravating property is unchanged too: nothing cross-checks
+them against each other, and §10.3's first risk -- that the controls are split across four artifacts
+with no single owner -- is not addressed by this addendum and is not claimed to be.
+
+### Staging
+
+Same shape and reason as §8 and the four prior addenda (`0007:1397-1414`, `0007:2038-2058`,
+`0007:2694-2716`, `0007:3566-3586`): each stage independently reviewable and independently provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage G1 -- the operator envelope.** D48 alone: `docs/operations/sec7-database-copies.md` and
+   the cross-reference. **Sequenced first, and deliberately so.** It blocks nothing, which is
+   exactly why every prior addendum's equivalent item was sequenced last and why CAP #4 §12 point 3
+   predicts it "is the item most likely to be dropped because it is documentation rather than code."
+   It is also the only item an operator meets *before* the dangerous action rather than after. D23
+   was sequenced last on the same "blocks nothing" reasoning and CAP #2 rated the resulting gap
+   HIGH; this addendum does not repeat that.
+3. **Stage G2 -- the binding and the diagnostic.** D45 and D46 together, for the reason D49's third
+   withdrawal condition states: D46's most important message needs D45's row. Includes the
+   `create-restored-database` fixture and its CI wiring, and D43's tests, since the fixture is what
+   makes them runnable. Per CLAUDE.md Boundaries the `.github/workflows/ci.yml` invocation of the
+   new subcommand is named explicitly in the PR description, following D30's precedent
+   (`0007:1993-1997`).
+4. **Stage G3 -- the recorded-state comparison.** D47. Sequenced last because it is the LOW, because
+   it depends on D46's `identity` column being present to cover it, and because it touches
+   `protectedRelationIdentityReason`, which G2 does not.
+5. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #4 §9 re-confirmed that nothing in PR #142 or #143 re-asserted the guarantee; that must
+   remain true through this addendum as well.
+
+**SEC-7 does not close on this addendum, but the reason has changed and that should be said
+plainly.** §8's closing condition -- "a deliberately forged chain fails a CI run that nobody chose
+to invoke" -- is met in the CI sense by `d20_exploit_test.go` and, since D23, in the operational
+sense too. For the first time it is **not contradicted by a demonstrated forgery**: CAP #4 found
+none. What remains open is limb (c) being reachable-false through an ordinary copy with zero test
+coverage and zero operator documentation. That is a smaller and different barrier than the four that
+preceded it, and D48 and D49 are the whole of it. The closing sentence stands and now has a fifth
+addendum behind it.
+
+### Addendum 5 summary
+
+- **CAP #4's verdict is QUALIFIED, not PASS, for the fourth consecutive audit -- but for the first
+  time with no forgery bypass.** The cryptographic and database-level core held against everything
+  the audit attempted, including CAP #3's CRITICAL reproduced end to end. The two remaining findings
+  are a scope gap (I-A, MEDIUM) and an unchecked referent (I-B, LOW), and neither is an attack.
+- **The class is one axis over from Addendum 4's, not one turn deeper.** Not "the referent drifted"
+  but **"the referent is correct and its population was never stated."** D43 states the population;
+  the principle is that a referent's population is part of the control, and that the way to fix a
+  narrow population is to state and detect it, **never to weaken the referent to widen it**.
+- **The design is D43-D49.** The population D34/D40/D41 are meaningful over, with the conclusion that
+  D41 is already its exact detector (D43); Direction B evaluated and rejected with the transcript
+  that refutes it (D44); an instance binding that diagnoses and is pre-declared never to gate (D45);
+  the three-way diagnostic that replaces an integer-only message, read only on an already-failing
+  path (D46); the seven recorded state columns given a referent of their own, with R19 corrected
+  forward (D47); the operator document that does not exist, and why the frozen legacy design
+  document is not edited (D48); and the proof obligations with pre-declared withdrawal conditions
+  (D49).
+- **This design pass executed its mechanism assumptions, and three of them changed the design.** A
+  name-keyed registry reopens G-G -- `ALTER TRIGGER ... RENAME` then `DROP TRIGGER`, two statements
+  by the table's owner, trigger gone, while the shipped OID-keyed build blocks both.
+  `system_identifier` is identical across a same-cluster restore, so CAP #4 §12's own suggestion is
+  wrong as phrased and the database OID is what discriminates. `CREATE DATABASE ... TEMPLATE`
+  preserves relation OIDs, which refutes making any instance marker a gate. Also confirmed by
+  execution: `COMMENT ON` a superuser-owned relation is both dump-portable and adversary-immutable,
+  so the tension is real for a **referent** and absent for a **marker**; `to_regclass` raises on a
+  malformed name and so is unusable inside the trigger; both R18 recovery paths work on a genuinely
+  bricked restore; re-running `grant-ddl-ownership` restores enforcement on a clone; and D41's
+  identity assertion, not D33's owner check, is what catches an ordinary owner-preserving restore.
+- **One premise inherited from CAP #4 does not survive verification.** `docs/design/deployment.md`
+  is a byte-preserving restored legacy document in a directory `docs/design/README.md:3` marks
+  "historical record -- not living documentation," referenced from nowhere else in the tree. The
+  repository does not instruct operators to perform the dangerous copy; what is missing is a
+  warning, not a corrected instruction. I-A is undiminished and the remedy is clearer for it.
+- **Three risks are recorded** rather than designed away: the binding cannot and should not detect a
+  physical copy (R21); `pg_upgrade`'s OID preservation is stated as unverified rather than asserted
+  (R22); and the coordinated-edit surface grew again (R23).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37 and D38-D42
+  stand. R1-R18 and R20 stand. One sentence of R19 (`0007:3551-3556`) is withdrawn as stricter than
+  what the code enforces, explicitly and in D47's own words; R19's substantive decision and its
+  superuser terminus are unaffected, and D47 is what makes the withdrawn sentence true.
+
+**Audit basis commit:** `8b36c91f7ef58e11048116d8c7e0e45f7da18024`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #4
+was produced against, so no drift separates the audit from this design. For a CAP record covering
+the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
+value.

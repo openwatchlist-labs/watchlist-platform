@@ -4,6 +4,10 @@ ADR-0007 D8-D10 (as repaired by Addendum 2 D23). This is the procedure CAP §7.8
 entirely: no policy-signing subcommand, no committed example, and no documentation anywhere in the
 tree.
 
+Companion procedure: [`sec7-database-copies.md`](sec7-database-copies.md) -- what happens to the
+SEC-7 DDL protections when this database is dumped, cloned, or restored, and what to do about it
+(ADR-0007 Addendum 5 D48).
+
 ## What this key controls
 
 `--policy-file` is required for every `screening-ledger` verification path (`status`, `verify`,
