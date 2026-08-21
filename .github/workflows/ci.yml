@@ -2,6 +2,28 @@ name: CI
 
 on:
   pull_request:
+    # A PR that touches only these paths skips this workflow entirely (not
+    # merely a skipped job -- GitHub does not trigger the run). Two subtrees
+    # are carved back out with '!' negations because CI itself validates
+    # their content, not just repo build correctness:
+    #   - docs/governance/**: scripts/ci/verify-legacy-lineage.py directly
+    #     validates docs/governance/legacy-qualification-lineage.json (the
+    #     clean-restart lineage control file, CLAUDE.md rule 2) and
+    #     references legacy-repository.md / legacy-qualification-lineage.md
+    #     there; verify-clean-restart.sh also requires
+    #     docs/governance/clean-restart-r1.md to exist.
+    #   - docs/homelab/** and scripts/deployment/r2-4/**:
+    #     verify-homelab-r2-4-publication.sh scans this content for leaked
+    #     private info (IPs, usernames, home paths) before public release,
+    #     and requires specific files under both trees to exist.
+    # A "documentation change" to any of these three subtrees is exactly
+    # the content these gates exist to check -- it must still run.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '!docs/governance/**'
+      - '!docs/homelab/**'
+      - '!scripts/deployment/r2-4/**'
   push:
     branches: [main]
 
