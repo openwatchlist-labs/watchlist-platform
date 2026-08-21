@@ -45,6 +45,14 @@ screening implementation. The file itself is left unedited to preserve its
 byte-for-byte fidelity to the restored legacy source (see above); this note
 is the correction of record.
 
+**Database copies guidance:** [`docs/design/deployment.md`](deployment.md)
+(§ backup and recovery) describes legacy procedures for database copies, clones,
+and restores. For current, correct guidance aligned with SEC-7's audit chain
+integrity requirements, see [`docs/operations/sec7-database-copies.md`](../operations/sec7-database-copies.md).
+The deployment.md file itself is left unedited to preserve its byte-for-byte
+fidelity to the restored legacy source (see above); this note is the current
+guidance of record.
+
 ## Restored documents
 
 | File | Subject | Phase / subsystem |
