@@ -3347,6 +3347,26 @@ anyway, as defence in depth and not as the fix. Note also that the `CREATE TEMP 
 variant needs **no grant whatsoever** (`TEMP` is held by default), so a privilege assertion alone
 would not have closed even the form that exists today.
 
+**Correction found implementing D40/D41, in the same spirit as §3.4 and §6.1.** This section's own
+text groups `CREATE TRIGGER` with `CREATE INDEX` as both "blocked only by `owl_ledger_ddl` holding
+`CREATE` on no schema" (`0007:3249-3252`, this addendum's context section). Re-executed against a
+real PostgreSQL 17.11 cluster during the implementation pass: **`CREATE INDEX` genuinely needs
+schema `CREATE`** (an index is a new relation in the schema's namespace, the same rule `CREATE
+TABLE` follows), confirmed by a `42501 permission denied for schema public` when attempted as
+`owl_ledger_ddl` with no schema grant. **`CREATE TRIGGER` does not** -- it requires only ownership
+of (or the `TRIGGER` privilege on) the target table, which `owl_ledger_ddl` already has by virtue of
+owning `screening_ledger_anchor`/`screening_ledger_retention_tombstone`, and it succeeds as
+`owl_ledger_ddl` with zero schema-level grant of any kind. `CREATE POLICY` and `CREATE RULE` are the
+same way -- neither is a schema-namespaced object. This does not change D40's design or D41's
+assertions: D40's second phase blocks `CREATE TRIGGER`/`CREATE POLICY` structurally regardless of
+privilege (§ transcript above, `its trigger set changed` / `its RLS policy set changed`), exactly as
+specified, and D41 part three's two `has_*_privilege` facts are still true and still asserted -- they
+were simply never the reason `CREATE TRIGGER`/`CREATE POLICY` were unexploited before D40 shipped;
+no CAP raised either, and the accurate reason is "no CAP tried it," not a privilege coincidence.
+Recorded here rather than silently corrected because the next reader should not re-derive it, and
+because a false "the privilege split already covers this" sentence is worse than the true "D40 is the
+only defence for these two forms" one it replaces for these two forms specifically.
+
 ### D41. H-E (MEDIUM): the registry's identity and its population both become assertions
 
 **The finding.** R15 accepts a documented fail-open risk on an explicit basis (`0007:2666-2674`):

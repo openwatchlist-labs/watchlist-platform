@@ -1,14 +1,16 @@
 {
   "policy": {
-    "schema_version": "openwatchlist.screening-ledger-verification-policy.v2",
+    "schema_version": "openwatchlist.screening-ledger-verification-policy.v3",
     "ledger_id": "screening-api-v8g-example",
     "min_event_schema": "openwatchlist.screening-ledger-event.v2",
     "min_audit_schema": "openwatchlist.screening-ledger-audit.v2",
     "genesis_event_sequence": 1,
     "genesis_audit_sequence": 1,
     "allow_unanchored": false,
-    "min_anchor_sequence": 0
+    "min_anchor_sequence": 0,
+    "genesis_event_sha256": "",
+    "genesis_audit_sha256": ""
   },
-  "signature_base64": "PlH54W58RImFwOGRJoR6hN5zm6Qo178fRFGmRe6dyJFos5I3nU4D5VPAkWD+MOqlUdUvzTMVA033ssVFrBIIBg==",
+  "signature_base64": "BOglDbK3L0awcKP8kE/Wg7PlKcPyFJlFV6tRL5sejI+jIgSgZ9P6xeSID0V7YXJgIk7ReVflXlOzZJUnhUATBg==",
   "public_key_base64": "cOVarFrU5u4I/2rGAZv2hXPaNLOjKoZTmjkPJcQE1b4="
 }

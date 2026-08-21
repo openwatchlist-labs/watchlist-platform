@@ -92,8 +92,19 @@ func TestFrozenV1PrefixAcceptedAndAnchoredGenesisBoundaryEnforced(t *testing.T) 
 	// genesis boundary this policy declares is sequence 2, so the policy
 	// itself -- not any label the entry carries -- is what makes sequence
 	// 1 a legal frozen-v1 prefix (ADR-0007 D8 EA2).
+	//
+	// ADR-0007 Addendum 4 D38(b): genesis_event_sequence > 1 requires the
+	// policy to pin the EventSHA256 of the entry at genesis-1 (here,
+	// sequence 1) -- read from the fixture itself, not fabricated,
+	// exactly the "one 64-character hex string, read from the entry at
+	// N-1" the design describes.
+	frozenEntry, err := store.eventAtSequence(1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	policy := testPolicy("screening-api-v8g-example")
 	policy.GenesisEventSequence = 2
+	policy.GenesisEventSHA256 = frozenEntry.EventSHA256
 	policy.GenesisAuditSequence = 1
 
 	report, err := store.VerifyPolicy(context.Background(), VerifyOptions{Policy: policy})

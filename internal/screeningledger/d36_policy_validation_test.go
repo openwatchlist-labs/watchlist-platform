@@ -30,27 +30,31 @@ func TestDecodeUnsignedPolicyRejectsCAPTwoSevenPointEightInputs(t *testing.T) {
 		{
 			name: "transposed_min_anchor_sequence",
 			document: `{
-				"schema_version":"openwatchlist.screening-ledger-verification-policy.v2",
+				"schema_version":"openwatchlist.screening-ledger-verification-policy.v3",
 				"ledger_id":"ledger-a",
 				"min_event_schema":"openwatchlist.screening-ledger-event.v2",
 				"min_audit_schema":"openwatchlist.screening-ledger-audit.v2",
 				"genesis_event_sequence":1,
 				"genesis_audit_sequence":1,
 				"allow_unanchored":false,
-				"min_anchor_seqence":5
+				"min_anchor_seqence":5,
+				"genesis_event_sha256":"",
+				"genesis_audit_sha256":""
 			}`,
 			wantErrLike: "unknown field",
 		},
 		{
 			name: "omitted_min_anchor_sequence",
 			document: `{
-				"schema_version":"openwatchlist.screening-ledger-verification-policy.v2",
+				"schema_version":"openwatchlist.screening-ledger-verification-policy.v3",
 				"ledger_id":"ledger-a",
 				"min_event_schema":"openwatchlist.screening-ledger-event.v2",
 				"min_audit_schema":"openwatchlist.screening-ledger-audit.v2",
 				"genesis_event_sequence":1,
 				"genesis_audit_sequence":1,
-				"allow_unanchored":false
+				"allow_unanchored":false,
+				"genesis_event_sha256":"",
+				"genesis_audit_sha256":""
 			}`,
 			wantErrLike: "missing required field",
 		},
@@ -64,7 +68,9 @@ func TestDecodeUnsignedPolicyRejectsCAPTwoSevenPointEightInputs(t *testing.T) {
 				"genesis_event_sequence":0,
 				"genesis_audit_sequence":0,
 				"allow_unanchored":true,
-				"min_anchor_sequence":0
+				"min_anchor_sequence":0,
+				"genesis_event_sha256":"",
+				"genesis_audit_sha256":""
 			}`,
 			wantErrLike: "schema_version",
 		},
@@ -117,14 +123,16 @@ func TestSignVerificationPolicyRefusesInvalidPolicy(t *testing.T) {
 // everything is not a validator.
 func TestDecodeUnsignedPolicyAcceptsTheCommittedExampleFixture(t *testing.T) {
 	document := `{
-		"schema_version":"openwatchlist.screening-ledger-verification-policy.v2",
+		"schema_version":"openwatchlist.screening-ledger-verification-policy.v3",
 		"ledger_id":"screening-api-v8g-example",
 		"min_event_schema":"openwatchlist.screening-ledger-event.v2",
 		"min_audit_schema":"openwatchlist.screening-ledger-audit.v2",
 		"genesis_event_sequence":1,
 		"genesis_audit_sequence":1,
 		"allow_unanchored":false,
-		"min_anchor_sequence":0
+		"min_anchor_sequence":0,
+		"genesis_event_sha256":"",
+		"genesis_audit_sha256":""
 	}`
 	policy, err := DecodeUnsignedPolicy(strings.NewReader(document))
 	if err != nil {

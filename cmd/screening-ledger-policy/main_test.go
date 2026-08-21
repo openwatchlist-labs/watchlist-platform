@@ -96,7 +96,7 @@ func TestKeygenSignFingerprintRoundTrip(t *testing.T) {
 
 	policyPath := filepath.Join(dir, "policy.json")
 	policy := screeningledger.VerificationPolicy{
-		SchemaVersion:        screeningledger.VerificationPolicySchemaV2,
+		SchemaVersion:        screeningledger.VerificationPolicySchemaV3,
 		LedgerID:             "screening-ledger-policy-test",
 		MinEventSchema:       screeningledger.EventSchemaV2,
 		MinAuditSchema:       screeningledger.AuditSchemaV2,
@@ -152,7 +152,7 @@ func TestSignRejectsWrongPublicKey(t *testing.T) {
 
 	policyPath := filepath.Join(dir, "policy.json")
 	policy := screeningledger.VerificationPolicy{
-		SchemaVersion:        screeningledger.VerificationPolicySchemaV2,
+		SchemaVersion:        screeningledger.VerificationPolicySchemaV3,
 		LedgerID:             "screening-ledger-policy-wrong-key-test",
 		MinEventSchema:       screeningledger.EventSchemaV2,
 		MinAuditSchema:       screeningledger.AuditSchemaV2,

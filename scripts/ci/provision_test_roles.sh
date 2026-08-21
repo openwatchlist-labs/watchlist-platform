@@ -390,31 +390,96 @@ grant-ddl-ownership)
   # that, by asserting every fact this step installs, not by this registry
   # alone).
   psql_super -c "CREATE TABLE IF NOT EXISTS sec7_protected_object (objid oid PRIMARY KEY, note text NOT NULL);"
+  # ADR-0007 Addendum 4 D40/D41 bootstrapping: on a database this step
+  # already ran on before this addendum, sec7_protected_object is
+  # already a protected object (last row of its own previous
+  # population), so the ALTER TABLE ADD COLUMN below -- and every
+  # statement in this step that touches either registry or the two
+  # protected tables -- would trip D34's own event trigger before this
+  # step ever reaches the point where it (re)installs that trigger.
+  # Dropped here, at the top, rather than only immediately before
+  # CREATE EVENT TRIGGER as originally structured: this step already ran
+  # with protection down for its whole remaining duration on every prior
+  # execution (the triggers are always created LAST, after every table/
+  # function/registry statement above them), so widening that existing
+  # window to cover the registry changes above is not a new exposure,
+  # only a longer version of the one this idempotent, superuser-only
+  # script has always had. A no-op on a true first run, where neither
+  # trigger exists yet.
+  psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;"
+  psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;"
+  # ADR-0007 Addendum 4 D41: classid records which system catalog each
+  # row's OID belongs to, so the row's claim becomes a machine-comparable
+  # identity (pg_identify_object(classid, objid, 0)) rather than a prose
+  # note that is never compared to anything -- R15's stated closure
+  # ("resolves to the object it claims") was never actually checked
+  # before this. ADD COLUMN IF NOT EXISTS: idempotent against a database
+  # this step already ran on before this addendum.
+  psql_super -c "ALTER TABLE sec7_protected_object ADD COLUMN IF NOT EXISTS classid oid;"
   psql_super -c "REVOKE ALL ON sec7_protected_object FROM PUBLIC;"
   psql_super -c "GRANT SELECT ON sec7_protected_object TO owl_migrator;"
+  # ADR-0007 Addendum 4 D40: sec7_protected_relation, a second
+  # superuser-owned registry, one row per protected RELATION (as opposed
+  # to sec7_protected_object's one row per protected OBJECT of any kind)
+  # -- recording the facts sec7_protect_ddl_objects()'s second phase
+  # re-asserts after every DDL statement: owner, kind, both RLS flags,
+  # and the non-internal trigger/index/policy OID sets. Created before
+  # sec7_protected_object is (re)populated below, since this table's own
+  # OID is itself one of sec7_protected_object's rows.
+  psql_super -c "
+    CREATE TABLE IF NOT EXISTS sec7_protected_relation (
+      objid oid PRIMARY KEY,
+      relowner oid NOT NULL,
+      relkind \"char\" NOT NULL,
+      relrowsecurity boolean NOT NULL,
+      relforcerowsecurity boolean NOT NULL,
+      trigger_oids oid[] NOT NULL,
+      index_oids oid[] NOT NULL,
+      policy_oids oid[] NOT NULL
+    );
+  "
+  psql_super -c "REVOKE ALL ON sec7_protected_relation FROM PUBLIC;"
+  psql_super -c "GRANT SELECT ON sec7_protected_relation TO owl_migrator;"
   # DML, not DDL -- unaffected by the event triggers below regardless of
   # their own installation state, so re-populating on every invocation of
-  # this step is safe and keeps the registry from drifting if this script
-  # is ever edited to protect a different object set.
+  # this step is safe and keeps both registries from drifting if this
+  # script is ever edited to protect a different object/relation set.
+  psql_super -c "DELETE FROM sec7_protected_relation;"
+  psql_super -c "
+    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_oids, policy_oids)
+    SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity,
+      COALESCE((SELECT array_agg(t.oid ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal), ARRAY[]::oid[]),
+      COALESCE((SELECT array_agg(ix.indexrelid ORDER BY ix.indexrelid) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::oid[]),
+      COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[])
+    FROM pg_class c
+    WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
+  "
+  protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")"
+  [[ "$protected_relation_row_count" == "2" ]] || {
+    echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
+    exit 1
+  }
   psql_super -c "DELETE FROM sec7_protected_object;"
   psql_super -c "
-    INSERT INTO sec7_protected_object (objid, note) VALUES
-      ('screening_ledger_anchor'::regclass::oid, 'table: screening_ledger_anchor'),
-      ('screening_ledger_retention_tombstone'::regclass::oid, 'table: screening_ledger_retention_tombstone'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_immutable' AND tgrelid='screening_ledger_anchor'::regclass), 'trigger: screening_ledger_anchor_immutable'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_no_truncate' AND tgrelid='screening_ledger_anchor'::regclass), 'trigger: screening_ledger_anchor_no_truncate'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_immutable' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'trigger: screening_ledger_retention_tombstone_immutable'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'trigger: screening_ledger_retention_tombstone_no_truncate'),
-      ('screening_ledger_reject_mutation()'::regprocedure::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
-      ('owl_reject_truncate()'::regprocedure::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
-      ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
-      ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
-      ('sec7_protected_object'::regclass::oid, 'table: sec7_protected_object (the registry itself)')
+    INSERT INTO sec7_protected_object (objid, classid, note) VALUES
+      ('screening_ledger_anchor'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_anchor'),
+      ('screening_ledger_retention_tombstone'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_retention_tombstone'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_immutable' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_immutable'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_no_truncate' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_no_truncate'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_immutable' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_immutable'),
+      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_no_truncate'),
+      ('screening_ledger_reject_mutation()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
+      ('owl_reject_truncate()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
+      ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
+      ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
+      ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
+      ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)')
     ;
   "
+  psql_super -c "ALTER TABLE sec7_protected_object ALTER COLUMN classid SET NOT NULL;"
   registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
-  [[ "$registry_row_count" == "11" ]] || {
-    echo "FAIL: expected 11 rows in sec7_protected_object, found $registry_row_count" >&2
+  [[ "$registry_row_count" == "12" ]] || {
+    echo "FAIL: expected 12 rows in sec7_protected_object, found $registry_row_count" >&2
     exit 1
   }
   # sec7_protect_ddl_objects() becomes SECURITY DEFINER -- load-bearing,
@@ -434,6 +499,14 @@ grant-ddl-ownership)
     SECURITY DEFINER SET search_path = pg_catalog, public AS \$\$
     DECLARE
       obj record;
+      rel record;
+      cur_owner oid;
+      cur_kind \"char\";
+      cur_rls boolean;
+      cur_force_rls boolean;
+      cur_triggers oid[];
+      cur_indexes oid[];
+      cur_policies oid[];
     BEGIN
       IF TG_EVENT = 'sql_drop' THEN
         FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
@@ -447,12 +520,68 @@ grant-ddl-ownership)
             RAISE EXCEPTION 'ADR-0007 Addendum 3 D34: % (objid %, tag %) is protected by a superuser-only DDL event trigger', obj.object_identity, obj.objid, obj.command_tag;
           END IF;
         END LOOP;
+        -- ADR-0007 Addendum 4 D40: the objid membership check above
+        -- answers 'was the reported object itself in the protected
+        -- set?' -- which is the wrong question for CREATE RULE (reports
+        -- the rule, not the table), inheritance attachment (reports the
+        -- child, not the parent), CREATE TRIGGER/INDEX/POLICY (reports
+        -- the new trigger/index/policy, not the table they attach to),
+        -- and every future object type that attaches to a protected
+        -- relation while reporting something else. This second phase
+        -- asks a different question, of every protected relation, on
+        -- every ddl_command_end firing regardless of what it reported:
+        -- does this relation still match the state recorded for it at
+        -- provisioning time? ddl_command_end fires for DROP commands
+        -- too (confirmed by execution), so this also covers drop-shaped
+        -- attacks on a relation's attachments (e.g. DROP of an
+        -- unrelated object that happens to leave a dangling rule) that
+        -- the sql_drop phase's objid check would miss for any object
+        -- not individually registered.
+        FOR rel IN SELECT * FROM sec7_protected_relation LOOP
+          IF NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = rel.objid) THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %) no longer exists', rel.objid;
+          END IF;
+          SELECT c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity
+            INTO cur_owner, cur_kind, cur_rls, cur_force_rls
+            FROM pg_class c WHERE c.oid = rel.objid;
+          IF cur_owner IS DISTINCT FROM rel.relowner THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its owner changed', rel.objid;
+          END IF;
+          IF cur_kind IS DISTINCT FROM rel.relkind THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its relkind changed', rel.objid;
+          END IF;
+          IF cur_rls IS DISTINCT FROM rel.relrowsecurity OR cur_force_rls IS DISTINCT FROM rel.relforcerowsecurity THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its row-level-security flags changed', rel.objid;
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_rewrite r WHERE r.ev_class = rel.objid) THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): a rewrite RULE exists on it', rel.objid;
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_inherits i WHERE i.inhparent = rel.objid OR i.inhrelid = rel.objid) THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): an inheritance child is attached (or it has itself been attached as a child)', rel.objid;
+          END IF;
+          SELECT COALESCE(array_agg(t.oid ORDER BY t.oid), ARRAY[]::oid[]) INTO cur_triggers
+            FROM pg_trigger t WHERE t.tgrelid = rel.objid AND NOT t.tgisinternal;
+          IF cur_triggers IS DISTINCT FROM rel.trigger_oids THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its trigger set changed', rel.objid;
+          END IF;
+          SELECT COALESCE(array_agg(ix.indexrelid ORDER BY ix.indexrelid), ARRAY[]::oid[]) INTO cur_indexes
+            FROM pg_index ix WHERE ix.indrelid = rel.objid;
+          IF cur_indexes IS DISTINCT FROM rel.index_oids THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its index set changed', rel.objid;
+          END IF;
+          SELECT COALESCE(array_agg(p.oid ORDER BY p.oid), ARRAY[]::oid[]) INTO cur_policies
+            FROM pg_policy p WHERE p.polrelid = rel.objid;
+          IF cur_policies IS DISTINCT FROM rel.policy_oids THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its RLS policy set changed', rel.objid;
+          END IF;
+          IF EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = rel.objid AND NOT t.tgisinternal AND t.tgenabled <> 'O') THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): one of its triggers is not ENABLE (tgenabled <> ''O'')', rel.objid;
+          END IF;
+        END LOOP;
       END IF;
     END;
     \$\$;
   "
-  psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;"
-  psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;"
   # No WHEN TAG clause on either trigger -- D31's principle applied: the
   # protected set is closed, small, and resolved by OID above; the set of
   # DDL statement forms is open and enumerating it is what failed twice
@@ -482,7 +611,7 @@ grant-ddl-ownership)
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
   }
-  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and the registry itself from any DDL statement by any non-superuser role, owner included"
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and both registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-policy-OID-sets after every DDL statement"
   ;;
 create-stale-anchor-database)
   # ADR-0007 Addendum 2 D21/D22 (F-E, CRITICAL): the committed regression
