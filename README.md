@@ -174,3 +174,5 @@ production use. Third-party format and licensing references are described in
 ## License
 
 Apache License 2.0. See `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md`.
+
+<!-- CI paths-ignore verification: doc-only commit, PR #146. Reverted before merge. -->
