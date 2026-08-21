@@ -46,14 +46,16 @@ Write the unsigned policy document (see `internal/screeningledger/policy.go`'s
 
 ```json
 {
-  "schema_version": "openwatchlist.screening-ledger-verification-policy.v2",
+  "schema_version": "openwatchlist.screening-ledger-verification-policy.v3",
   "ledger_id": "<this ledger's authenticated identity>",
   "min_event_schema": "openwatchlist.screening-ledger-event.v2",
   "min_audit_schema": "openwatchlist.screening-ledger-audit.v2",
   "genesis_event_sequence": 1,
   "genesis_audit_sequence": 1,
   "allow_unanchored": false,
-  "min_anchor_sequence": 0
+  "min_anchor_sequence": 0,
+  "genesis_event_sha256": "",
+  "genesis_audit_sha256": ""
 }
 ```
 
@@ -63,7 +65,26 @@ permitted at all -- the correct value for a ledger with no genuine pre-D2 histor
 policy, since no anchor exists yet (ADR-0007 Addendum 2 D25). Raising it later, once real anchors
 exist, is what makes a full anchor-table wipe detectable without needing to trust the table's
 owner: an absent or below-floor anchor fails verification outright, rather than being reported as
-a legitimate absence. Then, on the offline host holding the private key:
+a legitimate absence.
+
+**`genesis_event_sha256`/`genesis_audit_sha256` (ADR-0007 Addendum 4 D38(b)) commit to the frozen
+prefix the genesis boundary declares** -- without this pin, the boundary was a claim about the
+ledger checked against nothing in it, and CAP #3's CRITICAL finding (H-A) showed a boundary set far
+above the chain's actual head silently downgrades the whole chain to unkeyed verification. The rule:
+
+- **`genesis_event_sequence`/`genesis_audit_sequence` of `1`** (no `v1` prefix, the value above and
+  every real ledger today, per ADR-0007 §6.1): the companion `_sha256` field must be the
+  **empty-string sentinel** `""`. No ledger needs to exist yet to write this -- it is a complete,
+  signable bootstrap document.
+- **A value `N` greater than `1`** (a ledger with a genuine frozen `v1` prefix): the companion
+  field must be the 64-character lowercase-hex `EventSHA256`/`AuditSHA256` of the chain entry at
+  sequence `N-1` -- read once from that entry, from `screening-ledger status`'s output or the
+  entry file itself. This does not need to be re-read on every re-issue: `Append`/`AppendAudit`
+  never write a `v1` entry, so the frozen prefix and its pinned digest never change for the life of
+  the ledger. A policy re-issue that only raises `min_anchor_sequence` or changes
+  `allow_unanchored` carries the same two pin values forward unchanged.
+
+Then, on the offline host holding the private key:
 
 ```sh
 screening-ledger-policy sign \

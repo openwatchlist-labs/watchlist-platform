@@ -120,20 +120,28 @@ func TestCheckProvisioningStateDetectsStaleRegistryRow(t *testing.T) {
 	defer superuser.Close(context.Background())
 
 	// 4294967295 (max uint32) is not a real OID any live catalog entry
-	// will ever have in this fresh test cluster.
+	// will ever have in this fresh test cluster. Repointed via UPDATE,
+	// not INSERTed as a 13th row: ADR-0007 Addendum 4 D41 checks
+	// population (exact row count) before identity, so an extra row
+	// would be reported as "padded" rather than exercising the
+	// stale-OID identity path this test is specifically about.
 	const fakeOID = 4294967295
-	if _, err := superuser.Exec(ctx, `INSERT INTO sec7_protected_object(objid, note) VALUES ($1, 'fabricated for TestCheckProvisioningStateDetectsStaleRegistryRow')`, fakeOID); err != nil {
-		t.Fatalf("insert fabricated registry row: %v", err)
+	var originalOID uint32
+	if err := superuser.QueryRow(ctx, `SELECT objid FROM sec7_protected_object WHERE note LIKE 'table: screening_ledger_anchor%'`).Scan(&originalOID); err != nil {
+		t.Fatalf("read the anchor table's registry row: %v", err)
+	}
+	if _, err := superuser.Exec(ctx, `UPDATE sec7_protected_object SET objid = $1 WHERE note LIKE 'table: screening_ledger_anchor%'`, fakeOID); err != nil {
+		t.Fatalf("repoint registry row to a stale OID: %v", err)
 	}
 	t.Cleanup(func() {
 		cleanup, err := pgx.Connect(context.Background(), superuserDSN)
 		if err != nil {
-			t.Errorf("removing fabricated registry row: connect: %v", err)
+			t.Errorf("restoring repointed registry row: connect: %v", err)
 			return
 		}
 		defer cleanup.Close(context.Background())
-		if _, err := cleanup.Exec(context.Background(), `DELETE FROM sec7_protected_object WHERE objid = $1`, fakeOID); err != nil {
-			t.Errorf("removing fabricated registry row: %v", err)
+		if _, err := cleanup.Exec(context.Background(), `UPDATE sec7_protected_object SET objid = $1 WHERE objid = $2`, originalOID, fakeOID); err != nil {
+			t.Errorf("restoring repointed registry row: %v", err)
 		}
 	})
 

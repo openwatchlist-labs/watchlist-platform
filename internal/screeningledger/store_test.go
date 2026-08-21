@@ -25,12 +25,16 @@ func testKey() []byte { return bytes.Repeat([]byte{0x42}, 32) }
 // policy build their own.
 func testPolicy(ledgerID string) VerificationPolicy {
 	return VerificationPolicy{
-		SchemaVersion:        VerificationPolicySchemaV2,
+		SchemaVersion:        VerificationPolicySchemaV3,
 		LedgerID:             ledgerID,
 		MinEventSchema:       EventSchemaV2,
 		MinAuditSchema:       AuditSchemaV2,
 		GenesisEventSequence: 1,
 		GenesisAuditSequence: 1,
+		// GenesisEventSHA256/GenesisAuditSHA256 (D38(b)): left as the
+		// zero value "" deliberately -- genesis sequence 1 requires
+		// exactly the empty-string sentinel, so this is the correct
+		// value, not an omission.
 	}
 }
 

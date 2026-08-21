@@ -1,13 +1,16 @@
 package screeningledger
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -30,13 +33,24 @@ const VerificationPolicySchemaV1 = "openwatchlist.screening-ledger-verification-
 // free again, the same argument D11 made for db/migrations/017.
 const VerificationPolicySchemaV2 = "openwatchlist.screening-ledger-verification-policy.v2"
 
+// VerificationPolicySchemaV3 is ADR-0007 Addendum 4 D38(b): adds
+// GenesisEventSHA256/GenesisAuditSHA256, the prefix-commitment pin that
+// closes H-A (CRITICAL) -- the genesis boundary was, until this schema,
+// a claim about the ledger checked against nothing in it. Retired by
+// the same exact-equality convention D25 established for v2: a
+// v2-labelled document is rejected outright by Validate(), not silently
+// narrowed to the fields the old struct knows. No backward-compatibility
+// path is provided; that is the decision, not an omission.
+const VerificationPolicySchemaV3 = "openwatchlist.screening-ledger-verification-policy.v3"
+
 // VerificationPolicy carries the externally-authenticated facts ADR-0007
 // D8 names EA1-EA3, plus Addendum 2 D25's MinAnchorSequence (EA4's
-// floor): the minimum accepted schema version per chain, the genesis
-// boundary as a sequence number, the ledger this policy authenticates,
-// and the minimum anchor sequence a verified anchor must be at or above.
-// It is never read out of the ledger directory -- see
-// LoadSignedVerificationPolicy.
+// floor), plus Addendum 4 D38(b)'s genesis prefix-commitment pin: the
+// minimum accepted schema version per chain, the genesis boundary as a
+// sequence number, the ledger this policy authenticates, the minimum
+// anchor sequence a verified anchor must be at or above, and the digest
+// each genesis boundary commits to. It is never read out of the ledger
+// directory -- see LoadSignedVerificationPolicy.
 type VerificationPolicy struct {
 	SchemaVersion        string `json:"schema_version"`
 	LedgerID             string `json:"ledger_id"`
@@ -51,6 +65,17 @@ type VerificationPolicy struct {
 	// re-anchoring event, so the new floor is always satisfiable by
 	// construction at the moment it is signed.
 	MinAnchorSequence uint64 `json:"min_anchor_sequence"`
+	// GenesisEventSHA256/GenesisAuditSHA256 (D38(b)): the pin the genesis
+	// boundary commits to. When the corresponding GenesisXSequence is 1,
+	// the declared prefix is empty and this must be the empty-string
+	// sentinel. When it is N > 1, this must be the 64-character lowercase
+	// hex EventSHA256 (or AuditSHA256) of the chain entry at sequence
+	// N-1 -- reconciled against the actual chain in verifyPolicyLocked/
+	// verifyAuditPolicyLocked, not here (Validate() checks only the
+	// artifact's own internal shape: sentinel-or-hex, chosen by
+	// GenesisXSequence).
+	GenesisEventSHA256 string `json:"genesis_event_sha256"`
+	GenesisAuditSHA256 string `json:"genesis_audit_sha256"`
 }
 
 // Validate is ADR-0007 Addendum 3 D36 (G-F): validity defined as a
@@ -62,8 +87,8 @@ type VerificationPolicy struct {
 // CAP #2 §7.8 signed an invalid document with no complaint at all,
 // because nothing on the producing side ever asked.
 func (p VerificationPolicy) Validate() error {
-	if p.SchemaVersion != VerificationPolicySchemaV2 {
-		return fmt.Errorf("verification policy schema_version %q is not %q", p.SchemaVersion, VerificationPolicySchemaV2)
+	if p.SchemaVersion != VerificationPolicySchemaV3 {
+		return fmt.Errorf("verification policy schema_version %q is not %q", p.SchemaVersion, VerificationPolicySchemaV3)
 	}
 	if strings.TrimSpace(p.LedgerID) == "" {
 		return errors.New("verification policy ledger_id must not be empty")
@@ -79,6 +104,37 @@ func (p VerificationPolicy) Validate() error {
 	}
 	if p.GenesisAuditSequence < 1 {
 		return errors.New("verification policy genesis_audit_sequence must be >= 1 (sequence numbering starts at 1; 0 is not a boundary, it is an unset field)")
+	}
+	if err := validateGenesisPinShape(p.GenesisEventSequence, p.GenesisEventSHA256, "genesis_event_sequence", "genesis_event_sha256"); err != nil {
+		return err
+	}
+	if err := validateGenesisPinShape(p.GenesisAuditSequence, p.GenesisAuditSHA256, "genesis_audit_sequence", "genesis_audit_sha256"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateGenesisPinShape is ADR-0007 Addendum 4 D38(b)'s artifact-level
+// half: genesis == 1 declares an empty frozen prefix, so its pin must be
+// the empty-string sentinel with no reference to any ledger; genesis > 1
+// declares a non-empty prefix, so its pin must be a well-formed
+// 64-character lowercase-hex SHA-256. This is shape only -- whether the
+// pin actually matches the chain it is issued against is reconciled in
+// verifyPolicyLocked/verifyAuditPolicyLocked, which is the only place
+// with a chain to reconcile it against.
+func validateGenesisPinShape(sequence uint64, pin, sequenceField, pinField string) error {
+	if sequence == 1 {
+		if pin != "" {
+			return fmt.Errorf("verification policy %s is 1 (empty prefix) but %s is %q, not the empty-string sentinel (ADR-0007 Addendum 4 D38(b))", sequenceField, pinField, pin)
+		}
+		return nil
+	}
+	decoded, err := hex.DecodeString(pin)
+	if err != nil || len(decoded) != 32 {
+		return fmt.Errorf("verification policy %s is %d (> 1) so %s must be a 64-character lowercase-hex SHA-256, got %q (ADR-0007 Addendum 4 D38(b))", sequenceField, sequence, pinField, pin)
+	}
+	if pin != strings.ToLower(pin) {
+		return fmt.Errorf("verification policy %s must be lowercase hex, got %q (ADR-0007 Addendum 4 D38(b))", pinField, pin)
 	}
 	return nil
 }
@@ -99,6 +155,13 @@ type unsignedPolicyInput struct {
 	GenesisAuditSequence *uint64 `json:"genesis_audit_sequence"`
 	AllowUnanchored      *bool   `json:"allow_unanchored"`
 	MinAnchorSequence    *uint64 `json:"min_anchor_sequence"`
+	// GenesisEventSHA256/GenesisAuditSHA256 (D38(b)): pointers so an
+	// omitted key is caught as missing rather than silently defaulting to
+	// the empty-string sentinel -- the same presence-checking reasoning
+	// D36 established for min_anchor_sequence, applied to the field that
+	// pins the genesis boundary.
+	GenesisEventSHA256 *string `json:"genesis_event_sha256"`
+	GenesisAuditSHA256 *string `json:"genesis_audit_sha256"`
 }
 
 // DecodeUnsignedPolicy is ADR-0007 Addendum 3 D36: strict decoding
@@ -114,7 +177,19 @@ type unsignedPolicyInput struct {
 // leave the producer as the gap, which is exactly what policy.go:135
 // being the sole check produced.
 func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
-	dec := json.NewDecoder(r)
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return VerificationPolicy{}, fmt.Errorf("read unsigned policy document: %w", err)
+	}
+	// ADR-0007 Addendum 4 D38(a): a token-level scan over the raw bytes,
+	// before anything is decoded. encoding/json's struct-target Decode
+	// silently applies last-occurrence-wins to a repeated key -- CAP #3
+	// §7.5's H-B -- so the document must be proven single-valued before it
+	// is ever unmarshalled into a Go value at all.
+	if err := checkNoDuplicateJSONKeys(raw); err != nil {
+		return VerificationPolicy{}, fmt.Errorf("unsigned policy document (ADR-0007 Addendum 4 D38(a)): %w", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var in unsignedPolicyInput
 	if err := dec.Decode(&in); err != nil {
@@ -145,6 +220,12 @@ func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
 	if in.MinAnchorSequence == nil {
 		missing = append(missing, "min_anchor_sequence")
 	}
+	if in.GenesisEventSHA256 == nil {
+		missing = append(missing, "genesis_event_sha256")
+	}
+	if in.GenesisAuditSHA256 == nil {
+		missing = append(missing, "genesis_audit_sha256")
+	}
 	if len(missing) > 0 {
 		return VerificationPolicy{}, fmt.Errorf("unsigned policy document is missing required field(s): %s (ADR-0007 Addendum 3 D36) -- an operator who genuinely wants no anchor floor must write \"min_anchor_sequence\": 0 and mean it; silence is not a value", strings.Join(missing, ", "))
 	}
@@ -157,6 +238,8 @@ func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
 		GenesisAuditSequence: *in.GenesisAuditSequence,
 		AllowUnanchored:      *in.AllowUnanchored,
 		MinAnchorSequence:    *in.MinAnchorSequence,
+		GenesisEventSHA256:   *in.GenesisEventSHA256,
+		GenesisAuditSHA256:   *in.GenesisAuditSHA256,
 	}
 	if err := policy.Validate(); err != nil {
 		return VerificationPolicy{}, err
@@ -264,6 +347,19 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 	if !ed25519.Verify(trustedPublicKey, canon, sig) {
 		return VerificationPolicy{}, "", errors.New("verification policy signature is invalid under the configured trust-root public key")
 	}
+	// ADR-0007 Addendum 4 D38(a): the same raw-bytes duplicate-key scan
+	// DecodeUnsignedPolicy runs on the producing end, run here on the
+	// consuming end -- after the signature check (there is no point
+	// examining bytes whose integrity is not yet established) and before
+	// Validate() (a document that does not say what it appears to say
+	// must not reach the check that decides whether to trust it).
+	// json.Unmarshal above already resolved envelope.Policy via
+	// last-occurrence-wins from these same bytes; this closes the gap
+	// between what a human reviewing the distributed envelope file would
+	// read and what the verifier is about to act on.
+	if err := checkNoDuplicateJSONKeys(raw); err != nil {
+		return VerificationPolicy{}, "", fmt.Errorf("signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): %w", err)
+	}
 	// ADR-0007 Addendum 3 D36: Validate() replaces the previous bare
 	// schema_version equality check -- still the same exact-equality pin
 	// (Validate's first check), now joined by every other fact D36 names,
@@ -282,4 +378,105 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 // that termination auditable rather than assumed").
 func PolicyPublicKeyFingerprint(trustedPublicKey ed25519.PublicKey) string {
 	return digestHex(trustedPublicKey)
+}
+
+// checkNoDuplicateJSONKeys is ADR-0007 Addendum 4 D38(a): encoding/json
+// has no built-in duplicate-object-key rejection -- confirmed against
+// this repository's own toolchain (go.mod's go 1.26.6) rather than
+// assumed: json.Decoder+DisallowUnknownFields and json.Unmarshal both
+// silently apply last-occurrence-wins to a repeated key, and
+// encoding/json/v2 (which does reject duplicates) is gated behind
+// //go:build goexperiment.jsonv2 in every one of its own source files --
+// a toolchain-wide build-mode change CLAUDE.md rule 6's reasoning treats
+// as a release event, and one that would change nothing for this
+// package's calls into encoding/json (v1) even if enabled, since the
+// experiment does not alter v1 semantics.
+//
+// This is therefore a token-level scan over the raw bytes,
+// json.Decoder.Token()/More() driven, stdlib only, run before the
+// document is ever unmarshalled into a Go value. It recurses into nested
+// objects and array elements, and rejects trailing content after the
+// top-level JSON value (a second concatenated document is exactly the
+// same "bytes do not say what they appear to say" defect one level up).
+func checkNoDuplicateJSONKeys(raw []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	repeatedSet := map[string]bool{}
+	if err := scanJSONValueForDuplicateKeys(dec, "", repeatedSet); err != nil {
+		return err
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		if err == nil {
+			return errors.New("trailing content after the top-level JSON value")
+		}
+		return fmt.Errorf("checking for trailing content after the top-level JSON value: %w", err)
+	}
+	if len(repeatedSet) == 0 {
+		return nil
+	}
+	repeated := make([]string, 0, len(repeatedSet))
+	for path := range repeatedSet {
+		repeated = append(repeated, path)
+	}
+	sort.Strings(repeated)
+	return fmt.Errorf("repeated JSON key(s): %v", repeated)
+}
+
+// scanJSONValueForDuplicateKeys reads exactly one JSON value from dec
+// (whatever token comes next) and recurses into it if it is an object or
+// array. path is this value's dotted position for error reporting only
+// ("" at the top level, "a.b" for a nested object field, "a.[].b" for a
+// field inside an element of array "a"). Every object member name found
+// at this value's own level is recorded in repeatedSet, keyed by its
+// full path, the second and any later time the same name is seen at the
+// same level -- so a key repeated three times still produces one entry,
+// not two.
+func scanJSONValueForDuplicateKeys(dec *json.Decoder, path string, repeatedSet map[string]bool) error {
+	tok, err := dec.Token()
+	if err != nil {
+		return fmt.Errorf("reading JSON token: %w", err)
+	}
+	delim, ok := tok.(json.Delim)
+	if !ok {
+		return nil // scalar: string, json.Number, bool, or nil -- nothing to recurse into
+	}
+	switch delim {
+	case '{':
+		seen := map[string]bool{}
+		for dec.More() {
+			keyTok, err := dec.Token()
+			if err != nil {
+				return fmt.Errorf("reading JSON object key: %w", err)
+			}
+			key, ok := keyTok.(string)
+			if !ok {
+				return fmt.Errorf("unexpected non-string JSON object key %v", keyTok)
+			}
+			childPath := key
+			if path != "" {
+				childPath = path + "." + key
+			}
+			if seen[key] {
+				repeatedSet[childPath] = true
+			}
+			seen[key] = true
+			if err := scanJSONValueForDuplicateKeys(dec, childPath, repeatedSet); err != nil {
+				return err
+			}
+		}
+		if _, err := dec.Token(); err != nil { // consume the closing '}'
+			return fmt.Errorf("reading JSON object close: %w", err)
+		}
+	case '[':
+		childPath := path + ".[]"
+		for dec.More() {
+			if err := scanJSONValueForDuplicateKeys(dec, childPath, repeatedSet); err != nil {
+				return err
+			}
+		}
+		if _, err := dec.Token(); err != nil { // consume the closing ']'
+			return fmt.Errorf("reading JSON array close: %w", err)
+		}
+	}
+	return nil
 }

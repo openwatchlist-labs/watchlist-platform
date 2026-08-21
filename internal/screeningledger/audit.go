@@ -70,6 +70,14 @@ func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, e
 		}
 	}
 	sort.Strings(names)
+	// ADR-0007 Addendum 4 D38(b): the audit-chain mirror of the event
+	// chain's genesis prefix-commitment pin, same rule -- see
+	// verifyPolicyLocked's identical comment in store.go for the full
+	// reasoning.
+	genesisPinSatisfied := policy.GenesisAuditSequence == 1
+	if genesisPinSatisfied && policy.GenesisAuditSHA256 != "" {
+		return Head{}, 0, fmt.Errorf("policy genesis_audit_sequence is 1 (empty prefix) but genesis_audit_sha256 is not the empty-string sentinel (ADR-0007 Addendum 4 D38(b))")
+	}
 	previous := ""
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
 	frozenPrefixLength := 0
@@ -110,8 +118,20 @@ func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, e
 		if auditSHA != event.AuditSHA256 {
 			return Head{}, 0, errors.New("audit checksum mismatch")
 		}
+		// ADR-0007 Addendum 4 D38(b): the last entry of the declared
+		// frozen prefix (position genesis-1), the one entry whose digest
+		// the policy must pin.
+		if policy.GenesisAuditSequence > 1 && event.Sequence == policy.GenesisAuditSequence-1 {
+			if event.AuditSHA256 != policy.GenesisAuditSHA256 {
+				return Head{}, 0, fmt.Errorf("audit entry at sequence %d does not match the policy's pinned genesis_audit_sha256 (ADR-0007 Addendum 4 D38(b)): the policy commits to a frozen prefix this chain does not have", event.Sequence)
+			}
+			genesisPinSatisfied = true
+		}
 		previous = event.AuditSHA256
 		last = Head{SchemaVersion: headSchemaFor(event.SchemaVersion), LedgerID: s.ledgerID, Sequence: event.Sequence, EventSHA256: event.AuditSHA256}
+	}
+	if !genesisPinSatisfied {
+		return Head{}, 0, fmt.Errorf("no audit entry at sequence %d exists to pin against the policy's genesis_audit_sha256 (ADR-0007 Addendum 4 D38(b)): the policy's genesis_audit_sequence (%d) declares a frozen prefix this chain does not have", policy.GenesisAuditSequence-1, policy.GenesisAuditSequence)
 	}
 	head, err := s.loadAuditHead()
 	if err != nil {

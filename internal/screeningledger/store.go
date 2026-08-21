@@ -370,6 +370,21 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		pairs = append(pairs, pair{event.Sequence, event})
 	}
 	sort.Slice(pairs, func(i, j int) bool { return pairs[i].seq < pairs[j].seq })
+	// ADR-0007 Addendum 4 D38(b): the genesis boundary is a claim about
+	// the ledger, not merely a constraint on it, and until this decision
+	// nothing reconciled it against the chain -- CAP #3's CRITICAL (H-A).
+	// genesis==1 declares an empty frozen prefix and needs no ledger
+	// reference at all; genesis==N>1 declares a non-empty prefix, and the
+	// entry at sequence N-1 must exist and its EventSHA256 must equal the
+	// policy's pinned genesis_event_sha256. That single pin authenticates
+	// the whole prefix transitively: legacyHashEvent covers
+	// PreviousEventSHA256, and the sequence-gap/chain-mismatch checks
+	// above already enforce contiguous predecessor linkage, so the last
+	// frozen entry's digest is a commitment to every entry before it.
+	genesisPinSatisfied := policy.GenesisEventSequence == 1
+	if genesisPinSatisfied && policy.GenesisEventSHA256 != "" {
+		return VerifyReport{}, fmt.Errorf("policy genesis_event_sequence is 1 (empty prefix) but genesis_event_sha256 is not the empty-string sentinel (ADR-0007 Addendum 4 D38(b))")
+	}
 	previous := ""
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
 	frozenPrefixLength := 0
@@ -416,6 +431,18 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		if eventSHA != p.event.EventSHA256 {
 			return VerifyReport{}, fmt.Errorf("ledger event checksum mismatch at sequence %d", p.event.Sequence)
 		}
+		// ADR-0007 Addendum 4 D38(b): this is the last entry of the
+		// declared frozen prefix (position genesis-1) whenever
+		// GenesisEventSequence > 1 -- the one entry whose digest the
+		// policy must pin. Checked here, not before the loop, because it
+		// requires the entry to exist and its checksum to have already
+		// been recomputed and confirmed genuine (immediately above).
+		if policy.GenesisEventSequence > 1 && p.event.Sequence == policy.GenesisEventSequence-1 {
+			if p.event.EventSHA256 != policy.GenesisEventSHA256 {
+				return VerifyReport{}, fmt.Errorf("entry at sequence %d does not match the policy's pinned genesis_event_sha256 (ADR-0007 Addendum 4 D38(b)): the policy commits to a frozen prefix this chain does not have", p.event.Sequence)
+			}
+			genesisPinSatisfied = true
+		}
 		for _, sha := range []string{p.event.RequestSnapshotSHA256, p.event.ResponseSnapshotSHA256} {
 			snapshotChecksTotal++
 			performed, claim, err := s.verifySnapshotChecked(ctx, sha, p.event.Sequence, mode, opts.Purges)
@@ -431,6 +458,16 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		}
 		previous = p.event.EventSHA256
 		last = Head{SchemaVersion: headSchemaFor(p.event.SchemaVersion), LedgerID: s.ledgerID, Sequence: p.event.Sequence, EventID: p.event.EventID, EventSHA256: p.event.EventSHA256}
+	}
+	// ADR-0007 Addendum 4 D38(b): if the policy declares a non-empty
+	// frozen prefix (genesis > 1), the chain must actually have an entry
+	// at genesis-1 to pin -- this is what rejects H-A's bait boundary
+	// (genesis=999999999 against a 3-entry chain: no entry at 999999998
+	// was ever visited above) and what a length bound alone cannot
+	// distinguish from a genuine post-migration "the entire ledger is
+	// frozen prefix" state (genesis == head+1).
+	if !genesisPinSatisfied {
+		return VerifyReport{}, fmt.Errorf("no entry at sequence %d exists to pin against the policy's genesis_event_sha256 (ADR-0007 Addendum 4 D38(b)): the policy's genesis_event_sequence (%d) declares a frozen prefix this chain does not have", policy.GenesisEventSequence-1, policy.GenesisEventSequence)
 	}
 	head, err := s.loadHead()
 	if err != nil {

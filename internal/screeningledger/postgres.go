@@ -231,56 +231,221 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 			return ProvisioningState{Reason: fmt.Sprintf("function %s is owned by %q, not owl_ledger_ddl (ADR-0007 Addendum 3 D33): grant-ddl-ownership has not transferred ownership", signature, owner)}, nil
 		}
 	}
+	// ADR-0007 Addendum 4 D39 (H-C): has_table_privilege is blind to a
+	// column-level GRANT -- PostgreSQL grants privileges at table AND
+	// column granularity, and a column grant (direct, to PUBLIC, or via
+	// role membership) is invisible to the table-level probe while the
+	// privilege it confers is genuinely usable. CAP #3 §7.1 demonstrated
+	// exactly this: GRANT INSERT (cols) ON <table> TO owl_migrator leaves
+	// has_table_privilege reading false while the INSERT it enables
+	// succeeds. has_column_privilege subsumes the table-level check (a
+	// table grant confers the privilege on every column), so this
+	// replaces rather than supplements D33's three negative probes -- no
+	// second thing to keep in sync. attnum > 0 AND NOT attisdropped:
+	// system and dropped columns are neither grantable nor droppable
+	// targets, and passing them to has_column_privilege is a question
+	// with no meaning.
 	migratorMustNotHave := []struct{ table, priv string }{
 		{"screening_ledger_retention_tombstone", "INSERT"},
 		{"screening_ledger_anchor", "INSERT"},
 	}
 	for _, check := range migratorMustNotHave {
-		var has bool
-		if err := p.conn.QueryRow(ctx, `SELECT has_table_privilege('owl_migrator', $1, $2)`, check.table, check.priv).Scan(&has); err != nil {
-			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owl_migrator privilege on %s: %w", check.table, err)
+		has, err := p.anyColumnPrivilege(ctx, "owl_migrator", check.table, check.priv)
+		if err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D39: checking owl_migrator column privileges on %s: %w", check.table, err)
 		}
 		if has {
-			return ProvisioningState{Reason: fmt.Sprintf("owl_migrator still holds %s on %s (ADR-0007 Addendum 3 D33): the writer/owner separation grant-ddl-ownership installs is not holding", check.priv, check.table)}, nil
+			return ProvisioningState{Reason: fmt.Sprintf("owl_migrator still holds %s on at least one column of %s (ADR-0007 Addendum 4 D39): the writer/owner separation grant-ddl-ownership installs is not holding", check.priv, check.table)}, nil
 		}
 	}
-	var anchorWriterCanSelect bool
-	if err := p.conn.QueryRow(ctx, `SELECT has_table_privilege('owl_ledger_anchor', 'screening_ledger_anchor', 'SELECT')`).Scan(&anchorWriterCanSelect); err != nil {
-		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owl_ledger_anchor SELECT privilege: %w", err)
+	anchorWriterCanSelect, err := p.anyColumnPrivilege(ctx, "owl_ledger_anchor", "screening_ledger_anchor", "SELECT")
+	if err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D39: checking owl_ledger_anchor column SELECT privilege: %w", err)
 	}
 	if anchorWriterCanSelect {
-		return ProvisioningState{Reason: "owl_ledger_anchor has SELECT on screening_ledger_anchor (ADR-0007 Addendum 3 D33): it must be INSERT-only"}, nil
+		return ProvisioningState{Reason: "owl_ledger_anchor has SELECT on at least one column of screening_ledger_anchor (ADR-0007 Addendum 4 D39): it must be INSERT-only"}, nil
 	}
-	// ADR-0007 Addendum 3 R15: "the registry is a new trust object, and a
-	// stale registry fails open... accepted only because D33 closes it:
-	// requiredProvisioningState asserts that every registry row's OID
-	// resolves to the object it claims." An OID is only meaningful while
-	// the object it names still exists -- if a protected object were
-	// legitimately dropped and recreated (which after D34 requires a
-	// superuser to remove the event triggers first), the registry would
-	// silently protect an OID nothing uses while the new object goes
-	// unprotected. pg_class/pg_proc/pg_trigger are ordinary system
-	// catalogs, readable by owl_migrator with no new grant.
-	registryExists, err := p.regclassExists(ctx, "sec7_protected_object")
-	if err != nil {
-		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33/R15: checking sec7_protected_object: %w", err)
+	// ADR-0007 Addendum 4 D41: sec7_protected_object's identity, asserted
+	// against requiredProtectedObjects rather than the registry's own
+	// `note` column. R15 claimed "every registry row's OID resolves to
+	// THE OBJECT IT CLAIMS" -- the shipped three-way NOT EXISTS only ever
+	// asserted "resolves to SOME object in one of three catalogs," which
+	// passes for a row repointed to a different existing object of the
+	// same or a different catalog, and passes vacuously on an emptied
+	// registry (D34 then inert for every object). This closes both:
+	// every required (classid, identity) pair must be present, resolved
+	// via pg_identify_object rather than compared to the unchecked prose
+	// note, and the registry must contain EXACTLY that set -- no more,
+	// no fewer, so an emptied, truncated, or padded registry is each its
+	// own named failure rather than a silent pass.
+	if reason, err := p.protectedObjectIdentityReason(ctx); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D41: checking sec7_protected_object identity/population: %w", err)
+	} else if reason != "" {
+		return ProvisioningState{Reason: reason}, nil
 	}
-	if !registryExists {
-		return ProvisioningState{Reason: "sec7_protected_object does not exist (ADR-0007 Addendum 3 D33/D34): grant-ddl-ownership has not run"}, nil
+	// ADR-0007 Addendum 4 D41: sec7_protected_relation (D40) gets the
+	// same treatment -- a second registry inherits the first one's
+	// failure mode exactly (R19).
+	if reason, err := p.protectedRelationIdentityReason(ctx); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D41: checking sec7_protected_relation identity/population: %w", err)
+	} else if reason != "" {
+		return ProvisioningState{Reason: reason}, nil
 	}
-	var staleCount int
-	if err := p.conn.QueryRow(ctx, `
-		SELECT count(*) FROM sec7_protected_object r
-		WHERE NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = r.objid)
-		  AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid = r.objid)
-		  AND NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.oid = r.objid)
-	`).Scan(&staleCount); err != nil {
-		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33/R15: checking registry for stale OIDs: %w", err)
+	// ADR-0007 Addendum 4 D41 part three: the two CREATE privilege facts
+	// H-F's shipped-configuration rating depended on (CAP #3 §7.4) but
+	// which nothing asserted -- defence in depth behind D40, not the fix
+	// for H-F (D40 does not depend on this coincidence; this asserts the
+	// coincidence anyway, so a later change cannot remove D40 on the
+	// strength of this alone, or vice versa).
+	var ddlHasSchemaCreate, ddlHasDatabaseCreate bool
+	if err := p.conn.QueryRow(ctx, `SELECT has_schema_privilege('owl_ledger_ddl', 'public', 'CREATE')`).Scan(&ddlHasSchemaCreate); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D41: checking owl_ledger_ddl schema CREATE privilege: %w", err)
 	}
-	if staleCount > 0 {
-		return ProvisioningState{Reason: fmt.Sprintf("%d row(s) in sec7_protected_object have an objid that no longer resolves to any table, function or trigger (ADR-0007 Addendum 3 D33/R15): the registry is stale", staleCount)}, nil
+	if ddlHasSchemaCreate {
+		return ProvisioningState{Reason: "owl_ledger_ddl holds CREATE on schema public (ADR-0007 Addendum 4 D41): defence in depth behind D40 is not holding"}, nil
+	}
+	if err := p.conn.QueryRow(ctx, `SELECT has_database_privilege('owl_ledger_ddl', current_database(), 'CREATE')`).Scan(&ddlHasDatabaseCreate); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 4 D41: checking owl_ledger_ddl database CREATE privilege: %w", err)
+	}
+	if ddlHasDatabaseCreate {
+		return ProvisioningState{Reason: "owl_ledger_ddl holds CREATE on the current database (ADR-0007 Addendum 4 D41): defence in depth behind D40 is not holding"}, nil
 	}
 	return ProvisioningState{Provisioned: true}, nil
+}
+
+// protectedObjectIdentity is one required (classid, identity) pair for
+// sec7_protected_object, written out literally rather than derived by
+// scanning scripts/ci/provision_test_roles.sh or by a naming-pattern
+// guess -- CLAUDE.md's "never enumerate targets by inference" applies to
+// a generated list as much as a hand-picked one. classid names the
+// system catalog (cast via ::regclass::oid at query time); identity is
+// exactly what pg_identify_object(classid, objid, 0) returns for that
+// object today -- confirmed by execution against a live database, not
+// guessed from documentation.
+type protectedObjectIdentity struct {
+	classid  string
+	identity string
+}
+
+// requiredProtectedObjects is scripts/ci/provision_test_roles.sh
+// grant-ddl-ownership's twelve-row sec7_protected_object population,
+// named here independently so the verifier and the installer are two
+// separate assertions of the same fact rather than one trusting the
+// other (D41: "the property is checked by the installer AND by the
+// verifier, which is the only arrangement that survives the installer
+// not having run").
+var requiredProtectedObjects = []protectedObjectIdentity{
+	{"pg_class", "public.screening_ledger_anchor"},
+	{"pg_class", "public.screening_ledger_retention_tombstone"},
+	{"pg_class", "public.sec7_protected_object"},
+	{"pg_class", "public.sec7_protected_relation"},
+	{"pg_trigger", "screening_ledger_anchor_immutable on public.screening_ledger_anchor"},
+	{"pg_trigger", "screening_ledger_anchor_no_truncate on public.screening_ledger_anchor"},
+	{"pg_trigger", "screening_ledger_retention_tombstone_immutable on public.screening_ledger_retention_tombstone"},
+	{"pg_trigger", "screening_ledger_retention_tombstone_no_truncate on public.screening_ledger_retention_tombstone"},
+	{"pg_proc", "public.screening_ledger_reject_mutation()"},
+	{"pg_proc", "public.owl_reject_truncate()"},
+	{"pg_proc", "public.screening_ledger_purge_snapshots(timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
+	{"pg_proc", "public.screening_ledger_purge_snapshots(pg_catalog.text[],timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
+}
+
+// protectedObjectIdentityReason asserts sec7_protected_object contains
+// exactly requiredProtectedObjects's twelve (classid, identity) pairs --
+// no more, no fewer -- resolved via pg_identify_object rather than the
+// registry's own unchecked `note` column. Returns a non-empty Reason on
+// the first fact found false; empty Reason and nil error when the
+// registry matches exactly.
+func (p *PostgresSink) protectedObjectIdentityReason(ctx context.Context) (string, error) {
+	exists, err := p.regclassExists(ctx, "sec7_protected_object")
+	if err != nil {
+		return "", fmt.Errorf("checking sec7_protected_object: %w", err)
+	}
+	if !exists {
+		return "sec7_protected_object does not exist (ADR-0007 Addendum 3 D33/D34): grant-ddl-ownership has not run", nil
+	}
+	var totalRows int
+	if err := p.conn.QueryRow(ctx, `SELECT count(*) FROM sec7_protected_object`).Scan(&totalRows); err != nil {
+		return "", fmt.Errorf("counting sec7_protected_object rows: %w", err)
+	}
+	if totalRows != len(requiredProtectedObjects) {
+		return fmt.Sprintf("sec7_protected_object has %d row(s), expected exactly %d (ADR-0007 Addendum 4 D41): the registry is emptied, truncated, or padded", totalRows, len(requiredProtectedObjects)), nil
+	}
+	for _, want := range requiredProtectedObjects {
+		var matches int
+		err := p.conn.QueryRow(ctx, `
+			SELECT count(*) FROM sec7_protected_object r
+			WHERE r.classid = $1::regclass::oid
+			  AND (pg_identify_object(r.classid, r.objid, 0)).identity = $2
+		`, want.classid, want.identity).Scan(&matches)
+		if err != nil {
+			return "", fmt.Errorf("checking sec7_protected_object for %s %s: %w", want.classid, want.identity, err)
+		}
+		if matches != 1 {
+			return fmt.Sprintf("sec7_protected_object has no row whose OID resolves (via pg_identify_object) to %s %s (ADR-0007 Addendum 4 D41): the registry is stale, repointed, or was never populated with this object", want.classid, want.identity), nil
+		}
+	}
+	return "", nil
+}
+
+// requiredProtectedRelations is sec7_protected_relation's expected
+// population (D40), asserted the same way requiredProtectedObjects is:
+// a literal declaration, not derived from the table's own contents.
+var requiredProtectedRelations = []string{
+	"public.screening_ledger_anchor",
+	"public.screening_ledger_retention_tombstone",
+}
+
+// protectedRelationIdentityReason mirrors protectedObjectIdentityReason
+// for sec7_protected_relation: every row's objid is a pg_class OID by
+// construction (the table's own PRIMARY KEY constraint over what
+// provision_test_roles.sh populates), so no classid column is needed --
+// this asserts the identity each row resolves to, and that the set is
+// exactly requiredProtectedRelations.
+func (p *PostgresSink) protectedRelationIdentityReason(ctx context.Context) (string, error) {
+	exists, err := p.regclassExists(ctx, "sec7_protected_relation")
+	if err != nil {
+		return "", fmt.Errorf("checking sec7_protected_relation: %w", err)
+	}
+	if !exists {
+		return "sec7_protected_relation does not exist (ADR-0007 Addendum 4 D40/D41): grant-ddl-ownership has not run", nil
+	}
+	var totalRows int
+	if err := p.conn.QueryRow(ctx, `SELECT count(*) FROM sec7_protected_relation`).Scan(&totalRows); err != nil {
+		return "", fmt.Errorf("counting sec7_protected_relation rows: %w", err)
+	}
+	if totalRows != len(requiredProtectedRelations) {
+		return fmt.Sprintf("sec7_protected_relation has %d row(s), expected exactly %d (ADR-0007 Addendum 4 D41): the registry is emptied, truncated, or padded", totalRows, len(requiredProtectedRelations)), nil
+	}
+	for _, identity := range requiredProtectedRelations {
+		var matches int
+		err := p.conn.QueryRow(ctx, `
+			SELECT count(*) FROM sec7_protected_relation r
+			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
+		`, identity).Scan(&matches)
+		if err != nil {
+			return "", fmt.Errorf("checking sec7_protected_relation for %s: %w", identity, err)
+		}
+		if matches != 1 {
+			return fmt.Sprintf("sec7_protected_relation has no row whose OID resolves (via pg_identify_object) to %s (ADR-0007 Addendum 4 D41): the registry is stale, repointed, or was never populated with this relation", identity), nil
+		}
+	}
+	return "", nil
+}
+
+// anyColumnPrivilege is ADR-0007 Addendum 4 D39: true iff role holds
+// priv on any live (non-system, non-dropped) column of table. bool_or
+// over zero rows is NULL, not false -- COALESCE guards a table with no
+// qualifying columns (never true in this schema, but the query should
+// not panic on Scan if it ever were) so a real false is never confused
+// with "no columns to check."
+func (p *PostgresSink) anyColumnPrivilege(ctx context.Context, role, table, priv string) (bool, error) {
+	var has bool
+	err := p.conn.QueryRow(ctx, `
+		SELECT COALESCE(bool_or(has_column_privilege($1, $2::regclass, a.attnum, $3)), false)
+		FROM pg_attribute a
+		WHERE a.attrelid = $2::regclass AND a.attnum > 0 AND NOT a.attisdropped
+	`, role, table, priv).Scan(&has)
+	return has, err
 }
 
 // CheckProvisioningState is checkProvisioningState's exported entry
