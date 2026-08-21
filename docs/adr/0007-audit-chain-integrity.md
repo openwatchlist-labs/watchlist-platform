@@ -2756,3 +2756,859 @@ Every file:line citation in this addendum was verified against that tree -- the 
 was produced against, so no drift separates the audit from this design. For a CAP record covering
 the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
 value.
+
+## Addendum 4: the referent principle -- what a control compares, and the third CAP's six findings (2026-08-20)
+
+- **Status:** Proposed
+- **Trigger:** a third Composition Audit Program record produced against the implemented Addendum 3
+  (`docs/backlog/sec-7-cap-record-3c7e5be.md`, adversarial posture, audit basis commit
+  `3c7e5be6dd5e893b7704aebd54a81afd4d89d44a`) returned **QUALIFIED, not PASS** for the third
+  consecutive audit: six findings, one CRITICAL, three HIGH and two MEDIUM, five of them demonstrated
+  live against a PostgreSQL 17.11 cluster provisioned by `scripts/ci/provision_test_roles.sh` exactly
+  as `.github/workflows/ci.yml:97-140` does it. The CRITICAL was demonstrated end to end from an
+  adversary holding **no keys at all** through to a `VerifyAnchored` returning
+  `anchor_status=verified` with `snapshot_checks=6/6` on a chain whose content was tampered and whose
+  every digest was recomputed under an unkeyed formula. **SEC-7 is not closed.**
+- **What CAP #3 confirmed and this addendum does not disturb.** D31's principle is correct and, where
+  it was applied, held against everything the audit threw at it: eight `ALTER TABLE` forms,
+  `DROP OWNED`, `RENAME TO`, `SET SCHEMA`, `SET TABLESPACE`, `DISABLE TRIGGER`,
+  `DISABLE ROW LEVEL SECURITY`, `ALTER TRIGGER ... RENAME`, `CREATE OR REPLACE FUNCTION` on the shared
+  guards, every attempt against the event triggers themselves, and direct catalog writes -- all
+  blocked. G-B, G-D and G-G are closed. **D32 is closed and is the strongest thing in Addendum 3**:
+  the collect/adjudicate split is airtight, the three-condition rule is exact at every boundary
+  tested, and no caller anywhere in the module can read `PurgeClaims` without adjudication. G-E is
+  closed: the membership window is deleted, and the regression test that should have existed now
+  does. D11's policy binding defeated two independent attacks in that audit that were not aimed at
+  it. None of that is reopened here.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not AR7,
+  not D21-D30, not D31-D37, not R1-R17. Decision numbering continues at **D38**, risk numbering at
+  **R18**. Where a prior decision's *text* is wrong rather than merely superseded -- D35's
+  biconditional, which CAP #3 found false as written -- the new decision says so in its own words and
+  states what the old claim actually rests on afterwards. That is the convention AR7 established for
+  R7 and Addendum 3 followed for D21 point 3, and it applies to a false claim as much as to a changed
+  disposition: **a silently patched implementation under a standing false sentence is worse than
+  either alone**, because the next reader reasons from the sentence.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `3c7e5be6dd5e893b7704aebd54a81afd4d89d44a` rather than copied from the CAP record.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and CAP #3 itself
+  held to.** Every PostgreSQL, Go `encoding/json` and chain-digest behavioural claim this addendum
+  depends on was run against a purpose-built disposable PostgreSQL 17.11 cluster and against real
+  builds of this repository's own code at this commit, before the decision that relies on it was
+  written. The transcripts are in the sections that rely on them. Two of them changed the design:
+  `pg_depend` turned out **not** to be a sound structural resolver for D40 (a benign `CREATE VIEW`
+  over a protected table is indistinguishable from an inheritance attachment by dependency type
+  alone), and a pure length bound on the genesis boundary turned out **not** to close H-A. Both are
+  recorded below with the transcript that refuted them, because a design that asserts its own
+  mechanism is how F1 shipped.
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention §3.4, §6.1, `0007:717-720`, `0007:1474-1490`
+and `0007:2141-2160` set.
+
+1. **Addendum 3's `file:line` citations resolve against `b2fe831`, not against this tree.** PR #141
+   moved most of them -- `store.go:393` became `:395` for the genesis branch, `postgres.go:511`
+   became `:666` for `IsPurgeRecorded`, `policy.go:98` became `:211` for `SignVerificationPolicy`.
+   Addendum 3 says as much at `0007:2755-2758`, and CAP #3 §12 re-confirmed it. This is expected and
+   is not a defect. Citations *into Addendum 3's own prose* (`0007:NNNN`) are unaffected and are used
+   below where the claim is about the text rather than about the code.
+2. **`0007:2323` cites `IsPurgeRecorded` at `postgres.go:511`.** At this commit it is
+   `postgres.go:666`. Substance unchanged.
+3. **CAP #3 revises one of CAP #2's severity ratings, and this addendum adopts the revision.** G-F
+   (the signer validates nothing) was rated MEDIUM, and D36 was designed against that rating. The
+   *residual* left after D36 is CRITICAL, not MEDIUM -- not because D36 failed at what it set out to
+   do (it refuses both of CAP #2 §7.8's inputs; re-confirmed by execution below) but because G-F was
+   rated on `min_anchor_sequence` silently becoming `0`, an anchor-rollback bound, while the same
+   signed artifact also carries `genesis_event_sequence`, and that field selects **which digest
+   formula verifies the entire chain** (`store.go:395`). A policy field that chooses between a keyed
+   HMAC and an unkeyed SHA-256 is an F1-class control surface. H-A inherits the correction and is the
+   CRITICAL of this addendum.
+
+---
+
+### Addendum 4 context: the enumeration was fixed and the referent drifted
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes
+(`0007:1494-1497`). Addendum 2 named its findings as one class -- "a control whose installation is
+asserted rather than checked, by the party the control constrains" (`0007:1499-1500`) -- and then
+reproduced that class one level up. Addendum 3 sharpened it to **"a control that decides what to
+protect, or what to protect against, by listing members of an open set"** (`0007:2172-2173`), and
+that sharpening was right: it produced D31, and D31 produced controls that held.
+
+CAP #3 §11 records what recurred anyway, and it is one more turn of the same screw:
+
+> **the question to ask of each new control is not only "what does it enumerate?" but "what does it
+> compare, and is the thing being compared the thing that matters?"**
+
+Every finding in this addendum is that question answered wrongly:
+
+| Mechanism | What it compares | Why the referent is wrong | Finding |
+|---|---|---|---|
+| D34 event trigger | `obj.objid` from `pg_event_trigger_ddl_commands()` against the registry (`provision_test_roles.sh:446`) | for `CREATE RULE` the reported OID is the *rule*; for inheritance attachment it is the *child* | H-D, H-F |
+| D33 negative privilege probes | `has_table_privilege(role, table, priv)` (`postgres.go:240`, `:248`) | PostgreSQL grants privileges at table *and column* granularity; the table-level probe reads `false` while the privilege is present and usable | H-C |
+| D33 / R15 registry staleness | `objid` resolves in `pg_class` **or** `pg_proc` **or** `pg_trigger` (`postgres.go:272-277`) | R15 promised the OID resolves to *the object it claims*; the `note` column carrying the claim is never compared to anything | H-E |
+| D36 policy decode | the decoded `VerificationPolicy` struct (`policy.go:116-165`) | not the bytes the operator read; a repeated key makes the document say one thing and sign another | H-B |
+| D8 / `Validate()` genesis boundary | `GenesisEventSequence >= 1` (`policy.go:77`) | a *claim about the ledger*, compared against nothing in that ledger | H-A |
+
+**The principle this addendum adopts, stated once and applied five times:**
+
+> **A control's comparison must terminate on the thing being protected, not on whatever the platform
+> happened to hand it. Where the platform's report is about something else, do not classify the
+> report -- re-assert the protected thing's own state.**
+
+That last clause is the substantive move, and it is D31 applied one level further in. D31 replaced an
+open set of *actions* with a closed set of *objects*. D40 replaces an open set of *ways an action can
+refer to an object* with a closed set of **properties of the object**. The set of DDL forms
+PostgreSQL supports grows every major release, and the set of ways a form's reported OID can be a
+dependent object rather than the target grows with it. The set of facts that must be true of
+`screening_ledger_anchor` for it to still be protected does not grow at all -- it is written down at
+provisioning time and checked afterwards.
+
+---
+
+### D38. H-A (CRITICAL) and H-B (HIGH): the document's bytes, and the boundary's referent
+
+These are **one decision**, not two, and CAP #3 §11.1 gives the reason: neither half closes the
+attack. Validating the genesis boundary while leaving duplicate-key decoding in place still leaves
+`min_anchor_sequence` -- the only mechanism bounding anchor rollback (D25, R14) -- exploitable by the
+identical trick. Fixing duplicate-key decoding while leaving the boundary unvalidated still leaves a
+`K_policy` holder able to disable keyed verification for an entire chain.
+
+**And it leaves an honest operator's typo able to do the same thing, with no adversary anywhere.**
+This addendum designs for both cases explicitly, and states plainly that the second is the more
+urgent of the two, not the less. An attack requires an attacker; a fat-fingered
+`genesis_event_sequence` requires only a Tuesday. `Validate()` accepts it, the signer signs it, the
+bootstrap verify prints no error, and every subsequent `verify` reports `anchor_status=verified` on a
+chain nothing keyed is checking. There is no error message anywhere in that sequence. A control whose
+failure mode is silent under honest operation is not a control that is merely incomplete -- it is one
+whose success output is not evidence of anything, which is D12's whole subject (`0007:1090-1128`).
+
+#### The finding, restated from the code
+
+`VerifyPolicy`'s per-entry branch (`store.go:395`) selects the digest formula by the entry's position
+against the boundary:
+
+```go
+if p.event.Sequence < policy.GenesisEventSequence {
+    if p.event.SchemaVersion != EventSchemaV1 { return ... }
+    eventSHA, err = legacyHashEvent(p.event)      // store.go:719 -- NO key parameter
+    frozenPrefixLength = i + 1
+} else {
+    ... hashEvent(p.event, s.keys.chain)          // HMAC under K_chain
+}
+```
+
+The comment above that branch (`store.go:386-393`) states the design intent exactly, and it is
+correct as far as it goes: *"which formula applies ... is chosen by this entry's POSITION against the
+externally-supplied genesis boundary -- never by the entry's own SchemaVersion field. That field is
+the adversary's to set (§2's threat model); the boundary is not."*
+
+The boundary is not the adversary's to set. **It is nobody's to check.** `Validate()` accepts any
+value `>= 1` (`policy.go:77`) with no reference to the ledger the policy governs, and no other code
+path compares it to the chain's actual length. `legacyHashEvent` continues to exist for a legitimate
+reason -- D4/D14's frozen-prefix design needs it for genuinely historical v1 entries -- and H-A is
+not a case for deleting it. It is a case for authenticating the boundary that selects it.
+
+#### Executed: H-A and H-B against the real shipped code at this commit
+
+Against a fresh keypair from the real `screening-ledger-policy keygen` (mode `0400` confirmed), using
+the real `sign` subcommand -- the only non-test caller `SignVerificationPolicy` has ever had:
+
+```
+H-B  CAP #3 §7.5's review-bait document (duplicate keys, honest first occurrence)
+     document as an operator reads it:  genesis_event_sequence=1  genesis_audit_sequence=1  min_anchor_sequence=500
+     screening-ledger-policy sign    -> exit 0
+     what it actually signed:           genesis_event_sequence=999999999
+                                        genesis_audit_sequence=999999999
+                                        min_anchor_sequence=0
+
+H-A  genesis_event_sequence: 1000000000000 against any ledger
+     screening-ledger-policy sign    -> exit 0, SIGNED genesis=1000000000000
+
+CONTROL -- D36 has not regressed, both CAP #2 §7.8 inputs still refused:
+     "min_anchor_seqence" (transposed) -> exit 1  json: unknown field "min_anchor_seqence"
+     min_anchor_sequence omitted       -> exit 1  missing required field(s): min_anchor_sequence
+```
+
+And the CRITICAL end to end, run against a real build of `internal/screeningledger` at this commit,
+using **this repository's own D20-certified forgery machinery** (`buildGenuineMultiEntryChain`,
+`downgradeAndForge{tamperContent: true}` and `assertGenuinelyForgedUnderLegacyFormula`, all defined in
+`internal/screeningledger/d20_exploit_test.go` -- three cross-file helpers, named here so a reader's
+grep finds them) rather than a paraphrase of it:
+
+```
+genuine chain length=3  head_sha=bfc006150be24de6...
+forged  chain length=3  head_sha=977d40d081a6a6bf...   (every entry relabelled v1, every digest unkeyed)
+
+bait policy Validate()                    -> nil            <-- accepted today
+VerifyPolicy under the bait policy        -> err=nil  frozen_prefix=3/3  snapshot_checks=6/6
+CONTROL, same forged chain, genesis=1     -> err=entry at sequence 1 (schema "...event.v1") is at or
+                                             after the policy genesis boundary (1) and does not meet
+                                             the minimum accepted schema version "...event.v2"
+```
+
+#### (a) Duplicate keys are rejected, on the bytes, before anything is decoded
+
+**Go's `encoding/json` has no built-in mechanism for this, and the alternatives were checked rather
+than assumed.** Executed against the repository's own toolchain (`go 1.26.6`, `go.mod:3`):
+
+```
+json.Decoder + DisallowUnknownFields, real unsignedPolicyInput shape, duplicate known keys
+   -> Decode err=<nil>   genesis=999999999  min_anchor=0        (last occurrence silently wins)
+json.Unmarshal, same input
+   -> err=<nil>          genesis=999999999                       (same)
+
+encoding/json/v2 (Go 1.26 stdlib)
+   -> DOES reject: "jsontext: duplicate object member name \"a\""
+   -> but every file in .../src/encoding/json/v2/ carries //go:build goexperiment.jsonv2, and a
+      default build fails with "build constraints exclude all Go files in .../encoding/json/v2"
+   -> and with GOEXPERIMENT=jsonv2 set, encoding/json (v1) STILL accepts duplicates, last-wins
+```
+
+`encoding/json/v2` is therefore **rejected, with its reason recorded** so it is not re-derived: it
+would require a `GOEXPERIMENT` on every build of this module -- a toolchain-wide build-mode change,
+which under CLAUDE.md rule 6's reasoning is a release event and not a patch -- *and* it would change
+nothing until the call sites moved to the v2 API, since the experiment does not alter v1 semantics.
+This is worth stating precisely because "Go 1.26 rejects duplicate keys now" is true of one package
+in the standard library and false of the one this code calls.
+
+**Decision: a token-level duplicate-key scan over the raw bytes, in `policy.go`, stdlib only, run
+before decoding.** `json.Decoder.Token()` driven by `More()`, with each value consumed into a
+`json.RawMessage`, enumerates every member name in source order including repeats; the scan recurses
+into nested objects and array elements, and rejects trailing content after the top-level value.
+Executed:
+
+```
+CAP #3 §7.5 bait document       -> repeated JSON key(s): [genesis_audit_sequence genesis_event_sequence min_anchor_sequence]
+committed example fixture       -> nil            (test/fixtures/screening-ledger/policy/example-policy.signed.json)
+legitimate flat policy          -> nil
+nested object, no duplicates    -> nil
+duplicate in a NESTED object    -> repeated JSON key(s): [a.b]
+duplicate inside an array elem  -> repeated JSON key(s): [a.[].b]
+trailing second document        -> trailing content after the top-level JSON value
+duplicate, differing whitespace -> repeated JSON key(s): [a]
+```
+
+Both ends call it, for D36's own reason -- enforcing at one end leaves the other as the gap:
+`DecodeUnsignedPolicy` (`policy.go:116`), which is the sole path the signer's input takes, and
+`LoadSignedVerificationPolicy` (`policy.go:244`), on the envelope bytes, after the signature check and
+before `Validate()`. A policy document whose bytes do not say what they appear to say can be neither
+produced nor consumed.
+
+**What this does and does not claim.** It closes the gap between the bytes an operator read and the
+values that got signed. It does not make an operator safe against a hostile-but-unambiguous document;
+nothing can, and D36 already said so (`0007:2611-2614`). CAP #3 §10.5 notes that an automated
+pipeline canonicalising documents before signing would close the review-evasion without touching the
+decoder -- true, and not adopted, because no such pipeline exists and a decoder that accepts an
+ambiguous document is a defect regardless of who reads it first.
+
+#### (b) The genesis boundary commits to the prefix it declares
+
+This is the real design question the brief asks -- what "validate against reality" means precisely --
+and it has a precise answer.
+
+**First, what does not work, established by execution rather than reasoned about.** The obvious fix is
+a length bound: require `genesis_event_sequence - 1 <= len(chain)`. That does reject H-A's
+`999999999` against a three-entry ledger. It does **not** close the finding:
+
+```
+proposed length bound only, forged 3-entry chain, genesis=4 (== head+1, the maximum the bound allows)
+   -> every entry is below the boundary
+   -> every entry verifies under legacyHashEvent
+   -> ACCEPTED
+```
+
+`genesis = head + 1` means "the entire ledger is frozen v1 prefix," which is a **legitimate** state
+immediately after D4's migration and is simultaneously the maximal form of the attack. A bound that
+cannot distinguish them has not distinguished anything. The length bound is necessary, and it is
+implied by the decision below rather than adopted separately.
+
+**What closes it is D8's own principle, applied to the one field D8 never applied it to.** The
+genesis boundary is the only policy field that is a *claim about the ledger* rather than a
+*constraint on the ledger*, and the region it declares is the region verified by an unkeyed formula.
+The only thing that can authenticate an unkeyed region is a signature over its content. So:
+
+**Decision: the policy carries the boundary and a commitment to the prefix the boundary declares, and
+the verifier reconciles the two against the actual chain. `VerificationPolicySchemaV3` adds
+`genesis_event_sha256` and `genesis_audit_sha256`.**
+
+The rule, stated for the event chain and applying identically to the audit chain (`audit.go:89`,
+`audit.go:171`):
+
+- **`genesis_event_sequence == 1`.** The declared prefix is entries `1..0`, i.e. empty. The
+  companion field must be the **empty-string sentinel**, and the check passes with no reference to
+  the ledger at all.
+- **`genesis_event_sequence == N > 1`.** An entry at sequence `N-1` must exist in the chain, and its
+  `EventSHA256` must equal `genesis_event_sha256`. Otherwise: hard failure, in D12's sense -- not a
+  warning, not a skipped check, not a `partial`.
+
+**One pinned digest commits to the whole prefix, and that is a property of this chain, not an
+assumption.** `Event.PreviousEventSHA256` (`types.go:44`) is an ordinary JSON field of `Event`, and
+`legacyHashEvent` blanks only `EventSHA256` before marshalling (`store.go:719-726`), so each entry's
+digest covers its predecessor's digest; `store.go:383` independently enforces that linkage while
+walking. Executed:
+
+```
+legacyHashEvent covers PreviousEventSHA256 (mutating the link changes the digest)   -> true
+genuine prefix-head digest  bfc006150be24de6...
+forged  prefix-head digest  977d40d081a6a6bf...      differ -> true
+```
+
+The same holds for the audit chain via `AuditEvent.PreviousAuditSHA256` (`types.go:92`) and
+`legacyHashAudit` (`audit.go:171-178`).
+
+**The proposed check against the four cases that matter**, executed:
+
+```
+H-A bait, genesis=999999999   -> REJECT  (no entry at 999999998 exists to pin)
+bootstrap,  genesis=1         -> ACCEPT  (empty prefix, empty sentinel)
+max-boundary forgery, genesis=4, pin=<the genuine prefix head>
+                              -> REJECT  (pin bfc00615... vs actual 977d40d0...)
+honest re-issue, genesis=4, same pin against the genuine chain
+                              -> ACCEPT
+```
+
+The third line is the one the length bound could not produce.
+
+**Bootstrap versus re-issue -- the interaction the brief asks to be stated precisely, because it is a
+real design question and not a mechanical detail.**
+
+- **A bootstrap policy requires no knowledge of any ledger.** `genesis_event_sequence: 1` plus the
+  empty sentinel is a complete, valid, signable document for a ledger that does not exist yet. This
+  is not an edge case to be tolerated; **it is every real ledger today.** CAP #3 §7.6 re-confirmed at
+  this commit, and this design pass re-confirmed again, that `screening-ledger` is absent from
+  `runtime_executables` (`scripts/deployment/r2-4/harness/config/policy.json`) and that there are zero
+  anchor rows in any environment. So the common case costs the operator nothing at all.
+- **A policy issued against an existing chain with a real v1 prefix requires exactly one 64-character
+  hex string**, read from the entry at `N-1`. It does **not** require the chain length as an
+  independent fact -- the digest implies it, since a chain shorter than `N-1` has no entry to match.
+- **Re-issue against an existing chain is stable, and this is what makes the scheme workable rather
+  than a per-verification chore.** `Append` writes `EventSchemaV2` unconditionally (`store.go:224`)
+  and `AppendAudit` writes `AuditSchemaV2` unconditionally (`audit.go:34`); no code path in this
+  package produces a v1 entry. **The frozen prefix therefore never grows.** Its boundary and its
+  digest are fixed at D4's migration and are constants for the life of the ledger, so every
+  subsequent policy re-issue -- to raise `min_anchor_sequence`, to change `allow_unanchored`, to
+  rotate anything else -- carries the same two values unchanged. An operator who is asked to re-read
+  the ledger on every re-issue would eventually stop reading it; an operator asked for a constant
+  will copy it correctly.
+- **Where the check runs.** In `verifyPolicyLocked`, at the point the frozen prefix is walked -- not
+  in `Validate()`. `Validate()` is a property of the artifact and has no ledger; making it pretend
+  otherwise would be the same category error as the field it is fixing. `Validate()` gains only the
+  *internal* consistency rule (`genesis == 1` implies the sentinel, `genesis > 1` implies a
+  well-formed 64-hex digest), which is genuinely a property of the artifact and which the signer can
+  therefore enforce at signing time.
+
+**The schema bump is justified on the precedent that already exists in this document, not invented
+here.** D11 made the argument for `db/migrations/017`, D25 made it for policy `v2`, and D32 made it
+for the transitional state: a format change is free while zero anchor rows exist anywhere and never
+free again. The exact-equality pin at `policy.go:65-67` means a `v2`-labelled document is rejected
+outright by a `v3` verifier rather than silently narrowed to the fields the old struct knows -- the
+same choice D8 made for the chain-schema check and D25 made for `v1`. **No backward compatibility
+path is provided, and that is the decision, not an omission.** The committed fixture
+(`test/fixtures/screening-ledger/policy/example-policy.signed.json`), the operator procedure's
+template (`docs/operations/screening-ledger-policy-signing.md`) and the in-test helper
+(`cmd/screening-ledger/main_test.go`) are re-issued as v3 in the same stage.
+
+**What D38 does not close, stated rather than left to a fourth CAP.** D11 already prevents policy
+substitution *after* an anchor exists, and CAP #3 confirmed it defeats exactly that. D38 closes the
+pre-anchor window D11 cannot reach, which is the window every ledger is in today. It does not reach
+an operator who is handed a correct-looking digest by an adversary and signs it -- that terminates at
+R8's operator-discipline residual, and is recorded as R20 below rather than claimed as closed.
+
+### D39. H-C (HIGH): the privilege probes reach column granularity, and D35's biconditional is withdrawn
+
+**The finding.** Three of D33's six named facts are negative privilege checks, implemented at
+`postgres.go:234-246` (both `INSERT` probes) and `postgres.go:247-253` (the anchor writer's `SELECT`).
+All three ask `has_table_privilege`. PostgreSQL grants privileges at table **and column**
+granularity, and a column-level grant is invisible to the table-level probe. CAP #3 §7.1 executed it;
+this design pass reproduced it independently:
+
+```
+[owner] GRANT INSERT (snapshot_sha256,purged_at,operator,reason) ON <tombstone> TO <migrator>;  => SUCCEEDED
+        has_table_privilege (migrator, tombstone, INSERT)                 = f    <-- what D33 reads
+        has_column_privilege(migrator, tombstone, <any of them>, INSERT)  = t
+[migrator] INSERT INTO <tombstone> (snapshot_sha256,purged_at,operator,reason) VALUES (...);    => SUCCEEDED
+           forged rows present: 1
+CheckProvisioningState                                                    -> Provisioned=true
+```
+
+`GRANT` is not a DDL form any event trigger can inspect -- Addendum 3 confirmed by execution that
+`GRANT`/`REVOKE` report `objid=NULL`, so the `objid` membership test can never match them. That
+finding is recorded in the provisioning script's own comment
+(`scripts/ci/provision_test_roles.sh:459-463`) and **not** in Addendum 3's prose; CAP #3 §7.1 cites it
+as `0007:2455-2459`, which at this commit is D34's registry member list, so a reader following that
+citation lands on the wrong paragraph. Corrected here rather than repeated. D33 is the only mechanism
+that was ever going to see a column-level grant, and it was looking at the wrong granularity.
+
+**Decision: every negative privilege probe asks the question at column granularity, over the
+relation's live columns, and the table-level probe is deleted rather than kept alongside.**
+
+```sql
+SELECT bool_or(has_column_privilege($1, $2, a.attnum, $3))
+FROM pg_attribute a
+WHERE a.attrelid = $2::regclass AND a.attnum > 0 AND NOT a.attisdropped
+```
+
+**Why this shape and not the obvious alternative**, established by execution because the alternative
+is the one a reader will reach for. Two candidates were built and compared:
+
+```
+                                                       table-level  has_column_privilege  raw pg_attribute.attacl
+                                                       probe (D33)  over live columns     + aclexplode scan
+column GRANT to the role directly                          f              t                     t
+table  GRANT to the role (does the column form subsume?)   t              t                     t
+column GRANT to PUBLIC                                     f              t                     (n/a)
+column GRANT to a role the target is a MEMBER of           f              t                     NULL  <-- misses
+```
+
+`has_column_privilege` **subsumes** the table-level check (a table grant confers the privilege on
+every column, and the function says so), so replacing rather than supplementing is correct and leaves
+no second thing to keep in sync. The raw-catalog approach -- scanning `pg_attribute.attacl` with
+`aclexplode` -- is **strictly weaker and is rejected**: an ACL entry names a grantee literally, so it
+does not expand role membership, and it returned NULL for exactly the case D35 exists to make
+observable. Recorded so nobody re-derives the catalog scan as the "more direct" answer; it is more
+direct and less correct.
+
+`attnum > 0 AND NOT attisdropped` is not incidental: system columns and dropped columns are neither
+grantable nor droppable targets, and passing them to `has_column_privilege` is a question with no
+meaning.
+
+**D35's text is wrong as written, and this addendum says so rather than patching around it.**
+`0007:2556-2560` reads:
+
+> *"D33's `requiredProvisioningState` already asserts
+> `has_table_privilege('owl_migrator', 'screening_ledger_retention_tombstone', 'INSERT')` is false,
+> **which is true if and only if the membership is absent** -- so the leak CAP #2 found becomes a
+> verification failure on the next `verify`."*
+
+**The biconditional is false in both directions of interest.** The privilege can be present, and the
+`INSERT` genuinely succeed, with the probe reading `false` -- demonstrated above. Per this document's
+convention the sentence at `0007:2556-2560` is not edited; it is withdrawn here, and what remains
+true of D35 after the withdrawal is stated exactly:
+
+- **G-E itself is closed and D35's substantive claim stands.** The `GRANT`/`REVOKE` pair is deleted,
+  a repo-wide sweep at this commit finds the membership granted nowhere except inside the regression
+  test that exists to prove it is refused, preconditions run on both edges, and CAP #3 §7.10 found no
+  `owl_*` membership edges at all after a full provisioning run. **The window is genuinely gone.**
+- **What was overstated is the *observability* D35 credited to D33** -- the claim that a residual
+  membership would necessarily surface as a verification failure. Before D39 it would not have. After
+  D39 it does, because a membership that confers `INSERT` confers it on every column and the
+  column-granularity probe reads `true`. D35's conclusion is restored by D39; it was not established
+  by D35.
+
+The distinction matters because R15 and D35 both accept documented risk **on the explicit basis that
+D33 closes it**. An acceptance rationale that names a closure narrower than the closure actually is
+does not merely mislead a reader -- it licenses the next change to remove the wrong thing.
+
+### D40. H-D (HIGH) and H-F (MEDIUM): D34 stops resolving referents and re-asserts the protected object's state
+
+**The finding, and its history.** This is the **third** recurrence of one shape: G-D
+(`CREATE OR REPLACE FUNCTION` reported the function, not the tables whose guards it neutered), then
+H-D, then H-F. D34's function compares `obj.objid` against the registry (`provision_test_roles.sh:446`),
+which is correct for every command form whose reported `objid` *is* the protected object -- and three
+forms attach to a protected table while reporting something else.
+
+`CREATE RULE` succeeds against a protected table in the **shipped configuration**, with ownership
+alone and no additional privilege, because rules are named within the table rather than the schema
+and so need no `CREATE` on any schema. CAP #3 §7.3 then showed the consequence, which is the
+"silent absence" class CLAUDE.md rule 5 names as this repository's dominant bug: with
+`DO INSTEAD NOTHING` installed, the anchor writer's `INSERT` **reports success and vanishes** --
+`anchor rows before=44 after=44`, no error, no warning, no row. The anchor freezes at its current
+sequence while every writer believes it is advancing, and all history after the frozen anchor becomes
+rewritable with the anchor cross-check still passing. CAP #3 §7.11 adds the operational corollary,
+which belongs in this document because it constrains work that has not been designed yet: **a future
+anchor-cadence monitor must read the anchor's `sequence`, not the writer's exit code.**
+
+Inheritance attachment (H-F) is the same blind spot with a different reported object: the child is
+reported, the parent is not, rows injected into the child are returned by unqualified `SELECT`s
+against the protected parent, and the parent's row-immutability trigger does not fire for them.
+
+**Per CAP #3 §11.3 and this addendum's brief: no list of forms.** Adding `CREATE RULE` and the two
+inheritance forms to an enumeration is the enumerative fix that would miss the fourth form the same
+way the tag list missed `DROP OWNED` twice.
+
+**Investigated: can the reported object be resolved back to the protected table structurally?** The
+brief asked for a real recommendation rather than a guess, so both halves were built and run.
+
+First, what PostgreSQL actually reports. An unfiltered `ddl_command_end` probe logging every column of
+`pg_event_trigger_ddl_commands()`, against a protected table:
+
+```
+CREATE RULE r AS ON INSERT TO prot ...   classid=2618 (pg_rewrite)  objid=<the rule>    PROTECTED=f
+CREATE TABLE child () INHERITS (prot)    classid=1259 (pg_class)    objid=<the child>   PROTECTED=f
+ALTER TABLE child INHERIT prot           classid=1259 (pg_class)    objid=<the child>   PROTECTED=f
+CREATE TRIGGER t ... ON prot             classid=2620 (pg_trigger)  objid=<the trigger> PROTECTED=f
+CREATE INDEX ix ON prot(v)               classid=1259 (pg_class)    objid=<the index>   PROTECTED=f
+CREATE POLICY p ON prot                  classid=3256 (pg_policy)   objid=<the policy>  PROTECTED=f
+CREATE VIEW v AS SELECT * FROM prot      classid=1259 (pg_class)    objid=<the view>    PROTECTED=f
+ALTER TABLE prot ADD CONSTRAINT / COMMENT ON prot / ALTER TABLE prot ADD COLUMN
+                                         classid=1259 (pg_class)    objid=<prot>        PROTECTED=t
+```
+
+The last line is the set D34 already covers. The lines above it are the open set. Note that
+`CREATE TRIGGER`, `CREATE INDEX` and `CREATE POLICY` on a protected table are in that same set and
+**no CAP has raised any of them** -- CAP #3 found `CREATE TRIGGER` and `CREATE INDEX` blocked only by
+`owl_ledger_ddl` holding `CREATE` on no schema, which is a privilege coincidence, exactly as it found
+for H-F.
+
+Second, `pg_depend`. **It is not a sound resolver, and this refuted the design this section was
+expected to reach.** Executed, listing every dependency edge pointing at the protected table:
+
+```
+pg_rewrite  <rule r_ins on prot>        deptype=a   AND  deptype=n
+pg_trigger  <t_noop on prot>            deptype=a
+pg_class    <index i_prot>              deptype=a
+pg_policy   <p_prot on prot>            deptype=a
+pg_constraint <c_chk on prot>           deptype=a   AND  deptype=n
+pg_class    <child1>                    deptype=n              <-- inheritance
+pg_class    <child2>                    deptype=n              <-- inheritance
+pg_rewrite  <"_RETURN" on view v_prot>  deptype=n              <-- a BENIGN view over the table
+```
+
+A rule filtered on "depends on a protected table" blocks `CREATE VIEW ... SELECT FROM
+screening_ledger_anchor`, which is legitimate and which D37's collateral-damage requirement forbids
+breaking. Narrowing to `deptype='a'` (auto -- "is a part of the referenced object") does discriminate
+rule, trigger, index, policy and constraint from the view, cleanly. **But inheritance is `deptype='n'`,
+identical to the view's**, so `pg_depend` alone cannot express the boundary at all. It would take two
+mechanisms -- an auto-dependency rule plus an explicit `pg_inherits` check -- and it would still be
+betting that every object type PostgreSQL adds in future majors lands on the side of the classifier
+this repository guessed. That is a list again, one level of abstraction up.
+
+**So the answer to the brief's question is yes: object-attachment operations do need a different
+detection mechanism from direct object operations -- and the mechanism is to stop detecting
+operations.**
+
+**Decision: `sec7_protect_ddl_objects()` keeps its `objid` membership check unchanged and gains a
+second phase that re-asserts, after every DDL statement, that every protected relation still matches
+the state recorded for it at provisioning time.**
+
+- The existing `objid` check is **not** replaced. It is what catches the G-D form -- replacing a
+  shared guard function changes no protected relation's own catalog state, since
+  `CREATE OR REPLACE FUNCTION` keeps the OID and the trigger still points at it -- and it produces the
+  specific, object-naming error text CAP #3 credited. The two phases answer different questions and
+  both are needed.
+- A second superuser-owned registry, **`sec7_protected_relation`**, created and populated by
+  `provision_test_roles.sh grant-ddl-ownership` alongside `sec7_protected_object`, with
+  `REVOKE ALL ... FROM PUBLIC` and `SELECT` to `owl_migrator` so D41's check can read it, and itself
+  a member of `sec7_protected_object` so it cannot be dropped without tripping the trigger that reads
+  it. One row per protected relation, recording: `relowner`, `relkind`, `relrowsecurity`,
+  `relforcerowsecurity`, the non-internal trigger OID set, the index OID set, and the RLS policy OID
+  set.
+- The invariant asserted after every DDL statement, for each recorded relation: the relation still
+  exists; `relowner`, `relkind` and both RLS flags are unchanged; **no row in `pg_rewrite` has
+  `ev_class` equal to it** (no rules); **no row in `pg_inherits` has `inhparent` or `inhrelid` equal
+  to it** (no children attached, and it has not itself been attached as a child); its non-internal
+  trigger OID set, index OID set and policy OID set are each unchanged; and every one of its triggers
+  is `tgenabled = 'O'`.
+- Identity strings stay in the error text for diagnostics only, as D34 already has it.
+
+**Executed, in full, during this design pass.** Against a lab table owned by a `ddl` role, a guard
+function owned by a `mig` role, and the two registries above:
+
+| Attempt | Result |
+|---|---|
+| `CREATE RULE ... DO INSTEAD NOTHING` (H-D) | **BLOCKED** `a rewrite RULE exists on it` |
+| `CREATE TABLE ch () INHERITS (prot)` (H-F) | **BLOCKED** `an inheritance child is attached` |
+| `CREATE TEMP TABLE ch () INHERITS (prot)` (H-F, needs no grant at all) | **BLOCKED** same |
+| `ALTER TABLE ch INHERIT prot` (H-F) | **BLOCKED** same |
+| `CREATE TRIGGER t ... ON prot` (raised by no CAP) | **BLOCKED** `its trigger set changed` |
+| `CREATE UNIQUE INDEX ix ON prot ((1))` (raised by no CAP; blocks writes) | **BLOCKED** `its index set changed` |
+| `CREATE POLICY p ON prot` (raised by no CAP) | **BLOCKED** `its RLS policy set changed` |
+| `ALTER TABLE prot ADD COLUMN` (existing D34 form) | **BLOCKED** by the `objid` phase, unchanged |
+| `DROP TRIGGER prot_immutable ON prot` (D26 form 1) | **BLOCKED** by the `objid` phase, unchanged |
+| `ALTER TABLE prot DISABLE TRIGGER ALL` (D26 form 4) | **BLOCKED** by the `objid` phase, unchanged |
+| `DROP OWNED BY ddl` (G-B) | **BLOCKED** by the `objid` phase, unchanged |
+| unrelated `CREATE TABLE` / `DROP TABLE` | **succeed** |
+| unrelated `CREATE OR REPLACE FUNCTION` | **succeeds** |
+| superuser `CREATE TABLE` / `ALTER TABLE` / `DROP TABLE` on unprotected objects | **succeed** |
+| **`CREATE VIEW` and `DROP VIEW` over the protected table** | **succeed** |
+
+Final state after the whole attack sequence: `rules_on_prot=0`, `children=0`, trigger set unchanged,
+column count unchanged -- the transaction aborts, so nothing partially applies.
+
+**Three mechanism facts this decision depends on, each executed rather than assumed:**
+
+1. **`ddl_command_end` fires for `DROP` commands**, not only for create and alter -- observed for
+   `DROP TABLE` and `DROP INDEX`. So the invariant phase covers drop-shaped attacks on a protected
+   relation's attachments, which the `sql_drop` phase's `objid` check would miss for any object not
+   individually registered.
+2. **The cost is small enough to state.** 400 DDL statements: 79 ms with the trigger disabled, 103 ms
+   enabled -- roughly 0.06 ms per statement, with two protected relations.
+3. **Ordering is safe.** `.github/workflows/ci.yml` runs every `db/migrations/*.sql` **before**
+   `provision_test_roles.sh grant-ddl-ownership`, so the state recorded at provisioning time is the
+   final state and no legitimate later migration is fighting the record. This is the same ordering
+   D34 already relies on to avoid catching its own installation DDL (`provision_test_roles.sh:464-466`).
+
+**This closes H-F's *stated* mechanism, and D41 additionally asserts the privilege fact H-F depended
+on.** CAP #3 rated H-F MEDIUM partly because the attack needs `CREATE` on a schema, which
+`owl_ledger_ddl` does not hold in the shipped configuration -- "the split is the whole defence," and
+D33 never asserted it. D40 removes the dependence on that coincidence; D41 asserts the coincidence
+anyway, as defence in depth and not as the fix. Note also that the `CREATE TEMP TABLE ... INHERITS`
+variant needs **no grant whatsoever** (`TEMP` is held by default), so a privilege assertion alone
+would not have closed even the form that exists today.
+
+### D41. H-E (MEDIUM): the registry's identity and its population both become assertions
+
+**The finding.** R15 accepts a documented fail-open risk on an explicit basis (`0007:2666-2674`):
+
+> *"`requiredProvisioningState` asserts that every registry row's OID resolves to **the object it
+> claims**, so a stale registry is a verification failure rather than a silent gap."*
+
+The shipped check (`postgres.go:271-282`) asserts something weaker: that each `objid` resolves to
+**some** object in `pg_class` **or** `pg_proc` **or** `pg_trigger`. The `note` column carries the
+claim and is never compared to anything. Executed against a repointed and against an emptied
+registry -- CAP #3 §7.2's two states -- the shipped query returns `0` in both cases, so
+`CheckProvisioningState` certifies the database as provisioned while D34 is protecting the wrong
+object in the first case and **is inert for every object** in the second.
+
+**In fairness to D33, R15's own literal scenario is closed**: an object legitimately dropped and
+recreated leaves an OID resolving to nothing, `staleCount > 0` fires, and
+`TestCheckProvisioningStateDetectsStaleRegistryRow` covers it. What is not closed is OID reuse, a
+repointed row, and an empty registry. The registry *as an object* is also genuinely well protected --
+CAP #3 §7.2 found no non-superuser write path of any kind and the correct owner and ACL -- so this
+decision is about the check, not the table.
+
+**Decision, part one: define "resolves to the object it claims" and assert it.**
+
+`sec7_protected_object` gains a **`classid`** column recording which system catalog each row's OID
+belongs to, and the row's claim becomes a machine-comparable identity rather than a prose `note`. D33
+then asserts, for every row:
+
+```sql
+(SELECT identity FROM pg_identify_object(r.classid, r.objid, 0)) = <the expected identity>
+```
+
+Three facts established by execution, because the failure mode of this check matters as much as its
+success:
+
+- **`pg_identify_object` is callable by `owl_migrator`** -- a non-superuser -- for `pg_class`,
+  `pg_proc` and `pg_trigger` alike, returning `(type, schema, name, identity)`. No new role, DSN or
+  grant is required, the same property D33's existing facts have.
+- **On a dangling OID, or an OID belonging to a different catalog than `classid` claims, it returns a
+  row with a NULL `identity` and does not raise.** So the comparison fails closed and the check does
+  not have to guard against an exception.
+- **This closes cross-catalog OID reuse, which the shipped three-way `NOT EXISTS` cannot see.** A
+  `pg_class` OID sitting in a row that claims a function passes the shipped query (executed:
+  `shipped_stale_count = 0`) and fails the identity comparison. OIDs are drawn from one global
+  counter and are unique only within a catalog, so this is a real gap and not a hypothetical one.
+
+**Decision, part two: assert the population against a second, independent source.**
+
+An identity check on the rows that are present says nothing about rows that are absent, and CAP #3's
+sharpest version of this finding is the empty registry: zero rows means the trigger function returns
+on every miss, so **D34 is inert for every object** while the provisioning script's own
+`[[ "$registry_row_count" == "11" ]]` (`provision_test_roles.sh:415-419`) is long since satisfied and
+gone. That split -- the installer checks and the verifier does not -- is G-A's shape one level
+deeper, and it is why this addendum treats population as an assertion rather than a count.
+
+- **A literal `requiredProtectedObjects` declaration in `postgres.go`**, written out beside
+  `requiredSchemaObjects` (`postgres.go:294-318`) and `requiredProvisioningState`'s members, never
+  derived by scanning the provisioning script or by a naming-pattern guess -- CLAUDE.md's "never
+  enumerate targets by inference", which applies to a generated list as much as a hand-picked one.
+  Each member is a `(classid, identity)` pair.
+- **D33 asserts the registry contains exactly those pairs -- no more, no fewer.** An emptied
+  registry, a truncated registry, a padded registry and a repointed row are each a distinct,
+  specifically-named verification failure. The provisioning script's own count assertion stays where
+  it is; the two together mean the property is checked by the installer *and* by the verifier, which
+  is the only arrangement that survives the installer not having run.
+- **`sec7_protected_relation` (D40) gets the same treatment**, since a second registry inherits the
+  first one's failure mode exactly.
+
+**Decision, part three: D33 asserts the two privilege facts H-F depended on.** CAP #3 §7.4 found
+inheritance attachment blocked in the shipped configuration only because `owl_ledger_ddl` holds
+`CREATE` on no schema and no database -- load-bearing, and unasserted anywhere. Both are readable by a
+non-superuser (executed), and both join `requiredProvisioningState`:
+
+```
+has_schema_privilege  ('owl_ledger_ddl', <the schema holding the protected tables>, 'CREATE')  = false
+has_database_privilege('owl_ledger_ddl', current_database(),                        'CREATE')  = false
+```
+
+This is defence in depth behind D40, not the fix for H-F, and the addendum says so in both places so
+that a later change cannot remove D40 on the strength of D41 or vice versa.
+
+**What this does not close.** An adversary who can rewrite both the registry and the reality it
+records passes every check in D41. Registry writes require the bootstrap superuser, so that
+terminates at R12/R17 where every other residual in this document terminates. Recorded as R19 rather
+than left implicit.
+
+### D42. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26 (`0007:1874-1885`) and D37
+(`0007:2623-2662`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #3 transcript
+exists, the test reproduces that transcript, not a paraphrase of it. Several assertions below are
+stated as "must pass today and fail after" -- that direction is deliberate: for these findings the
+current behaviour is *acceptance*, so a test that only asserts the post-fix refusal cannot
+distinguish a working fix from a test that never exercised the path.
+
+1. **D38(a).** `TestDecodeUnsignedPolicyRejectsDuplicateKeys`: CAP #3 §7.5's exact bait document
+   bytes, asserting it signs today through the real `DecodeUnsignedPolicy` +
+   `SignVerificationPolicy` path with `genesis_event_sequence=999999999` and `min_anchor_sequence=0`,
+   and is refused after with all three repeated keys named. Plus, in the same table: a duplicate in a
+   nested object, a duplicate inside an array element, trailing content after the top-level value,
+   the committed example fixture still signing and loading, and both CAP #2 §7.8 inputs still refused
+   so D36 is proven un-regressed.
+2. **D38(b).** `TestGenesisBoundaryRequiresPrefixCommitment`: build the forgery with
+   `buildGenuineMultiEntryChain`, `downgradeAndForge{tamperContent: true}` and
+   `assertGenuinelyForgedUnderLegacyFormula` -- all three defined in `d20_exploit_test.go`, so the
+   forgery is D20's own certified-genuine one -- and assert `VerifyAnchored` **accepts** it today
+   under a policy that passes `Validate()`, and fails after. Must include: the `genesis=999999999`
+   case; the **`genesis = head + 1` max-boundary case**, which a length bound alone would pass and
+   which is therefore the test that distinguishes this design from the obvious one; the bootstrap
+   case (`genesis=1`, empty sentinel) as a **positive**; and an honest re-issue against a genuine
+   chain as a second positive. A suite that proves only refusals has not proven the design is
+   usable.
+3. **D39.** `TestProvisioningStateDetectsColumnLevelGrant` (pgx): CAP #3 §7.1's exact
+   `GRANT INSERT (cols)` on both protected tables, asserting `CheckProvisioningState` returns
+   `Provisioned=true` today and a specifically-named failure after, and asserting the tombstone
+   forgery the grant enables actually succeeds -- otherwise the test proves a probe changed rather
+   than a hole closed. Table-driven over the direct-grant, `PUBLIC` and role-membership routes, plus
+   the anchor writer's `SELECT` probe.
+4. **D40.** `TestD40ProtectedRelationInvariantHoldsUnderEveryForm` (pgx): every row of D40's
+   transcript table above, each as its own attempt with the SQLSTATE captured -- `CREATE RULE`, all
+   three inheritance forms **including the `TEMP` variant that needs no grant**, `CREATE TRIGGER`,
+   `CREATE UNIQUE INDEX`, `CREATE POLICY` -- **plus every existing D34 and D26 form unchanged**,
+   **plus** the collateral-damage cases: unrelated `CREATE TABLE`, `DROP TABLE` and
+   `CREATE OR REPLACE FUNCTION`, superuser DDL, and `CREATE VIEW`/`DROP VIEW` over a protected table.
+   D37's rule applies verbatim: a suite that proves only the blocks has not proven D40 is safe to
+   install.
+5. **D41.** `TestCheckProvisioningStateDetectsRepointedAndEmptiedRegistry` (pgx): CAP #3 §7.2's exact
+   repoint and its exact `DELETE`, each asserting `Provisioned=true` today and a distinct named
+   failure after; plus a cross-catalog-reuse row; plus the two `CREATE`-privilege facts.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **If D40's collateral-damage cases fail against the real schema** in a way the lab did not
+  reproduce -- most plausibly around SEC-1's RLS migrations or `db/rollback/014_tenant_isolation_down.sql`,
+  the same places D37 named -- D40 falls back to the `pg_depend` `deptype='a'` resolver **plus** an
+  explicit `pg_inherits` check. That fallback closes H-D and H-F as they exist today and leaves the
+  general shape open for any future object type PostgreSQL classifies differently. **It is strictly
+  worse and must be recorded as such, not presented as equivalent.**
+- **If D38(b) cannot be implemented without restructuring `VerifyAnchored`'s or `VerifyPolicy`'s
+  return contract beyond adding two policy fields and one check in the prefix walk**, the
+  implementation stops and the design is amended. It does not ship a boundary check that runs in some
+  modes -- a validation that runs sometimes is the shape of every finding in this document.
+- **D38(a) and D38(b) ship together or not at all.** Splitting them recreates CAP #3 §11.1's exact
+  gap, in whichever direction the split falls.
+
+**Addendum 3's own pre-declared withdrawal conditions remain correctly un-triggered, re-verified
+against what *this* addendum designs rather than inherited from CAP #3's confirmation.** D34's
+collateral-damage cases pass with D40's second phase installed -- unrelated `CREATE TABLE`,
+`DROP TABLE`, `CREATE OR REPLACE FUNCTION`, superuser DDL, and additionally `CREATE VIEW` over a
+protected table, which no prior collateral case covered -- so the `WHEN TAG` fallback is **not**
+required and **must not** be adopted. D32's adjudication shipped in full, not partially, and nothing
+in this addendum touches it.
+
+### New accepted risks
+
+**R18 -- D40 widens R17's blast radius from "a defect in the trigger function" to "any drift between
+a protected relation and its recorded state," and the recovery path must be documented rather than
+discovered.** R17 (`0007:2686-2692`) accepted that an unfiltered event trigger runs on every DDL
+statement, so a defect in it breaks all DDL rather than some. D40 adds a second way to reach the same
+outcome without any defect at all: if a protected relation's actual state ever diverges from
+`sec7_protected_relation` -- a superuser legitimately adding an index, say, without re-recording --
+then **every** subsequent DDL statement in the database fails, including the superuser's own and
+including entirely unrelated ones. Executed, and both recovery paths verified:
+
+```
+drifted state, unrelated CREATE TABLE as superuser   -> ERROR: protected relation ... its index set changed
+ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE   -> SUCCEEDS even while drifted
+SET event_triggers = off; <corrective DDL>                      -> SUCCEEDS (PostgreSQL 17 GUC)
+re-run provision_test_roles.sh grant-ddl-ownership              -> re-records the state; DDL healthy again
+```
+
+**`event_triggers` is not a bypass, and that was checked rather than assumed**: `pg_settings` reports
+`context = superuser`, and a non-superuser -- including the protected tables' owner, the role D26/D34
+exist to bind -- gets `permission denied to set parameter "event_triggers"`. This is true of D34 as
+already shipped, not only of D40, and is recorded here because a reader encountering the GUC should
+find its disposition in this document rather than re-derive it. The residual terminates at the
+superuser, exactly where R12 puts it. Accepted, because the alternative -- an invariant that is
+checked but not enforced -- is the shape of G-A.
+
+**R19 -- `sec7_protected_relation` is a second trust object with the first one's failure mode.** D41
+asserts its identity and population, and D40 puts it under `sec7_protected_object`'s protection, but
+an adversary who can rewrite both the registry and the reality it records passes every check. That
+requires the bootstrap superuser, the same terminus as R12/R17. **The registry and the check that
+validates it must ship together; either alone is worse than neither** -- R15's rule, restated for the
+new object, so that a later change to one is understood to require the other.
+
+**R20 -- the prefix commitment is only as good as the digest the operator was handed.** D38(b)
+removes the *silent* failure: a boundary that is reconciled against nothing becomes a boundary that
+is reconciled against the chain, and a typo becomes a hard failure instead of a quiet downgrade to
+unkeyed verification. It does not make an operator safe against an adversary who supplies both the
+boundary and a matching digest for a chain they have already forged -- that is R8's
+operator-discipline residual, unchanged, and it is bounded in practice by D11 once any honest anchor
+exists. Recorded so the new fields are not read as a stronger claim than they are.
+
+### Staging
+
+Same shape and reason as §8 and the three prior addenda (`0007:1397-1414`, `0007:2038-2058`,
+`0007:2694-2716`): each stage independently reviewable and independently provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage F1 -- the policy artifact.** D38 in full, both halves in one PR for the reason D42 states.
+   Includes the `VerificationPolicySchemaV3` bump and the re-issued fixture, operator template and
+   test helper. Sequenced first because it is the CRITICAL and because it is the only stage whose
+   exploitation needs no database at all.
+3. **Stage F2 -- the DDL boundary.** D40, plus the `sec7_protected_relation` registry the provisioning
+   step creates. D40's collateral-damage cases are a shipping requirement, and the withdrawal
+   condition is discharged or invoked here.
+4. **Stage F3 -- provisioning as a verified fact, corrected.** D39 and D41, sequenced after F2
+   because D41's population assertion covers the registry F2 creates. D39 could ship independently
+   and is kept here because both decisions edit `requiredProvisioningState` and splitting them would
+   produce two conflicting versions of the same function.
+5. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes. CAP
+   #3 re-confirmed that nothing in PR #140 or #141 re-asserted the guarantee; that must remain true
+   through this addendum as well.
+
+**SEC-7 does not close on this addendum.** §8's closing condition -- "a deliberately forged chain
+fails a CI run that nobody chose to invoke" -- is contradicted by CAP #3 §7.6 for as long as a
+tampered, unkeyed-digest chain returns `anchor_status=verified` with `snapshot_checks=6/6` under a
+policy that passes `Validate()`. The closing sentence stands and now has a fourth addendum behind it.
+
+### Addendum 4 summary
+
+- **CAP #3's verdict is QUALIFIED, not PASS**, for the third consecutive audit: one CRITICAL, three
+  HIGH, two MEDIUM, five of six demonstrated live. This addendum designs the remediation and follows
+  CAP #3 §11's dependency-ordered sequencing rather than raw severity.
+- **The class is one turn sharper than Addendum 3's.** Not "scoped by listing members of an open set"
+  but **"the enumeration was fixed and the referent drifted"**: D34 compares an OID that for three
+  DDL forms is not the protected object's, D33 compares a privilege at the wrong granularity, D33/R15
+  compares an OID's existence rather than its identity, and D36 compares a decoded struct rather than
+  the bytes a human read. D40 states the replacement: where the platform's report is about something
+  else, do not classify the report -- re-assert the protected thing's own state.
+- **The design is D38-D42.** The policy document's bytes and the genesis boundary's referent, as one
+  decision (D38); privilege probes at column granularity, with D35's biconditional withdrawn in text
+  rather than patched in silence (D39); D34's second phase, a closed set of properties of the
+  protected relation replacing an open set of ways a statement can refer to it (D40); the registry's
+  identity and population as assertions against an independent literal declaration (D41); and the
+  proof obligations with pre-declared withdrawal conditions (D42).
+- **This design pass executed every mechanism assumption, and two of them changed the design.**
+  `pg_depend` is not a sound structural resolver -- a benign `CREATE VIEW` over a protected table is
+  indistinguishable from an inheritance attachment by dependency type, and `deptype='a'` misses
+  inheritance entirely. A pure length bound on the genesis boundary does not close H-A, because
+  `genesis = head + 1` is both a legitimate post-migration state and the maximal attack. Also
+  confirmed by execution: `encoding/json` accepts duplicate keys and `encoding/json/v2` is
+  `GOEXPERIMENT`-gated and does not change v1; `has_column_privilege` subsumes `has_table_privilege`
+  and catches the role-membership route a raw ACL scan misses; `ddl_command_end` fires for `DROP`;
+  `pg_identify_object` returns NULL rather than raising on a wrong-catalog OID; `event_triggers` is
+  superuser-only and so is not a bypass; and `Append`/`AppendAudit` never write a v1 entry, which is
+  what makes the prefix commitment a constant rather than a chore.
+- **Three risks are recorded** rather than designed away: D40's invariant widens R17's blast radius
+  to any recorded-state drift, with two verified recovery paths (R18); the second registry is a
+  second trust object terminating at the superuser (R19); and the prefix commitment is bounded by
+  what the operator was handed (R20).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30 and D31-D37 stand.
+  R1-R17 stand. One sentence of D35's supporting text (`0007:2556-2560`) is withdrawn as false,
+  explicitly and in D39's own words; G-E's closure and D35's substantive decision are unaffected, and
+  what D35 claimed about observability is restored by D39 rather than by D35.
+
+**Audit basis commit:** `3c7e5be6dd5e893b7704aebd54a81afd4d89d44a`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #3
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
