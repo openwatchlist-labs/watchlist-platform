@@ -3,6 +3,18 @@ name: Release Qualification
 on:
   pull_request:
     branches: [main]
+    # See ci.yml's on.pull_request.paths-ignore comment: this job runs
+    # scripts/release/qualify-prerelease.sh, whose first action is the same
+    # ./scripts/ci/run-ci.sh that ci.yml runs, so the same two subtrees
+    # (docs/governance/**, docs/homelab/** + scripts/deployment/r2-4/**)
+    # must stay excluded from the ignore list for the same reason: CI
+    # validates their content, not just build correctness.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '!docs/governance/**'
+      - '!docs/homelab/**'
+      - '!scripts/deployment/r2-4/**'
   workflow_dispatch:
 
 permissions:
