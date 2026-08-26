@@ -4423,3 +4423,1021 @@ Every file:line citation in this addendum was verified against that tree -- the 
 was produced against, so no drift separates the audit from this design. For a CAP record covering
 the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
 value.
+
+## Addendum 6: atomicity -- the referent a legitimate operation rewrites, and the first finding that wedges rather than bypasses (2026-08-26)
+
+- **Status:** Proposed
+- **Trigger:** a fifth Composition Audit Program record produced against the implemented Addendum 5
+  (`docs/backlog/sec-7-cap-record-71fbb42.md`, adversarial posture, audit basis commit
+  `71fbb428bf8ef267f9607afc8dee9dd0bc5bc7f4`) returned **QUALIFIED, not PASS** for the fifth
+  consecutive audit -- and for the **second** consecutive audit with **no forgery bypass**. Six
+  findings remain, one HIGH (J-A), one MEDIUM (J-B) and four LOW (J-C, J-D, J-E, J-F). **None is a
+  forgery**, and five of the six require no adversary at all. **SEC-7 is not closed.**
+- **What CAP #5 confirmed and this addendum does not disturb.** D45's never-gates property held
+  against six constructed states, four of them outside its own test -- the binding's *content*
+  reaches no verdict in any of them, including absence and contradiction. D46's three messages were
+  each reproduced verbatim against a real database in the real state each describes. D47 ships,
+  works over all seven recorded columns plus `identity`, closes I-B, and turns out to be the only
+  mechanism anywhere in the system that names J-A's state in words. The new `pg_dump` fixtures
+  introduce nothing beyond the already-understood OID reassignment across eleven measured
+  security-relevant catalog properties. The operator document works when followed literally, on both
+  of its procedures. The cryptographic core is unregressed: 97 top-level PASS, 0 SKIP, 0 FAIL across
+  all four pgx-gated packages. **D31's scoping principle, Addendum 4's referent principle and
+  Addendum 5's population principle compose, and this addendum reopens none of them.**
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not §3.4, §6.1 or the D19 correction
+  note, not R1-R23. Decision numbering continues at **D50**; risk numbering at **R24**. Where a
+  prior decision's *citation* has drifted, the drift section below records it rather than editing
+  the old text -- the convention AR7 established for R7 and every addendum since has followed.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `71fbb428bf8ef267f9607afc8dee9dd0bc5bc7f4` rather than copied from the CAP record or from a prior
+  addendum.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4
+  and 5 held to -- and this time the execution refuted the fix this section was expected to
+  reach.** A disposable PostgreSQL 17.11 cluster was built on port 55437 and provisioned with the
+  **real** schema in `.github/workflows/ci.yml:141-235`'s exact order (all seventeen
+  `db/migrations/*.sql` as `owl_migrator`, then `create-roles`, `grant-app-privileges` and
+  `grant-ddl-ownership`), baseline confirmed at thirteen `sec7_protected_object` rows, two
+  `sec7_protected_relation` rows, one `sec7_instance_binding` row, both event triggers
+  `evtenabled='A'`, and `owl_ledger_ddl` holding `CREATE` on neither schema nor database. The
+  cluster was torn down, its port confirmed not listening, and no repository file was modified. The
+  three results that changed the design, each with its transcript in the section that relies on it:
+  1. **An interception point for `CONCURRENTLY` DDL genuinely exists** -- `ddl_command_start` fires
+     for every one of these statements and an exception there prevents the catalog change outright.
+     It is nonetheless **rejected**, because that hook exposes `tg_tag` and nothing else, so
+     scoping it means enumerating actions database-wide -- D31's rejected shape, restored (D50).
+  2. **`REINDEX ... CONCURRENTLY` preserves the index *definition* and rewrites only its OID.** The
+     wedge is not caused by the statement's non-atomicity so much as by D40 recording the one index
+     property a legitimate rebuild changes (D50).
+  3. **PostgreSQL 17's `MAINTAIN` privilege is revocable from a table's own owner** -- which
+     removes J-A's exact one-statement vector -- **and the owner can re-grant it to itself**, which
+     is why D51 is a layer with a stated limit and not the fix (D51).
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention §3.4, §6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826` and `0007:3689-3712` set.
+
+1. **Addendum 5's `file:line` citations resolve against `8b36c91`, not against this tree.** PR #152
+   moved most of them; CAP #5 §12 records the same and gives three examples. Expected, not a
+   defect. Citations *into a prior addendum's own prose* (`0007:NNNN`) are unaffected and are used
+   below where the claim is about the text rather than about the code.
+2. **CAP #5's own citation for the mechanism J-A breaks is approximate and is made exact here.**
+   §7.4 cites D40's index comparison at `provision_test_roles.sh:~641-646`. At this commit the
+   `SELECT ... INTO cur_indexes` is `:648-649`, the comparison is `:650`, and the
+   `its index set changed` exception is `:651`. The CAP marked it approximate with its own `~`; the
+   substance is unchanged and D50 needs the exact lines.
+3. **CAP #5 §5's enforcement-point table carries three offsets.** P4 cites `anyColumnPrivilege` at
+   `postgres.go:441+`; it is `:579`. P5 cites `protectedObjectIdentityReason` at `:371`; it is
+   `:372`. P7 cites `protectedRelationStateReason` at `:446+`; it is `:525`, with
+   `requiredProtectedRelationStates` at `:495`. No finding depends on any of them.
+4. **J-F's stale-count list is one item short.** CAP #5 §7.11 point 6 names
+   `internal/screeningledger/postgres.go:341` and `:367` and
+   `scripts/ci/provision_test_roles.sh:740`. `docs/operations/sec7-database-copies.md:70` also
+   still says `expected exactly 12`, and it is the only one of the four an operator reads. D56
+   covers all four.
+
+---
+
+### Addendum 6 context: the referent a legitimate operation rewrites
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes
+(`0007:1494-1497`). Addendum 2 named its findings as one class -- "a control whose installation is
+asserted rather than checked, by the party the control constrains" (`0007:1499-1500`). Addendum 3
+sharpened it to "a control that decides what to protect, or what to protect against, by listing
+members of an open set" (`0007:2172-2173`) and produced D31. Addendum 4 sharpened it again to "the
+enumeration was fixed and the referent drifted" (`0007:2853-2857`) and produced D40. Addendum 5
+moved one axis over -- "the referent is correct and its population was never stated"
+(`0007:3742-3746`) -- and produced D43.
+
+CAP #5 §0.1 looked for a sixth turn of the class screw inside the security boundary and, like
+CAP #4, did not find one. It states J-A's own axis as:
+
+> **A control that asserts an invariant over catalog state assumes the statement that violates the
+> invariant is atomic with the check. PostgreSQL's `CONCURRENTLY` forms are not.**
+
+That is true, and it is the reason the failure is a *wedge* rather than a bypass. It is not,
+however, the whole diagnosis, and the difference is exactly what separates the fix this addendum
+adopts from the one the framing invites. Non-atomicity explains why D40 **cannot refuse** the
+statement. It does not explain why D40 **wants to** refuse it. `REINDEX ... CONCURRENTLY` is not an
+attack; it is the most ordinary maintenance command PostgreSQL has, and D40 objects to it only
+because D40 recorded the one property of an index that a legitimate rebuild rewrites.
+
+**The sharper form, which is what produces D50 rather than a tag filter:**
+
+> **A control that compares recorded state to live state must choose a referent that only an
+> illegitimate change can alter. Where the platform rewrites an identifier as part of an operation
+> the system legitimately performs on itself, comparing that identifier makes routine maintenance
+> indistinguishable from attack -- and because such rewrites are precisely the ones the platform
+> performs non-atomically, the control cannot refuse the change, only be permanently unsatisfied by
+> it. Ask not only "what does it compare, over what population?" but "does anything legitimate
+> rewrite the thing I compare -- and if it does, can my exception undo it?"**
+
+The two clauses are not independent, and noticing that they are not is the load-bearing move.
+PostgreSQL's non-atomic DDL forms exist *because* they are maintenance operations that must not
+hold long locks. The set of statements a control cannot roll back and the set of statements that
+legitimately rewrite an object's identity are, in this database, close to the same set. Fixing the
+referent therefore fixes most of the atomicity problem as a side effect -- and where it does not
+(D50's stated residual), what is left is genuinely rare and genuinely recoverable.
+
+**This does not reopen G-G, and the reason is precise.** D44 rejected a dump-portable referent and
+recorded the tension it found (`0007:3897-3900`): "the two properties are in genuine tension -- for
+a **referent**. They are not in tension at all for a **marker** ... A marker only has to be
+*recognised*; a referent has to be *dereferenced* to an object." The index set is neither. It is one
+of the **properties** D40 records about a protected relation -- the same list as `relowner`,
+`relkind` and the RLS flags -- and Addendum 4's own principle is that a closed set of properties is
+the right thing to compare (`0007:2855-2857`). A property is compared for equality and never
+dereferenced, so `ALTER TRIGGER ... RENAME`-then-`DROP`, the two statements that defeated D44's
+name-keyed registry, do not apply: a rename **changes** a definition set rather than escaping it.
+That is not reasoned, it is measured -- under D50 `ALTER INDEX ... RENAME` moves from *succeeds* to
+*blocked* (see D50's battery). **D50 is Addendum 4's principle applied to the one column Addendum 4
+wrote in the older style.**
+
+---
+
+### D50. J-A (HIGH): the index referent becomes the index *definition* set, and the wedge is removed rather than intercepted
+
+**The finding, restated from the code.** D40's second phase re-derives each protected relation's
+index set and compares it to `sec7_protected_relation.index_oids`
+(`scripts/ci/provision_test_roles.sh:648-651`):
+
+```sql
+SELECT COALESCE(array_agg(ix.indexrelid ORDER BY ix.indexrelid), ARRAY[]::oid[]) INTO cur_indexes
+  FROM pg_index ix WHERE ix.indrelid = rel.objid;
+IF cur_indexes IS DISTINCT FROM rel.index_oids THEN
+  RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its index set changed', rel.objid;
+```
+
+Every *atomic* DDL form that would change that set is refused at `ddl_command_end` inside the
+statement's own transaction, so nothing applies -- CAP #4 §7.10 verified exactly that for plain
+`CREATE INDEX` and certified on its basis that reaching R18's drift "requires the change to be made
+with the triggers disabled or via `SET event_triggers = off`, both superuser-only." **That
+certification is false.** `REINDEX ... CONCURRENTLY` commits its catalog swap in an earlier internal
+transaction; the exception aborts only the last one. The operator sees an error and the OID has
+already changed.
+
+#### Executed: the finding, and its family enumerated
+
+Against a `CREATE DATABASE ... TEMPLATE` clone of the fully provisioned primary, so the starting
+state is byte-identical to the shipped one. "WEDGED" means an unrelated `CREATE TABLE` by the
+bootstrap superuser fails afterwards.
+
+```
+recorded index_oids for public.screening_ledger_anchor: {16920}
+
+REINDEX INDEX CONCURRENTLY screening_ledger_anchor_pkey       [owl_ledger_ddl]  {16920}->{16952}        WEDGED
+REINDEX TABLE CONCURRENTLY screening_ledger_anchor            [owl_ledger_ddl]  {16920}->{16957}        WEDGED
+REINDEX TABLE CONCURRENTLY screening_ledger_retention_tombstone [owl_ledger_ddl]                        WEDGED
+REINDEX SCHEMA CONCURRENTLY public                            [superuser]       {16920}->{17077}        WEDGED
+REINDEX DATABASE CONCURRENTLY <db>                            [superuser]                               WEDGED
+CREATE INDEX CONCURRENTLY ... ON screening_ledger_anchor      [superuser]       {16920}->{16920,16978}  WEDGED
+
+REINDEX INDEX screening_ledger_anchor_pkey                    [owl_ledger_ddl]  OID-preserving          ok
+REINDEX TABLE screening_ledger_anchor                         [owl_ledger_ddl]  OID-preserving          ok
+VACUUM FULL screening_ledger_anchor                           [owl_ledger_ddl]  OID-preserving          ok
+CLUSTER screening_ledger_anchor USING ..._pkey                [owl_ledger_ddl]  OID-preserving          ok
+```
+
+**Two forms beyond what CAP #5 recorded:** `REINDEX SCHEMA CONCURRENTLY` and
+`REINDEX DATABASE CONCURRENTLY`. Both are superuser-or-owner scoped in this configuration
+(`REINDEX SCHEMA` requires ownership of the schema, refused to `owl_ledger_ddl` with
+`must be owner of schema public`), but both reach the same state and neither appears in any prior
+record. This is why the enumeration below is stated as a closed set with its closure argued rather
+than as a list of the forms someone happened to try.
+
+**The complete PostgreSQL 17 `CONCURRENTLY` family, and why only the index forms matter here.** The
+forms are `CREATE INDEX`, `DROP INDEX`, `REINDEX {INDEX,TABLE,SCHEMA,DATABASE,SYSTEM}`,
+`REFRESH MATERIALIZED VIEW` and `ALTER TABLE ... DETACH PARTITION`. Executed against both protected
+relations:
+
+```
+DROP INDEX CONCURRENTLY screening_ledger_anchor_pkey    -> ERROR: cannot drop index ... because constraint ... requires it
+REFRESH MATERIALIZED VIEW CONCURRENTLY screening_ledger_anchor -> ERROR: "screening_ledger_anchor" is not a materialized view
+ALTER TABLE screening_ledger_anchor DETACH PARTITION x CONCURRENTLY -> ERROR: table "screening_ledger_anchor" is not partitioned
+sec7_protected_relation relkind for both relations      -> r
+```
+
+Both protected relations are ordinary tables whose only index is a constraint-backed primary key,
+and D40 already pins `relkind` and blocks inheritance attachment, so the matview and partition forms
+are unreachable by construction rather than by coincidence. **`index_oids` is therefore the only one
+of D40's seven recorded columns reachable by a non-atomic statement** -- triggers, policies,
+`relowner`, `relkind` and both RLS flags have no `CONCURRENTLY` form in PostgreSQL 17. This is the
+answer to CAP #5 §11 point 1(b), and it bounds the scope of this decision to one column.
+
+#### Executed: a recoverability split, which CAP #5 does not draw and which the severity turns on
+
+```
+CREATE INDEX CONCURRENTLY zzcic ON screening_ledger_anchor (anchored_at)  [superuser]
+   -> ERROR: D40 ... its index set changed ;  unrelated CREATE TABLE -> ERROR (wedged)
+DROP INDEX zzcic                                                          [superuser]
+   -> succeeds WHILE WEDGED ;  unrelated CREATE TABLE -> ok (healthy again)
+
+REINDEX INDEX CONCURRENTLY screening_ledger_anchor_pkey                   [owl_ledger_ddl]
+   -> ERROR: D40 ... its index set changed ;  live {17112} vs recorded {16920}
+REINDEX INDEX screening_ledger_anchor_pkey (plain, superuser, to undo it) -> ERROR: ... its index set changed
+```
+
+**`CREATE INDEX CONCURRENTLY`'s wedge is self-healing.** The `DROP INDEX` succeeds even while every
+other DDL statement is failing, because at *that* statement's `ddl_command_end` the live set matches
+the recording again. No superuser trigger-disable, no re-provisioning. **`REINDEX ... CONCURRENTLY`'s
+is not**, and cannot be: the recorded OID no longer exists anywhere and no DDL statement can bring
+it back. J-A's severity rests on the `REINDEX` forms specifically, and so does D50.
+
+#### Investigated and rejected: intercept the statement before its first internal commit
+
+The brief asked whether PostgreSQL offers **any** way to intercept a `CONCURRENTLY` operation before
+its first internal commit. **It does, and the answer is still no.**
+
+`ddl_command_start` fires for all three tags, `CONCURRENTLY` forms included, and an exception raised
+there prevents the catalog change completely:
+
+```
+ddl_command_start fires:  REINDEX (plain and CONCURRENTLY) | CREATE INDEX | DROP INDEX | ALTER TABLE
+                          VACUUM FULL and CLUSTER: no (they are not DDL commands)
+
+with an exception raised at ddl_command_start:
+  REINDEX INDEX CONCURRENTLY prot_pkey  -> ERROR: BLOCKED-AT-START tag=REINDEX  oids UNCHANGED
+  REINDEX TABLE CONCURRENTLY prot       -> ERROR: BLOCKED-AT-START tag=REINDEX  oids UNCHANGED
+  CREATE INDEX CONCURRENTLY ix9 ON prot -> ERROR: BLOCKED-AT-START tag=CREATE INDEX  oids UNCHANGED
+```
+
+So an interception point exists and works. What it cannot do is tell you *what is being operated
+on*. Executed inside a `ddl_command_start` function:
+
+```
+pg_event_trigger_ddl_commands()    -> ERROR: can only be called in an event trigger function
+pg_event_trigger_dropped_objects() -> ERROR: can only be called in a sql_drop event trigger function
+tg_tag = REINDEX     tg_event = ddl_command_start          <- tg_tag is the ONLY thing available
+```
+
+A guard at this hook can therefore only be scoped **by command tag**, which is D31's explicitly
+rejected shape (`0007:2192-2199`: "scope a control by the thing it protects ... never by the actions
+you expect"), restored in the one place D31's own reasoning would forbid it. Concretely it would
+refuse `REINDEX` and `CREATE INDEX` **on every relation in the database** -- forty-plus unprotected
+tables, including SEC-1's tenant-scoped relations -- to protect two. And the tag list would be an
+enumeration of an open set again: a future `CONCURRENTLY` form outside it reaches the same wedge,
+which is precisely the complement problem that defeated D26 twice.
+
+Two secondary variants were considered and are recorded so they are not re-derived. Parsing
+`current_query()` inside `ddl_command_start` to recover the object name is text-matching against a
+statement an adversary writes, and would be wrong before it was slow. Having
+`ddl_command_start` record pre-statement state for `ddl_command_end` to consult buys nothing: the
+change has still committed and the exception still cannot undo it.
+
+**Recorded plainly because the brief allowed for the opposite answer: prevention at this hook is
+available and is the wrong mechanism, not an unavailable one.**
+
+#### Executed: what a legitimate rebuild actually rewrites
+
+```
+REINDEX INDEX CONCURRENTLY prot_pkey
+  old_oid 17134  ->  new_oid 17160        oid_same             = f
+                                          name_same            = t
+                                          pg_get_indexdef_same = t
+                                          indisunique/indisprimary_same = t
+                                          indkey_same          = t
+                                          constraint_oid_same  = t
+                                          indisvalid           = t
+```
+
+**The OID is the one thing it changes.** Everything about the index that describes what the index
+*does* is invariant, which is what one would expect of an operation whose entire purpose is to
+rebuild an index without changing it.
+
+#### Decision: `index_oids` is replaced by `index_defs`, the sorted set of index definitions
+
+`sec7_protected_relation.index_oids` becomes `index_defs text[]`, populated at provisioning as the
+sorted array of `pg_get_indexdef(indexrelid)` over the relation's indexes, and compared by D40's
+second phase with the same `IS DISTINCT FROM` it uses today. Replaced, not supplemented: two
+recordings of one property is a second thing to keep in sync, and D39 already settled that question
+in the same direction when `has_column_privilege` subsumed `has_table_privilege`.
+
+Illustrative only -- the implementation PR owns the real shape:
+
+```sql
+SELECT COALESCE(array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)),
+                ARRAY[]::text[]) INTO cur_index_defs
+  FROM pg_index ix WHERE ix.indrelid = rel.objid;
+IF cur_index_defs IS DISTINCT FROM rel.index_defs THEN
+  RAISE EXCEPTION '... protected relation "%" (objid %): its index set changed', rel.identity, rel.objid;
+```
+
+**What the OID column catches that the definition column does not**, stated first because it is the
+only thing given up: an index object replaced by a byte-identical one. That is a rebuild, and a
+rebuilt index enforces exactly what the old one enforced -- the server builds it from the table's
+own rows. There is no attack in the shape "the same index, again."
+
+**What the definition column catches that the OID column does not**, which is not nothing:
+`ALTER INDEX ... RENAME` (the name is in the definition) and `ALTER INDEX ... SET (fillfactor=...)`
+(`pg_get_indexdef` renders storage parameters -- executed:
+`CREATE INDEX ix_v ON public.prot USING btree (v)` becomes
+`... USING btree (v) WITH (fillfactor='40')`). Both report the *index's* OID at `ddl_command_end`,
+so D34's membership phase never matches them and D40's OID set is unchanged by either. **D50 is
+therefore a strict tightening as well as a repair**, and the rename case is measured below rather
+than argued.
+
+#### Executed, in full: the same battery against the shipped code and against the prototype
+
+A prototype was built by adding `index_defs` to `sec7_protected_relation`, populating it, and
+swapping the one comparison -- everything else in `sec7_protect_ddl_objects()` unchanged -- against
+the real provisioned schema, and each attempt run from a pristine `TEMPLATE` clone. "WEDGED" again
+means an unrelated `CREATE TABLE` fails afterwards.
+
+| Attempt | role | shipped (OID) | prototype (definition) |
+|---|---|---|---|
+| `REINDEX INDEX CONCURRENTLY ..._pkey` | `owl_ledger_ddl` | **WEDGED** | **succeeds, healthy** |
+| `REINDEX TABLE CONCURRENTLY screening_ledger_anchor` | `owl_ledger_ddl` | **WEDGED** | **succeeds, healthy** |
+| `REINDEX TABLE CONCURRENTLY ..._retention_tombstone` | `owl_ledger_ddl` | **WEDGED** | **succeeds, healthy** |
+| `REINDEX SCHEMA CONCURRENTLY public` | superuser | **WEDGED** | **succeeds, healthy** |
+| `REINDEX DATABASE CONCURRENTLY` | superuser | **WEDGED** | **succeeds, healthy** |
+| `CREATE INDEX CONCURRENTLY ... ON screening_ledger_anchor` | superuser | WEDGED | WEDGED -- see the residual below |
+| `CREATE INDEX CONCURRENTLY ... ON screening_ledger_anchor` | `owl_ledger_ddl` | permission denied for schema public | permission denied for schema public |
+| `REINDEX INDEX` / `REINDEX TABLE` / `VACUUM FULL` / `CLUSTER` | `owl_ledger_ddl` | ok | ok |
+| `DROP TRIGGER screening_ledger_anchor_immutable` | `owl_ledger_ddl` | blocked | **blocked** |
+| `ALTER TABLE ... DISABLE TRIGGER ALL` | `owl_ledger_ddl` | blocked | **blocked** |
+| `ALTER TRIGGER ... RENAME TO` | `owl_ledger_ddl` | blocked | **blocked** |
+| `DROP OWNED BY owl_ledger_ddl` | `owl_ledger_ddl` | blocked | **blocked** |
+| `CREATE RULE ... DO INSTEAD NOTHING` | `owl_ledger_ddl` | blocked | **blocked** |
+| `CREATE TABLE ... INHERITS (...)`, and the `TEMP` variant | `owl_ledger_ddl` | blocked | **blocked** |
+| `CREATE TRIGGER ... ON screening_ledger_anchor` | `owl_ledger_ddl` | blocked | **blocked** |
+| `CREATE UNIQUE INDEX ... ((1))` | superuser | blocked | **blocked** |
+| `CREATE POLICY ... ON screening_ledger_anchor` | superuser | blocked | **blocked** |
+| `ALTER TABLE ... OWNER TO owl_migrator` | superuser | blocked | **blocked** |
+| `DROP TABLE screening_ledger_anchor CASCADE` | superuser | blocked | **blocked** |
+| `CREATE OR REPLACE FUNCTION screening_ledger_reject_mutation()` | `owl_migrator` | blocked | **blocked** |
+| **`ALTER INDEX screening_ledger_anchor_pkey RENAME TO ...`** | superuser | **succeeds** | **BLOCKED** |
+| unrelated `CREATE TABLE` / `DROP TABLE` | `owl_migrator` | ok | **ok** |
+| unrelated `CREATE OR REPLACE FUNCTION` | `owl_migrator` | ok | **ok** |
+| `CREATE VIEW` over a protected table | superuser | ok | **ok** |
+| `CREATE INDEX` / `DROP INDEX` on `screening_ledger_event` | superuser | ok | **ok** |
+| **`REINDEX TABLE CONCURRENTLY screening_ledger_event`** (unprotected) | superuser | ok | **ok** |
+| **`CREATE INDEX CONCURRENTLY` on `screening_ledger_event`** (unprotected) | superuser | ok | **ok** |
+
+Every prior CAP's attack form still blocked, one strictly stronger, every collateral-damage case
+still passing -- including the two `CONCURRENTLY` forms on an unprotected relation, which the
+rejected `ddl_command_start` design would have broken. D37's rule applies verbatim
+(`0007:2643-2645`): a suite that proves only the blocks has not proven D50 is safe to install, and
+the last six rows are why this table has them.
+
+**Copy detection is unregressed, and that was checked rather than assumed.** Index definitions
+*are* dump-portable, so one might expect D50 to weaken I-A's detection. It does not: D40's relation
+loop is keyed by `rel.objid`, whose `NOT EXISTS` branch fires before any index comparison is
+reached. A real `pg_dump | psql` restore of the prototype database still produces D46 message (a):
+
+```
+ERROR: ADR-0007 Addendum 5 D46: protected relation "public.screening_ledger_retention_tombstone"
+       (registry objid 16435) no longer exists; ... is present with objid 18158. This database is a
+       copy or restore of another (registry recorded instance 7678485004407329689/16384 owl_ci; ...
+```
+
+**Steady-state cost is unchanged**, measured because D40 and D46 both stated theirs
+(`0007:3336`, `0007:4058`): 200 DDL statements took 103 ms against the shipped build and 108 ms
+against the prototype -- 0.513 vs 0.540 ms per statement, both dominated by the client round trip.
+
+#### The residual D50 does not close, named rather than left to a sixth CAP
+
+- **`CREATE INDEX CONCURRENTLY` on a protected relation still wedges.** It genuinely adds a
+  definition, and refusing it is correct -- `CREATE UNIQUE INDEX ... ((1))` is one of D40's own
+  attack forms. Non-atomicity means the refusal arrives after the index exists. It is
+  **self-healing** by `DROP INDEX` with no superuser trigger-disable (transcript above), and it is
+  **unreachable to `owl_ledger_ddl`**, which holds `CREATE` on no schema -- a fact D41 part three
+  already asserts (`0007:3437-3448`), so it is a checked precondition rather than a coincidence.
+- **A cancelled `REINDEX ... CONCURRENTLY` also wedges, and this route appears in no CAP.**
+  Executed by cancelling a rebuild mid-flight:
+
+  ```
+  cancelled REINDEX INDEX CONCURRENTLY ix_v  ->  ix_v (valid=t)   ix_v_ccnew (valid=f)   prot_pkey (valid=t)
+  ```
+
+  The cancelled statement errors before `ddl_command_end`, so the wedge does not appear on the
+  cancelling session's statement -- it appears **later**, on an unrelated DDL statement by someone
+  else. Self-healing by `DROP INDEX <...>_ccnew`, and after D51 unreachable to `owl_ledger_ddl` for
+  the same reason the completed form is. R24 records both.
+
+**Two further alternatives rejected, so they are not re-derived.** Recording *both* the OID set and
+the definition set and comparing only the latter keeps a second declaration nothing checks -- H-E's
+exact shape -- and is adopted only as D58's withdrawal fallback, where it is worse and is labelled
+worse. Having D40 *re-record* the live state when it detects index drift would let a genuine attack
+launder itself into the recording, which is the one thing a recorded-state control must never do.
+
+**The coordinated-edit surface does not grow.** `requiredProtectedRelationStates`
+(`internal/screeningledger/postgres.go:495-516`) already declares `indexNames` per relation and
+reconciles the recorded column against the OIDs of those declared names
+(`postgres.go:537-547`); after D50 it reconciles against `pg_get_indexdef` of the same declared
+names. One literal, one query, same count. R23's aggravating property is unchanged and is not made
+worse here.
+
+---
+
+### D51. J-A defence in depth: the capability is removed at its source, and its restoration is asserted
+
+D50 makes the completed rebuild harmless. It does not stop `owl_ledger_ddl` from reaching the two
+residual routes above, and it does not answer the brief's third question -- whether these roles can
+be denied `CONCURRENTLY`-class operations by a privilege PostgreSQL actually offers. **They can, and
+the answer has a limit that must be stated with it.**
+
+**Executed.** PostgreSQL 17 gates `REINDEX` (with `VACUUM`, `ANALYZE`, `CLUSTER`,
+`REFRESH MATERIALIZED VIEW` and `LOCK TABLE`) on the per-table `MAINTAIN` privilege, which an owner
+holds implicitly -- and which, unlike ownership itself, is **revocable**:
+
+```
+REVOKE MAINTAIN ON TABLE screening_ledger_anchor, screening_ledger_retention_tombstone FROM owl_ledger_ddl;
+
+  has_table_privilege('owl_ledger_ddl','screening_ledger_anchor','MAINTAIN')  -> f
+
+  REINDEX INDEX CONCURRENTLY ..._pkey    [owl_ledger_ddl] -> ERROR: permission denied for index ...   (NO wedge)
+  REINDEX TABLE CONCURRENTLY <table>     [owl_ledger_ddl] -> ERROR: permission denied for table ...
+  REINDEX INDEX / REINDEX TABLE (plain)  [owl_ledger_ddl] -> ERROR: permission denied
+  VACUUM FULL / ANALYZE                  [owl_ledger_ddl] -> WARNING: permission denied to vacuum/analyze, skipping
+  CLUSTER                                [owl_ledger_ddl] -> ERROR: permission denied for table
+
+  ALTER TABLE ... ADD COLUMN             [owl_ledger_ddl] -> ERROR: ADR-0007 Addendum 3 D34: ... is protected
+```
+
+The last line is the check that the revoke did not over-reach: `owl_ledger_ddl` keeps every ordinary
+DDL right it had, so `ALTER TABLE` is still refused **by D34** rather than by privilege. Nothing
+D26/D34/D40 relies on changes.
+
+**Decision, two parts.**
+
+1. **`grant-ddl-ownership` revokes `MAINTAIN` on both protected tables from `owl_ledger_ddl`**, in
+   the same superuser-only provisioning step that already transfers their ownership. Nothing in this
+   repository runs `VACUUM`, `ANALYZE`, `CLUSTER`, `REINDEX` or `LOCK TABLE` as `owl_ledger_ddl` --
+   confirmed by grep across `internal/`, `cmd/`, `scripts/` and `.github/` -- and autovacuum is a
+   background worker that is unaffected by table-level grants, so nothing legitimate is lost. Manual
+   maintenance on these two relations becomes a bootstrap-superuser action, which is what R12/R17
+   already say about every other privileged operation on them.
+2. **`requiredProvisioningState` asserts it.**
+   `has_table_privilege('owl_ledger_ddl', <each protected table>, 'MAINTAIN') = false` joins D33's
+   existing negative facts, beside the `anyColumnPrivilege` probes at
+   `internal/screeningledger/postgres.go:248-267`. `MAINTAIN` has no column form, so D39's
+   column-granularity correction does not apply and the table-level probe is the right question
+   here -- stated explicitly so a later reader does not "fix" it into `has_column_privilege` and get
+   an error.
+
+**The limit, stated with the same specificity as the benefit.** Executed:
+
+```
+GRANT MAINTAIN ON TABLE screening_ledger_anchor TO owl_ledger_ddl;   [as owl_ledger_ddl]  -> SUCCEEDS
+```
+
+An owner can re-grant to itself, and `GRANT` reports `objid=NULL`, so D34 never sees it -- the
+residual Addendum 3 recorded (`provision_test_roles.sh:671-673`) and CAP #4 and CAP #5 both
+re-confirmed. **D51 is therefore an accident boundary, not a security boundary.** It closes J-A's
+stated trigger completely -- CAP #5's own framing is "the most routine maintenance command
+PostgreSQL has," and after D51 an operator who types it gets a clean permission error instead of a
+bricked database -- and it makes a deliberate restoration a **named provisioning-state failure** on
+the next `verify` rather than a silent capability. That is D35's principle
+(`0007:2541`: "do not close the hole, remove the thing that opens it") with D39's observability
+attached, and it is exactly as much as it is. R25 states it as a risk rather than letting the
+decision imply more.
+
+**Neither decision may be removed on the strength of the other**, and this addendum says so in both
+places, the arrangement D41 part three set for D40 (`0007:3447-3448`). D50 without D51 leaves
+`owl_ledger_ddl` holding a maintenance capability whose every use is now a harmless no-op nobody has
+explained. D51 without D50 leaves the superuser and the cancelled-rebuild routes wedging, and leaves
+the wedge one self-re-grant away for the owner. D58 makes them one stage.
+
+---
+
+### D52. J-A's residual: the drifted, non-copied database gets a diagnostic and a tested recovery
+
+D46's three named messages are reachable **only** from D40's `NOT EXISTS` branch
+(`provision_test_roles.sh:594-624`). Every other branch -- owner, relkind, RLS flags, rules,
+inheritance, triggers, indexes, policies -- still raises the bare-integer form CAP #5 quotes:
+`protected relation (objid 16914): its index set changed`. And
+`docs/operations/sec7-database-copies.md:1` states its own scope as copies and restores, so an
+operator meeting index drift on the **live** database has neither a message that names the relation
+nor a document that covers the state.
+
+**Decision, two parts.**
+
+1. **Every D40 branch names the relation, not only the OID.** `rel.identity` is already in the row
+   (D46) and already reconciled against an independent literal (D47), so this costs one substitution
+   per `RAISE` and no new read. The messages also say what kind of failure this is -- the recording
+   is stale, the relation is present -- so it is distinguishable at a glance from D46's copy and
+   drop-and-recreate cases. D46's structural safety property is preserved unchanged: `identity` is
+   still read only on an already-failing path, so a wrong or absent value can still only change an
+   error message and never widen what passes (`0007:4052-4061`).
+2. **`docs/operations/sec7-database-copies.md` gains a section for a drifted, non-copied database**
+   -- what "its index set changed" means, that `REINDEX ... CONCURRENTLY` is its most likely cause
+   before D50/D51 land and a superuser action after, and the recovery.
+
+**The recovery is tested, not described**, to the standard D48 set for "Recovering a bricked
+restore" and which the brief requires. Executed verbatim from the document, on a genuinely
+`REINDEX`-wedged database built from the real provisioned schema:
+
+```
+REINDEX INDEX CONCURRENTLY screening_ledger_anchor_pkey  [owl_ledger_ddl]
+   -> ERROR: ADR-0007 Addendum 4 D40: protected relation (objid 16914): its index set changed
+   unrelated CREATE TABLE [superuser] -> ERROR: ... its index set changed        (wedged)
+
+step 1  ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE;   -> ALTER EVENT TRIGGER
+                                                                            (succeeds while wedged)
+step 2  PGDATABASE=<db> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
+        -> PASS: D34 object-scoped ... installed and ENABLE ALWAYS ...      exit 0
+step 3  SELECT evtname, evtenabled FROM pg_event_trigger;
+        -> sec7_protect_ddl_objects_on_drop = A ;  sec7_protect_ddl_objects_on_alter = A
+        CREATE TABLE ... ; DROP TABLE ... [owl_migrator]  -> ok
+```
+
+The document's existing procedure is therefore correct for this state as well as for a restore; what
+is missing is only that nothing tells an operator it applies. Note that the recovery needs the
+bootstrap superuser and the party who caused the outage is not one -- that is the honest cost, and
+after D50 and D51 the state is not reachable by that party at all.
+
+**D47 is credited for what it already does.** CAP #5 §7.6 observes that
+`protectedRelationStateReason` (`internal/screeningledger/postgres.go:525-571`) is the only
+mechanism in the system that renders this state in words --
+`sec7_protected_relation's recorded index_oids for public.screening_ledger_anchor do not match its
+declared primary-key index` -- while D40's runtime message is an integer. That was an unplanned
+benefit of a decision written for a LOW finding and it should be recorded as such. After D50, D47
+correctly reports a rebuilt index as provisioned, because the recorded definition still matches.
+
+---
+
+### D53. J-B (MEDIUM): the copy fixtures stop consuming themselves
+
+**The finding, restated from the code.** `TestVerifyAnchoredRefusesSchemaOnlyClone`
+(`internal/screeningledger/d43_copy_population_pgx_test.go:113`) proves CAP #4 §7.6 variant 2 by
+having `owl_ledger_ddl` execute
+`DROP TRIGGER screening_ledger_anchor_immutable ON screening_ledger_anchor` against
+`owl_ci_sec7_cloned` and asserting it succeeds (`:145-147`). It never restores the trigger, and
+`owl_ci_sec7_cloned` is a **persistent CI fixture** built once per provisioning cycle by
+`provision_test_roles.sh create-restored-database`, not a per-test database. CAP #5 §7.10
+demonstrated the consequence three ways; the one that matters is:
+
+```
+./scripts/ci/run-ci.sh          -> exit 0   "PASS: OpenWatchlist clean-restart CI"
+go test -race -count=1 ./...    -> exit 1   --- FAIL: TestVerifyAnchoredRefusesSchemaOnlyClone
+```
+
+**CLAUDE.md's Definition of done lists both commands**, and after Addendum 5 they cannot both pass
+in one provisioning cycle. It also fails in the alarming direction: the message reads
+`expected the table owner's DROP TRIGGER to succeed`, so a reader is told a control the finding says
+is absent appears to be present, and the plausible wrong conclusion is that a control changed.
+
+**Decision: the test restores what it mutates, and the property is asserted rather than assumed.**
+
+The pattern already exists in the same addendum:
+`TestCheckProvisioningStateDetectsRewrittenRecordedState`
+(`internal/screeningledger/d47_recorded_state_pgx_test.go:22`) is table-driven over seven mutations
+and carries an explicit `restore:` statement for every one (`:86-122`). D53 is that pattern applied
+to the one place Addendum 5 did not apply it.
+
+- The trigger is recreated after the assertion, from the same definition `SchemaSQL` and
+  `db/migrations/017_screening_ledger_anchor_policy_binding.sql` declare, in a `t.Cleanup` so it
+  runs on a failing assertion too -- a test that leaves the fixture broken *because it failed* is
+  the same defect with a worse trigger condition.
+- The test asserts the trigger is back before returning. Restoring without checking is the shape of
+  every finding in this document.
+- **The property, stated so it is testable rather than aspirational:** `run-ci.sh` followed by an
+  independent `go test -race -count=1 ./...` must both pass against one provisioned state, and two
+  successive `go test -count=1` runs of the copy suite must both pass. D58 makes both a requirement.
+
+Rated and fixed rather than waived even though GitHub CI is unaffected (one `run-ci.sh` invocation
+at `.github/workflows/ci.yml:237`, none in `release-qualification.yml`, each preceded by its own
+fixture build). The verification suite is the instrument by which SEC-7's closure will be judged and
+§8's closing condition is stated in terms of a CI run; an instrument that is single-shot per
+provisioning, and that reports its exhaustion as a control regression, is not one to leave in place.
+
+---
+
+### D54. J-C and J-D (LOW, LOW): D46's diagnostic is ordered by evidence, and reads its evidence safely
+
+**One decision, because they are one branch and splitting them would produce two patches to the same
+eight lines.**
+
+**The finding, restated from the code.** D46 resolves the recorded name first and consults the
+instance binding only if that resolution succeeds
+(`scripts/ci/provision_test_roles.sh:605-624`):
+
+```
+SELECT c.oid INTO live_oid FROM pg_class c JOIN pg_namespace n ... WHERE n.nspname||'.'||c.relname = rel.identity;   -- :605-607
+IF live_oid IS NULL THEN RAISE ... 'and no relation of that name is present';                                        -- :609-611
+SELECT b.system_identifier, b.database_oid, b.database_name INTO rec_sysid, rec_dboid, rec_dbname
+  FROM sec7_instance_binding b LIMIT 1;                                                                              -- :614-615
+IF rec_sysid IS DISTINCT FROM live_sysid OR rec_dboid IS DISTINCT FROM live_dboid THEN ... 'is a copy or restore'
+```
+
+Three consequences, all demonstrated by CAP #5 §7.5 and each re-derived from the code here:
+
+- **A copy whose recorded relation is absent by name reports (c)**, whose documented remedy
+  (`docs/operations/sec7-database-copies.md:66-68`, *"Do not re-provision over this; find out what
+  removed it first"*) is the **opposite** of the correct action, and whose text contains nothing
+  telling the operator they are on a copy -- although the binding row is present and mismatched.
+  CAP #5 built the state with `pg_dump --exclude-table`, a supported flag and no adversary.
+- **The loop has no `ORDER BY`** (`:593`), so on a database in which one recorded relation resolves
+  and another does not, which of two contradictory messages the operator sees is decided by heap
+  order.
+- **Zero binding rows are read as positive evidence of a copy.** `SELECT ... INTO` leaves the
+  variables NULL, `NULL IS DISTINCT FROM <value>` is true, and message (a) fires naming
+  `<NULL>/<NULL> <NULL>`. And if the binding **table** is absent while the registries dangle, the
+  unqualified `FROM sec7_instance_binding` raises `relation "sec7_instance_binding" does not exist`
+  from inside the event-trigger function -- R17's accepted risk realised by the very kind of
+  reference D46 rejected `to_regclass` in order to avoid (`0007:4016-4021`).
+
+**Decision, three parts.**
+
+**(a) Order by evidence.** The instance comparison runs **before** the name-resolution branch. A
+database whose binding mismatches is a copy whether or not the recorded relation is present under
+its name, so that fact is established first and the name resolution then refines the message rather
+than pre-empting it. This is the general form of what went wrong: the branch that ran first was the
+one that was cheapest to compute, not the one that carries the evidence.
+
+**(b) Determinism.** `FOR rel IN SELECT * FROM sec7_protected_relation` gains an `ORDER BY` -- on
+`identity`, since it is `NOT NULL` and D47 reconciles it -- so two runs against one database state
+produce one message.
+
+**(c) Absent or unreadable evidence gets a fourth message, and the read cannot raise.** Where
+today's code asserts "copy" from missing evidence, the classification becomes explicit: *the
+instance binding is absent or empty, so whether this database is a copy cannot be determined.*
+Message (a) requires a binding row that is present **and** mismatched. The read is guarded by
+`to_regclass('sec7_instance_binding')`, and the branch is skipped when it is NULL.
+
+**J-D's question answered directly, with the transcript, because the brief asks for the original
+concern to be stated and either resolved or upheld.** D46's stated concern is real and reproduces:
+
+```
+to_regclass('a.b.c.d')                 -> ERROR: improper relation name (too many dotted names): a.b.c.d
+```
+
+But that concern is about the **provenance of the argument**, not about the function. D46 was
+resolving `rel.identity` -- a column, i.e. data, which drift or a superuser can make malformed, and
+avoiding `to_regclass` there was correct and stays correct: **part (c) does not reintroduce it for
+`rel.identity`.** The binding-table guard passes a **literal** written in the function's own source,
+which cannot be malformed. Executed:
+
+```
+to_regclass('sec7_instance_binding')    (absent, well-formed constant)  -> NULL, no raise
+to_regclass('public.prot')              (present)                        -> 17118
+an untaken plpgsql IF branch referencing an absent table                 -> never planned, no exception
+BEGIN ... EXCEPTION WHEN undefined_table                                 -> also catches it cleanly
+```
+
+The third line is what makes the guard sufficient rather than decorative: plpgsql plans a statement
+on first execution of that statement, so a guarded branch that is not taken never attempts to
+resolve the table. The `EXCEPTION WHEN undefined_table` alternative works too and is **rejected**
+for a specific reason rather than on taste: it opens a subtransaction on a path that runs on every
+DDL statement in the database, which is R17's accepted risk paid on the passing path as well as the
+failing one. **The concern D46 recorded is upheld for data and resolved for constants**, and stating
+the distinction is what stops the next reader concluding either that `to_regclass` is banned here or
+that it was safe all along.
+
+---
+
+### D55. J-E (LOW): one referent, one spelling
+
+`sec7_protected_relation.identity` is written from
+`(pg_identify_object('pg_class'::regclass, c.oid, 0)).identity`
+(`scripts/ci/provision_test_roles.sh:493`), which **quotes** an identifier when SQL requires it.
+D46's resolver compares against `n.nspname || '.' || c.relname` (`:607`), which **never** quotes.
+Executed:
+
+```
+oid    pg_identify_object     D46 join key         agree
+23065  "a.b".c                a.b.c                f
+23072  a."b.c"                a.b.c                f
+23068  public."Weird Name"    public.Weird Name    f
+
+SELECT count(*) ... WHERE nspname||'.'||relname = 'a.b.c'   ->  2       (and SELECT ... INTO takes one, silently)
+```
+
+Two consequences: for any protected relation whose schema or table name requires quoting `live_oid`
+is always NULL, so **every** D46 case degrades to message (c) -- J-C by another route -- and the
+join key is ambiguous, so `SELECT ... INTO live_oid` can bind the wrong relation without raising.
+
+**Decision: the resolver asks the question in `pg_identify_object`'s own spelling.** The comparison
+becomes `(pg_identify_object('pg_class'::regclass, c.oid, 0)).identity = rel.identity` over
+`pg_class`, so the value being matched and the value that was recorded are produced by one function
+and cannot disagree by construction. Composing the key with `quote_ident` on both halves would also
+work and is **not** chosen: it re-implements a rendering the server already exposes, which is the
+"two spellings of one referent" shape one layer down.
+
+**Reachability in the shipped configuration: none.** Both protected relations are unquoted lowercase
+in `public` and the two spellings agree today. It is fixed anyway on the H-E standard: a claim the
+code makes about its referent that is true of today's population and not of the referent as written
+is the thing this document has spent five addenda learning to stop shipping.
+
+**D47 is not affected and must not be "fixed" alongside it** -- `protectedRelationStateReason`
+compares `pg_identify_object`'s spelling on both sides already
+(`internal/screeningledger/postgres.go:525-571`), so it is internally consistent. It is D46's
+resolver alone that diverges from the value D46 itself recorded.
+
+**One observation recorded as a deliberate non-change.** The resolver is unfiltered by `relkind`, so
+a view or sequence occupying the recorded name satisfies "is present" and yields message (a) or (b).
+For a diagnostic that reports **presence** rather than identity that is correct, and adding a
+`relkind` filter would make an already-failing path fail with less information. Recorded so it is
+read as a decision.
+
+---
+
+### D56. J-F (LOW): the stale counts, the circular recovery line, and the operator document's missing preconditions
+
+Documentation and message text only; every procedure works today when followed with ordinary
+operator judgement, which is why this is LOW and why it is nonetheless not dropped.
+
+1. **Four stale "twelve"s, one more than CAP #5 names.** `internal/screeningledger/postgres.go:341`
+   ("grant-ddl-ownership's twelve-row `sec7_protected_object` population") and `:367` ("exactly
+   `requiredProtectedObjects`'s twelve (classid, identity) pairs"), and
+   `scripts/ci/provision_test_roles.sh:740` ("12 in `sec7_protected_object` at this commit") --
+   all three correct in code, since the Go check uses `len(requiredProtectedObjects)`
+   (`postgres.go:384-385`) and the script's own restore assertion is symbolic. And
+   **`docs/operations/sec7-database-copies.md:70`**, which quotes the message
+   `sec7_protected_object has 0 row(s), expected exactly 12` -- the only one of the four an operator
+   reads, and the one that will not match what their database prints. All four become thirteen. The
+   `:740` comment's own parenthetical explains it was written symbolically *"precisely because D45
+   already changed this number once"* and then states the old number; the fix is to drop the number,
+   not to update it.
+2. **D46's `Recovery:` line is circular on the state it most often appears in.** It names
+   `scripts/ci/provision_test_roles.sh grant-ddl-ownership`, which on a bricked database fails with
+   the same message (CAP #5 §7.11 point 4 reproduced it) unless
+   `ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE` runs first. The prerequisite goes
+   into the message. The pointer to the document stays -- an operator who follows it succeeds
+   today -- but a message that names a command should name the command that works.
+3. **The operator document's snippets gain connection parameters.** `psql -c "ALTER EVENT TRIGGER
+   ... DISABLE;"` (`:79`) and `psql -c "SELECT evtname, evtenabled ..."` (`:86`) fail on literal
+   copy-paste for an operator whose shell carries no `PG*` environment, while the same document's
+   "Before you clone" section sets `PGDATABASE=` on its script line (`:39`) -- so the two halves
+   disagree about how much environment the reader is assumed to have. And step 2's
+   `PGDATABASE=<the restored db> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership` (`:83`)
+   reads four more variables the document never names -- `PGHOST`, `PGPORT`, `PGSUPERUSER`,
+   `PGSUPERPASSWORD`, defaulting to `localhost`, `5432`, `owl_ci`, `owl_ci`
+   (`scripts/ci/provision_test_roles.sh:33-37`). A DR restore on any other host or port silently
+   targets the wrong server, or the operator's own.
+4. **The cross-cluster precondition is stated.** Both procedures require the four `owl_*` roles to
+   already exist in the target cluster: `grant-ddl-ownership` performs
+   `ALTER TABLE ... OWNER TO owl_ledger_ddl` and D47 casts `$2::regrole`. A restore into a
+   **different** cluster -- the ordinary DR shape, and the shape the document's own title invites --
+   has no roles until `create-roles` has been run there. The document mentions neither the
+   requirement nor the subcommand.
+5. **A missing guard trigger reports a raw constraint violation.** On a clone whose
+   `screening_ledger_anchor_immutable` has been dropped -- which is exactly the state that document
+   section is written for, and exactly what J-B leaves behind -- `grant-ddl-ownership`'s registry
+   `INSERT` fails with
+   `null value in column "objid" of relation "sec7_protected_object" violates not-null constraint`.
+   Fail-closed and correct, and it names neither the missing trigger nor the remedy. A named
+   precondition check before the `INSERT` replaces it.
+
+---
+
+### D57. The unpinned PGDG apt key and repository
+
+`.github/workflows/ci.yml:223-227` and `.github/workflows/release-qualification.yml:185-189` add,
+identically, an unpinned signing key and an unscoped repository:
+
+```sh
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=...] https://apt.postgresql.org/pub/repos/apt $(...)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+sudo apt-get update
+sudo apt-get install -y postgresql-client-17
+```
+
+CAP #5 §7.7 named this and accepted it as low risk with its containment stated, and this addendum
+does not reopen that rating: the step runs only on the CI runner, installs only a client binary, and
+its artifacts are two throwaway databases no release artifact derives from -- `scripts/deployment/`
+and the release-qualification determinism checks do not consume it. It is nonetheless a **named
+deviation from this repository's otherwise-consistent pinning discipline**, in workflows where every
+other dependency is pinned by digest (`actions/checkout@3d3c42e...`, `actions/setup-go@b7ad1da...`,
+`rustup toolchain install 1.97.1`), and the brief asked for it to be fixed if cheap.
+
+**Decision: scope the repository, and pin the key by fingerprint -- with the fingerprint captured at
+implementation time, not asserted here.**
+
+- **An APT preferences pin restricting the PGDG origin to `postgresql-client-*`.** This closes
+  CAP #5 §7.7 property 2 -- that `apt-get update` makes PGDG a candidate source for **every** package
+  on the runner, not only the one the step wants -- and it is the half of this that is unambiguously
+  cheap and needs no external fact.
+- **A fingerprint assertion on the fetched key**, checked with `gpg --show-keys` immediately after
+  the `curl` and before the repository is added, so a substituted key fails the step rather than
+  becoming its trust root. `--fail` guards against a 404 body being written as a key and does
+  nothing about content.
+- **`postgresql-client-17` stays unpinned by minor version.** CAP #5 §7.7 property 3 notes this makes
+  the fixture tool non-reproducible; it is also what keeps the client matched to the floating
+  `postgres:17` service container the step exists to match. Recorded as a decision, not an omission.
+
+**The fingerprint constant is not written in this document, and that is deliberate.** This arc does
+not assert values it has not executed, and the fingerprint cannot be established from the tree -- it
+requires fetching the key. The implementation PR captures it from the fetched key, records the
+capture in its description, and a reviewer cross-checks its last eight hex digits against the
+`ACCC4CF8` the key URL's own filename already carries. **If that capture cannot be made
+reproducibly at implementation time, D57's second bullet is dropped and the APT scope pin ships
+alone**, with the residual re-stated in the PR rather than quietly widened. This condition is
+pre-declared here for the same reason D26's was: so the disposition is not decided after the fact by
+whichever result arrived.
+
+---
+
+### D58. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26 (`0007:1874-1885`), D37
+(`0007:2623-2662`), D42 (`0007:3455-3523`) and D49 (`0007:4237-4307`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #5 transcript
+exists, the test reproduces that transcript, not a paraphrase. Several assertions are stated as
+"must pass today and fail after" -- deliberately, per D42's note (`0007:3461-3465`): for these
+findings the current behaviour is *acceptance*, so a test asserting only the post-fix refusal cannot
+distinguish a working fix from a test that never exercised the path.
+
+1. **D50.** `TestD50IndexReferentSurvivesConcurrentRebuild` (pgx): all five `REINDEX ...
+   CONCURRENTLY` forms -- `INDEX`, `TABLE` on both protected relations, `SCHEMA`, `DATABASE` --
+   each asserting that the database is **wedged today** (an unrelated `CREATE TABLE` fails after the
+   statement) and healthy after, with the SQLSTATE captured rather than inferred. **Plus every
+   D26/D34/D40 form unchanged**, including all four CAP #2 escapes, all three inheritance forms with
+   the `TEMP` variant, `CREATE RULE`, `CREATE TRIGGER`, `CREATE UNIQUE INDEX ... ((1))` and
+   `CREATE POLICY`. **Plus `ALTER INDEX ... RENAME` asserted as succeeding today and blocked
+   after** -- the one row that proves D50 is a tightening and not only a relaxation. **Plus the
+   collateral-damage set**, which for this decision must include `REINDEX TABLE CONCURRENTLY` and
+   `CREATE INDEX CONCURRENTLY` on an **unprotected** relation, `CREATE VIEW` over a protected one,
+   and unrelated `CREATE TABLE`/`DROP TABLE`/`CREATE OR REPLACE FUNCTION`. D37's rule verbatim: a
+   suite that proves only the blocks has not proven D50 is safe to install.
+2. **D50's residual.** `TestCreateIndexConcurrentlyWedgeIsSelfHealing` (pgx): assert the wedge after
+   a superuser `CREATE INDEX CONCURRENTLY` on a protected relation, then assert `DROP INDEX` clears
+   it **with no event-trigger disable and no re-provisioning**. This is the property that keeps R24
+   an accepted residual rather than a second J-A.
+3. **D51.** `TestProvisioningStateDetectsMaintainRegrant` (pgx): assert `CheckProvisioningState`
+   returns `Provisioned=true` **today** with `MAINTAIN` held; assert the revoke makes
+   `REINDEX ... CONCURRENTLY` as `owl_ledger_ddl` fail with `42501` and leave the database healthy;
+   assert a self-re-grant by `owl_ledger_ddl` succeeds and produces a **specifically named**
+   provisioning failure. All three halves are required -- a test that proves only the revoke has
+   proven D51 is a prevention, which R25 says it is not.
+4. **D52.** The recovery is a committed test, not only a document:
+   `TestD52WedgedDatabaseRecoversByDocumentedProcedure` (pgx) executes the three steps above against
+   a database it wedges itself and asserts DDL works afterwards and both event triggers are back to
+   `evtenabled='A'`.
+   **CAP #5 §11 point 1(c) asks whether the wedged state should become a permanent CI fixture, as
+   `owl_ci_sec7_restored` now is. Decided here rather than defaulted: no.** A database in which
+   every DDL statement fails is a poor shared fixture -- every later test that touches it inherits
+   the failure, and its diagnosis is the failure under test -- and J-B is the standing demonstration
+   of what a shared fixture with destructive state costs. The wedge is built and torn down inside
+   tests 1, 2 and 4, each of which needs a pristine starting state anyway and each of which builds
+   it from a `TEMPLATE` clone. Recorded as a decision so a later reader does not add the fixture on
+   the reasoning that Addendum 5 added one.
+5. **D53.** Two successive `go test -count=1` runs of the copy suite both pass, and -- the finding
+   itself -- `scripts/ci/run-ci.sh` followed by an independent `go test -race -count=1 ./...` both
+   pass against one provisioning cycle. The restoring cleanup asserts the trigger is back.
+6. **D54.** All **four** messages, each on its own fixture: a real `pg_dump | psql` restore; a
+   drop-and-recreate in place with the binding matching; a relation genuinely absent with the
+   binding matching; and CAP #5 §7.5's `pg_dump --exclude-table` copy-with-missing-relation, which
+   must report **the copy**, not (c). Plus the zero-binding-rows and binding-table-absent states,
+   each asserting the fourth message and, for the second, that **no bare catalog error escapes**.
+   Plus the ordering determinism assertion, and D46's existing negative retained unchanged: a
+   corrupted `identity` on a healthy database leaves every DDL statement succeeding.
+7. **D55.** Table-driven over the three spellings measured above (`"a.b".c`, `a."b.c"`,
+   `public."Weird Name"`), asserting the resolver and the recorded value agree after, and asserting
+   the ambiguous-key `count(*) = 2` case resolves or refuses deterministically rather than binding
+   arbitrarily.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **If D50's collateral-damage cases fail against the real schema** in a way the lab did not
+  reproduce -- most plausibly around SEC-1's RLS migrations or
+  `db/rollback/014_tenant_isolation_down.sql`, the same places D37 and D42 named -- D50 falls back
+  to recording **both** `index_oids` and `index_defs` and comparing only the definitions, keeping
+  the OID array as a reported diagnostic. **That fallback is strictly worse and must be recorded as
+  such, not presented as equivalent**: it leaves a second recorded column that nothing compares,
+  which is H-E's exact shape and the reason D47 had to be written at all.
+- **D50 and D51 ship together or not at all.** The reasoning is in D51's closing paragraph and it
+  cuts both ways; splitting them leaves either an unexplained no-op capability or a wedge one
+  self-re-grant away.
+- **If D51's revoke is found to break any legitimate operation** this addendum did not enumerate --
+  the grep for maintenance commands run as `owl_ledger_ddl` returned nothing across `internal/`,
+  `cmd/`, `scripts/` and `.github/`, but a grep is not a proof about an operator's habits -- D51 is
+  withdrawn and R24/R25 carry J-A's residual with D50 alone. That outcome is pre-declared here, not
+  decided afterwards.
+- **D54's four messages ship together.** Adding the fourth message without reordering the branches
+  leaves the unclassifiable case reported as (c), which is J-C; reordering without the fourth
+  message leaves zero binding rows asserting "copy", which is J-D.
+
+**Addendum 5's and Addendum 4's pre-declared withdrawal conditions remain correctly un-triggered**,
+re-verified against what *this* addendum designs rather than inherited from CAP #5's confirmation.
+The instance binding is not made a gate -- D50, D51 and D52 never read it, and D54 part (c) reads it
+strictly less confidently than before, never more. D47's clean-state positive is unaffected by D50:
+the column it reconciles changes spelling, not existence, and its declared literal
+(`internal/screeningledger/postgres.go:495-516`) moves with it in the same PR, which is D49's second
+condition satisfied rather than triggered. D46 is not split from D45. D40's collateral-damage cases
+pass, so Addendum 4's `pg_depend` fallback is **not** required and **must not** be adopted. D38(a)
+and D38(b) remain shipped together.
+
+---
+
+### New accepted risks
+
+**R24 -- two non-atomic index routes remain, and both are self-healing rather than prevented.** After
+D50, `CREATE INDEX CONCURRENTLY` on a protected relation still wedges (it genuinely adds a
+definition, and refusing it is correct), and a **cancelled** `REINDEX ... CONCURRENTLY` still wedges
+by leaving an invalid `<index>_ccnew` behind -- a route no CAP found, and one whose wedge surfaces on
+a later, unrelated DDL statement rather than on the cancelling session's own. Both are cleared by
+`DROP INDEX`, executed, with no event-trigger disable and no re-provisioning; both are unreachable to
+`owl_ledger_ddl`, which holds `CREATE` on no schema (asserted by D41 part three) and, after D51, no
+`MAINTAIN` on either table. The residual is therefore superuser-only and terminates where R12/R17 put
+every other one. Recorded rather than designed away because "self-healing" is a property of the
+current index sets: a protected relation that ever carries a non-constraint index makes
+`DROP INDEX CONCURRENTLY` reachable, and D49's fourth invalidating condition already requires the
+literals to move if that happens.
+
+**R25 -- `REVOKE MAINTAIN` is an accident boundary, not a security boundary.** The owner can
+`GRANT MAINTAIN` back to itself (executed), `GRANT` reports `objid=NULL` so D34 never sees it, and
+only the next `CheckProvisioningState` reports the restored capability. D51 therefore prevents the
+routine mistake completely and converts the deliberate act from a silent capability into a named
+verification failure -- **it does not prevent the deliberate act**, and a later reader must not cite
+D51 as prevention or remove D50 on its strength. This is the same shape as R13's restatement of
+`--allow-genesis` ("the operator asserts genesis," never "genesis was verified") and is stated for
+the same reason.
+
+**R26 -- the recorded index definition is a PostgreSQL-version-dependent rendering.**
+`pg_get_indexdef` produces text, and a major-version upgrade can re-render an unchanged index --
+adding or normalising a clause -- so a recording made under one major may not compare equal under
+the next even though nothing about the index changed. The failure direction is fail-closed and the
+remedy is the one already documented (`grant-ddl-ownership` re-records), and it joins CAP #5 §10
+point 1's standing condition that a different PostgreSQL major invalidates every DDL result in this
+document. **This was not executed in this pass and is stated as unverified rather than asserted** --
+the standard Addendum 3 set (`0007:2129-2139`) and R22 followed. It is worth weighing against what
+it replaces: an OID recording is invalidated by an ordinary maintenance command on *every* version,
+which is J-A.
+
+### Staging
+
+Same shape and reason as §8 and the five prior addenda (`0007:1397-1414`, `0007:2038-2058`,
+`0007:2694-2716`, `0007:3566-3586`, `0007:4342-4367`): each stage independently reviewable and
+independently provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage H1 -- the wedge.** D50 and D51 together (D58's second withdrawal condition), plus D52's
+   per-branch diagnostic, its operator-document section and its recovery test. The HIGH, and the
+   only stage that changes a security mechanism. D50's collateral-damage cases are a shipping
+   requirement and its withdrawal condition is discharged or invoked here.
+3. **Stage H2 -- the test instrument.** D53. Sequenced second and not last, which is a departure
+   from where a MEDIUM would ordinarily fall: H1's own proof has to be runnable twice against one
+   provisioning cycle, and today it is not.
+4. **Stage H3 -- the diagnostics.** D54 and D55, sequenced after H1 because D52 has just changed the
+   `RAISE` sites D54 reorders, and splitting them would produce two conflicting versions of the same
+   eight lines.
+5. **Stage H4 -- the document and the pin.** D56 and D57. Blocks nothing, and is therefore
+   sequenced last and explicitly **not** droppable -- D23 was sequenced last on the same
+   "blocks nothing" reasoning and CAP #2 rated the resulting gap HIGH, a lesson Addendum 5's staging
+   already recorded (`0007:4348-4354`) and this addendum does not un-learn.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #5 §9 re-confirmed that nothing in PR #152 re-asserted the guarantee; that must remain true
+   through this addendum as well.
+
+**SEC-7 does not close on this addendum, and for the second consecutive time the reason is not a
+forgery.** §8's closing condition -- "a deliberately forged chain fails a CI run that nobody chose
+to invoke" -- is met in the CI sense by `d20_exploit_test.go` and, since D23, in the operational
+sense too, and CAP #5 found no bypass of any limb of the invariant. What remains open is limb (c)
+being rendered **unsatisfiable** rather than false: a non-superuser reaching, in one ordinary
+maintenance statement, a state in which the control denies the database to everyone including the
+party who would repair it. That is a smaller and different barrier than the five that preceded it,
+and D50 through D52 are the whole of it. The closing sentence stands and now has a sixth addendum
+behind it.
+
+### Addendum 6 summary
+
+- **CAP #5's verdict is QUALIFIED, not PASS, for the fifth consecutive audit -- and for the second
+  consecutive audit with no forgery bypass.** Six findings remain, one HIGH, and five of the six
+  require no adversary at all. D31's scoping principle, Addendum 4's referent principle and
+  Addendum 5's population principle all held; this addendum reopens none of them.
+- **J-A is a different axis, not a sixth turn of the class screw.** CAP #5 states it as atomicity;
+  this addendum sharpens it to the referent a *legitimate* operation rewrites, and notes that the
+  two are not independent -- PostgreSQL performs exactly those rewrites non-atomically, because they
+  are the maintenance operations that must not hold long locks. Fixing the referent therefore fixes
+  most of the atomicity problem as a consequence.
+- **The design is D50-D58.** The index referent becomes the index definition set, with the
+  interception point investigated, found to exist, and rejected for being object-blind (D50); the
+  `MAINTAIN` capability removed at its source and its restoration asserted, with the self-re-grant
+  stated as the limit (D51); the drifted non-copied database given a naming diagnostic and a tested
+  recovery (D52); the copy fixtures made non-destructive so the Definition of done's two commands can
+  both pass (D53); D46's diagnostic ordered by evidence, made deterministic, and given a fourth
+  message for evidence it does not have (D54); one referent, one spelling (D55); four stale counts, a
+  circular recovery line and the document's missing preconditions (D56); the PGDG scope pin with its
+  fingerprint capture pre-declared as a condition (D57); and the proof obligations with pre-declared
+  withdrawal conditions (D58).
+- **This design pass executed its mechanism assumptions, and one of them refuted the fix this
+  section was expected to reach.** `ddl_command_start` **does** fire for every `CONCURRENTLY` form
+  and an exception there **does** prevent the catalog change -- and it exposes `tg_tag` and nothing
+  else, so prevention there is an action enumeration over the whole database, which is what D31
+  exists to forbid. Also confirmed by execution: `REINDEX ... CONCURRENTLY` preserves the index's
+  name, definition, flags, key and constraint OID and rewrites only its OID; `REINDEX SCHEMA` and
+  `REINDEX DATABASE CONCURRENTLY` reach the same wedge and appear in no prior record;
+  `CREATE INDEX CONCURRENTLY`'s wedge is self-healing by `DROP INDEX` while `REINDEX`'s is not; a
+  cancelled rebuild leaves an invalid `_ccnew` index and wedges a later unrelated statement;
+  PostgreSQL 17's `MAINTAIN` is revocable from a table's owner and re-grantable by that owner;
+  `to_regclass` raises only on a malformed name and an untaken plpgsql branch is never planned; and
+  the definition-keyed comparison costs 0.540 ms per DDL statement against the shipped 0.513 ms.
+- **Three risks are recorded** rather than designed away: two self-healing non-atomic routes remain
+  and are superuser-only (R24); `REVOKE MAINTAIN` is an accident boundary and not a security one
+  (R25); and the recorded definition is a version-dependent rendering, stated as unverified across
+  majors rather than asserted (R26).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42 and
+  D43-D49 stand. R1-R23 stand. D40's index comparison changes its recorded column; its principle,
+  its `objid` phase, its other six properties and every collateral-damage guarantee are untouched,
+  and D50 is that principle applied to the one column written before it.
+
+**Audit basis commit:** `71fbb428bf8ef267f9607afc8dee9dd0bc5bc7f4`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #5
+was produced against, so no drift separates the audit from this design. For a CAP record covering
+the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
+value.
