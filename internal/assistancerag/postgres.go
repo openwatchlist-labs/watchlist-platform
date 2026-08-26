@@ -289,5 +289,35 @@ DROP TRIGGER IF EXISTS case_assistance_idempotency_immutable ON case_assistance_
 CREATE TRIGGER case_assistance_idempotency_immutable BEFORE UPDATE OR DELETE ON case_assistance_idempotency FOR EACH ROW EXECUTE FUNCTION case_assistance_reject_immutable_mutation();
 DROP TRIGGER IF EXISTS case_assistance_audit_immutable ON case_assistance_audit;
 CREATE TRIGGER case_assistance_audit_immutable BEFORE UPDATE OR DELETE ON case_assistance_audit FOR EACH ROW EXECUTE FUNCTION case_assistance_reject_immutable_mutation();
+-- SEC-2 followup: SchemaSQL independently bootstraps these five tables
+-- with no dependency on db/migrations/ ever having run (same
+-- REL-9-adjacent shape ADR-0007 D3/D15 found in screeningledger's own
+-- SchemaSQL), and until this fix carried zero BEFORE TRUNCATE guards --
+-- row-level triggers never fire on TRUNCATE, so a database provisioned
+-- through Migrate() alone left every one of these five relations
+-- silently truncatable despite looking protected. This brings SchemaSQL
+-- to parity with db/migrations/012_truncate_guards.sql, which already
+-- guards these same five relations.
+--
+-- owl_reject_truncate() is shared across every package's SchemaSQL and
+-- becomes a protected object once scripts/ci/provision_test_roles.sh's
+-- grant-ddl-ownership runs (ADR-0007 Addendum 3 D34/G-D), so it is
+-- created here guarded on to_regprocedure(...) IS NULL, exactly as
+-- screeningledger/postgres.go's own SchemaSQL creates it -- an
+-- unconditional CREATE OR REPLACE FUNCTION would fail outright once
+-- ownership has moved on, and skipping re-creation once it already
+-- exists is safe precisely because its protections are already in
+-- place by then.
+DO $$
+BEGIN
+  IF to_regprocedure('owl_reject_truncate()') IS NULL THEN
+    EXECUTE $exec$CREATE FUNCTION owl_reject_truncate()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END $func$ $exec$;
+  END IF;
+END $$;
+DROP TRIGGER IF EXISTS rag_corpus_snapshot_no_truncate ON rag_corpus_snapshot;CREATE TRIGGER rag_corpus_snapshot_no_truncate BEFORE TRUNCATE ON rag_corpus_snapshot FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS case_assistance_record_no_truncate ON case_assistance_record;CREATE TRIGGER case_assistance_record_no_truncate BEFORE TRUNCATE ON case_assistance_record FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS case_assistance_review_no_truncate ON case_assistance_review;CREATE TRIGGER case_assistance_review_no_truncate BEFORE TRUNCATE ON case_assistance_review FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS case_assistance_idempotency_no_truncate ON case_assistance_idempotency;CREATE TRIGGER case_assistance_idempotency_no_truncate BEFORE TRUNCATE ON case_assistance_idempotency FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS case_assistance_audit_no_truncate ON case_assistance_audit;CREATE TRIGGER case_assistance_audit_no_truncate BEFORE TRUNCATE ON case_assistance_audit FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 COMMIT;
 `
