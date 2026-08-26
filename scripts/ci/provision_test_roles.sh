@@ -23,7 +23,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database|create-unprovisioned-database}" >&2
+  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database|create-unprovisioned-database|create-schemasql-only-database}" >&2
   exit 1
 }
 [[ $# -eq 1 ]] || usage
@@ -654,6 +654,30 @@ create-unprovisioned-database)
   psql_super -c "DROP DATABASE IF EXISTS owl_ci_sec7_unprovisioned;"
   psql_super -c "CREATE DATABASE owl_ci_sec7_unprovisioned OWNER owl_migrator;"
   echo "PASS: owl_ci_sec7_unprovisioned created, owned by owl_migrator (ADR-0007 Addendum 3 D33/G-A unprovisioned-schema fixture)"
+  ;;
+create-schemasql-only-database)
+  # SEC-2 followup (Sprint 0 register reconciliation): the gate blind spot
+  # this fixture closes is that scripts/ci/check_sql_invariants.sh's
+  # generic TRUNCATE-guard invariant only ever ran against owl_ci, a
+  # database db/migrations/ (including 012_truncate_guards.sql) has
+  # always applied to in full before this database's rows are ever
+  # queried -- so it could never have caught a package's own SchemaSQL
+  # const (Migrate(), called with zero dependency on db/migrations/ ever
+  # having run -- the same REL-9-adjacent shape ADR-0007 D3/D15 already
+  # found once in screeningledger's own SchemaSQL) independently lagging
+  # behind 012's table list, which is exactly what happened to
+  # internal/alertcase and internal/assistancerag.
+  #
+  # A fourth disposable database, owned by owl_migrator from creation and
+  # with NO migration ever applied to it -- unlike
+  # create-stale-anchor-database (some migrations applied) and
+  # create-unprovisioned-database (every migration applied) above, this
+  # one has none -- is what lets internal/schemasqlgate's suite call each
+  # package's Migrate()/SchemaSQL directly and observe the database that
+  # bootstrap path alone actually produces.
+  psql_super -c "DROP DATABASE IF EXISTS owl_ci_schemasql_only;"
+  psql_super -c "CREATE DATABASE owl_ci_schemasql_only OWNER owl_migrator;"
+  echo "PASS: owl_ci_schemasql_only created, owned by owl_migrator, no migrations applied (SEC-2 followup SchemaSQL-only-bootstrap fixture)"
   ;;
 *)
   usage

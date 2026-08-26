@@ -45,9 +45,21 @@
 #                                     a fourth database provisioned by
 #                                     provision_test_roles.sh
 #                                     create-unprovisioned-database
+#   OWL_SCHEMASQL_ONLY_DATABASE_URL - SEC-2 followup (Sprint 0 register
+#                                     reconciliation): a SchemaSQL-only
+#                                     bootstrap (Migrate(), zero
+#                                     db/migrations/ applied) checked for
+#                                     the same TRUNCATE-guard completeness
+#                                     test/sql/security_invariants.sql
+#                                     already asserts against
+#                                     OWL_TEST_DATABASE_URL
+#                                     (internal/schemasqlgate/truncate_pgx_test.go),
+#                                     a fifth database provisioned by
+#                                     provision_test_roles.sh
+#                                     create-schemasql-only-database
 #
 # This is the complete set: every `os.Getenv("OWL_*_DATABASE_URL")` in the
-# tree gates through one of these seven, confirmed by grepping the tree
+# tree gates through one of these eight, confirmed by grepping the tree
 # rather than assumed from ADR-0007 D18's text, which names only the two
 # anchor-related ones.
 #
@@ -71,6 +83,7 @@ DB_GATES=(
   OWL_MIGRATOR_STALE_DATABASE_URL
   OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL
   OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL
+  OWL_SCHEMASQL_ONLY_DATABASE_URL
 )
 
 missing=()

@@ -362,5 +362,37 @@ DROP TRIGGER IF EXISTS alert_case_idempotency_immutable ON alert_case_idempotenc
 CREATE TRIGGER alert_case_idempotency_immutable BEFORE UPDATE OR DELETE ON alert_case_idempotency FOR EACH ROW EXECUTE FUNCTION alert_case_reject_immutable_mutation();
 DROP TRIGGER IF EXISTS alert_case_audit_immutable ON alert_case_audit;
 CREATE TRIGGER alert_case_audit_immutable BEFORE UPDATE OR DELETE ON alert_case_audit FOR EACH ROW EXECUTE FUNCTION alert_case_reject_immutable_mutation();
+-- SEC-2 followup: SchemaSQL independently bootstraps these five tables
+-- with no dependency on db/migrations/ ever having run (same
+-- REL-9-adjacent shape ADR-0007 D3/D15 found in screeningledger's own
+-- SchemaSQL), and until this fix carried zero BEFORE TRUNCATE guards --
+-- row-level triggers never fire on TRUNCATE, so a database provisioned
+-- through Migrate() alone left every one of these five relations
+-- silently truncatable despite looking protected. This brings SchemaSQL
+-- to parity with db/migrations/012_truncate_guards.sql, which already
+-- guards these same five relations (alert_case itself is correctly
+-- excluded from both lists: it is a mutable projection table, not
+-- append-only).
+--
+-- owl_reject_truncate() is shared across every package's SchemaSQL and
+-- becomes a protected object once scripts/ci/provision_test_roles.sh's
+-- grant-ddl-ownership runs (ADR-0007 Addendum 3 D34/G-D), so it is
+-- created here guarded on to_regprocedure(...) IS NULL, exactly as
+-- screeningledger/postgres.go's own SchemaSQL creates it -- an
+-- unconditional CREATE OR REPLACE FUNCTION would fail outright once
+-- ownership has moved on, and skipping re-creation once it already
+-- exists is safe precisely because its protections are already in
+-- place by then.
+DO $$
+BEGIN
+  IF to_regprocedure('owl_reject_truncate()') IS NULL THEN
+    EXECUTE $exec$CREATE FUNCTION owl_reject_truncate()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END $func$ $exec$;
+  END IF;
+END $$;
+DROP TRIGGER IF EXISTS alert_record_no_truncate ON alert_record;CREATE TRIGGER alert_record_no_truncate BEFORE TRUNCATE ON alert_record FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS alert_case_event_no_truncate ON alert_case_event;CREATE TRIGGER alert_case_event_no_truncate BEFORE TRUNCATE ON alert_case_event FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS alert_case_membership_no_truncate ON alert_case_membership;CREATE TRIGGER alert_case_membership_no_truncate BEFORE TRUNCATE ON alert_case_membership FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS alert_case_idempotency_no_truncate ON alert_case_idempotency;CREATE TRIGGER alert_case_idempotency_no_truncate BEFORE TRUNCATE ON alert_case_idempotency FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+DROP TRIGGER IF EXISTS alert_case_audit_no_truncate ON alert_case_audit;CREATE TRIGGER alert_case_audit_no_truncate BEFORE TRUNCATE ON alert_case_audit FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 COMMIT;
 `

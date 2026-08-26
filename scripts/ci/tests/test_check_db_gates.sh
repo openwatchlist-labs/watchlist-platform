@@ -16,6 +16,7 @@ ALL_GATES=(
   OWL_MIGRATOR_STALE_DATABASE_URL
   OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL
   OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL
+  OWL_SCHEMASQL_ONLY_DATABASE_URL
 )
 
 fail() {
@@ -34,11 +35,12 @@ run_gate() {
       -u OWL_MIGRATOR_STALE_DATABASE_URL \
       -u OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL \
       -u OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL \
+      -u OWL_SCHEMASQL_ONLY_DATABASE_URL \
       -u OWL_ALLOW_UNPROVEN_DB_GATES \
       "$@" "$GATE_SCRIPT"
 }
 
-# --- Case 1: all seven gates unset, no opt-out -> fails closed -------------
+# --- Case 1: all eight gates unset, no opt-out -> fails closed -------------
 set +e
 out="$(run_gate 2>&1)"
 code=$?
@@ -47,9 +49,9 @@ set -e
 for gate in "${ALL_GATES[@]}"; do
   [[ "$out" == *"FAIL: $gate is not set"* ]] || fail "case 1: expected a FAIL line naming $gate. Output:\n$out"
 done
-echo "PASS: case 1 (all gates missing, no opt-out -> exit non-zero, all seven named)"
+echo "PASS: case 1 (all gates missing, no opt-out -> exit non-zero, all eight named)"
 
-# --- Case 2: all seven gates unset, with opt-out -> fail-open, exit 0 ------
+# --- Case 2: all eight gates unset, with opt-out -> fail-open, exit 0 ------
 set +e
 out="$(run_gate OWL_ALLOW_UNPROVEN_DB_GATES=1 2>&1)"
 code=$?
@@ -60,9 +62,9 @@ set -e
 for gate in "${ALL_GATES[@]}"; do
   [[ "$out" == *"SKIP (fail-open, unproven): $gate not set"* ]] || fail "case 2: expected a fail-open SKIP line naming $gate. Output:\n$out"
 done
-echo "PASS: case 2 (all gates missing, opt-out set -> exit 0, fail-open banner, all seven named)"
+echo "PASS: case 2 (all gates missing, opt-out set -> exit 0, fail-open banner, all eight named)"
 
-# --- Case 3: all seven gates set (bogus but non-empty DSNs) -> passes ------
+# --- Case 3: all eight gates set (bogus but non-empty DSNs) -> passes ------
 set +e
 out="$(run_gate \
   OWL_TEST_DATABASE_URL=postgresql://bogus/db \
@@ -72,16 +74,17 @@ out="$(run_gate \
   OWL_MIGRATOR_STALE_DATABASE_URL=postgresql://bogus/db \
   OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL=postgresql://bogus/db \
   OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL=postgresql://bogus/db \
+  OWL_SCHEMASQL_ONLY_DATABASE_URL=postgresql://bogus/db \
   2>&1)"
 code=$?
 set -e
-[[ "$code" -eq 0 ]] || fail "case 3: expected exit 0 with all seven gates set, got $code. Output:\n$out"
-[[ "$out" != *"FAIL"* ]] || fail "case 3: expected no FAIL output with all seven gates set. Output:\n$out"
-[[ "$out" != *"FAIL-OPEN"* ]] || fail "case 3: expected no fail-open banner with all seven gates set. Output:\n$out"
+[[ "$code" -eq 0 ]] || fail "case 3: expected exit 0 with all eight gates set, got $code. Output:\n$out"
+[[ "$out" != *"FAIL"* ]] || fail "case 3: expected no FAIL output with all eight gates set. Output:\n$out"
+[[ "$out" != *"FAIL-OPEN"* ]] || fail "case 3: expected no fail-open banner with all eight gates set. Output:\n$out"
 for gate in "${ALL_GATES[@]}"; do
   [[ "$out" == *"PASS: $gate is set"* ]] || fail "case 3: expected a PASS line naming $gate. Output:\n$out"
 done
-echo "PASS: case 3 (all gates set -> exit 0, no fail-open banner, all seven named)"
+echo "PASS: case 3 (all gates set -> exit 0, no fail-open banner, all eight named)"
 
 # --- Case 4: partial set (only OWL_TEST_DATABASE_URL), no opt-out --------
 # The anchor-related gates are not the only ones that must fail closed --
