@@ -23,7 +23,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database|create-unprovisioned-database|create-schemasql-only-database}" >&2
+  echo "usage: $0 {create-roles|grant-app-privileges|grant-ddl-ownership|create-stale-anchor-database|create-unprovisioned-database|create-schemasql-only-database|create-restored-database}" >&2
   exit 1
 }
 [[ $# -eq 1 ]] || usage
@@ -438,22 +438,63 @@ grant-ddl-ownership)
       policy_oids oid[] NOT NULL
     );
   "
+  # ADR-0007 Addendum 5 D46: the identity string this row's objid resolved
+  # to at provisioning time, so a failing diagnostic can name the relation
+  # by name rather than only by a bare, now-meaningless integer. ADD
+  # COLUMN IF NOT EXISTS: idempotent against a database this step already
+  # ran on before this addendum, mirroring sec7_protected_object's classid
+  # addition above.
+  psql_super -c "ALTER TABLE sec7_protected_relation ADD COLUMN IF NOT EXISTS identity text;"
   psql_super -c "REVOKE ALL ON sec7_protected_relation FROM PUBLIC;"
   psql_super -c "GRANT SELECT ON sec7_protected_relation TO owl_migrator;"
+  # ADR-0007 Addendum 5 D45: sec7_instance_binding, a copy-diagnosis
+  # marker -- NOT a security control, never consulted by
+  # checkProvisioningState (internal/screeningledger/postgres.go), and
+  # read only from inside an already-failing D40 branch below, after the
+  # decision to raise has already been made. Records the (system
+  # identifier, database OID) pair the two registries' OIDs were assigned
+  # under, so a later failure can say WHY a protected relation's objid no
+  # longer resolves -- a same-cluster restore carries system_identifier
+  # unchanged (confirmed by execution during this addendum's design pass,
+  # ADR-0007 Addendum 5 D43), so the pair, not system_identifier alone, is
+  # what discriminates a copy from the original. Created before
+  # sec7_protected_object is (re)populated below, since this table's own
+  # OID is itself one of sec7_protected_object's rows -- same reasoning as
+  # sec7_protected_relation above.
+  psql_super -c "
+    CREATE TABLE IF NOT EXISTS sec7_instance_binding (
+      system_identifier bigint NOT NULL,
+      database_oid oid NOT NULL,
+      database_name text NOT NULL,
+      provisioned_at timestamptz NOT NULL
+    );
+  "
+  psql_super -c "REVOKE ALL ON sec7_instance_binding FROM PUBLIC;"
+  psql_super -c "GRANT SELECT ON sec7_instance_binding TO owl_migrator;"
   # DML, not DDL -- unaffected by the event triggers below regardless of
   # their own installation state, so re-populating on every invocation of
-  # this step is safe and keeps both registries from drifting if this
+  # this step is safe and keeps every registry from drifting if this
   # script is ever edited to protect a different object/relation set.
+  psql_super -c "DELETE FROM sec7_instance_binding;"
+  psql_super -c "
+    INSERT INTO sec7_instance_binding (system_identifier, database_oid, database_name, provisioned_at)
+    SELECT (SELECT system_identifier FROM pg_control_system()),
+           (SELECT oid FROM pg_database WHERE datname = current_database()),
+           current_database(),
+           now();
+  "
   psql_super -c "DELETE FROM sec7_protected_relation;"
   psql_super -c "
-    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_oids, policy_oids)
+    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_oids, policy_oids, identity)
     SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity,
       COALESCE((SELECT array_agg(t.oid ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal), ARRAY[]::oid[]),
       COALESCE((SELECT array_agg(ix.indexrelid ORDER BY ix.indexrelid) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::oid[]),
-      COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[])
+      COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
+      (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
     FROM pg_class c
     WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
   "
+  psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN identity SET NOT NULL;"
   protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")"
   [[ "$protected_relation_row_count" == "2" ]] || {
     echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
@@ -473,13 +514,14 @@ grant-ddl-ownership)
       ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
       ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
       ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
-      ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)')
+      ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)'),
+      ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)')
     ;
   "
   psql_super -c "ALTER TABLE sec7_protected_object ALTER COLUMN classid SET NOT NULL;"
   registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
-  [[ "$registry_row_count" == "12" ]] || {
-    echo "FAIL: expected 12 rows in sec7_protected_object, found $registry_row_count" >&2
+  [[ "$registry_row_count" == "13" ]] || {
+    echo "FAIL: expected 13 rows in sec7_protected_object, found $registry_row_count" >&2
     exit 1
   }
   # sec7_protect_ddl_objects() becomes SECURITY DEFINER -- load-bearing,
@@ -507,6 +549,17 @@ grant-ddl-ownership)
       cur_triggers oid[];
       cur_indexes oid[];
       cur_policies oid[];
+      -- ADR-0007 Addendum 5 D46: variables for the three-message
+      -- diagnostic, read only after the existence check below has
+      -- already decided to raise -- none of this can affect whether the
+      -- statement is allowed.
+      live_oid oid;
+      rec_sysid bigint;
+      rec_dboid oid;
+      rec_dbname text;
+      live_sysid bigint;
+      live_dboid oid;
+      live_dbname text;
     BEGIN
       IF TG_EVENT = 'sql_drop' THEN
         FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
@@ -539,7 +592,35 @@ grant-ddl-ownership)
         -- not individually registered.
         FOR rel IN SELECT * FROM sec7_protected_relation LOOP
           IF NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = rel.objid) THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %) no longer exists', rel.objid;
+            -- ADR-0007 Addendum 5 D46: the existence decision above is
+            -- already made -- the statement WILL be refused. Everything
+            -- from here down only decides which of three messages
+            -- explains why, and is read only on this already-failing
+            -- path. A plain catalog join, not to_regclass(rel.identity):
+            -- to_regclass raises on a malformed name
+            -- ('a.b.c.d' -> 'improper relation name'), and a raise from
+            -- inside an event-trigger function that already runs on
+            -- every DDL statement in the database is precisely R17's
+            -- accepted risk realized (confirmed by execution).
+            SELECT c.oid INTO live_oid
+              FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname || '.' || c.relname = rel.identity;
+
+            IF live_oid IS NULL THEN
+              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists and no relation of that name is present', rel.identity, rel.objid;
+            END IF;
+
+            SELECT b.system_identifier, b.database_oid, b.database_name
+              INTO rec_sysid, rec_dboid, rec_dbname
+              FROM sec7_instance_binding b LIMIT 1;
+            SELECT system_identifier INTO live_sysid FROM pg_control_system();
+            SELECT d.oid, d.datname INTO live_dboid, live_dbname FROM pg_database d WHERE d.datname = current_database();
+
+            IF rec_sysid IS DISTINCT FROM live_sysid OR rec_dboid IS DISTINCT FROM live_dboid THEN
+              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists; \"%\" is present with objid %. This database is a copy or restore of another (registry recorded instance %/% %; live instance %/% %). The SEC-7 registries hold raw OIDs and do not survive pg_dump/pg_restore. Recovery: scripts/ci/provision_test_roles.sh grant-ddl-ownership -- see docs/operations/sec7-database-copies.md', rel.identity, rel.objid, rel.identity, live_oid, rec_sysid, rec_dboid, rec_dbname, live_sysid, live_dboid, live_dbname;
+            ELSE
+              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists; \"%\" is present with objid % -- the relation was dropped and recreated. Re-run grant-ddl-ownership.', rel.identity, rel.objid, rel.identity, live_oid;
+            END IF;
           END IF;
           SELECT c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity
             INTO cur_owner, cur_kind, cur_rls, cur_force_rls
@@ -611,7 +692,72 @@ grant-ddl-ownership)
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
   }
-  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and both registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-policy-OID-sets after every DDL statement"
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-policy-OID-sets after every DDL statement, naming the relation and the copy/restore instance on failure (D46) via sec7_instance_binding (D45, diagnostic-only, never gates)"
+  ;;
+create-restored-database)
+  # ADR-0007 Addendum 5 D43/D49 test 1 (I-A, CAP #4 §7.6): the two pg_dump
+  # variants CAP #4 demonstrated, reproduced here as permanent CI fixtures
+  # -- the same "make a degraded state permanent rather than one-off"
+  # move create-stale-anchor-database and create-unprovisioned-database
+  # already made for their own findings. Unlike those two, this step
+  # performs the copy itself rather than leaving a bare database for a
+  # later ci.yml step to migrate: the fixture under test IS the copy
+  # operation, not a database migrations get applied to independently.
+  #
+  # Must run AFTER grant-ddl-ownership: it dumps $PGDATABASE (owl_ci) in
+  # its fully provisioned state, which is the state an operator's
+  # pg_dump actually runs against in reality -- a not-yet-provisioned
+  # source is not the scenario I-A is about.
+  registry_exists="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'sec7_protected_relation'")"
+  [[ "$registry_exists" == "1" ]] || {
+    echo "FAIL: sec7_protected_relation does not exist; run grant-ddl-ownership first" >&2
+    exit 1
+  }
+
+  # Variant 1 (D43's table, row 2 / CAP #4 §7.6 variant 1, corrected per
+  # this addendum's drift note #2): a PLAIN pg_dump | psql, with NEITHER
+  # --no-owner NOR --no-privileges -- the shape an operator actually
+  # types (`pg_dump -d <src> | psql -d <dst>`), which preserves ownership
+  # and is caught by D41's identity assertion, not by D33's owner check.
+  # Both ends connect as the bootstrap superuser, which is who a DR
+  # restore or a staging refresh actually runs as.
+  psql_super -c "DROP DATABASE IF EXISTS owl_ci_sec7_restored;"
+  psql_super -c "CREATE DATABASE owl_ci_sec7_restored;"
+  pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d "$PGDATABASE" \
+    | psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -X -q -v ON_ERROR_STOP=1 >/dev/null
+
+  # Variant 2 (D43's table, row 1 / CAP #4 §7.6 variant 2): pg_dump
+  # --schema-only, the "clone production into staging" command -- a
+  # schema-only dump carries no rows, so both registries and the instance
+  # binding arrive empty.
+  psql_super -c "DROP DATABASE IF EXISTS owl_ci_sec7_cloned;"
+  psql_super -c "CREATE DATABASE owl_ci_sec7_cloned;"
+  pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d "$PGDATABASE" --schema-only \
+    | psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_cloned -X -q -v ON_ERROR_STOP=1 >/dev/null
+
+  # Prove both postconditions rather than assuming pg_dump/psql did what
+  # they say -- the same standard every other fixture in this script
+  # follows. owl_ci_sec7_restored: registries carried and populated (12 in
+  # sec7_protected_object at this commit -- rowcheck below is symbolic,
+  # not hard-coded, precisely because D45 already changed this number
+  # once), owner preserved. owl_ci_sec7_cloned: registries carried empty.
+  restored_obj_rows="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -tAc "SELECT count(*) FROM sec7_protected_object")"
+  source_obj_rows="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
+  [[ "$restored_obj_rows" == "$source_obj_rows" ]] || {
+    echo "FAIL: owl_ci_sec7_restored has $restored_obj_rows sec7_protected_object row(s), expected $source_obj_rows (the source's own count) -- pg_dump did not carry the registry rows faithfully" >&2
+    exit 1
+  }
+  restored_anchor_owner="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
+  [[ "$restored_anchor_owner" == "owl_ledger_ddl" ]] || {
+    echo "FAIL: owl_ci_sec7_restored's screening_ledger_anchor owner is '$restored_anchor_owner', expected owl_ledger_ddl -- this fixture must reproduce D41's identity assertion catching an ordinary owner-preserving restore, not D33's owner check catching an owner-stripped one" >&2
+    exit 1
+  }
+  cloned_obj_rows="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_cloned -tAc "SELECT count(*) FROM sec7_protected_object")"
+  [[ "$cloned_obj_rows" == "0" ]] || {
+    echo "FAIL: owl_ci_sec7_cloned has $cloned_obj_rows sec7_protected_object row(s), expected 0 (a schema-only dump carries no rows)" >&2
+    exit 1
+  }
+  echo "PASS: owl_ci_sec7_restored (full pg_dump|psql, owner preserved, registries carried and dangling) and owl_ci_sec7_cloned (pg_dump --schema-only, registries carried empty) created (ADR-0007 Addendum 5 D43/D49 test 1, I-A copy-state fixtures)"
   ;;
 create-stale-anchor-database)
   # ADR-0007 Addendum 2 D21/D22 (F-E, CRITICAL): the committed regression

@@ -57,9 +57,24 @@
 #                                     a fifth database provisioned by
 #                                     provision_test_roles.sh
 #                                     create-schemasql-only-database
+#   OWL_MIGRATOR_RESTORED_DATABASE_URL - ADR-0007 Addendum 5 D43/D49 test 1
+#                                     (I-A, MEDIUM): a plain pg_dump|psql
+#                                     restore, owner preserved, registry
+#                                     rows carried and dangling
+#                                     (internal/screeningledger/d43_copy_population_pgx_test.go,
+#                                     internal/screeningledger/d46_copy_diagnostics_pgx_test.go),
+#                                     a sixth database provisioned by
+#                                     provision_test_roles.sh
+#                                     create-restored-database
+#   OWL_MIGRATOR_CLONED_DATABASE_URL - ADR-0007 Addendum 5 D43/D49 test 1
+#                                     (I-A, MEDIUM): a pg_dump --schema-only
+#                                     clone, registries carried empty
+#                                     (internal/screeningledger/d43_copy_population_pgx_test.go),
+#                                     a seventh database provisioned by
+#                                     the same create-restored-database step
 #
 # This is the complete set: every `os.Getenv("OWL_*_DATABASE_URL")` in the
-# tree gates through one of these eight, confirmed by grepping the tree
+# tree gates through one of these ten, confirmed by grepping the tree
 # rather than assumed from ADR-0007 D18's text, which names only the two
 # anchor-related ones.
 #
@@ -84,6 +99,8 @@ DB_GATES=(
   OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL
   OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL
   OWL_SCHEMASQL_ONLY_DATABASE_URL
+  OWL_MIGRATOR_RESTORED_DATABASE_URL
+  OWL_MIGRATOR_CLONED_DATABASE_URL
 )
 
 missing=()
