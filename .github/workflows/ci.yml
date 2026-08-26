@@ -207,6 +207,25 @@ jobs:
           PGSUPERUSER: owl_ci
           PGSUPERPASSWORD: owl_ci
         run: ./scripts/ci/provision_test_roles.sh create-schemasql-only-database
+      - name: Install PostgreSQL 17 client tools (pg_dump/pg_restore version match)
+        # create-restored-database is the first SEC-7 fixture in this whole
+        # arc to invoke pg_dump/pg_restore -- every prior fixture (stale
+        # anchor, unprovisioned, schemasql-only) is built with psql alone,
+        # which has no server-version compatibility check. pg_dump refuses
+        # to run against a server newer than itself ("aborting because of
+        # server version mismatch"), and the runner's default
+        # postgresql-client does not reliably match the postgres:17 service
+        # container above, so this pins an explicit matching client
+        # version rather than depending on whatever the runner image
+        # happens to ship by default.
+        shell: bash
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
       - name: Create SEC-7 Addendum 5 restored/cloned copy-state fixtures (D43/D49 test 1)
         shell: bash
         env:
