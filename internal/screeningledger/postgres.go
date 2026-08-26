@@ -291,6 +291,16 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 	} else if reason != "" {
 		return ProvisioningState{Reason: reason}, nil
 	}
+	// ADR-0007 Addendum 5 D47: sec7_protected_relation's seven recorded
+	// STATE columns -- everything besides objid -- get a referent of
+	// their own. Runs only once identity/population has already passed
+	// above, so every row this compares against is known to resolve to
+	// the relation it claims.
+	if reason, err := p.protectedRelationStateReason(ctx); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 5 D47: checking sec7_protected_relation recorded state: %w", err)
+	} else if reason != "" {
+		return ProvisioningState{Reason: reason}, nil
+	}
 	// ADR-0007 Addendum 4 D41 part three: the two CREATE privilege facts
 	// H-F's shipped-configuration rating depended on (CAP #3 §7.4) but
 	// which nothing asserted -- defence in depth behind D40, not the fix
@@ -347,6 +357,10 @@ var requiredProtectedObjects = []protectedObjectIdentity{
 	{"pg_proc", "public.owl_reject_truncate()"},
 	{"pg_proc", "public.screening_ledger_purge_snapshots(timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
 	{"pg_proc", "public.screening_ledger_purge_snapshots(pg_catalog.text[],timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
+	// ADR-0007 Addendum 5 D45: sec7_instance_binding, the copy-diagnosis
+	// marker, is itself a protected object -- same reasoning as the two
+	// registries above it (R15: a registry is a new trust object).
+	{"pg_class", "public.sec7_instance_binding"},
 }
 
 // protectedObjectIdentityReason asserts sec7_protected_object contains
@@ -427,6 +441,130 @@ func (p *PostgresSink) protectedRelationIdentityReason(ctx context.Context) (str
 		}
 		if matches != 1 {
 			return fmt.Sprintf("sec7_protected_relation has no row whose OID resolves (via pg_identify_object) to %s (ADR-0007 Addendum 4 D41): the registry is stale, repointed, or was never populated with this relation", identity), nil
+		}
+	}
+	return "", nil
+}
+
+// requiredProtectedRelationState is ADR-0007 Addendum 5 D47: sec7_protected_
+// relation's seven recorded STATE columns -- relowner, relkind,
+// relrowsecurity, relforcerowsecurity, trigger_oids, index_oids,
+// policy_oids -- are exactly what D40's second phase compares live catalog
+// state AGAINST (provision_test_roles.sh:544-579 at Addendum 4), and until
+// this addendum nothing compared the recorded values themselves to
+// anything (CAP #4 §7.5 case G: rewriting trigger_oids alone, identity and
+// population left intact, passed every existing check). This is a literal
+// declaration independent of what any row in the table claims -- D41's own
+// move (compare against an independent literal, not the artifact's account
+// of itself) applied to the columns D41 skipped. Five of seven reduce to a
+// fact this file already declares elsewhere (see the comment on each
+// field); the other two are new, one character and one name apiece.
+type requiredProtectedRelationState struct {
+	// identity is D46's diagnostic column, resolved via
+	// requiredProtectedRelations above -- covered by this same comparison
+	// so it is not left as an unchecked claim the way D41's own `note`
+	// column on sec7_protected_object was (H-E).
+	identity string
+	// relowner: requiredDDLOwnedTables already declares this fact and
+	// D33 already asserts it live (SchemaObjectOwner); this is a second,
+	// independently-scoped assertion of the same fact, not a new one --
+	// D21 point 3 / D33's own "two assertions beside each other" design.
+	relowner string
+	// relkind: 'r', ordinary table. Both protected relations are plain
+	// tables today; true of both, verified against the real schema.
+	relkind string
+	// Neither protected relation has row-level security enabled.
+	relrowsecurity      bool
+	relforcerowsecurity bool
+	// triggerNames: requiredSchemaObjects above already declares each
+	// relation's immutability and TRUNCATE-guard trigger names; reused
+	// here rather than re-declared, so the two lists cannot drift apart.
+	triggerNames []string
+	// indexNames: the relation's own primary-key index, one per table,
+	// named literally rather than derived from a naming-pattern guess.
+	indexNames []string
+	// No protected relation carries any RLS policy today -- policy_oids
+	// must be empty.
+}
+
+// requiredProtectedRelationStates is D47's literal declaration, written
+// beside requiredProtectedRelations rather than derived from it or from
+// scripts/ci/provision_test_roles.sh's own population query -- comparing
+// two independent literals is the point (a name-to-OID reconciliation
+// through the catalog, not a re-execution of provisioning).
+var requiredProtectedRelationStates = []requiredProtectedRelationState{
+	{
+		identity: "public.screening_ledger_anchor",
+		relowner: "owl_ledger_ddl",
+		relkind:  "r",
+		triggerNames: []string{
+			"screening_ledger_anchor_immutable",
+			"screening_ledger_anchor_no_truncate",
+		},
+		indexNames: []string{"screening_ledger_anchor_pkey"},
+	},
+	{
+		identity: "public.screening_ledger_retention_tombstone",
+		relowner: "owl_ledger_ddl",
+		relkind:  "r",
+		triggerNames: []string{
+			"screening_ledger_retention_tombstone_immutable",
+			"screening_ledger_retention_tombstone_no_truncate",
+		},
+		indexNames: []string{"screening_ledger_retention_tombstone_pkey"},
+	},
+}
+
+// protectedRelationStateReason is D47: for each requiredProtectedRelationStates
+// entry, reconciles sec7_protected_relation's seven recorded state columns
+// (plus D46's identity column) against the literal declaration above,
+// entirely through the catalog -- never through the row's own account of
+// itself. Runs only after protectedRelationIdentityReason has already
+// confirmed identity/population, so every identity below is known to
+// resolve to exactly one row.
+func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string, error) {
+	for _, want := range requiredProtectedRelationStates {
+		var ownerOK, kindOK, rlsOK, forceRLSOK, triggersOK, indexesOK, policiesOK, identityOK bool
+		err := p.conn.QueryRow(ctx, `
+			SELECT
+				r.relowner = $2::regrole::oid,
+				r.relkind = $3,
+				r.relrowsecurity = $4,
+				r.relforcerowsecurity = $5,
+				r.trigger_oids = (
+					SELECT COALESCE(array_agg(t.oid ORDER BY t.oid), ARRAY[]::oid[])
+					FROM pg_trigger t
+					WHERE t.tgrelid = r.objid AND NOT t.tgisinternal AND t.tgname = ANY($6)
+				),
+				r.index_oids = (
+					SELECT COALESCE(array_agg(ix.indexrelid ORDER BY ix.indexrelid), ARRAY[]::oid[])
+					FROM pg_index ix JOIN pg_class ic ON ic.oid = ix.indexrelid
+					WHERE ix.indrelid = r.objid AND ic.relname = ANY($7)
+				),
+				r.policy_oids = ARRAY[]::oid[],
+				r.identity = $1
+			FROM sec7_protected_relation r
+			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
+		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames, want.indexNames).
+			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &policiesOK, &identityOK)
+		if err != nil {
+			return "", fmt.Errorf("checking sec7_protected_relation recorded state for %s: %w", want.identity, err)
+		}
+		switch {
+		case !ownerOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded relowner for %s does not match %s (ADR-0007 Addendum 5 D47): the recorded state and the row's identity have diverged", want.identity, want.relowner), nil
+		case !kindOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded relkind for %s is not %q (ADR-0007 Addendum 5 D47)", want.identity, want.relkind), nil
+		case !rlsOK || !forceRLSOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded row-level-security flags for %s do not match the declared state (ADR-0007 Addendum 5 D47)", want.identity), nil
+		case !triggersOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded trigger_oids for %s do not match its two declared trigger names (ADR-0007 Addendum 5 D47): the recorded state was rewritten without D40's second phase seeing it happen", want.identity), nil
+		case !indexesOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded index_oids for %s do not match its declared primary-key index (ADR-0007 Addendum 5 D47)", want.identity), nil
+		case !policiesOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded policy_oids for %s is not empty (ADR-0007 Addendum 5 D47)", want.identity), nil
+		case !identityOK:
+			return fmt.Sprintf("sec7_protected_relation's recorded identity column for %s does not match (ADR-0007 Addendum 5 D46/D47)", want.identity), nil
 		}
 	}
 	return "", nil
