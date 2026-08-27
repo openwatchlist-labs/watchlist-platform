@@ -97,8 +97,8 @@ func TestD40DiagnosticNamesTheRelationAndTheInstance(t *testing.T) {
 	registerScratchRelation := func(t *testing.T, name string) {
 		t.Helper()
 		if _, err := superuser.Exec(ctx, `
-			INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_oids, policy_oids, identity)
-			SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity, ARRAY[]::oid[], ARRAY[]::oid[], ARRAY[]::oid[], $1
+			INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_defs, policy_oids, identity)
+			SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity, ARRAY[]::oid[], ARRAY[]::text[], ARRAY[]::oid[], $1
 			FROM pg_class c WHERE c.relname = $2
 		`, "public."+name, name); err != nil {
 			t.Fatalf("register scratch relation %s: %v", name, err)

@@ -184,6 +184,27 @@ jobs:
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          # ADR-0007 Addendum 6 D57: pin the fetched key to its known
+          # fingerprint before the repository that trusts it is added.
+          # --fail above guards only against a 404 body being written as
+          # a key; this guards against a substituted key served with a
+          # 200 response. Captured by `gpg --show-keys` against the
+          # fetched key at implementation time; its last eight hex
+          # digits match the key URL's own filename (ACCC4CF8).
+          actual_fingerprint="$(gpg --show-keys --with-fingerprint --with-colons /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc | awk -F: '$1=="fpr"{print $10; exit}')"
+          if [[ "$actual_fingerprint" != "B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8" ]]; then
+            echo "PGDG signing key fingerprint mismatch: got $actual_fingerprint, expected B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 -- refusing to trust it" >&2
+            exit 1
+          fi
+          # ADR-0007 Addendum 6 D57: scope the PGDG origin to the one
+          # package this step wants, via an APT preferences pin -- closes
+          # CAP #5 §7.7 property 2 ("apt-get update makes PGDG a
+          # candidate source for every package on the runner, not only
+          # postgresql-client-17"). postgresql-client-17 itself stays
+          # unpinned by minor version (CAP #5 §7.7 property 3), which is
+          # what keeps the client matched to the floating postgres:17
+          # service container this step exists to match.
+          printf 'Package: *\nPin: origin apt.postgresql.org\nPin-Priority: -1\n\nPackage: postgresql-client-*\nPin: origin apt.postgresql.org\nPin-Priority: 500\n' | sudo tee /etc/apt/preferences.d/pgdg.pref >/dev/null
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17

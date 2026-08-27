@@ -145,6 +145,38 @@ func TestVerifyAnchoredRefusesSchemaOnlyClone(t *testing.T) {
 	if _, err := ownerConn.Exec(ctx, `DROP TRIGGER screening_ledger_anchor_immutable ON screening_ledger_anchor`); err != nil {
 		t.Fatalf("expected the table owner's DROP TRIGGER to succeed on an inert schema-only clone (that is CAP #4 §7.6 variant 2's finding), got: %v", err)
 	}
+	// ADR-0007 Addendum 6 D53 (J-B): this test mutates a PERSISTENT CI
+	// fixture (owl_ci_sec7_cloned, built once per provisioning cycle by
+	// provision_test_roles.sh create-restored-database), not a per-test
+	// database -- unlike TestProvisioningStateAcceptsTemplateClone above,
+	// which builds and tears down its own template clone. The trigger
+	// this test drops must therefore be recreated, in a t.Cleanup so it
+	// runs even if a later assertion in this test fails, from the exact
+	// definition db/migrations/017_screening_ledger_anchor_policy_binding.sql
+	// installs -- restoring without checking is the shape of every
+	// finding this addendum closes, so the cleanup asserts the trigger
+	// is back rather than assuming its own CREATE TRIGGER succeeded.
+	t.Cleanup(func() {
+		bg := context.Background()
+		restoreConn, err := pgx.Connect(bg, ledgerDDLDSN)
+		if err != nil {
+			t.Errorf("ADR-0007 Addendum 6 D53: restore screening_ledger_anchor_immutable on owl_ci_sec7_cloned: connect: %v", err)
+			return
+		}
+		defer restoreConn.Close(bg)
+		if _, err := restoreConn.Exec(bg, `CREATE TRIGGER screening_ledger_anchor_immutable BEFORE UPDATE OR DELETE ON screening_ledger_anchor FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()`); err != nil {
+			t.Errorf("ADR-0007 Addendum 6 D53: restore screening_ledger_anchor_immutable on owl_ci_sec7_cloned: %v", err)
+			return
+		}
+		var restored bool
+		if err := restoreConn.QueryRow(bg, `SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'screening_ledger_anchor_immutable' AND tgrelid = 'screening_ledger_anchor'::regclass)`).Scan(&restored); err != nil {
+			t.Errorf("ADR-0007 Addendum 6 D53: confirm screening_ledger_anchor_immutable restored on owl_ci_sec7_cloned: %v", err)
+			return
+		}
+		if !restored {
+			t.Error("ADR-0007 Addendum 6 D53: screening_ledger_anchor_immutable is still absent from owl_ci_sec7_cloned after CREATE TRIGGER reported success")
+		}
+	})
 
 	store, err := NewStore(t.TempDir(), testKey(), uniqueID("sec7-cloned"))
 	if err != nil {

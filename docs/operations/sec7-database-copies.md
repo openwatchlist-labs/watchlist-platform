@@ -34,10 +34,34 @@ reassigns them and must be re-provisioned.
 
 ## Before you clone production into staging
 
+**The target cluster needs the four `owl_*` roles first.** `grant-ddl-ownership` runs
+`ALTER TABLE ... OWNER TO owl_ledger_ddl` and casts `owl_ledger_ddl`/`owl_migrator` to `::regrole` --
+if this is a **different** cluster from the one the source database came from (the ordinary DR
+shape), those roles do not exist there yet until `create-roles` has been run on it:
+
+```sh
+# on the target cluster, as the bootstrap superuser, ONLY if this is a different cluster
+# from the source (roles are per-cluster, not per-database)
+PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> ./scripts/ci/provision_test_roles.sh create-roles
+```
+
+Then, on the clone itself:
+
 ```sh
 # on the clone, as the bootstrap superuser
-PGDATABASE=<the clone> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
+PGHOST=<host> PGPORT=<port> PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> \
+  PGDATABASE=<the clone> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
 ```
+
+`PGHOST`/`PGPORT`/`PGSUPERUSER`/`PGSUPERPASSWORD` default to `localhost`/`5432`/`owl_ci`/`owl_ci`
+(`scripts/ci/provision_test_roles.sh:33-37`) -- set them explicitly for any host or port other than
+the defaults, or the command silently targets the wrong server.
+
+**If the guard triggers are missing** (the state a restored `owl_ci_sec7_cloned`-style fixture is
+in before this step runs, or the state left behind if `screening_ledger_anchor_immutable` was ever
+dropped without being recreated), `grant-ddl-ownership` now names the missing trigger and refuses
+before attempting the registry population, rather than failing later with a raw
+`null value in column "objid" ... violates not-null constraint`.
 
 Then confirm it took, from a host that can reach the clone as `owl_migrator`:
 
@@ -51,24 +75,57 @@ controls as installed and will be wrong.
 
 ## Reading `protected relation ... no longer exists`
 
-Addendum 5 D46 gives this failure three distinct messages. They mean different things and have
-different fixes.
+Addendum 5 D46, extended by Addendum 6 D54, gives this failure **four** distinct messages, checked
+in this order -- the instance-binding comparison runs before name resolution, so a database whose
+binding mismatches always reports "this is a copy," whether or not the recorded relation happens to
+resolve by name under its old spelling. They mean different things and have different fixes.
 
 **(a) "This database is a copy or restore of another"** -- the message names both the instance the
-registries were recorded in and the instance you are on. This is the full-restore case. The database
-is bricked for DDL until you re-provision. Follow "Recovering a bricked restore".
+registries were recorded in and the instance you are on. This is the full-restore case (including a
+`pg_dump --exclude-table` copy, which reports this message too, not (c) -- excluding one table from
+the dump does not exempt the others' OIDs from being reassigned). The database is bricked for DDL
+until you re-provision. Follow "Recovering a bricked restore".
 
-**(b) "the relation was dropped and recreated"** -- the instance matches, so this is not a copy:
-someone dropped and recreated a protected relation in place (which requires the bootstrap superuser,
-since the event triggers block it otherwise). Re-run `grant-ddl-ownership` to re-record the new
-OIDs.
+**(b) "the relation was dropped and recreated in place"** -- the instance matches, so this is not a
+copy: someone dropped and recreated a protected relation in place (which requires the bootstrap
+superuser, since the event triggers block it otherwise). Re-run `grant-ddl-ownership` to re-record
+the new OIDs.
 
-**(c) "no relation of that name is present"** -- the protected relation is genuinely gone. Do not
-re-provision over this; find out what removed it first. `grant-ddl-ownership` will fail anyway, and
-should.
+**(c) "no relation of that name is present"** -- the instance matches and the protected relation is
+genuinely gone. Do not re-provision over this; find out what removed it first. `grant-ddl-ownership`
+will fail anyway, and should.
 
-A related message, `sec7_protected_object has 0 row(s), expected exactly 12`, is the **schema-only
+**(d) "the instance binding is absent or empty, so whether this database is a copy cannot be
+determined"** -- either `sec7_instance_binding` itself does not exist, or it exists with zero rows.
+This is the state a database provisioned before Addendum 5 (D45), or a schema-only clone before
+`grant-ddl-ownership` has run on it, is in. It is deliberately **not** classified as a copy (message
+(a)) or as genuinely gone (message (c)) -- the evidence to tell those apart is exactly what is
+missing. If this is a fresh, never-provisioned database, run `grant-ddl-ownership`; otherwise
+investigate before doing so.
+
+A related message, `sec7_protected_object has 0 row(s), expected exactly 13`, is the **schema-only
 clone** case. The registries were never populated in this database. Re-run `grant-ddl-ownership`.
+
+## A drifted, non-copied database
+
+`REINDEX ... CONCURRENTLY` and its siblings no longer wedge the two protected tables (ADR-0007
+Addendum 6 D50/D51) -- but a superuser can still reach the state below by other means (R24), and a
+database that predates this addendum may already be in it. Every D40 branch other than the four
+above -- owner, relkind, RLS flags, rules, inheritance, triggers, indexes, policies -- raises with
+the relation's own identity named (Addendum 6 D52), for example:
+
+```
+ERROR: ADR-0007 Addendum 4 D40: protected relation "public.screening_ledger_anchor" (objid 16914):
+       its index set changed
+```
+
+This is **not** a copy or restore -- the database is the one it has always been, and its recorded
+state has simply drifted from live catalog state. The recovery is the same as "Recovering a bricked
+restore" below: `grant-ddl-ownership` re-derives and re-records the correct state from the live
+catalog. `REINDEX ... CONCURRENTLY` was this state's most likely cause before D50/D51 shipped; after,
+it requires a bootstrap-superuser action (`CREATE INDEX CONCURRENTLY` on a protected relation, or a
+cancelled `REINDEX ... CONCURRENTLY` -- both self-healing by `DROP INDEX` with no event-trigger
+disable and no re-provisioning, R24).
 
 ## Recovering a bricked restore
 
@@ -76,15 +133,26 @@ Verified against a real restored database. Every step needs the bootstrap superu
 
 ```sh
 # 1. get DDL working again. Either branch works; the first is narrower.
-psql -c "ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE;"
+#    Needs the same connection parameters as any other psql invocation
+#    against this database -- PGHOST/PGPORT/PGUSER/PGPASSWORD or -h/-p/-U,
+#    which this snippet omits only for brevity, not because they are
+#    optional.
+psql -h <host> -p <port> -U <bootstrap superuser> -d <the restored db> \
+  -c "ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE;"
 #    or, per statement:  SET event_triggers = off;
 
 # 2. re-record the registries against this database's actual OIDs
-PGDATABASE=<the restored db> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
+PGHOST=<host> PGPORT=<port> PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> \
+  PGDATABASE=<the restored db> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
 
 # 3. confirm both event triggers are back to ENABLE ALWAYS
-psql -c "SELECT evtname, evtenabled FROM pg_event_trigger;"   -- expect 'A' for both
+psql -h <host> -p <port> -U <bootstrap superuser> -d <the restored db> \
+  -c "SELECT evtname, evtenabled FROM pg_event_trigger;"   -- expect 'A' for both
 ```
+
+Step 2 also requires the four `owl_*` roles already exist in the target cluster -- see "Before you
+clone production into staging" above if this is a restore into a **different** cluster from the
+source.
 
 `ALTER EVENT TRIGGER ... DISABLE` succeeds even while the invariant is failing -- that was verified,
 because a recovery path that itself needs working DDL would be no recovery path at all. Step 2
