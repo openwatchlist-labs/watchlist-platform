@@ -34,28 +34,45 @@ reassigns them and must be re-provisioned.
 
 ## Before you clone production into staging
 
-**The target cluster needs the four `owl_*` roles first.** `grant-ddl-ownership` runs
-`ALTER TABLE ... OWNER TO owl_ledger_ddl` and casts `owl_ledger_ddl`/`owl_migrator` to `::regrole` --
-if this is a **different** cluster from the one the source database came from (the ordinary DR
-shape), those roles do not exist there yet until `create-roles` has been run on it:
+**Read this before you run anything below -- the connection-parameter defaults are not obvious, and
+copying a snippet without setting them targets the wrong server.** `PGHOST`/`PGPORT`/`PGSUPERUSER`/
+`PGSUPERPASSWORD` default to `localhost`/`5432`/`owl_ci`/`owl_ci`
+(`scripts/ci/provision_test_roles.sh:33-37`) when left unset. Every snippet below sets them
+explicitly for exactly this reason; do the same with your own cluster's real host, port, and
+bootstrap superuser credentials -- an unset `PGHOST`/`PGPORT` silently targets `localhost:5432`,
+which on a DR runner or an operator's own workstation is very often a **different, unrelated**
+PostgreSQL server, not the cluster you meant to reach (ADR-0007 Addendum 7 D66).
+
+**If this is a restore into a DIFFERENT cluster from the one the source database came from (the
+ordinary DR shape), the four `owl_*` roles must exist on the target cluster BEFORE you restore into
+it -- not after, and not only before `grant-ddl-ownership`.** Roles are cluster-wide, not
+per-database, which is why this is possible at all -- but the restore itself (not merely
+`grant-ddl-ownership`, which runs afterward) carries `ALTER TABLE ... OWNER TO owl_ledger_ddl` and
+grant statements that name these roles, and a role-less target cluster refuses the restore itself
+with dozens of `role "owl_migrator" does not exist` errors, confirmed by execution (81 errors on an
+unprepared cluster; zero once the roles exist first). Run `create-roles` against `PGDATABASE=postgres`
+(or any other database on the target cluster that has **not** yet been restored into) -- the
+subcommand performs a schema grant in whatever database it connects to, and the restored database
+itself refuses all DDL, including this one, until provisioning has run on it:
 
 ```sh
-# on the target cluster, as the bootstrap superuser, ONLY if this is a different cluster
-# from the source (roles are per-cluster, not per-database)
-PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> ./scripts/ci/provision_test_roles.sh create-roles
+# on the TARGET cluster, BEFORE restoring into it, against an un-restored database
+PGHOST=<target host> PGPORT=<target port> PGDATABASE=postgres \
+  PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> \
+  ./scripts/ci/provision_test_roles.sh create-roles
 ```
 
-Then, on the clone itself:
+Then perform the restore itself (a plain `pg_dump | psql`, `CREATE DATABASE ... TEMPLATE` on the same
+cluster, or your own snapshot/replica mechanism), and continue with "Recovering a bricked restore"
+below, using the same `PGHOST`/`PGPORT`/`PGSUPERUSER`/`PGSUPERPASSWORD` for the target cluster
+throughout. If the clone is on the **same** cluster as its source, the roles already exist and this
+step is not needed -- go straight to:
 
 ```sh
 # on the clone, as the bootstrap superuser
 PGHOST=<host> PGPORT=<port> PGSUPERUSER=<bootstrap superuser> PGSUPERPASSWORD=<...> \
   PGDATABASE=<the clone> ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
 ```
-
-`PGHOST`/`PGPORT`/`PGSUPERUSER`/`PGSUPERPASSWORD` default to `localhost`/`5432`/`owl_ci`/`owl_ci`
-(`scripts/ci/provision_test_roles.sh:33-37`) -- set them explicitly for any host or port other than
-the defaults, or the command silently targets the wrong server.
 
 **If the guard triggers are missing** (the state a restored `owl_ci_sec7_cloned`-style fixture is
 in before this step runs, or the state left behind if `screening_ledger_anchor_immutable` was ever
@@ -108,6 +125,20 @@ clone** case. The registries were never populated in this database. Re-run `gran
 
 ## A drifted, non-copied database
 
+**Step 0: run `screening-ledger status` first (ADR-0007 Addendum 7 D62(b)).** If it reports anything
+other than provisioned, **investigate before re-provisioning** -- on a drifted database, the object
+`grant-ddl-ownership` is about to adopt as legitimate is exactly the object that should not be
+adopted. **This step is a second gate, not the mechanism that makes re-provisioning safe** --
+`grant-ddl-ownership` itself now refuses to record an undeclared trigger, index, RLS state, or policy
+by name (D62(a)), which is what actually stops a genuine attack from laundering itself into the
+registry. State this honestly rather than as a guarantee this step alone provides: on the
+**un-laundered** drift described below (the state you meet first, before anyone has re-run
+`grant-ddl-ownership` over it), `screening-ledger status` currently reports the database as
+provisioned anyway, because the live-index comparison it reads is filtered to the *declared* index
+names and an undeclared object is invisible to it by construction (Addendum 5 D47, R28) -- so step 0
+will not catch this specific state on its own. Run it anyway: it is a real gate against every OTHER
+drift and against re-running `grant-ddl-ownership` a second time over an already-laundered registry.
+
 `REINDEX ... CONCURRENTLY` and its siblings no longer wedge the two protected tables (ADR-0007
 Addendum 6 D50/D51) -- but a superuser can still reach the state below by other means (R24), and a
 database that predates this addendum may already be in it. Every D40 branch other than the four
@@ -119,15 +150,30 @@ ERROR: ADR-0007 Addendum 4 D40: protected relation "public.screening_ledger_anch
        its index set changed
 ```
 
-This is **not** a copy or restore -- the database is the one it has always been, and its recorded
-state has simply drifted from live catalog state. The recovery is the same as "Recovering a bricked
-restore" below: `grant-ddl-ownership` re-derives and re-records the correct state from the live
-catalog. `REINDEX ... CONCURRENTLY` was this state's most likely cause before D50/D51 shipped; after,
-it requires a bootstrap-superuser action (`CREATE INDEX CONCURRENTLY` on a protected relation, or a
-cancelled `REINDEX ... CONCURRENTLY` -- both self-healing by `DROP INDEX` with no event-trigger
-disable and no re-provisioning, R24).
+**What these eight branches establish, and no more (ADR-0007 Addendum 7 D63):** the recorded state
+has drifted from live catalog state. They do **not** by themselves determine whether the database is
+a copy -- that is a separate question `sec7_instance_binding` and `screening-ledger status` (D62(b))
+answer, not this error. The remedy below is the same either way: re-provisioning is correct for both
+a drifted original and a drifted copy. The recovery is the same as "Recovering a bricked restore"
+below: `grant-ddl-ownership` re-derives and re-records the correct state from the live catalog, and
+now refuses rather than records if an object it finds was never declared (D62(a)). `REINDEX ...
+CONCURRENTLY` was this state's most likely cause before D50/D51 shipped; after, it requires a
+bootstrap-superuser action (`CREATE INDEX CONCURRENTLY` on a protected relation, or a cancelled
+`REINDEX ... CONCURRENTLY` -- both self-healing by `DROP INDEX` with no event-trigger disable and no
+re-provisioning, R24), or a directly forged `pg_index.indisvalid`/`indisready` flag on a protected
+relation's index (ADR-0007 Addendum 7 D65), which is now itself named as a distinct failure rather
+than passing silently.
 
 ## Recovering a bricked restore
+
+**Step 0: run `screening-ledger status` first (ADR-0007 Addendum 7 D62(b)).** On a genuinely bricked
+restore (message (a), "this database is a copy or restore of another"), this reports the database as
+unprovisioned, naming the mismatched instance -- confirming you are looking at the state this section
+describes before you act on it. If it instead reports the database as already provisioned, stop:
+something other than an ordinary logical copy produced this state, and re-running `grant-ddl-ownership`
+blind is not the next step. As with the drift section above, this is a second gate: the mechanism that
+actually makes recovery safe to run is `grant-ddl-ownership` itself refusing to record any undeclared
+object it finds (D62(a)), not this status check.
 
 Verified against a real restored database. Every step needs the bootstrap superuser.
 

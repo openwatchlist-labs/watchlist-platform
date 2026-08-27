@@ -207,7 +207,7 @@ jobs:
           PGSUPERUSER: owl_ci
           PGSUPERPASSWORD: owl_ci
         run: ./scripts/ci/provision_test_roles.sh create-schemasql-only-database
-      - name: Install PostgreSQL 17 client tools (pg_dump/pg_restore version match)
+      - name: Install PostgreSQL 17 client and server tools (pg_dump/pg_restore version match)
         # create-restored-database is the first SEC-7 fixture in this whole
         # arc to invoke pg_dump/pg_restore -- every prior fixture (stale
         # anchor, unprovisioned, schemasql-only) is built with psql alone,
@@ -218,6 +218,15 @@ jobs:
         # container above, so this pins an explicit matching client
         # version rather than depending on whatever the runner image
         # happens to ship by default.
+        #
+        # ADR-0007 Addendum 7 D66: postgresql-17 (the SERVER package, not
+        # only postgresql-client-17) is installed alongside the client for
+        # scripts/ci/verify_cross_cluster_dr.sh below, which needs
+        # initdb/pg_ctl/postgres to stand up a genuinely SECOND,
+        # disposable cluster distinct from the postgres:17 service
+        # container -- D66's own finding requires proving the cross-cluster
+        # DR procedure against real, separate clusters, not one database
+        # on the same server.
         shell: bash
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -234,25 +243,52 @@ jobs:
             echo "PGDG signing key fingerprint mismatch: got $actual_fingerprint, expected B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8 -- refusing to trust it" >&2
             exit 1
           fi
-          # ADR-0007 Addendum 6 D57: scope the PGDG origin to the one
-          # package this step wants, via an APT preferences pin -- closes
-          # CAP #5 §7.7 property 2 ("apt-get update makes PGDG a
-          # candidate source for every package on the runner, not only
-          # postgresql-client-17"). postgresql-client-17 itself stays
-          # unpinned by minor version (CAP #5 §7.7 property 3), which is
-          # what keeps the client matched to the floating postgres:17
-          # service container this step exists to match.
-          printf 'Package: *\nPin: origin apt.postgresql.org\nPin-Priority: -1\n\nPackage: postgresql-client-*\nPin: origin apt.postgresql.org\nPin-Priority: 500\n' | sudo tee /etc/apt/preferences.d/pgdg.pref >/dev/null
+          # ADR-0007 Addendum 6 D57: scope the PGDG origin to the packages
+          # this step wants, via an APT preferences pin -- closes CAP #5
+          # §7.7 property 2 ("apt-get update makes PGDG a candidate source
+          # for every package on the runner, not only postgresql-client-17").
+          # ADR-0007 Addendum 7 D66 adds postgresql-17 as its own closed-set
+          # stanza rather than widening the existing pattern to match it,
+          # per D31's "closed set of objects, not a name pattern" -- the
+          # set this pin trusts PGDG for is named explicitly, not guessed.
+          # Both packages stay unpinned by minor version (CAP #5 §7.7
+          # property 3), which is what keeps the client matched to the
+          # floating postgres:17 service container this step exists to
+          # match.
+          printf 'Package: *\nPin: origin apt.postgresql.org\nPin-Priority: -1\n\nPackage: postgresql-client-*\nPin: origin apt.postgresql.org\nPin-Priority: 500\n\nPackage: postgresql-17\nPin: origin apt.postgresql.org\nPin-Priority: 500\n' | sudo tee /etc/apt/preferences.d/pgdg.pref >/dev/null
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          # postgresql-17's postinst auto-creates AND starts a default
+          # cluster on port 5432 by default, which is already bound by the
+          # postgres:17 service container above -- policy-rc.d blocks every
+          # service (re)start package installation would otherwise trigger,
+          # the standard Debian/Docker convention for "install packages,
+          # do not let them start services." This repository's own cluster
+          # (scripts/ci/verify_cross_cluster_dr.sh) is started explicitly,
+          # afterward, on its own port, from its own scratch data directory
+          # -- the auto-created default cluster is never used.
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /usr/sbin/policy-rc.d >/dev/null
+          sudo chmod +x /usr/sbin/policy-rc.d
+          sudo apt-get install -y postgresql-client-17 postgresql-17
+          sudo rm -f /usr/sbin/policy-rc.d
           pg_dump --version
+          /usr/lib/postgresql/17/bin/initdb --version
       - name: Create SEC-7 Addendum 5 restored/cloned copy-state fixtures (D43/D49 test 1)
         shell: bash
         env:
           PGSUPERUSER: owl_ci
           PGSUPERPASSWORD: owl_ci
         run: ./scripts/ci/provision_test_roles.sh create-restored-database
+      - name: Verify SEC-7 cross-cluster DR procedure (ADR-0007 Addendum 7 D66)
+        shell: bash
+        env:
+          PG_BIN_DIR: /usr/lib/postgresql/17/bin
+          PRIMARY_PGHOST: localhost
+          PRIMARY_PGPORT: "5432"
+          PRIMARY_PGSUPERUSER: owl_ci
+          PRIMARY_PGSUPERPASSWORD: owl_ci
+          PRIMARY_PGDATABASE: owl_ci
+        run: ./scripts/ci/verify_cross_cluster_dr.sh
       - name: Run clean-restart CI
         shell: bash
         run: ./scripts/ci/run-ci.sh
