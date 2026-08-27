@@ -179,6 +179,17 @@ grant-ddl-ownership)
   if [[ "$anchor_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_ddl;"
   fi
+  # ADR-0007 Addendum 6 D51: MAINTAIN (REINDEX/VACUUM/ANALYZE/CLUSTER/
+  # REFRESH MATERIALIZED VIEW/LOCK TABLE) is held implicitly by a table's
+  # owner but, unlike ownership itself, is revocable -- confirmed by
+  # execution during this addendum's design pass. Run unconditionally,
+  # every invocation, not only on first ownership transfer: GRANT/REVOKE
+  # always report objid=NULL to the D34 event trigger (confirmed by
+  # execution), so this never trips it regardless of installation state,
+  # and re-running this step is the documented recovery from R25's
+  # accepted residual (an operator or a superuser re-granting MAINTAIN to
+  # owl_ledger_ddl after this step has already run once).
+  psql_super -c "REVOKE MAINTAIN ON TABLE screening_ledger_anchor FROM owl_ledger_ddl;"
   # owl_ledger_anchor (the runtime writer) gets INSERT only -- never
   # ownership, never SELECT/UPDATE/DELETE, never DDL. This is the
   # privilege set ADR-0007 §5.3 point 2 and anchor.go's doc comment
@@ -247,7 +258,15 @@ grant-ddl-ownership)
     echo "FAIL: owl_ledger_anchor owns screening_ledger_anchor; ownership must belong to owl_ledger_ddl (F6)" >&2
     exit 1
   }
-  echo "PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner; owl_migrator's DDL membership dropped and it has SELECT-only"
+  # ADR-0007 Addendum 6 D51: the revoke actually holds, and ALTER TABLE
+  # is still refused separately by D34 -- proving the revoke did not
+  # over-reach into ordinary DDL rights.
+  ddl_has_maintain_anchor="$(psql_super -tAc "SELECT has_table_privilege('owl_ledger_ddl', 'screening_ledger_anchor', 'MAINTAIN')")"
+  [[ "$ddl_has_maintain_anchor" == "f" ]] || {
+    echo "FAIL: owl_ledger_ddl holds MAINTAIN on screening_ledger_anchor (ADR-0007 Addendum 6 D51): REVOKE did not hold" >&2
+    exit 1
+  }
+  echo "PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner; owl_migrator's DDL membership dropped and it has SELECT-only; owl_ledger_ddl's MAINTAIN privilege revoked (ADR-0007 Addendum 6 D51)"
 
   # ADR-0007 Addendum 2 D27 (F-D, MEDIUM): screening_ledger_retention_
   # tombstone and both screening_ledger_purge_snapshots overloads
@@ -270,6 +289,9 @@ grant-ddl-ownership)
   if [[ "$tombstone_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_retention_tombstone OWNER TO owl_ledger_ddl;"
   fi
+  # ADR-0007 Addendum 6 D51: same reasoning as the anchor table's REVOKE
+  # above, run unconditionally every invocation.
+  psql_super -c "REVOKE MAINTAIN ON TABLE screening_ledger_retention_tombstone FROM owl_ledger_ddl;"
   # ADR-0007 Addendum 3 D34 registers both overloads below as protected
   # objects, so -- exactly like the two ALTER TABLE OWNER TO statements
   # above -- these must be guarded on current ownership rather than run
@@ -355,7 +377,13 @@ grant-ddl-ownership)
     echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
     exit 1
   }
-  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only"
+  # ADR-0007 Addendum 6 D51: same postcondition as the anchor table above.
+  ddl_has_maintain_tombstone="$(psql_super -tAc "SELECT has_table_privilege('owl_ledger_ddl', 'screening_ledger_retention_tombstone', 'MAINTAIN')")"
+  [[ "$ddl_has_maintain_tombstone" == "f" ]] || {
+    echo "FAIL: owl_ledger_ddl holds MAINTAIN on screening_ledger_retention_tombstone (ADR-0007 Addendum 6 D51): REVOKE did not hold" >&2
+    exit 1
+  }
+  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only; owl_ledger_ddl's MAINTAIN privilege revoked (ADR-0007 Addendum 6 D51)"
 
   # ADR-0007 Addendum 3 D34 (G-B, G-D, G-G): D26's event trigger scoped
   # itself twice -- WHEN TAG on the trigger, object_identity string
@@ -438,6 +466,20 @@ grant-ddl-ownership)
       policy_oids oid[] NOT NULL
     );
   "
+  # ADR-0007 Addendum 6 D50: index_oids is replaced by index_defs, the
+  # sorted set of pg_get_indexdef() renderings -- REINDEX ... CONCURRENTLY
+  # preserves everything about an index except its OID (measured during
+  # this addendum's design pass), so comparing OIDs makes an ordinary
+  # index rebuild indistinguishable from an attack. Not dropped outright:
+  # a database this step already ran on before this addendum still has
+  # the old column, and the ALTER below both adds the new one and drops
+  # the old one in the same statement -- D50's own decision ("replaced,
+  # not supplemented: two recordings of one property is a second thing to
+  # keep in sync"). DROP COLUMN IF EXISTS / ADD COLUMN IF NOT EXISTS make
+  # this idempotent against a database this step has already run on since
+  # this addendum landed.
+  psql_super -c "ALTER TABLE sec7_protected_relation DROP COLUMN IF EXISTS index_oids;"
+  psql_super -c "ALTER TABLE sec7_protected_relation ADD COLUMN IF NOT EXISTS index_defs text[];"
   # ADR-0007 Addendum 5 D46: the identity string this row's objid resolved
   # to at provisioning time, so a failing diagnostic can name the relation
   # by name rather than only by a bare, now-meaningless integer. ADD
@@ -484,22 +526,47 @@ grant-ddl-ownership)
            now();
   "
   psql_super -c "DELETE FROM sec7_protected_relation;"
+  # ADR-0007 Addendum 6 D50: index_defs is populated as the sorted set of
+  # pg_get_indexdef() renderings, not the index OIDs -- see the column
+  # migration above.
   psql_super -c "
-    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_oids, policy_oids, identity)
+    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_defs, policy_oids, identity)
     SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity,
       COALESCE((SELECT array_agg(t.oid ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal), ARRAY[]::oid[]),
-      COALESCE((SELECT array_agg(ix.indexrelid ORDER BY ix.indexrelid) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::oid[]),
+      COALESCE((SELECT array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::text[]),
       COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
       (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
     FROM pg_class c
     WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
   "
+  psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN index_defs SET NOT NULL;"
   psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN identity SET NOT NULL;"
   protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")"
   [[ "$protected_relation_row_count" == "2" ]] || {
     echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
     exit 1
   }
+  # ADR-0007 Addendum 6 D56 point 5: a named precondition, checked before
+  # the INSERT below rather than left to surface as
+  # "null value in column \"objid\" ... violates not-null constraint" --
+  # fail-closed and correct either way, but the raw constraint violation
+  # names neither the missing trigger nor the remedy. Reachable on
+  # exactly the state J-B (D53) used to leave behind: a clone whose
+  # screening_ledger_anchor_immutable trigger has been dropped.
+  for guard_trigger in \
+    "screening_ledger_anchor_immutable:screening_ledger_anchor" \
+    "screening_ledger_anchor_no_truncate:screening_ledger_anchor" \
+    "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
+    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone"
+  do
+    trig_name="${guard_trigger%%:*}"
+    trig_table="${guard_trigger##*:}"
+    trig_present="$(psql_super -tAc "SELECT 1 FROM pg_trigger WHERE tgname = '${trig_name}' AND tgrelid = '${trig_table}'::regclass")"
+    [[ "$trig_present" == "1" ]] || {
+      echo "FAIL: guard trigger ${trig_name} on ${trig_table} does not exist (ADR-0007 Addendum 6 D56): re-run db/migrations/015_screening_ledger_anchor.sql / db/migrations/008g_screening_ledger.sql, or restore the trigger, before re-running grant-ddl-ownership" >&2
+      exit 1
+    }
+  done
   psql_super -c "DELETE FROM sec7_protected_object;"
   psql_super -c "
     INSERT INTO sec7_protected_object (objid, classid, note) VALUES
@@ -547,12 +614,17 @@ grant-ddl-ownership)
       cur_rls boolean;
       cur_force_rls boolean;
       cur_triggers oid[];
-      cur_indexes oid[];
+      -- ADR-0007 Addendum 6 D50: the index set is now compared by
+      -- definition, not OID -- REINDEX ... CONCURRENTLY rewrites only
+      -- the OID (measured during this addendum's design pass), so an
+      -- OID comparison makes an ordinary rebuild indistinguishable from
+      -- an attack.
+      cur_index_defs text[];
       cur_policies oid[];
-      -- ADR-0007 Addendum 5 D46: variables for the three-message
-      -- diagnostic, read only after the existence check below has
-      -- already decided to raise -- none of this can affect whether the
-      -- statement is allowed.
+      -- ADR-0007 Addendum 5 D46 / Addendum 6 D54: variables for the
+      -- four-message diagnostic, read only after the existence check
+      -- below has already decided to raise -- none of this can affect
+      -- whether the statement is allowed.
       live_oid oid;
       rec_sysid bigint;
       rec_dboid oid;
@@ -560,6 +632,10 @@ grant-ddl-ownership)
       live_sysid bigint;
       live_dboid oid;
       live_dbname text;
+      -- ADR-0007 Addendum 6 D54(c): whether the instance binding is
+      -- readable at all, checked before it is read.
+      binding_readable boolean;
+      binding_row_count integer;
     BEGIN
       IF TG_EVENT = 'sql_drop' THEN
         FOR obj IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
@@ -590,24 +666,36 @@ grant-ddl-ownership)
         -- unrelated object that happens to leave a dangling rule) that
         -- the sql_drop phase's objid check would miss for any object
         -- not individually registered.
-        FOR rel IN SELECT * FROM sec7_protected_relation LOOP
+        --
+        -- ADR-0007 Addendum 6 D54(b): ORDER BY identity, so two runs
+        -- against one database state produce one message rather than
+        -- one decided by heap order.
+        FOR rel IN SELECT * FROM sec7_protected_relation ORDER BY identity LOOP
           IF NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = rel.objid) THEN
-            -- ADR-0007 Addendum 5 D46: the existence decision above is
-            -- already made -- the statement WILL be refused. Everything
-            -- from here down only decides which of three messages
-            -- explains why, and is read only on this already-failing
-            -- path. A plain catalog join, not to_regclass(rel.identity):
-            -- to_regclass raises on a malformed name
-            -- ('a.b.c.d' -> 'improper relation name'), and a raise from
-            -- inside an event-trigger function that already runs on
-            -- every DDL statement in the database is precisely R17's
-            -- accepted risk realized (confirmed by execution).
-            SELECT c.oid INTO live_oid
-              FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-             WHERE n.nspname || '.' || c.relname = rel.identity;
+            -- ADR-0007 Addendum 5 D46 / Addendum 6 D52/D54: the
+            -- existence decision above is already made -- the statement
+            -- WILL be refused. Everything from here down only decides
+            -- which of four messages explains why, and is read only on
+            -- this already-failing path.
+            --
+            -- D54(a): order by evidence. A database whose instance
+            -- binding mismatches is a copy whether or not the recorded
+            -- relation is present under its name, so that fact is
+            -- established FIRST; name resolution then only refines the
+            -- message. D54(c): the read cannot raise -- guarded by
+            -- to_regclass on a literal (never malformed, unlike
+            -- rel.identity), and the branch is skipped entirely when it
+            -- is NULL, so plpgsql never plans (and therefore never
+            -- executes) the SELECT against a table that may not exist.
+            binding_readable := to_regclass('sec7_instance_binding') IS NOT NULL;
+            IF binding_readable THEN
+              SELECT count(*) INTO binding_row_count FROM sec7_instance_binding;
+            ELSE
+              binding_row_count := 0;
+            END IF;
 
-            IF live_oid IS NULL THEN
-              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists and no relation of that name is present', rel.identity, rel.objid;
+            IF NOT binding_readable OR binding_row_count = 0 THEN
+              RAISE EXCEPTION 'ADR-0007 Addendum 6 D54: protected relation \"%\" (registry objid %) no longer exists; the instance binding is absent or empty, so whether this database is a copy cannot be determined. If this is a fresh, never-provisioned database run scripts/ci/provision_test_roles.sh grant-ddl-ownership; otherwise investigate before doing so -- see docs/operations/sec7-database-copies.md', rel.identity, rel.objid;
             END IF;
 
             SELECT b.system_identifier, b.database_oid, b.database_name
@@ -617,46 +705,61 @@ grant-ddl-ownership)
             SELECT d.oid, d.datname INTO live_dboid, live_dbname FROM pg_database d WHERE d.datname = current_database();
 
             IF rec_sysid IS DISTINCT FROM live_sysid OR rec_dboid IS DISTINCT FROM live_dboid THEN
-              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists; \"%\" is present with objid %. This database is a copy or restore of another (registry recorded instance %/% %; live instance %/% %). The SEC-7 registries hold raw OIDs and do not survive pg_dump/pg_restore. Recovery: scripts/ci/provision_test_roles.sh grant-ddl-ownership -- see docs/operations/sec7-database-copies.md', rel.identity, rel.objid, rel.identity, live_oid, rec_sysid, rec_dboid, rec_dbname, live_sysid, live_dboid, live_dbname;
-            ELSE
-              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists; \"%\" is present with objid % -- the relation was dropped and recreated. Re-run grant-ddl-ownership.', rel.identity, rel.objid, rel.identity, live_oid;
+              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists. This database is a copy or restore of another (registry recorded instance %/% %; live instance %/% %). The SEC-7 registries hold raw OIDs and do not survive pg_dump/pg_restore. Recovery (ADR-0007 Addendum 6 D56): ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE; then scripts/ci/provision_test_roles.sh grant-ddl-ownership -- see docs/operations/sec7-database-copies.md', rel.identity, rel.objid, rec_sysid, rec_dboid, rec_dbname, live_sysid, live_dboid, live_dbname;
             END IF;
+
+            -- Instance matches: resolve by name to distinguish
+            -- 'dropped and recreated in place' from 'genuinely gone'.
+            -- ADR-0007 Addendum 6 D55: joined through pg_identify_object,
+            -- the same function that produced rel.identity at
+            -- provisioning time, rather than an unquoted nspname||'.'||
+            -- relname concatenation that disagrees with it whenever the
+            -- schema or relation name requires quoting.
+            SELECT c.oid INTO live_oid
+              FROM pg_class c
+             WHERE (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity = rel.identity;
+
+            IF live_oid IS NULL THEN
+              RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists and no relation of that name is present', rel.identity, rel.objid;
+            END IF;
+
+            RAISE EXCEPTION 'ADR-0007 Addendum 5 D46: protected relation \"%\" (registry objid %) no longer exists; \"%\" is present with objid % -- the relation was dropped and recreated in place. Re-run grant-ddl-ownership.', rel.identity, rel.objid, rel.identity, live_oid;
           END IF;
           SELECT c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity
             INTO cur_owner, cur_kind, cur_rls, cur_force_rls
             FROM pg_class c WHERE c.oid = rel.objid;
           IF cur_owner IS DISTINCT FROM rel.relowner THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its owner changed', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): its owner changed', rel.identity, rel.objid;
           END IF;
           IF cur_kind IS DISTINCT FROM rel.relkind THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its relkind changed', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): its relkind changed', rel.identity, rel.objid;
           END IF;
           IF cur_rls IS DISTINCT FROM rel.relrowsecurity OR cur_force_rls IS DISTINCT FROM rel.relforcerowsecurity THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its row-level-security flags changed', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): its row-level-security flags changed', rel.identity, rel.objid;
           END IF;
           IF EXISTS (SELECT 1 FROM pg_rewrite r WHERE r.ev_class = rel.objid) THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): a rewrite RULE exists on it', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): a rewrite RULE exists on it', rel.identity, rel.objid;
           END IF;
           IF EXISTS (SELECT 1 FROM pg_inherits i WHERE i.inhparent = rel.objid OR i.inhrelid = rel.objid) THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): an inheritance child is attached (or it has itself been attached as a child)', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): an inheritance child is attached (or it has itself been attached as a child)', rel.identity, rel.objid;
           END IF;
           SELECT COALESCE(array_agg(t.oid ORDER BY t.oid), ARRAY[]::oid[]) INTO cur_triggers
             FROM pg_trigger t WHERE t.tgrelid = rel.objid AND NOT t.tgisinternal;
           IF cur_triggers IS DISTINCT FROM rel.trigger_oids THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its trigger set changed', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): its trigger set changed', rel.identity, rel.objid;
           END IF;
-          SELECT COALESCE(array_agg(ix.indexrelid ORDER BY ix.indexrelid), ARRAY[]::oid[]) INTO cur_indexes
+          SELECT COALESCE(array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)), ARRAY[]::text[]) INTO cur_index_defs
             FROM pg_index ix WHERE ix.indrelid = rel.objid;
-          IF cur_indexes IS DISTINCT FROM rel.index_oids THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its index set changed', rel.objid;
+          IF cur_index_defs IS DISTINCT FROM rel.index_defs THEN
+            RAISE EXCEPTION 'ADR-0007 Addendum 6 D50: protected relation \"%\" (objid %): its index set changed', rel.identity, rel.objid;
           END IF;
           SELECT COALESCE(array_agg(p.oid ORDER BY p.oid), ARRAY[]::oid[]) INTO cur_policies
             FROM pg_policy p WHERE p.polrelid = rel.objid;
           IF cur_policies IS DISTINCT FROM rel.policy_oids THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): its RLS policy set changed', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): its RLS policy set changed', rel.identity, rel.objid;
           END IF;
           IF EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = rel.objid AND NOT t.tgisinternal AND t.tgenabled <> 'O') THEN
-            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation (objid %): one of its triggers is not ENABLE (tgenabled <> ''O'')', rel.objid;
+            RAISE EXCEPTION 'ADR-0007 Addendum 4 D40: protected relation \"%\" (objid %): one of its triggers is not ENABLE (tgenabled <> ''O'')', rel.identity, rel.objid;
           END IF;
         END LOOP;
       END IF;
@@ -692,7 +795,7 @@ grant-ddl-ownership)
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
   }
-  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-policy-OID-sets after every DDL statement, naming the relation and the copy/restore instance on failure (D46) via sec7_instance_binding (D45, diagnostic-only, never gates)"
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-defs-policy sets after every DDL statement (ADR-0007 Addendum 6 D50: index sets compared by definition, not OID), naming the relation and the copy/restore instance on failure (D46, D52, D54, D55) via sec7_instance_binding (D45, diagnostic-only, never gates)"
   ;;
 create-restored-database)
   # ADR-0007 Addendum 5 D43/D49 test 1 (I-A, CAP #4 §7.6): the two pg_dump
@@ -737,10 +840,13 @@ create-restored-database)
 
   # Prove both postconditions rather than assuming pg_dump/psql did what
   # they say -- the same standard every other fixture in this script
-  # follows. owl_ci_sec7_restored: registries carried and populated (12 in
-  # sec7_protected_object at this commit -- rowcheck below is symbolic,
-  # not hard-coded, precisely because D45 already changed this number
-  # once), owner preserved. owl_ci_sec7_cloned: registries carried empty.
+  # follows. owl_ci_sec7_restored: registries carried and populated
+  # (rowcheck below is symbolic, not hard-coded, precisely because this
+  # count has already changed twice, at D45 and D45's population count
+  # again at Addendum 5 -- ADR-0007 Addendum 6 D56 drops the number from
+  # this comment for the same reason rather than restating whatever it
+  # is today), owner preserved. owl_ci_sec7_cloned: registries carried
+  # empty.
   restored_obj_rows="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -tAc "SELECT count(*) FROM sec7_protected_object")"
   source_obj_rows="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
   [[ "$restored_obj_rows" == "$source_obj_rows" ]] || {

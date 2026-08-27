@@ -111,10 +111,16 @@ func TestCheckProvisioningStateDetectsRewrittenRecordedState(t *testing.T) {
 			reason:  "recorded trigger_oids",
 		},
 		{
-			name:    "index_oids",
-			mutate:  `UPDATE sec7_protected_relation SET index_oids = index_oids || ARRAY[999999]::oid[] WHERE identity = 'public.screening_ledger_anchor'`,
-			restore: `UPDATE sec7_protected_relation SET index_oids = array_remove(index_oids, 999999) WHERE identity = 'public.screening_ledger_anchor'`,
-			reason:  "recorded index_oids",
+			// ADR-0007 Addendum 6 D50: index_oids was replaced by
+			// index_defs (a sorted text[] of pg_get_indexdef()
+			// renderings, not OIDs) -- the mutation targets the new
+			// column, tampering with a definition string rather than an
+			// OID, since that is what a corrupted recording now looks
+			// like.
+			name:    "index_defs",
+			mutate:  `UPDATE sec7_protected_relation SET index_defs = index_defs || ARRAY['-- tampered']::text[] WHERE identity = 'public.screening_ledger_anchor'`,
+			restore: `UPDATE sec7_protected_relation SET index_defs = array_remove(index_defs, '-- tampered') WHERE identity = 'public.screening_ledger_anchor'`,
+			reason:  "recorded index_defs",
 		},
 		{
 			name:    "policy_oids",

@@ -265,6 +265,27 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 	if anchorWriterCanSelect {
 		return ProvisioningState{Reason: "owl_ledger_anchor has SELECT on at least one column of screening_ledger_anchor (ADR-0007 Addendum 4 D39): it must be INSERT-only"}, nil
 	}
+	// ADR-0007 Addendum 6 D51: owl_ledger_ddl must not hold MAINTAIN on
+	// either protected table -- joins D33's existing negative facts,
+	// beside the anyColumnPrivilege probes above. MAINTAIN has no column
+	// form (unlike the D39 privileges above), so the table-level
+	// has_table_privilege probe is the right question here, not
+	// anyColumnPrivilege -- stated explicitly so a later reader does not
+	// "fix" it into a column-privilege check and get an error. An owner
+	// can re-grant MAINTAIN to itself (R25: an accident boundary, not a
+	// security boundary), which is exactly the state this catches: a
+	// restoration that grant-ddl-ownership's own REVOKE already
+	// prevents on a fresh run, but which nothing before this addendum
+	// noticed if it happened afterward.
+	for _, table := range requiredDDLOwnedTables {
+		var hasMaintain bool
+		if err := p.conn.QueryRow(ctx, `SELECT has_table_privilege('owl_ledger_ddl', $1::regclass, 'MAINTAIN')`, table).Scan(&hasMaintain); err != nil {
+			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 6 D51: checking owl_ledger_ddl MAINTAIN privilege on %s: %w", table, err)
+		}
+		if hasMaintain {
+			return ProvisioningState{Reason: fmt.Sprintf("owl_ledger_ddl holds MAINTAIN on %s (ADR-0007 Addendum 6 D51): grant-ddl-ownership's REVOKE is not holding -- the owner can re-grant this to itself (R25) and only this check notices", table)}, nil
+		}
+	}
 	// ADR-0007 Addendum 4 D41: sec7_protected_object's identity, asserted
 	// against requiredProtectedObjects rather than the registry's own
 	// `note` column. R15 claimed "every registry row's OID resolves to
@@ -338,7 +359,7 @@ type protectedObjectIdentity struct {
 }
 
 // requiredProtectedObjects is scripts/ci/provision_test_roles.sh
-// grant-ddl-ownership's twelve-row sec7_protected_object population,
+// grant-ddl-ownership's thirteen-row sec7_protected_object population,
 // named here independently so the verifier and the installer are two
 // separate assertions of the same fact rather than one trusting the
 // other (D41: "the property is checked by the installer AND by the
@@ -364,7 +385,7 @@ var requiredProtectedObjects = []protectedObjectIdentity{
 }
 
 // protectedObjectIdentityReason asserts sec7_protected_object contains
-// exactly requiredProtectedObjects's twelve (classid, identity) pairs --
+// exactly requiredProtectedObjects's thirteen (classid, identity) pairs --
 // no more, no fewer -- resolved via pg_identify_object rather than the
 // registry's own unchecked `note` column. Returns a non-empty Reason on
 // the first fact found false; empty Reason and nil error when the
@@ -448,9 +469,10 @@ func (p *PostgresSink) protectedRelationIdentityReason(ctx context.Context) (str
 
 // requiredProtectedRelationState is ADR-0007 Addendum 5 D47: sec7_protected_
 // relation's seven recorded STATE columns -- relowner, relkind,
-// relrowsecurity, relforcerowsecurity, trigger_oids, index_oids,
-// policy_oids -- are exactly what D40's second phase compares live catalog
-// state AGAINST (provision_test_roles.sh:544-579 at Addendum 4), and until
+// relrowsecurity, relforcerowsecurity, trigger_oids, index_defs (index_oids
+// before ADR-0007 Addendum 6 D50), policy_oids -- are exactly what D40's
+// second phase compares live catalog state AGAINST
+// (provision_test_roles.sh:544-579 at Addendum 4), and until
 // this addendum nothing compared the recorded values themselves to
 // anything (CAP #4 §7.5 case G: rewriting trigger_oids alone, identity and
 // population left intact, passed every existing check). This is a literal
@@ -482,6 +504,11 @@ type requiredProtectedRelationState struct {
 	triggerNames []string
 	// indexNames: the relation's own primary-key index, one per table,
 	// named literally rather than derived from a naming-pattern guess.
+	// ADR-0007 Addendum 6 D50: "the coordinated-edit surface does not
+	// grow" -- this stays a name literal; only the query in
+	// protectedRelationStateReason below changes, from reconciling the
+	// recorded column against these names' OIDs to reconciling it
+	// against these names' pg_get_indexdef() renderings.
 	indexNames []string
 	// No protected relation carries any RLS policy today -- policy_oids
 	// must be empty.
@@ -536,8 +563,8 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 					FROM pg_trigger t
 					WHERE t.tgrelid = r.objid AND NOT t.tgisinternal AND t.tgname = ANY($6)
 				),
-				r.index_oids = (
-					SELECT COALESCE(array_agg(ix.indexrelid ORDER BY ix.indexrelid), ARRAY[]::oid[])
+				r.index_defs = (
+					SELECT COALESCE(array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)), ARRAY[]::text[])
 					FROM pg_index ix JOIN pg_class ic ON ic.oid = ix.indexrelid
 					WHERE ix.indrelid = r.objid AND ic.relname = ANY($7)
 				),
@@ -560,7 +587,7 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 		case !triggersOK:
 			return fmt.Sprintf("sec7_protected_relation's recorded trigger_oids for %s do not match its two declared trigger names (ADR-0007 Addendum 5 D47): the recorded state was rewritten without D40's second phase seeing it happen", want.identity), nil
 		case !indexesOK:
-			return fmt.Sprintf("sec7_protected_relation's recorded index_oids for %s do not match its declared primary-key index (ADR-0007 Addendum 5 D47)", want.identity), nil
+			return fmt.Sprintf("sec7_protected_relation's recorded index_defs for %s do not match its declared primary-key index (ADR-0007 Addendum 5 D47 / Addendum 6 D50)", want.identity), nil
 		case !policiesOK:
 			return fmt.Sprintf("sec7_protected_relation's recorded policy_oids for %s is not empty (ADR-0007 Addendum 5 D47)", want.identity), nil
 		case !identityOK:
