@@ -267,16 +267,31 @@ grant-ddl-ownership)
     echo "FAIL: owl_ledger_anchor owns screening_ledger_anchor; ownership must belong to owl_ledger_ddl (F6)" >&2
     exit 1
   }
-  # ADR-0007 Addendum 6 D51 / Addendum 7 D60: the revoke actually holds
-  # over the live role population (not merely absent from owl_ledger_ddl
-  # by name -- an owner can GRANT MAINTAIN to any role, K-A), and ALTER
-  # TABLE is still refused separately by D34 -- proving the revoke did
-  # not over-reach into ordinary DDL rights. Same
-  # nonSuperuserUserCreatedRoleFilter population
-  # (internal/screeningledger/postgres.go) the verifier's D60 check uses,
-  # reconstructed here in SQL since the script has no access to the Go
-  # literal.
-  maintain_holders_anchor="$(psql_super -tAc "SELECT coalesce(string_agg(r.rolname, ', ' ORDER BY r.rolname), '') FROM pg_roles r WHERE NOT r.rolsuper AND r.oid >= 16384 AND has_table_privilege(r.rolname, 'screening_ledger_anchor', 'MAINTAIN')")"
+  # ADR-0007 Addendum 6 D51 / Addendum 7 D60, extended by Addendum 8
+  # D72/D73: the revoke actually holds over the live role population
+  # (not merely absent from owl_ledger_ddl by name -- an owner can GRANT
+  # MAINTAIN to any role, K-A), and ALTER TABLE is still refused
+  # separately by D34 -- proving the revoke did not over-reach into
+  # ordinary DDL rights. D72 replaces the oid >= 16384 range with the
+  # explicit, measured allowlist {pg_maintain} (the only predefined role
+  # that structurally reports MAINTAIN=true); D73 re-quantifies the
+  # population via pg_has_role(..., 'MEMBER') so a NOINHERIT/WITH
+  # INHERIT FALSE member is named too, not merely a role that directly
+  # holds the privilege. Same predefinedRoleStructuralPrivilege /
+  # privilegeHolderRoleFilterSQLTemplate population
+  # (internal/screeningledger/postgres.go) the verifier's D60/D72/D73
+  # check uses, reconstructed here in SQL since the script has no access
+  # to the Go literal.
+  maintain_holders_anchor="$(psql_super -tAc "
+    SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
+    FROM pg_roles r
+    WHERE NOT r.rolsuper AND r.rolname <> 'pg_maintain'
+      AND EXISTS (
+        SELECT 1 FROM pg_roles s
+        WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
+          AND has_table_privilege(s.rolname, 'screening_ledger_anchor', 'MAINTAIN')
+      )
+  ")"
   [[ -z "$maintain_holders_anchor" ]] || {
     echo "FAIL: MAINTAIN on screening_ledger_anchor is held by: $maintain_holders_anchor (ADR-0007 Addendum 7 D60): REVOKE did not hold" >&2
     exit 1
@@ -393,9 +408,18 @@ grant-ddl-ownership)
     echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
     exit 1
   }
-  # ADR-0007 Addendum 6 D51 / Addendum 7 D60: same live-population
-  # postcondition as the anchor table above.
-  maintain_holders_tombstone="$(psql_super -tAc "SELECT coalesce(string_agg(r.rolname, ', ' ORDER BY r.rolname), '') FROM pg_roles r WHERE NOT r.rolsuper AND r.oid >= 16384 AND has_table_privilege(r.rolname, 'screening_ledger_retention_tombstone', 'MAINTAIN')")"
+  # ADR-0007 Addendum 6 D51 / Addendum 7 D60 / Addendum 8 D72/D73: same
+  # live-population postcondition as the anchor table above.
+  maintain_holders_tombstone="$(psql_super -tAc "
+    SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
+    FROM pg_roles r
+    WHERE NOT r.rolsuper AND r.rolname <> 'pg_maintain'
+      AND EXISTS (
+        SELECT 1 FROM pg_roles s
+        WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
+          AND has_table_privilege(s.rolname, 'screening_ledger_retention_tombstone', 'MAINTAIN')
+      )
+  ")"
   [[ -z "$maintain_holders_tombstone" ]] || {
     echo "FAIL: MAINTAIN on screening_ledger_retention_tombstone is held by: $maintain_holders_tombstone (ADR-0007 Addendum 7 D60): REVOKE did not hold" >&2
     exit 1
@@ -602,6 +626,45 @@ grant-ddl-ownership)
       exit 1
     }
   done
+  # ADR-0007 Addendum 8 D69 (L-B, CRITICAL): a declared trigger's name
+  # locates it and never certifies it -- D62(a)'s own undeclared_trigger
+  # check above only ever asked whether an object bears the declared
+  # NAME, never what it DOES. Refuses BY BEHAVIOR before recording, the
+  # same "refuse before recording" shape D62(a) already established for
+  # undeclared names: tgtype (the trigger's timing/event bitmask),
+  # tgqual (must be NULL -- no WHEN clause), tgnargs and tgattr (must be
+  # empty -- no arguments, no UPDATE OF <column> narrowing), and the
+  # bound function's identity via pg_identify_object, which is
+  # session-independent where pg_get_triggerdef's text rendering is not
+  # (D69's own investigated-and-rejected finding: search_path makes the
+  # renderer disagree with itself between the recording and the
+  # verifying session). Duplicated here rather than read from
+  # internal/screeningledger/postgres.go's requiredProtectedRelationStates
+  # for the same reason D62(a)'s own declaration is duplicated: a bash
+  # script cannot import a Go literal (R23's cross-language cost).
+  for decl_trigger in \
+    "screening_ledger_anchor_immutable:screening_ledger_anchor:27:screening_ledger_reject_mutation" \
+    "screening_ledger_anchor_no_truncate:screening_ledger_anchor:34:owl_reject_truncate" \
+    "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone:27:screening_ledger_reject_mutation" \
+    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone:34:owl_reject_truncate"
+  do
+    trig_name="${decl_trigger%%:*}"
+    trig_rest="${decl_trigger#*:}"
+    trig_table="${trig_rest%%:*}"
+    trig_rest2="${trig_rest#*:}"
+    trig_tgtype="${trig_rest2%%:*}"
+    trig_funcname="${trig_rest2#*:}"
+    behavior_ok="$(psql_super -tAc "
+      SELECT (t.tgtype = ${trig_tgtype} AND t.tgqual IS NULL AND t.tgnargs = 0 AND t.tgattr::text = ''
+              AND (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = 'public.${trig_funcname}()')
+      FROM pg_trigger t
+      WHERE t.tgname = '${trig_name}' AND t.tgrelid = '${trig_table}'::regclass AND NOT t.tgisinternal
+    ")"
+    [[ "$behavior_ok" == "t" ]] || {
+      echo "FAIL: declared trigger ${trig_name} on ${trig_table} does not match its declared behavior -- tgtype=${trig_tgtype}, no WHEN clause, no arguments, no column list, bound to public.${trig_funcname}() (ADR-0007 Addendum 8 D69): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+  done
   psql_super -c "DELETE FROM sec7_protected_relation;"
   # ADR-0007 Addendum 6 D50: index_defs is populated as the sorted set of
   # pg_get_indexdef() renderings, not the index OIDs -- see the column
@@ -623,24 +686,38 @@ grant-ddl-ownership)
     echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
     exit 1
   }
-  # ADR-0007 Addendum 6 D56 point 5: a named precondition, checked before
-  # the INSERT below rather than left to surface as
-  # "null value in column \"objid\" ... violates not-null constraint" --
-  # fail-closed and correct either way, but the raw constraint violation
-  # names neither the missing trigger nor the remedy. Reachable on
-  # exactly the state J-B (D53) used to leave behind: a clone whose
-  # screening_ledger_anchor_immutable trigger has been dropped.
-  for guard_trigger in \
-    "screening_ledger_anchor_immutable:screening_ledger_anchor" \
-    "screening_ledger_anchor_no_truncate:screening_ledger_anchor" \
-    "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
-    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone"
+  # ADR-0007 Addendum 6 D56 point 5, extended by Addendum 8 D71: a named
+  # precondition, checked before the INSERT below rather than left to
+  # surface as "null value in column \"objid\" ... violates not-null
+  # constraint" -- fail-closed and correct either way, but the raw
+  # constraint violation names neither the missing object nor the
+  # remedy. D56 originally covered triggers only, reachable on exactly
+  # the state J-B (D53) used to leave behind: a clone whose
+  # screening_ledger_anchor_immutable trigger has been dropped. D71
+  # extends the SAME loop to declared indexes -- CAP #7 §7.3's exact
+  # reproduction (the anchor's primary key dropped entirely) passed this
+  # step vacuously before, because nothing here asked whether a declared
+  # index NAME still resolves to anything; one mechanism now covers both
+  # object kinds rather than two half-mechanisms covering one each.
+  for guard_object in \
+    "trigger:screening_ledger_anchor_immutable:screening_ledger_anchor" \
+    "trigger:screening_ledger_anchor_no_truncate:screening_ledger_anchor" \
+    "trigger:screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
+    "trigger:screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone" \
+    "index:screening_ledger_anchor_pkey:screening_ledger_anchor" \
+    "index:screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone"
   do
-    trig_name="${guard_trigger%%:*}"
-    trig_table="${guard_trigger##*:}"
-    trig_present="$(psql_super -tAc "SELECT 1 FROM pg_trigger WHERE tgname = '${trig_name}' AND tgrelid = '${trig_table}'::regclass")"
-    [[ "$trig_present" == "1" ]] || {
-      echo "FAIL: guard trigger ${trig_name} on ${trig_table} does not exist (ADR-0007 Addendum 6 D56): re-run db/migrations/015_screening_ledger_anchor.sql / db/migrations/008g_screening_ledger.sql, or restore the trigger, before re-running grant-ddl-ownership" >&2
+    obj_kind="${guard_object%%:*}"
+    obj_rest="${guard_object#*:}"
+    obj_name="${obj_rest%%:*}"
+    obj_table="${obj_rest##*:}"
+    if [[ "$obj_kind" == "trigger" ]]; then
+      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_trigger WHERE tgname = '${obj_name}' AND tgrelid = '${obj_table}'::regclass")"
+    else
+      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = '${obj_name}' AND ix.indrelid = '${obj_table}'::regclass")"
+    fi
+    [[ "$obj_present" == "1" ]] || {
+      echo "FAIL: declared ${obj_kind} ${obj_name} on ${obj_table} does not exist (ADR-0007 Addendum 6 D56 / Addendum 8 D71): re-run db/migrations/015_screening_ledger_anchor.sql / db/migrations/008g_screening_ledger.sql, or restore the ${obj_kind}, before re-running grant-ddl-ownership" >&2
       exit 1
     }
   done

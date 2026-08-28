@@ -27,13 +27,41 @@ const (
 	VerificationModeHistoricalUnanchored VerificationMode = "historical-unanchored"
 )
 
+// TombstoneRecord is one row of screening_ledger_retention_tombstone,
+// ADR-0007 Addendum 8 D70: the row itself, not merely whether it exists,
+// is what adjudicatePurgeClaims's condition 3 now compares against the
+// anchored audit chain's own attestation.
+type TombstoneRecord struct {
+	SnapshotSHA256 string
+	PurgedAt       time.Time
+	Operator       string
+	Reason         string
+}
+
 // PurgeChecker answers whether a snapshot's purged_at is backed by an
 // independent record outside the envelope being checked (ADR-0007 D13 /
 // F8) -- e.g. a row in screening_ledger_retention_tombstone. A nil
 // PurgeChecker means no such independent record is available (a
 // filesystem-only verification run); see verifySnapshotChecked.
+//
+// ADR-0007 Addendum 8 D70: PurgeRecord returns the row rather than a
+// bool -- an existence test alone (the pre-D70 IsPurgeRecorded) never
+// read operator/reason/purged_at, which is exactly what let a laundered
+// DDL substitution (D69) or a direct SQL write forge a tombstone's
+// attribution with nothing anywhere noticing. AllPurgeRecords is the
+// reverse direction D70 also closes: the forward walk only ever asks
+// about snapshots the LOCAL envelope already claims are purged
+// (store.go's verifyPolicyLocked loop), so a tombstone row written
+// directly against Postgres for a snapshot never marked purged locally
+// generates no claim and would be adjudicated by nothing. knownSHA256
+// scopes the reverse scan to snapshot_sha256 values this ledger's own
+// chain actually references (VerifyReport.KnownSnapshotSHA256) --
+// scanning the whole table would name every other ledger sharing the
+// same Postgres schema as "unattested" too, which is not this ledger's
+// business and not what D70 diagnosed.
 type PurgeChecker interface {
-	IsPurgeRecorded(ctx context.Context, snapshotSHA256 string) (bool, error)
+	PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error)
+	AllPurgeRecords(ctx context.Context, knownSHA256 []string) ([]TombstoneRecord, error)
 }
 
 // PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart
@@ -303,6 +331,13 @@ type VerifyReport struct {
 	// deferred, which is the common case (no purges, or a filesystem-only
 	// run that decided them immediately).
 	PurgeClaims []PurgeClaim
+	// KnownSnapshotSHA256 (ADR-0007 Addendum 8 D70) is every
+	// request/response snapshot sha256 this ledger's own event chain
+	// references, purged or not, sorted and deduplicated -- the scope
+	// adjudicatePurgeClaims's reverse-direction check uses to ask
+	// Postgres about, so that another ledger's tombstone rows in the same
+	// shared schema are never named as this ledger's forgery.
+	KnownSnapshotSHA256 []string
 }
 
 // VerifyPolicy is the F1 fix's entry point (ADR-0007 D8, D9 option (c)):
@@ -391,6 +426,11 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 	snapshotChecksTotal := 0
 	snapshotChecksPerformed := 0
 	purgeClaims := []PurgeClaim{}
+	// ADR-0007 Addendum 8 D70: the set of snapshot sha256 values this
+	// ledger's own chain references, accumulated in the same loop that
+	// walks it -- the reverse-adjudication scope, deduplicated via the
+	// map and sorted below for a deterministic KnownSnapshotSHA256.
+	knownSnapshotSHA256Set := map[string]struct{}{}
 	for i, p := range pairs {
 		if p.event.Sequence != uint64(i+1) {
 			return VerifyReport{}, fmt.Errorf("ledger sequence gap at %d", i+1)
@@ -444,6 +484,7 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 			genesisPinSatisfied = true
 		}
 		for _, sha := range []string{p.event.RequestSnapshotSHA256, p.event.ResponseSnapshotSHA256} {
+			knownSnapshotSHA256Set[sha] = struct{}{}
 			snapshotChecksTotal++
 			performed, claim, err := s.verifySnapshotChecked(ctx, sha, p.event.Sequence, mode, opts.Purges)
 			if err != nil {
@@ -502,6 +543,11 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 			return VerifyReport{}, fmt.Errorf("%d snapshot(s) are marked purged and require anchored adjudication (ADR-0007 Addendum 3 D32): call VerifyAnchored, which cross-checks each against the anchored audit chain, rather than VerifyPolicy directly", len(purgeClaims))
 		}
 	}
+	knownSnapshotSHA256 := make([]string, 0, len(knownSnapshotSHA256Set))
+	for sha := range knownSnapshotSHA256Set {
+		knownSnapshotSHA256 = append(knownSnapshotSHA256, sha)
+	}
+	sort.Strings(knownSnapshotSHA256)
 	return VerifyReport{
 		Head:                    head,
 		AuditHead:               auditHead,
@@ -510,6 +556,7 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		SnapshotChecksTotal:     snapshotChecksTotal,
 		SnapshotChecksPerformed: snapshotChecksPerformed,
 		PurgeClaims:             purgeClaims,
+		KnownSnapshotSHA256:     knownSnapshotSHA256,
 	}, nil
 }
 
