@@ -477,10 +477,13 @@ type requiredProtectedRelationState struct {
 	// Neither protected relation has row-level security enabled.
 	relrowsecurity      bool
 	relforcerowsecurity bool
-	// triggerNames: requiredSchemaObjects above already declares each
-	// relation's immutability and TRUNCATE-guard trigger names; reused
-	// here rather than re-declared, so the two lists cannot drift apart.
-	triggerNames []string
+	// triggers: requiredSchemaObjects above already declares each
+	// relation's immutability and TRUNCATE-guard trigger names; the names
+	// are reused here rather than re-declared, so the two lists cannot
+	// drift apart. ADR-0007 Addendum 8 D69 adds, per trigger, the four
+	// session-independent catalog properties that make it the control it
+	// is -- see requiredProtectedTriggerState.
+	triggers []requiredProtectedTriggerState
 	// indexNames: the relation's own primary-key index, one per table,
 	// named literally rather than derived from a naming-pattern guess.
 	// ADR-0007 Addendum 6 D50: "the coordinated-edit surface does not
@@ -493,6 +496,49 @@ type requiredProtectedRelationState struct {
 	// must be empty.
 }
 
+// triggerNames returns just the names from triggers, for the existing
+// recorded-trigger_oids comparison (protectedRelationStateReason) which
+// predates D69 and is unaffected by it -- D69 adds a second, independent
+// live-behavior comparison beside this one; it does not replace it.
+func (w requiredProtectedRelationState) triggerNames() []string {
+	names := make([]string, len(w.triggers))
+	for i, trig := range w.triggers {
+		names[i] = trig.name
+	}
+	return names
+}
+
+// requiredProtectedTriggerState is ADR-0007 Addendum 8 D69: the four
+// session-independent catalog properties that make a declared trigger
+// the control it is, not merely an object bearing the declared name.
+// Every value was measured against the shipped baseline during the
+// addendum's design pass -- see docs/adr/0007-audit-chain-integrity.md's
+// D69 table -- rather than assumed from the migration that creates the
+// trigger. Deliberately does NOT include pg_get_triggerdef's rendering:
+// D69 investigated and rejected that (search_path-sensitive, so the
+// recorder and the verifier can render the same substituted trigger
+// differently at the same instant) -- see D69's own text before adding
+// it back.
+//
+// tgqual is not a field here: all four declared triggers have no WHEN
+// clause (tgqual IS NULL), asserted as a literal true in the query
+// itself rather than threaded through as a per-trigger bool that would
+// only ever be one value.
+type requiredProtectedTriggerState struct {
+	name string
+	// tgtype is PostgreSQL's trigger-type bitmask (ROW/STATEMENT x
+	// BEFORE/AFTER x INSERT/UPDATE/DELETE/TRUNCATE), a documented,
+	// version-stable ABI -- unlike pg_get_triggerdef's text.
+	tgtype int16
+	// tgnargs and tgattr: no declared trigger takes arguments; tgattr
+	// (rendered as text, e.g. "" for none) is the column list an
+	// `UPDATE OF <column>` clause narrows the trigger to -- empty means
+	// "every column," which is what every declared trigger requires.
+	tgnargs     int16
+	tgattr      string
+	functionOID string // pg_identify_object('pg_proc', tgfoid, 0).identity
+}
+
 // requiredProtectedRelationStates is D47's literal declaration, written
 // beside requiredProtectedRelations rather than derived from it or from
 // scripts/ci/provision_test_roles.sh's own population query -- comparing
@@ -503,9 +549,9 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 		identity: "public.screening_ledger_anchor",
 		relowner: "owl_ledger_ddl",
 		relkind:  "r",
-		triggerNames: []string{
-			"screening_ledger_anchor_immutable",
-			"screening_ledger_anchor_no_truncate",
+		triggers: []requiredProtectedTriggerState{
+			{name: "screening_ledger_anchor_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()"},
+			{name: "screening_ledger_anchor_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()"},
 		},
 		indexNames: []string{"screening_ledger_anchor_pkey"},
 	},
@@ -513,9 +559,9 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 		identity: "public.screening_ledger_retention_tombstone",
 		relowner: "owl_ledger_ddl",
 		relkind:  "r",
-		triggerNames: []string{
-			"screening_ledger_retention_tombstone_immutable",
-			"screening_ledger_retention_tombstone_no_truncate",
+		triggers: []requiredProtectedTriggerState{
+			{name: "screening_ledger_retention_tombstone_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()"},
+			{name: "screening_ledger_retention_tombstone_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()"},
 		},
 		indexNames: []string{"screening_ledger_retention_tombstone_pkey"},
 	},
@@ -530,7 +576,7 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 // resolve to exactly one row.
 func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string, error) {
 	for _, want := range requiredProtectedRelationStates {
-		var ownerOK, kindOK, rlsOK, forceRLSOK, triggersOK, indexesOK, indexesValidOK, policiesOK, identityOK bool
+		var ownerOK, kindOK, rlsOK, forceRLSOK, triggersOK, indexesOK, indexesValidOK, indexesPresentOK, policiesOK, identityOK bool
 		err := p.conn.QueryRow(ctx, `
 			SELECT
 				r.relowner = $2::regrole::oid,
@@ -561,12 +607,28 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 					WHERE ix.indrelid = r.objid AND ic.relname = ANY($7)
 					  AND NOT (ix.indisvalid AND ix.indisready)
 				),
+				-- ADR-0007 Addendum 8 D71: a declared index name is
+				-- asserted to resolve to a LIVE object, not merely
+				-- compared through index_defs -- when nothing bears the
+				-- name, both index_defs sides are the empty array and
+				-- D65's validity branch above is vacuously true over zero
+				-- rows too (both repaired by this same EXISTS). One row
+				-- per declared name, so a partially-dropped set (some
+				-- declared indexes present, others missing) is also
+				-- caught, not just a fully-empty one.
+				NOT EXISTS (
+					SELECT 1 FROM unnest($7::text[]) AS decl(name)
+					WHERE NOT EXISTS (
+						SELECT 1 FROM pg_index ix JOIN pg_class ic ON ic.oid = ix.indexrelid
+						WHERE ix.indrelid = r.objid AND ic.relname = decl.name
+					)
+				),
 				r.policy_oids = ARRAY[]::oid[],
 				r.identity = $1
 			FROM sec7_protected_relation r
 			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
-		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames, want.indexNames).
-			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &indexesValidOK, &policiesOK, &identityOK)
+		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames).
+			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &indexesValidOK, &indexesPresentOK, &policiesOK, &identityOK)
 		if err != nil {
 			return "", fmt.Errorf("checking sec7_protected_relation recorded state for %s: %w", want.identity, err)
 		}
@@ -583,10 +645,54 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 			return fmt.Sprintf("sec7_protected_relation's recorded index_defs for %s do not match its declared primary-key index (ADR-0007 Addendum 5 D47 / Addendum 6 D50)", want.identity), nil
 		case !indexesValidOK:
 			return fmt.Sprintf("%s: one of its declared indexes is not valid and ready (indisvalid/indisready) (ADR-0007 Addendum 7 D65)", want.identity), nil
+		case !indexesPresentOK:
+			return fmt.Sprintf("%s: one of its declared indexes does not exist (ADR-0007 Addendum 8 D71): a declared name that resolves to nothing must not pass this check vacuously", want.identity), nil
 		case !policiesOK:
 			return fmt.Sprintf("sec7_protected_relation's recorded policy_oids for %s is not empty (ADR-0007 Addendum 5 D47)", want.identity), nil
 		case !identityOK:
 			return fmt.Sprintf("sec7_protected_relation's recorded identity column for %s does not match (ADR-0007 Addendum 5 D46/D47)", want.identity), nil
+		}
+		// ADR-0007 Addendum 8 D69: the declared trigger's referent
+		// becomes what it DOES, not merely a name that resolves to
+		// something. Compared directly against the live catalog (never
+		// through sec7_protected_relation's recorded trigger_oids column
+		// above), because that recorded column is re-populated by
+		// grant-ddl-ownership itself -- exactly the launder D69 closes,
+		// so a comparison that trusts it cannot detect a substitution
+		// that survived a re-run of the installer. pg_get_triggerdef is
+		// deliberately not used here: D69 investigated and rejected it
+		// (search_path-sensitive; a same-named no-op in another schema
+		// renders byte-identically to the legitimate guard in exactly the
+		// session that runs this check).
+		for _, trig := range want.triggers {
+			var tgtypeOK, tgqualIsNullOK, tgnargsOK, tgattrOK, functionOK, presentOK bool
+			err := p.conn.QueryRow(ctx, `
+				SELECT
+					EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2),
+					COALESCE((SELECT t.tgtype = $3 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
+					COALESCE((SELECT t.tgqual IS NULL FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
+					COALESCE((SELECT t.tgnargs = $4 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
+					COALESCE((SELECT t.tgattr::text = $5 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
+					COALESCE((SELECT (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = $6 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false)
+			`, want.identity, trig.name, trig.tgtype, trig.tgnargs, trig.tgattr, trig.functionOID).
+				Scan(&presentOK, &tgtypeOK, &tgqualIsNullOK, &tgnargsOK, &tgattrOK, &functionOK)
+			if err != nil {
+				return "", fmt.Errorf("checking trigger %s behavior on %s (ADR-0007 Addendum 8 D69): %w", trig.name, want.identity, err)
+			}
+			switch {
+			case !presentOK:
+				return fmt.Sprintf("%s: declared trigger %s does not exist (ADR-0007 Addendum 8 D69/D71)", want.identity, trig.name), nil
+			case !functionOK:
+				return fmt.Sprintf("%s: trigger %s is not bound to %s (ADR-0007 Addendum 8 D69): possible rebind to a substituted function", want.identity, trig.name, trig.functionOID), nil
+			case !tgtypeOK:
+				return fmt.Sprintf("%s: trigger %s's tgtype does not match the declared %d (ADR-0007 Addendum 8 D69)", want.identity, trig.name, trig.tgtype), nil
+			case !tgqualIsNullOK:
+				return fmt.Sprintf("%s: trigger %s has a WHEN clause, expected none (ADR-0007 Addendum 8 D69): possible WHEN (false) neutering", want.identity, trig.name), nil
+			case !tgnargsOK:
+				return fmt.Sprintf("%s: trigger %s's tgnargs does not match the declared %d (ADR-0007 Addendum 8 D69)", want.identity, trig.name, trig.tgnargs), nil
+			case !tgattrOK:
+				return fmt.Sprintf("%s: trigger %s's column list does not match the declared set (ADR-0007 Addendum 8 D69): possible UPDATE OF <column> narrowing", want.identity, trig.name), nil
+			}
 		}
 	}
 	return "", nil
@@ -608,47 +714,136 @@ func (p *PostgresSink) anyColumnPrivilege(ctx context.Context, role, table, priv
 	return has, err
 }
 
-// nonSuperuserUserCreatedRoleFilter is ADR-0007 Addendum 7 D59 point 3:
-// the live role population every D60/D61 enumeration below quantifies
-// over. "NOT rolsuper" excludes the bootstrap superuser itself, which is
-// outside the adversary set R12/R17 name. "oid >= 16384" excludes
-// PostgreSQL's own predefined roles (pg_maintain, pg_read_all_data, and
-// the rest) WITHOUT excluding a normal role that is a MEMBER of one --
-// confirmed by execution during this addendum's design pass:
-// pg_maintain (oid 6337) is the one predefined role that reports
-// MAINTAIN=true on an ordinary table, has_table_privilege answers for a
-// member the same as for the role itself, and 16384 is
-// FirstNormalObjectId, the boundary above which every user-created
-// object (including a role CREATE ROLE makes after this addendum ships)
-// is assigned. A name pattern (rolname NOT LIKE 'pg\_%') was rejected:
-// CLAUDE.md's "never enumerate targets by inference" applies to an
-// exclusion list exactly as much as an inclusion one.
-const nonSuperuserUserCreatedRoleFilter = `NOT r.rolsuper AND r.oid >= 16384`
+// predefinedRoleStructuralPrivilege is ADR-0007 Addendum 8 D72's
+// allowlist principle: PostgreSQL's own predefined roles that
+// structurally carry a privilege on every table with no ACL entry
+// naming them at all, keyed by the exact privilege kind they carry --
+// measured against the shipped baseline during this addendum's
+// implementation, not assumed. pg_maintain (oid 6337) is the one
+// predefined role reporting MAINTAIN=true; pg_read_all_data reports
+// SELECT=true; pg_write_all_data reports DELETE/INSERT/UPDATE=true.
+// None of the sixteen predefined roles report REFERENCES, TRIGGER or
+// TRUNCATE=true, so those three keys are correctly absent -- an entry
+// here is a measured fact about one specific (role, privilege) pair, not
+// a blanket "predefined roles are exempt" the way D59 point 3's
+// oid >= 16384 range was. A privilege range would have excluded every
+// predefined role from every privilege kind regardless of which one, if
+// any, is actually theirs; D72's own finding is that doing so silently
+// hid a GRANT MAINTAIN ... TO pg_read_all_data, because pg_read_all_data
+// (oid 6181) is a predefined role too and the range does not
+// distinguish "structurally carries this privilege" from "is a
+// predefined role."
+var predefinedRoleStructuralPrivilege = map[string][]string{
+	"MAINTAIN": {"pg_maintain"},
+	"SELECT":   {"pg_read_all_data"},
+	"DELETE":   {"pg_write_all_data"},
+	"INSERT":   {"pg_write_all_data"},
+	"UPDATE":   {"pg_write_all_data"},
+}
 
-// maintainHoldersReason is ADR-0007 Addendum 7 D60 (K-A, HIGH): the set
-// of roles in the live population (nonSuperuserUserCreatedRoleFilter)
-// holding MAINTAIN on a protected table must be empty -- asserted empty
-// outright rather than against a declared literal, because nothing in
-// this system has any legitimate need to hold MAINTAIN on either
-// protected table (Addendum 6 D51), and an empty-set assertion has no
-// literal to drift out of sync with. MAINTAIN has no column form
-// (confirmed by execution: has_column_privilege raises "unrecognized
-// privilege type" for it), so has_table_privilege is the right question
-// here, not anyColumnPrivilege.
+// quoteSQLStringLiteral is a minimal single-quote SQL literal quoter for
+// composing privilegeHolderRoleFilterSQLTemplate's %s slot, filled only
+// from this package's own fixed privilege-kind literals
+// (requiredTablePrivilegeKinds, "MAINTAIN") -- never from caller- or
+// database-supplied input. Doubling an embedded quote is defence in
+// depth here, not the actual safety boundary (the boundary is that the
+// input set is closed and internal).
+func quoteSQLStringLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
+// privilegeHolderRoleFilterSQLTemplate is ADR-0007 Addendum 8 D72/D73's
+// replacement for D59 point 3's nonSuperuserUserCreatedRoleFilter
+// (oid >= 16384): "NOT rolsuper" is unchanged (the bootstrap superuser
+// is outside the adversary set R12/R17 name); the oid range is replaced
+// by an explicit, per-privilege allowlist of the predefined roles that
+// structurally carry exactly this privilege (D72) bound as $2, and the
+// enumeration itself asks the pg_has_role(..., 'MEMBER') question (D73)
+// rather than has_table_privilege(r.rolname, ...) directly -- confirmed
+// by execution to be transitive and to cover both NOINHERIT and
+// per-grant WITH INHERIT FALSE, over 1058 (role, role, table)
+// combinations with no exception. A role is always a MEMBER of itself,
+// so this subsumes the pre-D73 direct check as the s = r case; it is not
+// a narrower replacement. %s is holderClause, a privilege-specific
+// predicate against pg_roles s -- substituted with fmt.Sprintf on a
+// fixed Go string literal from each call site below, never on any value
+// that reaches this function from outside the package.
+const privilegeHolderRoleFilterSQLTemplate = `
+	SELECT COALESCE(array_agg(DISTINCT r.rolname::text ORDER BY r.rolname::text), ARRAY[]::text[])
+	FROM pg_roles r
+	WHERE NOT r.rolsuper AND NOT (r.rolname = ANY($2::text[]))
+	  AND EXISTS (
+		SELECT 1 FROM pg_roles s
+		WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
+		  AND %s
+	  )
+`
+
+// privilegeHolders is ADR-0007 Addendum 8 D73: the two independent
+// limbs D39's rejected aclexplode scan and D60/D61's has_table_privilege
+// enumeration each become, neither subsuming the other (D73's own
+// argument: the holder-side limb cannot see a grant to a role with no
+// current members, and D39's own transcript is exactly the case the
+// grantee-side limb closes -- a member reaching the privilege through a
+// role the ACL never names literally). holderClause is the
+// privilege-specific EXISTS predicate against pg_roles s (table-level
+// has_table_privilege or D39's anyColumnPrivilege-shaped column check),
+// referencing s.rolname and $1 (table); allowlist is
+// predefinedRoleStructuralPrivilege[priv] or nil. Grantee-side is
+// deliberately scoped to relacl (table-level ACL) only -- every grant
+// this repository's provisioning issues is table-level (never
+// column-level), so this matches what D73's own MAINTAIN example scans
+// and does not need pg_attribute.attacl.
+func (p *PostgresSink) privilegeHolders(ctx context.Context, table, priv string, holderClause string, allowlist []string) (holderSide, granteeSide []string, err error) {
+	if allowlist == nil {
+		allowlist = []string{}
+	}
+	err = p.conn.QueryRow(ctx,
+		fmt.Sprintf(privilegeHolderRoleFilterSQLTemplate, holderClause),
+		table, allowlist,
+	).Scan(&holderSide)
+	if err != nil {
+		return nil, nil, fmt.Errorf("holder-side (pg_has_role MEMBER) enumeration: %w", err)
+	}
+	err = p.conn.QueryRow(ctx, `
+		SELECT COALESCE(array_agg(DISTINCT grantee_name ORDER BY grantee_name), ARRAY[]::text[])
+		FROM (
+			SELECT (CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END) AS grantee_name
+			FROM pg_class c, aclexplode(c.relacl) a
+			WHERE c.oid = $1::regclass AND a.privilege_type = $2
+		) granted
+	`, table, priv).Scan(&granteeSide)
+	if err != nil {
+		return nil, nil, fmt.Errorf("grantee-side (aclexplode) scan: %w", err)
+	}
+	return holderSide, granteeSide, nil
+}
+
+// maintainHoldersReason is ADR-0007 Addendum 7 D60 (K-A, HIGH), extended
+// by Addendum 8 D72/D73: the set of roles holding MAINTAIN on a
+// protected table must be empty in BOTH the holder-side (pg_has_role
+// MEMBER, D72's allowlist) and grantee-side (aclexplode) senses --
+// asserted empty outright rather than against a declared literal,
+// because nothing in this system has any legitimate need to hold
+// MAINTAIN on either protected table (Addendum 6 D51), and an empty-set
+// assertion has no literal to drift out of sync with. MAINTAIN has no
+// column form (confirmed by execution: has_column_privilege raises
+// "unrecognized privilege type" for it), so has_table_privilege is the
+// right question here, not anyColumnPrivilege.
 func (p *PostgresSink) maintainHoldersReason(ctx context.Context) (string, error) {
 	for _, table := range requiredDDLOwnedTables {
-		var holders []string
-		err := p.conn.QueryRow(ctx, `
-			SELECT COALESCE(array_agg(r.rolname::text ORDER BY r.rolname::text), ARRAY[]::text[])
-			FROM pg_roles r
-			WHERE `+nonSuperuserUserCreatedRoleFilter+`
-			  AND has_table_privilege(r.rolname, $1::regclass, 'MAINTAIN')
-		`, table).Scan(&holders)
+		holderSide, granteeSide, err := p.privilegeHolders(ctx, table, "MAINTAIN",
+			`has_table_privilege(s.rolname, $1::regclass, 'MAINTAIN')`,
+			predefinedRoleStructuralPrivilege["MAINTAIN"],
+		)
 		if err != nil {
 			return "", fmt.Errorf("checking MAINTAIN holders on %s: %w", table, err)
 		}
-		if len(holders) > 0 {
-			return fmt.Sprintf("MAINTAIN on %s is held by %s (ADR-0007 Addendum 7 D60): the owner can GRANT this to any role and only this live enumeration notices -- this does not by itself mean the transfer is prevented (R27), only that it is now observed", table, strings.Join(holders, ", ")), nil
+		if len(holderSide) > 0 {
+			return fmt.Sprintf("MAINTAIN on %s is held by %s (ADR-0007 Addendum 7 D60 / Addendum 8 D73 holder-side): the owner can GRANT this to any role, or a role can reach it via SET ROLE through a NOINHERIT membership, and only this live enumeration notices -- this does not by itself mean the transfer is prevented (R27), only that it is now observed", table, strings.Join(holderSide, ", ")), nil
+		}
+		if len(granteeSide) > 0 {
+			return fmt.Sprintf("MAINTAIN on %s is granted to %s (ADR-0007 Addendum 8 D73 grantee-side, aclexplode): a literal ACL grantee the holder-side limb's membership traversal did not independently confirm", table, strings.Join(granteeSide, ", ")), nil
 		}
 	}
 	return "", nil
@@ -723,53 +918,48 @@ func requiredTablePrivilegeHolderRoles(table, priv string) []string {
 	return roles
 }
 
-// tablePrivilegeHoldersReason is ADR-0007 Addendum 7 D61: D39's
-// per-role negative probes (H-C) are re-quantified over the live role
-// population -- for every protected table and every one of the seven
-// non-MAINTAIN table privilege kinds, the set of roles in the live
-// population (nonSuperuserUserCreatedRoleFilter) holding that privilege
-// must equal exactly requiredTablePrivilegeHolders's declared set. An
-// extra live holder and a missing declared holder are both named
-// failures -- set equality, not a one-directional negative, which is
-// what closes the coverage gap D39 never had (a privilege the design
-// requires a role to hold was never independently checked before this).
+// tablePrivilegeHoldersReason is ADR-0007 Addendum 7 D61, extended by
+// Addendum 8 D72/D73: D39's per-role negative probes (H-C) are
+// re-quantified over the live role population -- for every protected
+// table and every one of the seven non-MAINTAIN table privilege kinds,
+// BOTH the holder-side (pg_has_role MEMBER, D72's per-privilege
+// allowlist) and grantee-side (aclexplode) sets of roles holding that
+// privilege must equal exactly requiredTablePrivilegeHolders's declared
+// set. An extra live holder (either side) and a missing declared holder
+// are both named failures -- set equality, not a one-directional
+// negative, which is what closes the coverage gap D39 never had (a
+// privilege the design requires a role to hold was never independently
+// checked before this), and CAP #7 confirmed this matrix has the same
+// NOINHERIT/no-current-member hole D73 closes for D60.
 func (p *PostgresSink) tablePrivilegeHoldersReason(ctx context.Context) (string, error) {
 	for _, table := range requiredDDLOwnedTables {
 		for _, priv := range requiredTablePrivilegeKinds {
-			var live []string
-			var err error
+			var holderClause string
 			if tablePrivilegesWithColumnForm[priv] {
-				err = p.conn.QueryRow(ctx, `
-					SELECT COALESCE(array_agg(DISTINCT r.rolname::text ORDER BY r.rolname::text), ARRAY[]::text[])
-					FROM pg_roles r
-					WHERE `+nonSuperuserUserCreatedRoleFilter+`
-					  AND EXISTS (
-					    SELECT 1 FROM pg_attribute a
-					    WHERE a.attrelid = $1::regclass AND a.attnum > 0 AND NOT a.attisdropped
-					      AND has_column_privilege(r.rolname, $1::regclass, a.attnum, $2)
-					  )
-				`, table, priv).Scan(&live)
+				holderClause = fmt.Sprintf(`EXISTS (
+					SELECT 1 FROM pg_attribute a
+					WHERE a.attrelid = $1::regclass AND a.attnum > 0 AND NOT a.attisdropped
+					  AND has_column_privilege(s.rolname, $1::regclass, a.attnum, %s)
+				)`, quoteSQLStringLiteral(priv))
 			} else {
-				err = p.conn.QueryRow(ctx, `
-					SELECT COALESCE(array_agg(r.rolname::text ORDER BY r.rolname::text), ARRAY[]::text[])
-					FROM pg_roles r
-					WHERE `+nonSuperuserUserCreatedRoleFilter+`
-					  AND has_table_privilege(r.rolname, $1::regclass, $2)
-				`, table, priv).Scan(&live)
+				holderClause = fmt.Sprintf(`has_table_privilege(s.rolname, $1::regclass, %s)`, quoteSQLStringLiteral(priv))
 			}
+			holderSide, granteeSide, err := p.privilegeHolders(ctx, table, priv, holderClause, predefinedRoleStructuralPrivilege[priv])
 			if err != nil {
 				return "", fmt.Errorf("checking %s holders on %s: %w", priv, table, err)
 			}
 			want := requiredTablePrivilegeHolderRoles(table, priv)
-			if !stringSlicesEqual(live, want) {
-				liveDesc, wantDesc := "<none>", "<none>"
-				if len(live) > 0 {
-					liveDesc = strings.Join(live, ", ")
+			describe := func(roles []string) string {
+				if len(roles) == 0 {
+					return "<none>"
 				}
-				if len(want) > 0 {
-					wantDesc = strings.Join(want, ", ")
-				}
-				return fmt.Sprintf("live %s privilege holders on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 7 D61): a role holds this privilege the declared matrix does not name, or a declared holder is missing it", priv, table, liveDesc, wantDesc), nil
+				return strings.Join(roles, ", ")
+			}
+			if !stringSlicesEqual(holderSide, want) {
+				return fmt.Sprintf("live %s privilege holders (holder-side, pg_has_role MEMBER) on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 7 D61 / Addendum 8 D73): a role holds this privilege the declared matrix does not name, or a declared holder is missing it", priv, table, describe(holderSide), describe(want)), nil
+			}
+			if !stringSlicesEqual(granteeSide, want) {
+				return fmt.Sprintf("live %s privilege grantees (grantee-side, aclexplode) on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 8 D73): a literal ACL grantee the declared matrix does not name, or a declared holder has no literal grant", priv, table, describe(granteeSide), describe(want)), nil
 			}
 		}
 	}
@@ -1174,20 +1364,62 @@ func (p *PostgresSink) LatestAnchor(ctx context.Context, ledgerID string) (ancho
 	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AuditSequence: auditSequence, PolicySHA256: policySHA256, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
 }
 
-// IsPurgeRecorded implements PurgeChecker (ADR-0007 D13/F8): whether an
-// independent tombstone exists for a snapshot the caller found marked
-// purged in its own envelope, rather than trusting that self-reported
-// field. screening_ledger_retention_tombstone is written server-side by
-// screening_ledger_purge_snapshots, not by the envelope being checked.
-func (p *PostgresSink) IsPurgeRecorded(ctx context.Context, snapshotSHA256 string) (bool, error) {
+// PurgeRecord implements PurgeChecker (ADR-0007 D13/F8, extended by
+// Addendum 8 D70): the tombstone row for a snapshot the caller found
+// marked purged in its own envelope, rather than trusting that
+// self-reported field, and rather than merely asking whether a row
+// exists -- D70's forward comparison needs operator/reason/purged_at,
+// not just presence. screening_ledger_retention_tombstone is written
+// server-side by screening_ledger_purge_snapshots, not by the envelope
+// being checked. Returns (nil, nil) when no row exists.
+func (p *PostgresSink) PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
-	var exists bool
+	var record TombstoneRecord
 	err := p.conn.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM screening_ledger_retention_tombstone WHERE snapshot_sha256=$1)`,
+		`SELECT snapshot_sha256, purged_at, operator, reason FROM screening_ledger_retention_tombstone WHERE snapshot_sha256=$1`,
 		snapshotSHA256,
-	).Scan(&exists)
-	return exists, err
+	).Scan(&record.SnapshotSHA256, &record.PurgedAt, &record.Operator, &record.Reason)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &record, nil
+}
+
+// AllPurgeRecords implements PurgeChecker (ADR-0007 Addendum 8 D70's
+// reverse direction): every tombstone row whose snapshot_sha256 is in
+// knownSHA256 -- the set the calling ledger's own chain references
+// (VerifyReport.KnownSnapshotSHA256), never the whole table, so another
+// ledger's rows in the same shared Postgres schema are never named as
+// this ledger's forgery. An empty knownSHA256 returns no rows rather
+// than every row: ANY($1) over an empty array matches nothing, which is
+// the correct answer for a ledger with no events yet.
+func (p *PostgresSink) AllPurgeRecords(ctx context.Context, knownSHA256 []string) ([]TombstoneRecord, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	rows, err := p.conn.Query(ctx,
+		`SELECT snapshot_sha256, purged_at, operator, reason FROM screening_ledger_retention_tombstone WHERE snapshot_sha256 = ANY($1)`,
+		knownSHA256,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records := []TombstoneRecord{}
+	for rows.Next() {
+		var record TombstoneRecord
+		if err := rows.Scan(&record.SnapshotSHA256, &record.PurgedAt, &record.Operator, &record.Reason); err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
 }
 
 // PurgeExpired calls the time-floor overload of screening_ledger_purge_

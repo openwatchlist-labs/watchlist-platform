@@ -255,38 +255,23 @@ type purgeExpiredAuditDetails struct {
 	SnapshotSHA256 []string `json:"snapshot_sha256"`
 }
 
-// adjudicatePurgeClaims is ADR-0007 Addendum 3 D32's adjudication half of
-// the collect/adjudicate split: after VerifyAnchored's own anchor
-// cross-check has succeeded, every PurgeClaim VerifyPolicy collected
-// (rather than decided) is checked against the three-condition rule. A
-// claim is accepted if and only if (1) a verified audit entry attests to
-// it under action "purge_expired", (2) that entry's sequence is at or
-// below the anchor's committed audit_sequence, and (3) an independent
-// tombstone corroborates it. Condition 3 is corroboration, not
-// authority, after this decision -- 1 and 2 are the gate; a caller must
-// not remove 3 on the reasoning that it is redundant, nor re-strengthen
-// it on the reasoning that it is still the evidence (ADR-0007
-// Addendum 3 D32's own stated caution).
-//
-// There is no partial-skip budget: this returns on the first claim that
-// fails to adjudicate, which is what makes it strictly stronger than the
-// Addendum 2 D28 counter gate it supersedes (CAP #2 §7.3 hid exactly one
-// snapshot of four -- a budget of "at least one check ran" walks
-// straight past that).
-func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, purges PurgeChecker) error {
-	if len(claims) == 0 {
-		return nil
-	}
+// attestingAuditEntries walks the audit chain once and returns, per
+// snapshot sha256, the lowest-sequence AuditEvent whose action is
+// "purge_expired" and whose Details name it -- any attesting entry
+// satisfies condition 1; the lowest is what a caller would want reported
+// if this ever needs to explain itself, and comparing the lowest against
+// the anchor is a strictly harder bar to clear than comparing an
+// arbitrary one. Factored out of adjudicatePurgeClaims (ADR-0007
+// Addendum 8 D70) because both the forward and the reverse direction
+// below need the full AuditEvent, not merely the sequence the pre-D70
+// attestedAt map carried -- D70's forward comparison needs Operator and
+// Reason too.
+func (s *Store) attestingAuditEntries() (map[string]AuditEvent, error) {
 	entries, err := s.readAuditEntries()
 	if err != nil {
-		return fmt.Errorf("reading audit chain for purge-claim adjudication (ADR-0007 Addendum 3 D32): %w", err)
+		return nil, fmt.Errorf("reading audit chain for purge-claim adjudication (ADR-0007 Addendum 3 D32): %w", err)
 	}
-	// attestedAt maps a snapshot sha to the lowest audit sequence that
-	// attests to it -- any attesting entry satisfies condition 1; the
-	// lowest is what a caller would want reported if this ever needs to
-	// explain itself, and comparing the lowest against the anchor is a
-	// strictly harder bar to clear than comparing an arbitrary one.
-	attestedAt := map[string]uint64{}
+	attesting := map[string]AuditEvent{}
 	for _, entry := range entries {
 		if entry.Action != "purge_expired" || len(entry.Details) == 0 {
 			continue
@@ -296,28 +281,114 @@ func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, 
 			continue
 		}
 		for _, sha := range details.SnapshotSHA256 {
-			if existing, ok := attestedAt[sha]; !ok || entry.Sequence < existing {
-				attestedAt[sha] = entry.Sequence
+			if existing, ok := attesting[sha]; !ok || entry.Sequence < existing.Sequence {
+				attesting[sha] = entry
 			}
 		}
 	}
+	return attesting, nil
+}
+
+// purgeAttributionMismatch is ADR-0007 Addendum 8 D70's forward
+// comparison, shared by the forward (per-claim) and reverse (per-row)
+// loops below: the tombstone row's operator and reason must equal the
+// attesting audit entry's, and purged_at is compared against the
+// anchor's own AnchoredAt as an ordering bound, never for equality --
+// the tombstone's clock_timestamp() and the audit entry's OccurredAt are
+// different clocks (a Go process's time.Now() vs. Postgres's own), and
+// an equality (or a bound against OccurredAt at all) would be a
+// false-failure generator under ordinary clock skew, D45's own
+// pre-declared shape to never become. AnchoredAt is the same clock
+// domain as purged_at -- both are Postgres clock_timestamp() values from
+// the same database -- and a legitimately anchored purge is always
+// written (Store.PurgeExpired: RecordPurge, then AppendAudit) before the
+// anchor that later attests to it, so PurgedAt must not be after
+// AnchoredAt regardless of any Go-process/Postgres clock skew.
+func purgeAttributionMismatch(record TombstoneRecord, entry AuditEvent, anchoredAt time.Time) error {
+	if entry.Operator != record.Operator || entry.Reason != record.Reason {
+		return fmt.Errorf("tombstone row for snapshot %s (operator=%q reason=%q) does not match its attesting audit entry (operator=%q reason=%q) (ADR-0007 Addendum 8 D70): possible forged retention attribution", record.SnapshotSHA256, record.Operator, record.Reason, entry.Operator, entry.Reason)
+	}
+	if record.PurgedAt.After(anchoredAt) {
+		return fmt.Errorf("tombstone row for snapshot %s has purged_at %s, after the anchor's own anchored_at %s (ADR-0007 Addendum 8 D70): a purge cannot postdate the anchor that attests to it", record.SnapshotSHA256, record.PurgedAt.Format(time.RFC3339Nano), anchoredAt.Format(time.RFC3339Nano))
+	}
+	return nil
+}
+
+// adjudicatePurgeClaims is ADR-0007 Addendum 3 D32's adjudication half of
+// the collect/adjudicate split, extended by Addendum 8 D70: after
+// VerifyAnchored's own anchor cross-check has succeeded, every PurgeClaim
+// VerifyPolicy collected (rather than decided) is checked against a
+// four-condition rule. A claim is accepted if and only if (1) a verified
+// audit entry attests to it under action "purge_expired", (2) that
+// entry's sequence is at or below the anchor's committed audit_sequence,
+// (3) an independent tombstone corroborates it, and (4, D70) the
+// tombstone row's operator/reason/purged_at are consistent with that
+// same attesting entry -- corroboration is no longer merely
+// "exists", it is "agrees". A caller must not remove 3/4 on the
+// reasoning that 1/2 are the gate, nor re-strengthen 3/4 into a second
+// independent authority (ADR-0007 Addendum 3 D32's own stated caution,
+// which D70 does not revisit).
+//
+// D70's reverse direction runs after the forward loop, over every
+// tombstone row Postgres has for a snapshot this ledger's chain
+// references (knownSnapshotSHA256, VerifyReport.KnownSnapshotSHA256) --
+// closing the route the forward loop structurally cannot: a tombstone
+// row for a snapshot that was never marked purged locally generates no
+// PurgeClaim at all, and is adjudicated by nothing unless something else
+// goes looking for it.
+//
+// There is no partial-skip budget: this returns on the first claim or
+// row that fails to adjudicate, which is what makes it strictly stronger
+// than the Addendum 2 D28 counter gate it supersedes (CAP #2 §7.3 hid
+// exactly one snapshot of four -- a budget of "at least one check ran"
+// walks straight past that).
+func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, anchoredAt time.Time, knownSnapshotSHA256 []string, purges PurgeChecker) error {
+	if len(claims) == 0 && purges == nil {
+		return nil
+	}
+	attesting, err := s.attestingAuditEntries()
+	if err != nil {
+		return err
+	}
 	for _, claim := range claims {
-		seq, attested := attestedAt[claim.SnapshotSHA256]
+		entry, attested := attesting[claim.SnapshotSHA256]
 		if !attested {
 			return fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
 		}
-		if int64(seq) > anchoredAuditSequence {
-			return fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, seq, anchoredAuditSequence)
+		if int64(entry.Sequence) > anchoredAuditSequence {
+			return fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
 		}
 		if purges == nil {
 			return fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
 		}
-		recorded, err := purges.IsPurgeRecorded(ctx, claim.SnapshotSHA256)
+		record, err := purges.PurgeRecord(ctx, claim.SnapshotSHA256)
 		if err != nil {
 			return fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
 		}
-		if !recorded {
+		if record == nil {
 			return fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
+		}
+		if err := purgeAttributionMismatch(*record, entry, anchoredAt); err != nil {
+			return err
+		}
+	}
+	if purges == nil {
+		return nil
+	}
+	all, err := purges.AllPurgeRecords(ctx, knownSnapshotSHA256)
+	if err != nil {
+		return fmt.Errorf("listing tombstone records for reverse purge-claim adjudication (ADR-0007 Addendum 8 D70): %w", err)
+	}
+	for _, record := range all {
+		entry, attested := attesting[record.SnapshotSHA256]
+		if !attested {
+			return fmt.Errorf("snapshot %s has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired", record.SnapshotSHA256)
+		}
+		if int64(entry.Sequence) > anchoredAuditSequence {
+			return fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
+		}
+		if err := purgeAttributionMismatch(record, entry, anchoredAt); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -487,7 +558,7 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 	// sequencing: "VerifyAnchored adjudicates every claim after the
 	// anchor cross-check succeeds."
 	if mode == VerificationModeAnchored {
-		if err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, opts.Purges); err != nil {
+		if err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, latest.AnchoredAt, report.KnownSnapshotSHA256, opts.Purges); err != nil {
 			base.AnchorStatus = AnchorStatusFailed
 			return base, err
 		}

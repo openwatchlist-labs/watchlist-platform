@@ -235,8 +235,12 @@ func TestPurgeSnapshotsIgnoresCallerTimestamp(t *testing.T) {
 // path in anchored mode.
 type alwaysRecordedPurgeChecker struct{}
 
-func (alwaysRecordedPurgeChecker) IsPurgeRecorded(context.Context, string) (bool, error) {
-	return true, nil
+func (alwaysRecordedPurgeChecker) PurgeRecord(context.Context, string) (*TombstoneRecord, error) {
+	return &TombstoneRecord{}, nil
+}
+
+func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context, []string) ([]TombstoneRecord, error) {
+	return nil, nil
 }
 
 func TestVerifyPolicyFailsClosedOnUnadjudicatedClaims(t *testing.T) {

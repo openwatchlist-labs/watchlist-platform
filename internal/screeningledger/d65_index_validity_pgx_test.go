@@ -70,7 +70,7 @@ func preD65ProvisioningState(t *testing.T, ctx context.Context, p *PostgresSink)
 				r.identity = $1
 			FROM sec7_protected_relation r
 			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
-		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames, want.indexNames).
+		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames).
 			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &policiesOK, &identityOK)
 		if err != nil {
 			t.Fatalf("preD65ProvisioningState: %v", err)
