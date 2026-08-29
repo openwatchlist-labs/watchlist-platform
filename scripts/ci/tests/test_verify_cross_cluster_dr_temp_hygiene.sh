@@ -65,10 +65,18 @@ tmp_file_count() {
   find "${TMPDIR:-/tmp}" -maxdepth 1 2>/dev/null | wc -l | tr -d ' '
 }
 
+# This test's OWN log files must not be counted as a leak: LOG_DIR is
+# created once, before case 3's "before" measurement, so it is already
+# one of the temp directory's top-level entries in BOTH the before and
+# after snapshots -- writing case output files INSIDE it changes nothing
+# at the top level being measured. Removed unconditionally on exit.
+LOG_DIR="$(mktemp -d)"
+trap 'rm -rf "$LOG_DIR"' EXIT
+
 # --- Case 3: a successful run leaves the temp directory unchanged ---------
 before="$(tmp_file_count)"
-DR_PORT="${DR_PORT:-55499}" "$SCRIPT" >/tmp/test_dr_case3.log 2>&1 || {
-  cat /tmp/test_dr_case3.log >&2
+DR_PORT="${DR_PORT:-55499}" "$SCRIPT" >"$LOG_DIR/case3.log" 2>&1 || {
+  cat "$LOG_DIR/case3.log" >&2
   fail "case 3: a plain run of $SCRIPT should succeed against a reachable primary"
 }
 after="$(tmp_file_count)"
@@ -76,14 +84,14 @@ after="$(tmp_file_count)"
 echo "PASS: case 3 (a successful run leaves the system temp directory file count unchanged: $before)"
 
 # --- Case 4: two concurrent invocations both succeed ------------------------
-DR_PORT=55501 "$SCRIPT" >/tmp/test_dr_case4a.log 2>&1 &
+DR_PORT=55501 "$SCRIPT" >"$LOG_DIR/case4a.log" 2>&1 &
 pid_a=$!
-DR_PORT=55502 "$SCRIPT" >/tmp/test_dr_case4b.log 2>&1 &
+DR_PORT=55502 "$SCRIPT" >"$LOG_DIR/case4b.log" 2>&1 &
 pid_b=$!
 wait "$pid_a"; code_a=$?
 wait "$pid_b"; code_b=$?
-[[ "$code_a" -eq 0 ]] || { cat /tmp/test_dr_case4a.log >&2; fail "case 4: concurrent invocation A failed (exit $code_a) -- the withdrawn reaper's own failure condition (CAP #8 section 7.7) reproduced"; }
-[[ "$code_b" -eq 0 ]] || { cat /tmp/test_dr_case4b.log >&2; fail "case 4: concurrent invocation B failed (exit $code_b) -- the withdrawn reaper's own failure condition (CAP #8 section 7.7) reproduced"; }
+[[ "$code_a" -eq 0 ]] || { cat "$LOG_DIR/case4a.log" >&2; fail "case 4: concurrent invocation A failed (exit $code_a) -- the withdrawn reaper's own failure condition (CAP #8 section 7.7) reproduced"; }
+[[ "$code_b" -eq 0 ]] || { cat "$LOG_DIR/case4b.log" >&2; fail "case 4: concurrent invocation B failed (exit $code_b) -- the withdrawn reaper's own failure condition (CAP #8 section 7.7) reproduced"; }
 echo "PASS: case 4 (two concurrent invocations, distinct DR_PORT, both succeeded -- no shared fixed path to collide over)"
 
 echo "PASS: all DR-tooling temp-hygiene tests (ADR-0007 Addendum 9 D83)"
