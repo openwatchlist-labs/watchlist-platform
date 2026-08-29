@@ -289,6 +289,21 @@ jobs:
           PRIMARY_PGSUPERPASSWORD: owl_ci
           PRIMARY_PGDATABASE: owl_ci
         run: ./scripts/ci/verify_cross_cluster_dr.sh
+      - name: SEC-7 DR-tooling temp hygiene and concurrency (ADR-0007 Addendum 9 D83/D85 test 7)
+        # Same env as the step above, so cases 3-4 (temp-count hygiene,
+        # two concurrent invocations) actually run here rather than
+        # self-skipping -- scripts/ci/run-ci.sh's own later invocation of
+        # this test does not carry these variables forward and only
+        # exercises its static checks (1-2).
+        shell: bash
+        env:
+          PG_BIN_DIR: /usr/lib/postgresql/17/bin
+          PRIMARY_PGHOST: localhost
+          PRIMARY_PGPORT: "5432"
+          PRIMARY_PGSUPERUSER: owl_ci
+          PRIMARY_PGSUPERPASSWORD: owl_ci
+          PRIMARY_PGDATABASE: owl_ci
+        run: ./scripts/ci/tests/test_verify_cross_cluster_dr_temp_hygiene.sh
       - name: Run clean-restart CI
         shell: bash
         run: ./scripts/ci/run-ci.sh

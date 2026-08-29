@@ -53,15 +53,31 @@ type TombstoneRecord struct {
 // about snapshots the LOCAL envelope already claims are purged
 // (store.go's verifyPolicyLocked loop), so a tombstone row written
 // directly against Postgres for a snapshot never marked purged locally
-// generates no claim and would be adjudicated by nothing. knownSHA256
-// scopes the reverse scan to snapshot_sha256 values this ledger's own
-// chain actually references (VerifyReport.KnownSnapshotSHA256) --
-// scanning the whole table would name every other ledger sharing the
-// same Postgres schema as "unattested" too, which is not this ledger's
-// business and not what D70 diagnosed.
+// generates no claim and would be adjudicated by nothing.
+//
+// ADR-0007 Addendum 9 D82: AllPurgeRecords no longer takes a knownSHA256
+// filter -- it returns every row, unscoped. D70's original scoping
+// reason (another ledger's rows in a shared Postgres schema must never
+// be named as THIS ledger's forgery) is preserved, but moved from the
+// query into adjudicatePurgeClaims itself, which now makes two passes
+// over this one unfiltered result: an adjudicating pass (in
+// KnownSnapshotSHA256, compared and failing on divergence exactly as
+// D70 specified) and a reporting pass (everything else, named and
+// counted, never failing). Filtering the query itself is what made
+// M-E's fabricated out-of-scope row invisible to VerifyReport entirely,
+// not merely unadjudicated -- CAP #8 section 7.5's finding.
+//
+// SnapshotCreatedAt is ADR-0007 Addendum 9 D81's genesis-case fallback:
+// purgeAttributionMismatch's lower bound is normally the anchor
+// immediately preceding the one being verified, but a ledger's very
+// first anchor has no such predecessor -- there, a legitimate purge
+// still cannot predate the snapshot it purges, so that snapshot's own
+// screening_ledger_snapshot.created_at (a Postgres value from the same
+// database, like every other bound this comparison uses) stands in.
 type PurgeChecker interface {
 	PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error)
-	AllPurgeRecords(ctx context.Context, knownSHA256 []string) ([]TombstoneRecord, error)
+	AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, error)
+	SnapshotCreatedAt(ctx context.Context, snapshotSHA256 string) (createdAt time.Time, found bool, err error)
 }
 
 // PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart
@@ -338,6 +354,19 @@ type VerifyReport struct {
 	// Postgres about, so that another ledger's tombstone rows in the same
 	// shared schema are never named as this ledger's forgery.
 	KnownSnapshotSHA256 []string
+	// OutOfScopeRetentionTombstones (ADR-0007 Addendum 9 D82) is every
+	// screening_ledger_retention_tombstone row whose snapshot_sha256 is
+	// NOT in KnownSnapshotSHA256 -- named and counted here rather than
+	// silently destroyed, which is what CAP #8's M-E demonstrated: a
+	// fabricated tombstone outside this ledger's own history was
+	// entirely invisible to VerifyReport, not merely unadjudicated.
+	// Populated only by VerifyAnchored, in anchored mode, with a
+	// database configured (VerifyPolicy alone has no Postgres connection
+	// to ask); nil on every other path, including a clean ledger.
+	// Reported, not adjudicated: its presence never fails verification
+	// on its own -- D70's reason to scope the adjudicating pass to this
+	// ledger's own history is unchanged (ADR-0007 Addendum 9 R36).
+	OutOfScopeRetentionTombstones []TombstoneRecord
 }
 
 // VerifyPolicy is the F1 fix's entry point (ADR-0007 D8, D9 option (c)):

@@ -239,8 +239,12 @@ func (alwaysRecordedPurgeChecker) PurgeRecord(context.Context, string) (*Tombsto
 	return &TombstoneRecord{}, nil
 }
 
-func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context, []string) ([]TombstoneRecord, error) {
+func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context) ([]TombstoneRecord, error) {
 	return nil, nil
+}
+
+func (alwaysRecordedPurgeChecker) SnapshotCreatedAt(context.Context, string) (time.Time, bool, error) {
+	return time.Time{}, false, nil
 }
 
 func TestVerifyPolicyFailsClosedOnUnadjudicatedClaims(t *testing.T) {

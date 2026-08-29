@@ -115,6 +115,15 @@ func main() {
 			"policy_public_key_fingerprint": pubKeyFingerprint,
 			"event_count":                   len(events),
 			"unreplicated_count":            unreplicated,
+			// ADR-0007 Addendum 9 D82: named and counted, not just carried
+			// silently -- an auditor reading this output is exactly who
+			// M-E's invisibility was a defect against. Never causes
+			// status/exit-code to reflect failure on its own (D70's scope
+			// limit for the adjudicating pass is unchanged); a
+			// single-tenant deployment that wants a non-empty list treated
+			// as a failure implements that policy itself (R36).
+			"out_of_scope_retention_tombstone_count":           len(report.OutOfScopeRetentionTombstones),
+			"out_of_scope_retention_tombstone_snapshot_sha256": outOfScopeSnapshotSHA256(report.OutOfScopeRetentionTombstones),
 		})
 	case "sync":
 		store := mustStore(opts)
@@ -335,6 +344,18 @@ func topLevelStatus(anchorStatus screeningledger.AnchorVerifyStatus) string {
 		return "ok"
 	}
 	return string(anchorStatus)
+}
+
+// outOfScopeSnapshotSHA256 is ADR-0007 Addendum 9 D82: names, not merely
+// counts, every reported out-of-scope tombstone -- an auditor reading
+// this output needs the snapshot identity to investigate, not only how
+// many there are.
+func outOfScopeSnapshotSHA256(records []screeningledger.TombstoneRecord) []string {
+	names := make([]string, len(records))
+	for i, r := range records {
+		names[i] = r.SnapshotSHA256
+	}
+	return names
 }
 
 // mustAnchorKey loads K_anchor via the same LoadKey used for the
