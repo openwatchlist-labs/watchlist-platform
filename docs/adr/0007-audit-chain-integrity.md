@@ -7523,3 +7523,1140 @@ Every file:line citation in this addendum was verified against that tree -- the 
 was produced against, so no drift separates the audit from this design. For a CAP record covering
 the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
 value.
+
+## Addendum 9: composition -- a property set is only as strong as its weakest member, and CAP #8's forgery through D69's own fix (2026-08-28)
+
+- **Status:** Proposed
+- **Trigger:** an eighth Composition Audit Program record produced against the implemented
+  Addendum 8 (`docs/backlog/sec-7-cap-record-be62ceb.md`, adversarial posture, audit basis commit
+  `be62ceb3dcddc785a1312783740a422a94425aa3`) returned **QUALIFIED, not PASS** for the eighth
+  consecutive audit. Eleven findings remain, and for the **second consecutive round** the record
+  demonstrates a forgery. **SEC-7 is not closed.**
+- **What CAP #8 confirmed and this addendum does not disturb.** All four substitutions D69 was
+  written against are refused by both the installer and the verifier. **D72 and D73 are the
+  strongest decisions in the round and close L-A completely** -- every route CAP #7 named, every
+  route Addendum 7 had closed, and several no CAP has tried are named by one or both limbs, and
+  PostgreSQL reserves the `pg_` prefix for `CREATE ROLE` so the name-keyed allowlist cannot be
+  spoofed. D70's forward comparison genuinely catches an operator/reason rewrite, and it survives
+  even M-A's neutering. D71 refuses an absent declared index in both places. D74's L-D fix chose the
+  stronger option and is genuinely closed. The suites are unregressed at 113 top-level PASS, 0 FAIL
+  in `internal/screeningledger`; `go test -race -count=1 ./...` exits 0 across 98 packages;
+  `scripts/ci/run-ci.sh` exits 0 in full. **D31's scoping principle, Addendum 4's referent
+  principle, Addendum 5's population principle, Addendum 6's atomicity principle, Addendum 7's
+  quantifier principle and Addendum 8's naming principle all held**, and this addendum reopens none
+  of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75,
+  not the D19 correction note, not R1-R33. Decision numbering continues at **D76**; risk numbering
+  at **R34**. Where a prior decision's *text* is narrower than what the code does, the new decision
+  says so in its own words -- the convention AR7 established and every addendum since has followed.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `be62ceb3dcddc785a1312783740a422a94425aa3` rather than copied from the CAP record or from a prior
+  addendum. PR #158 moved several of Addendum 8's own citations: `requiredProtectedTriggerState` is
+  `internal/screeningledger/postgres.go:527-539`, `requiredProtectedRelationStates` is `:547-568`,
+  `protectedRelationStateReason` is `:577-700`, D69's live-behaviour loop is `:667-697`, D71's
+  existence branch is `:610-626`, D62(a)'s refusal loop is `scripts/ci/provision_test_roles.sh:592-628`,
+  D69's installer limb is `:645-667` and D56/D71's missing-object loop is `:702-723`. Expected, not
+  a defect.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-8
+  held to -- and for the second addendum running, the execution refuted the fix this addendum was
+  expected to reach.** A disposable PostgreSQL 17.11 cluster was built on **port 55500** and
+  provisioned with the **real** schema in `.github/workflows/ci.yml:141-235`'s exact order
+  (`create-roles`, all seventeen `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`,
+  `grant-ddl-ownership`). Baseline confirmed byte-identical to CAP #8 section 7.0: thirteen
+  `sec7_protected_object` rows, two `sec7_protected_relation` rows, one `sec7_instance_binding` row,
+  both event triggers `evtenabled='A'`, and D69's four-row trigger-property table exact down to
+  `tgfoid` 16462 and 16846. Every destructive probe ran against a `CREATE DATABASE ... TEMPLATE`
+  clone. **The cluster was torn down and the teardown was proven by pasted `lsof` and `ps` output in
+  the PR description, not asserted** -- CAP #8 section 12 records that the Addendum 8 design pass
+  claimed a teardown its own cluster survived by seven hours, and this addendum treats that as a
+  standing obligation rather than a one-off. The developer's own server on port 5432 was never
+  contacted. The four results that changed the design:
+  1. **`pg_proc.prosrc` is session-independent, cross-role stable, and survives `pg_dump` while
+     OIDs do not** -- so it is a *better* referent than the `tgfoid` D69 already relies on, not
+     merely an additional one (D76, D77).
+  2. **`owl_reject_truncate()` has TWO legitimate bodies**, because `db/migrations/012_truncate_guards.sql:9-12`
+     and `internal/screeningledger/postgres.go:1576` disagree on whitespace. A single declared
+     digest -- the shape CAP #8 section 11 point 1 recommends -- **fails closed on a clean,
+     unattacked, migration-bootstrapped database**, which is D45's pre-declared false-failure shape
+     and D75's own "cannot be stated as a stable literal" withdrawal condition (D77).
+  3. **The guard functions are already first-class protected objects and `ddl_command_end` already
+     fires for `CREATE OR REPLACE FUNCTION`**, so there is no event-trigger extension to make; the
+     gap is entirely R30's stated T2 window (D76).
+  4. **D62(a)'s, D69's and D71's precondition checks are pure `SELECT`s** and run correctly with both
+     event triggers `ENABLE ALWAYS`, so M-D closes by statement ordering at zero cost (D79).
+
+---
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554` and `0007:6660-6700` set.
+
+1. **CAP #8's M-C and M-D transcripts reproduce only inside the documented recovery window, and the
+   record does not say so.** Both were re-executed here. With `sec7_protect_ddl_objects_on_alter`
+   **re-enabled** before `grant-ddl-ownership` runs, D40's and D50's runtime second phase fires on
+   the script's own first DDL statement and the script dies there instead:
+
+   ```
+   [_on_alter re-enabled first]
+   grant-ddl-ownership -> EXIT=1
+     ERROR: ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_anchor"
+            (objid 16914): its index set changed
+     pg_event_trigger count AFTER the refusal -> 2      <- the triggers SURVIVE
+
+   [only _on_alter down, exactly as docs/operations/sec7-database-copies.md:187 instructs]
+   grant-ddl-ownership -> EXIT=0, 3 PASS lines          <- M-C reproduces
+   ```
+
+   The findings are **undiminished** -- the documented recovery is precisely the state an operator
+   is told to create, and both reproduce there. What changes is that D40 and D50 deserve credit for
+   catching both substitutions in the state where the event triggers are up, and a reader
+   re-executing CAP #8 section 7.3 or 7.4 without that ordering will conclude the findings do not
+   reproduce. This is the same class of correction Addendum 8's own drift note 1 made about CAP #7's
+   L-B setup, in the opposite direction: there the record understated a precondition, here it omits
+   an ordering.
+2. **CAP #8's M-I names `DR_BINARY` and the audit brief calls it "the `DR_LOG` leak."** `DR_LOG` is
+   genuinely fixed -- `cleanup()` frees it at `scripts/ci/verify_cross_cluster_dr.sh:74`, and a
+   measured run confirms it is removed. What recurred is the **class**, in a new instance. Recorded
+   because the distinction is the whole content of D83: an instance was fixed and the class was not,
+   which is Addendum 1's original diagnosis of this arc (`0007:1494-1497`) reappearing inside a
+   remediation for it.
+3. **A third instance of that class exists and no CAP has named it.** `DR_BOOTSTRAP_PWFILE`
+   (`:103`) is freed at `:107`, on the success path only, and is absent from `cleanup()` (`:64-75`).
+   An `initdb` failure therefore leaves a file containing a cluster's bootstrap password in the
+   system temp directory. Found by reading `cleanup()` against every `mktemp` in the file rather
+   than by reproducing it.
+
+---
+
+### Addendum 9 context: five axes were right, and the sixth is that a set has a weakest member
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes
+(`0007:1494-1497`). Addendum 2 named its findings as one class -- "a control whose installation is
+asserted rather than checked, by the party the control constrains" (`0007:1499-1500`). Addendum 3
+sharpened it to "a control that decides what to protect, or what to protect against, by listing
+members of an open set" (`0007:2172-2173`). Addendum 4 sharpened it again to "the enumeration was
+fixed and the referent drifted" (`0007:2853-2857`). Addendum 5 moved one axis over -- "the referent
+is correct and its population was never stated" (`0007:3742-3746`). Addendum 6 moved to a third, the
+referent a *legitimate* operation rewrites (`0007:4526-4534`). Addendum 7 moved to a fourth, the
+quantifier (`0007:5574-5580`). Addendum 8 moved to a fifth, the name as terminating literal
+(`0007:6732-6738`), and produced D69.
+
+CAP #8 section 0.1 states what survived all six, and it is right:
+
+> Addendum 4's referent principle, Addendum 5's population principle, Addendum 6's atomicity
+> principle, Addendum 7's quantifier principle and Addendum 8's naming principle are each correct.
+> The defect that survives all five is that **a property set is only as strong as its weakest
+> member, and D69's weakest member is a name for a body nobody declared.**
+
+D69 did exactly what Addendum 8's principle prescribed: it replaced `tgname` with four catalog
+properties. Three of them -- `tgtype`, `tgqual`, `tgnargs`/`tgattr` -- are genuinely properties of
+behaviour, and each is the only one of the four that sees its own substitution. The fourth, and the
+only one that says *which code runs*, is `pg_identify_object('pg_proc', tgfoid, 0).identity`
+(`postgres.go:676`) -- **a string**. The declaration got strictly stronger and still terminated on a
+name, because *adding* properties to a set does not remove the weakest one.
+
+| Mechanism | The declaration | What the weakest member denotes | Finding |
+|---|---|---|---|
+| D69 trigger behaviour | four catalog properties (`postgres.go:667-697`, `provision_test_roles.sh:645-667`) | whatever body currently sits behind that OID | **M-A** |
+| D71 declared index | `indexNames` plus an `EXISTS` (`postgres.go:610-626`) | any relation of that name, unique or not | **M-C** |
+| D70 reverse pass | `WHERE snapshot_sha256 = ANY($1)` (`postgres.go:1404`) | only snapshots this chain already references | **M-E** |
+| D70 `purged_at` | `record.PurgedAt.After(anchoredAt)` (`anchor.go:311`) | an upper bound and no lower one | **M-B** |
+
+**The principle this addendum adopts, stated once and applied five times:**
+
+> **A control's declaration may terminate on a name only where that name's referent has its own
+> declared properties. A property set inherits the strength of its weakest member, not its
+> strongest: where one member of the set is an identity, the object that identity addresses must
+> itself be declared, or the set is exactly as forgeable as that one member. Adding properties to a
+> set does not repair the weakest one.**
+
+Addendum 8's D68 already said "the name is an address and never evidence" and required three
+assertions -- the named object exists, has the declared properties, and no undeclared object is
+present. D76 supplies the missing fourth: **and where one of those declared properties is itself a
+name, that rule applies again, recursively, until the declaration terminates on something the
+adversary cannot rewrite.** D69 stopped after one level. `tgfoid`'s identity is the address of a
+body, and nowhere in this repository is it declared what
+`screening_ledger_reject_mutation()` should *do*.
+
+---
+
+### D76. The composition principle, and where PostgreSQL supports it
+
+**Decision: a declared property set must terminate on evidence. Where a member of the set is an
+identity, the object it addresses gains its own declaration, and the recursion stops only at a value
+the adversary cannot rewrite without the control noticing.**
+
+Four sub-decisions follow, each verified by execution against PostgreSQL 17.11 during this design
+pass rather than reasoned from the manual.
+
+**1. `pg_proc.prosrc` is session-independent, where the `pg_get_*def` renderers are not.** Probed by
+OID, so the probe itself introduces no name resolution, across the same five `search_path` values
+D68 point 1 used:
+
+```
+md5(prosrc) of oid 16462          md5(pg_get_triggerdef) of screening_ledger_anchor_immutable
+  public            2ab5e9a7...     public            1c1b44df...
+  pg_catalog        2ab5e9a7...     pg_catalog        00d2d2df...   <- SENSITIVE
+  public,pg_catalog 2ab5e9a7...     public,pg_catalog 00d2d2df...
+  pg_temp,public    2ab5e9a7...     pg_temp,public    00d2d2df...
+  pg_catalog,public 2ab5e9a7...     pg_catalog,public 00d2d2df...
+                    ^ INSENSITIVE
+```
+
+This is the property D69 required and could not get from `pg_get_triggerdef`. **D69's refutation of
+the rendering is restated, not reopened**: the renderer stays rejected, and the reason a later reader
+must find before re-proposing it is unchanged (`0007:6853-6875`, `0007:7347-7352`). `prosrc` is not
+a rendering -- it is the stored body itself, which is why it has a property the renderer does not.
+
+**2. `prosrc` is identical in the recorder's session and the verifier's, which is the exact test
+`pg_get_triggerdef` failed.** The two sessions D69's two-session transcript used -- the one
+`grant-ddl-ownership` runs as, and the one `PostgresSink` connects as:
+
+```
+[owl_ci       -- the RECORDER]  search_path="$user", public  sha256(prosrc)=5632734b5c67...81f4bb1
+[owl_migrator -- the VERIFIER]  search_path="$user", public  sha256(prosrc)=5632734b5c67...81f4bb1
+```
+
+**3. `prosrc` is readable by `owl_migrator` with no new role, DSN or grant, and does not raise** --
+the standard D33's, D41's, D45's, D59's and D68's facts were each held to (`0007:2422-2425`,
+`0007:3404-3406`, `0007:3967-3969`, `0007:5615-5624`, `0007:6783-6786`), checked rather than assumed
+because a check needing a new credential is a check that will be skipped.
+
+**4. `prosrc` survives `pg_dump | psql` byte-identically while OIDs are reassigned.** This is the
+result that makes `prosrc` a *better* referent than the one D69 already trusts, not merely an
+additional one, and it matters for D66/D74's DR path specifically:
+
+```
+                     pristine                          restored (pg_dump | psql)
+sha256(prosrc)       e8db5083...  owl_reject_truncate   e8db5083...   <- IDENTICAL
+                     5632734b...  screening_..._mutation 5632734b...  <- IDENTICAL
+pg_proc oid          16846 / 16462                      17090 / 17093 <- REASSIGNED
+```
+
+D41 and D46 exist because a restore moves OIDs. The body does not move. A declaration that
+terminates on the body is stable across exactly the operation that forces every OID-keyed mechanism
+in this document to be re-recorded.
+
+**What this principle does not reach, stated rather than left to be discovered.** Like D68, D76 is a
+**declaration** discipline and not an interception, and **the guard functions were already
+first-class protected objects before this addendum** -- that was verified rather than assumed:
+
+```
+[owl_migrator, both event triggers live]
+CREATE OR REPLACE FUNCTION public.screening_ledger_reject_mutation() ...
+  -> ERROR: ADR-0007 Addendum 3 D34: public.screening_ledger_reject_mutation()
+            (objid 16462, tag CREATE FUNCTION) is protected by a superuser-only DDL event trigger
+
+[with only sec7_protect_ddl_objects_on_drop disabled]
+  -> same refusal          <- the refusal comes from _on_alter, i.e. ddl_command_end
+```
+
+So `ddl_command_end` **does** fire for `CREATE OR REPLACE FUNCTION`, the function **is** in
+`sec7_protected_object` by OID, and D34 **does** block the substitution while it is enabled. **There
+is no registry extension to make and no new event to hook.** The gap is R30's stated one and nothing
+else: under T2 the event triggers are disabled by the party performing the substitution, which is the
+premise of the documented recovery. R34 states this rather than letting D77 imply prevention.
+
+---
+
+### D77. M-A (CRITICAL): the declared trigger referent gains the function's body -- and the single authoritative text that does not exist
+
+**Severity, decided here rather than inherited.** CAP #8 rates M-A CRITICAL and this addendum agrees,
+on both of the grounds Addendum 8 used for L-B, each of which M-A meets more strongly:
+
+- **It is permanently undetectable after the fact.** No mechanism anywhere in this repository records
+  what the guard function's body was, so once the swap is laundered nothing retains evidence the
+  function ever behaved differently. This is the ground on which L-B was raised from CAP #7's HIGH.
+- **Its precondition is *lower* than L-B's, not higher.** L-B needed the documented recovery window
+  **plus** a second, undocumented `ALTER EVENT TRIGGER ... DISABLE` -- Addendum 8's own drift note 1
+  established that, and credited D34 for it. M-A needs **one statement, in the state
+  `docs/operations/sec7-database-copies.md:187` step 1 creates by itself**, because
+  `CREATE OR REPLACE FUNCTION` fires `ddl_command_end` only. The counter-argument Addendum 8 recorded
+  against L-B therefore does not exist here.
+
+**The finding, restated from the code and reproduced.** D69's declaration is
+`requiredProtectedTriggerState` (`postgres.go:527-539`): `tgtype`, `tgnargs`, `tgattr`, `functionOID`,
+plus `tgqual IS NULL` asserted as a literal in the query (`:673`). `functionOID` is
+`pg_identify_object('pg_proc', t.tgfoid, 0).identity` (`:676`). Executed against the real provisioned
+schema, in the documented state and nothing beyond it:
+
+```
+ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE;         (step 1, as documented)
+CREATE OR REPLACE FUNCTION public.screening_ledger_reject_mutation()
+  RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$;     (ONE statement, as owl_migrator)
+ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter ENABLE ALWAYS;
+```
+
+Every declared property is unchanged, because the OID never moved:
+
+```
+tgname                                            tgtype qual_null tgnargs tgattr tgenabled tgfoid identity
+screening_ledger_anchor_immutable                     27     t         0      {}       O     16462  public.screening_ledger_reject_mutation()
+screening_ledger_anchor_no_truncate                   34     t         0      {}       O     16846  public.owl_reject_truncate()
+screening_ledger_retention_tombstone_immutable        27     t         0      {}       O     16462  public.screening_ledger_reject_mutation()
+screening_ledger_retention_tombstone_no_truncate      34     t         0      {}       O     16846  public.owl_reject_truncate()
+
+pg_proc oid 16462  prosrc " BEGIN RETURN NEW; END "
+                   sha256 b3771fd2...  (was 5632734b...)
+```
+
+Every observer reports clean, and `Migrate()` does not repair:
+
+```
+grant-ddl-ownership       -> EXIT=0, 3 PASS lines, 0 FAIL lines
+screening-ledger migrate  -> {"operation":"migrate","provisioned":true,"provisioning_reason":"",
+                              "screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+prosrc after migrate      -> " BEGIN RETURN NEW; END "     <- unrepaired
+```
+
+Exploited at T1, as `owl_ledger_ddl` (`rolsuper=f`), using only privileges D61's own declared matrix
+grants:
+
+```
+UPDATE screening_ledger_retention_tombstone SET reason='no retention obligation',
+       operator='someone-else' WHERE snapshot_sha256='snap-cap9';        -> UPDATE 1
+ snap-cap9 | 2026-08-01 10:00:00-04 | someone-else | no retention obligation
+
+[the same one statement against owl_reject_truncate(), then:]
+TRUNCATE screening_ledger_retention_tombstone;   -> tombstone rows after: 0
+TRUNCATE screening_ledger_anchor;                -> anchor rows after:    0
+```
+
+**Decision: the declared trigger property set gains the bound function's body, as a closed set of
+accepted `prosrc` digests declared per guard function and joined through the trigger's own `tgfoid`.**
+
+`requiredProtectedTriggerState` and D62(a)/D69's cross-language declaration gain, per declared
+trigger, an `acceptedBodySHA256 []string`. The comparison joins `pg_trigger` to `pg_proc` on
+`tgfoid`, so it verifies the body of the function the trigger **actually calls** rather than the body
+of whatever function currently bears the declared name -- the two are the same object today and the
+join is what keeps them the same object under a future rebind. Illustrative shape only:
+
+```sql
+SELECT encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex') = ANY($7)
+FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2
+```
+
+Executed against the exact reproduction above, and against both over-tightening positives:
+
+```
+neutered clone, D69's four properties      -> behaviourOK = TRUE   (accepted today)
+neutered clone, the proposed body digest   -> bodyOK      = FALSE  (refused)
+    naming screening_ledger_anchor_immutable and screening_ledger_retention_tombstone_immutable,
+    and NOT the two _no_truncate triggers, whose function was untouched
+
+clean migration-bootstrapped baseline      -> bodyOK = TRUE for all four
+clean SchemaSQL-only-bootstrapped database -> bodyOK = TRUE for both functions
+```
+
+**The set has two members for one function, and that is forced by execution rather than chosen.**
+CAP #8 section 11 point 1 recommends the opposite -- *"`SchemaSQL` already contains the authoritative
+text of both functions, so the declaration has a natural home and needs no new literal in a third
+place."* **There is no single authoritative text.** `owl_reject_truncate()` is created by two
+independent bootstrap paths whose literals disagree on whitespace:
+
+```
+db/migrations/012_truncate_guards.sql:9-12   ->  " BEGIN\n  RAISE EXCEPTION ...;\nEND "
+internal/screeningledger/postgres.go:1576    ->  " BEGIN RAISE EXCEPTION ...;END "
+
+measured on one cluster, two databases:
+  owl_ci                 (migrations)  owl_reject_truncate  e8db5083...
+  owl_ci_schemasql_only  (SchemaSQL)   owl_reject_truncate  fd848d02...
+  both databases                       screening_..._mutation 5632734b...   <- agrees, 008g:10 == postgres.go:1553
+```
+
+Declaring only SchemaSQL's text -- the CAP's own recommendation, implemented literally -- returns
+**two FALSE on a clean, unattacked, migration-bootstrapped baseline**, which is every CI database and
+the production bootstrap path:
+
+```
+screening_ledger_anchor_no_truncate                live e8db5083...  declared fd848d02...  bodyOK=f
+screening_ledger_retention_tombstone_no_truncate   live e8db5083...  declared fd848d02...  bodyOK=f
+```
+
+That is **D45's pre-declared false-failure shape** and it engages **D75's own withdrawal condition**
+("if D69's property set cannot be stated as a stable literal ... the implementation stops and this
+addendum is amended rather than shipping a comparison covering some properties and not others"). The
+condition is answered here rather than left to be tripped in implementation.
+
+**Convergence to one text was investigated and is not available**, which is why the set and not the
+merge is the decision:
+
+- **A repairing migration cannot run.** `CREATE OR REPLACE FUNCTION owl_reject_truncate()` in a new
+  migration executes as `owl_migrator` and is refused by D34 on every already-provisioned database
+  -- the same refusal transcribed under D76 point 4. A migration that fails on every deployed
+  database is not a migration.
+- **Rewriting SchemaSQL's literal converges nothing that already exists.** SchemaSQL creates the
+  function only when `to_regprocedure(...) IS NULL`, so an existing SchemaSQL-bootstrapped database
+  keeps its current body regardless.
+
+Both texts are committed, reviewed and unwritable from the database, so the set is closed in D31's
+sense -- a closed set of declared values, not a pattern and not a range. **R35 records the cost**: a
+third bootstrap path, or an edit to either literal, must add its digest here, and a CI gate is named
+in D85 to make that failure loud rather than silent.
+
+**Where it is asserted.** Both places, for D62(a)'s and G-A's reason -- the installer and the
+verifier must fail independently:
+
+- **The installer** (`provision_test_roles.sh:645-667`, D69's own loop, extended) refuses to record a
+  relation whose declared trigger's bound body is not in the accepted set, naming the trigger, the
+  function and the live digest.
+- **`protectedRelationStateReason`** (`postgres.go:667-697`) asserts the same, so
+  `screening-ledger status` reports the state rather than only the next `grant-ddl-ownership` run.
+
+**Neither the body nor D69's four properties is sufficient alone, and this is measured rather than
+argued.** The body digest alone misses `WHEN (false)` and `UPDATE OF <column>`, which do not touch
+the function at all; D69's four miss the body swap. The "replace, do not supplement" reasoning D39
+and D50 used does not apply, for the reason D69 already gave about its own four: these are
+independent properties, and each is the only one that sees its own substitution.
+
+---
+
+### D78. M-A, the bootstrap half: SchemaSQL's presence guard becomes an assertion
+
+**The finding, restated from the code.** `SchemaSQL` guards both function definitions with
+`IF to_regprocedure('screening_ledger_reject_mutation()') IS NULL THEN` (`postgres.go:1552`) and
+`IF to_regprocedure('owl_reject_truncate()') IS NULL THEN` (`:1575`). That is
+presence-implies-correctness -- the third shape D21's general form (`0007:1657-1662`) declares "never
+safe" -- so `Migrate()` neither repairs nor detects the swap, which is the transcript under D77.
+
+The comments at `:1536-1551` and `:1570-1574` argue the guard is safe because "once it exists its
+protections either already are, or are about to be, in place," and explicitly retire the self-heal
+CAP #2 credited in favour of D34's stronger prevention. **That argument was correct about the object
+and wrong about the window.** D34 does prevent the replacement while it is enabled; the state D77
+demonstrates is the one where it was not, and in that state the retired self-heal is exactly what is
+missing and the guard's own reasoning no longer holds.
+
+**Decision: both guards become D21's second safe shape -- assert and fail closed -- and deliberately
+do not repair.**
+
+The `DO` block asserts that the function exists **and** that its body digest is in D77's accepted
+set, and raises naming the function, the live digest, the accepted set and the remedy. Repair is
+rejected for a reason specific to this path rather than as a general preference: `Migrate()` runs as
+`owl_migrator` on every CLI invocation, and a repairing `CREATE OR REPLACE` is refused by D34 on
+every provisioned database -- so a repairing guard would convert a silent acceptance into a hard
+failure of `migrate`, `sync` and `import-audit` on exactly the healthy databases it was meant to
+protect. **A refusal that names the remedy is strictly better than a repair that cannot execute.**
+D84 gives the operator that remedy as a documented step inside the recovery window.
+
+The failure direction is fail-closed on a database whose guard has been altered, and unchanged on
+every healthy one -- both bootstrap paths' digests are accepted, per D77.
+
+---
+
+### D79. M-D (HIGH): a refusal must not disarm the database
+
+**The finding, reproduced with a control.** `grant-ddl-ownership` drops both event triggers at
+`provision_test_roles.sh:478-479`, deliberately moved to the top of the step; the comment at
+`:466-477` argues the widened window is "not a new exposure, only a longer version of the one this
+idempotent, superuser-only script has always had." **That argument holds only if the step
+completes.** `set -euo pipefail` plus an explicit `exit 1` at D62(a) (`:605`, `:610`), D69 (`:664`)
+and D56/D71 (`:720`) means it does not, and `CREATE EVENT TRIGGER` is at `:998-999`.
+
+Executed, in the state the operator document creates:
+
+```
+[only _on_alter down, as docs/operations/sec7-database-copies.md:187 instructs]
+grant-ddl-ownership -> EXIT=1
+  FAIL: declared trigger screening_ledger_anchor_immutable on screening_ledger_anchor does not
+        match its declared behavior ... (ADR-0007 Addendum 8 D69)
+pg_event_trigger count AFTER the refusal -> 0
+```
+
+The consequence, executed as `owl_ledger_ddl` (T1, non-superuser) in the state that refusal leaves,
+against a clean control:
+
+```
+[after the D69 refusal]        DROP TRIGGER screening_ledger_anchor_no_truncate ...  -> DROP TRIGGER
+                               TRUNCATE screening_ledger_anchor;                     -> TRUNCATE TABLE
+                               DROP TABLE screening_ledger_anchor CASCADE;           -> DROP TABLE
+                               to_regclass('screening_ledger_anchor') IS NOT NULL    -> false
+
+[control: pristine database]   DROP TABLE screening_ledger_anchor CASCADE;
+  -> ERROR: ADR-0007 Addendum 3 D34: public.screening_ledger_anchor (objid 16914) is protected
+            by a superuser-only DDL event trigger and cannot be dropped
+```
+
+The identical statement is refused on the pristine database and succeeds after the remedy tool
+refused. **The refusal is fail-closed for recording and fail-open for enforcement**, and none of the
+five `FAIL` messages says so.
+
+**Is this closable, or is it a residual to name honestly? It is closable, and the two must not be
+confused.** The brief asks the question and it deserves a decided answer:
+
+- **The T2 window itself is NOT closable and stays named honestly.** A bootstrap superuser who
+  disables the event triggers can neuter any control in this document. That is R30, and R12/R17 put
+  every residual in this arc at the same terminus. D51's "accident boundary, not security boundary"
+  call is the right shape for that, and nothing here changes it.
+- **M-D is not that residual.** "The remedy tool leaves the database *less* protected than it found
+  it" is statement ordering in a script this repository owns. It is not a property of PostgreSQL and
+  it is not a consequence of the T2 premise -- a refusal that had not dropped the triggers would
+  leave the database exactly as protected as it was.
+
+**Decision: the preconditions move above the drop, and any non-zero exit restores what the step took
+down.**
+
+- **Hoist.** D62(a) (`:592-628`), D69/D77 (`:645-667`) and D56/D71 (`:702-723`) move above
+  `:478-479`. **Verified that this is possible rather than assumed**: all three are pure `SELECT`s,
+  and each was executed against the pristine baseline with both event triggers `ENABLE ALWAYS`,
+  returning its correct value and leaving both triggers at `'A'`:
+
+  ```
+  [both event triggers 'A']
+  D69's behaviour probe            -> behaviour_ok = t
+  D62(a)'s undeclared-index probe  -> (0 rows)
+  D71's existence probe            -> present = 1
+  pg_event_trigger after all three -> both still 'A'
+  ```
+
+  No DDL, so `ddl_command_end` never fires. The ordering that makes D62(a) a precondition of the
+  `DELETE FROM sec7_protected_relation` at `:668` is preserved -- moving the checks earlier only
+  strengthens it.
+- **Restore on failure.** Hoisting closes the three refusals this arc added; it does not close a
+  failure occurring anywhere else after `:478` (a `psql` error, the row-count assertion at `:684-687`,
+  D56's loop). A `trap` on non-zero `EXIT` re-creates both event triggers if they are absent,
+  because the script's own postcondition should be "either fully provisioned, or exactly as
+  protected as when I started" and is currently neither.
+- **Say it in the message.** Every `FAIL` in this step names the remedy; none names the state. Each
+  gains a sentence stating whether enforcement is currently live, so an operator reading only the
+  error knows whether the database is exposed.
+
+---
+
+### D80. M-C (HIGH): the declared index referent becomes what the index *is*
+
+**The finding, reproduced.** `requiredProtectedRelationStates` (`postgres.go:547-568`) declares
+`indexNames: []string{"screening_ledger_anchor_pkey"}` and nothing else about the index. D71's
+verifier limb (`:610-626`) is a pure `EXISTS` per declared name; the installer limb (`:702-723`) is a
+pure existence loop; D62(a)'s index check (`:610`) refuses only an **undeclared** name. `index_defs`
+is compared recorded-against-live, and `grant-ddl-ownership` re-records it from live -- the launder
+D69 closed for triggers, still open for indexes.
+
+Executed on a `TEMPLATE` clone, inside the documented recovery window (drift note 1):
+
+```
+                              indisunique indisprimary indkey  definition
+pristine                          t            t       "1 2"   CREATE UNIQUE INDEX ... (ledger_id, sequence)
+after substitution                f            f       "1"     CREATE INDEX ... (ledger_id)
+
+D71's existence check on the substituted index   -> indexPresentOK = TRUE   (accepted)
+grant-ddl-ownership                              -> EXIT=0, 3 PASS lines
+recorded index_defs, re-recorded from live       -> {"CREATE INDEX screening_ledger_anchor_pkey
+                                                     ON public.screening_ledger_anchor USING btree (ledger_id)"}
+screening-ledger migrate                         -> "provisioned":true, "provisioning_reason":""
+```
+
+D69 gave triggers behaviour; D71 gave indexes existence. CAP #7 section 11 point 1 asked for both
+halves in one sentence and Addendum 8 implemented one of them.
+
+**Decision: the declared index gains the properties that make a primary-key index the control it is.**
+
+Beside `indexNames`, per declared index: `indisunique`, `indisprimary`, `indkey`, and
+`indpred`/`indexprs` both null. Every value measured on the shipped baseline rather than transcribed
+from the migration:
+
+```
+screening_ledger_anchor_pkey                 indisunique=t indisprimary=t indkey="1 2" indpred=NULL indexprs=NULL
+screening_ledger_retention_tombstone_pkey    indisunique=t indisprimary=t indkey="1"   indpred=NULL indexprs=NULL
+```
+
+Each is load-bearing and each sees a different substitution: `indisunique` sees the non-unique index
+above; `indisprimary` distinguishes a constraint-backed primary key from a bare unique index, which
+matters because only the former is what `ON CONFLICT` and the foreign keys resolve against;
+`indkey` sees a correctly-unique index on the **wrong columns**; `indpred` sees a partial index that
+enforces uniqueness over only some rows; `indexprs` sees an expression index that enforces it over a
+transform of them. Executed against the substitution, the proposed assertion returns
+`indexShapeOK = FALSE` where D71 returns `TRUE`.
+
+`indisvalid`/`indisready` are **not** added here: D65 already asserts them (`postgres.go:596-609`),
+D71 repaired that branch's vacuity, and this addendum does not touch it.
+
+**Why this does not subsume D71 and must not be read as doing so.** A shape check on an index that
+does not exist has nothing to evaluate; D71's `EXISTS` is what makes D80 meaningful, exactly as D71's
+own text says of D69 (`0007:7073-7077`). **D80 and D71 are stated separately so a later change cannot
+remove one on the other's strength**, the arrangement D41 part three set for D40.
+
+**D77 and D80 ship together.** D75's own withdrawal condition forbids "shipping a comparison covering
+some properties and not others"; that condition is engaged for indexes today, and shipping D77 alone
+would engage it again in the same round that closed it for triggers.
+
+---
+
+### D81. M-B (HIGH): the `purged_at` bound is asymmetric
+
+**The finding, measured rather than reasoned about.** `purgeAttributionMismatch` (`anchor.go:307-314`)
+compares `operator` and `reason` for equality and `purged_at` as `record.PurgedAt.After(anchoredAt)`
+(`:311`). `time.Time.After` is strict and there is no second comparison, so the bound exists in one
+direction only. Measured at microsecond resolution, the resolution PostgreSQL `timestamptz` stores:
+
+```
+purged_at == anchored_at         -> ACCEPTED
+purged_at == anchored_at + 1us   -> REJECTED
+purged_at == anchored_at - 1us   -> ACCEPTED
+purged_at == 1999-01-01          -> ACCEPTED
+purged_at == year 1              -> ACCEPTED
+```
+
+The bound is exact and correct in the direction it points; there is nothing to game at that edge. A
+tombstone backdated to 1999 with `operator` and `reason` intact verifies clean end to end, so **the
+*when* of a retention claim is unauthenticated -- and the *when* is the half a retention obligation
+is actually stated in.** "Purged within 90 days" and "purged in 1999" are different claims about the
+same row, and only one of them is checked.
+
+**Why the current implementation enforces one side only, stated from D70's own text rather than
+guessed.** D70 (`0007:6975-6980`) rejects `OccurredAt` as a comparand because the tombstone's
+`clock_timestamp()` and the audit entry's `OccurredAt` are different clocks -- a Go process's
+`time.Now()` against Postgres's own -- and an equality there would be a false-failure generator,
+D45's pre-declared shape. **That reasoning is sound and this addendum preserves it.** What it
+justifies is rejecting *equality against `OccurredAt`*. What it does not justify, and what the
+implementation silently took from it, is leaving the direction **unbounded**. An ordering bound is
+not an equality, and the two clocks' skew is bounded in practice while 27 years is not.
+
+**Decision: `purged_at` gains a lower bound in the same clock domain the upper bound already uses.**
+
+The upper bound compares against `anchoredAt`, which is `screening_ledger_anchor.anchored_at` -- a
+Postgres `clock_timestamp()` from the same database as `purged_at`, which is precisely why D70 chose
+it. The lower bound is drawn from the same domain: the `anchored_at` of the **anchor immediately
+preceding** the one that attests to this purge. A legitimate purge is written by
+`Store.PurgeExpired` (`RecordPurge`, then `AppendAudit`) after the previous anchor and before the
+next, so the true window is exactly `(previous anchor's anchored_at, attesting anchor's anchored_at]`
+-- both endpoints in one clock, no cross-clock comparison introduced, and no legitimate skew can
+fail it because there is no second clock involved.
+
+Where no previous anchor exists (the first anchor in a chain), the lower bound falls back to the
+snapshot's own `created_at` -- a purge cannot predate the thing it purges -- which is again a
+Postgres value from the same database. **Both fallbacks are stated so the implementation does not
+have to choose one silently**, and the genesis case is named rather than left to be discovered, which
+is the correction Addendum 3's own genesis-boundary finding (H-A) was about.
+
+---
+
+### D82. M-E (CRITICAL): the reverse pass's population
+
+**Severity, decided here rather than left open.** CAP #8 section 7.5 rates M-E HIGH and states
+explicitly that "if this project weights 'invariant limb false at T1, with no precondition at all'
+above 'the forged claim names data outside the ledger', M-E escalates to CRITICAL," leaving the
+judgement visible rather than resolving it -- the same convention Addendum 8 met for L-B.
+**This addendum rates M-E CRITICAL**, on the ground the arc has used for every prior CRITICAL:
+
+- **The invariant limb section 1 names is demonstrably false, end to end, at T1.** Every prior
+  CRITICAL in this document (F-E, G-C, H-A, L-B, M-A) was rated on exactly that. M-E meets it at the
+  **lowest reachability tier in the threat model** -- `owl_ledger_ddl` is a role section 2 admits by
+  name, the privilege is one D61's own matrix declares, and there is **no precondition at all**: no
+  superuser, no event-trigger disable, no laundering, one `INSERT`. Every other finding in this arc
+  terminates at the bootstrap superuser (R12/R17). This one does not.
+- **The counter-argument, recorded rather than resolved silently:** the forged claim concerns a
+  snapshot outside this ledger's own history, so no statement this ledger makes about *its* data is
+  made false, and the scope limit that causes it is a stated design decision with a real motivation
+  rather than an oversight. A reader who weights blast radius over reachability should read this as
+  HIGH. This addendum does not, because a fabricated retention record attributed to a named operator
+  under a named policy, in a table an auditor reads, is the artifact the invariant exists to protect
+  -- and "outside this ledger's history" is a property of the *forgery's content*, not of the
+  system's ability to detect it.
+
+**The finding, restated from the code and reproduced.** `AllPurgeRecords` (`postgres.go:1400-1409`)
+is `WHERE snapshot_sha256 = ANY($1)`, `$1` being `VerifyReport.KnownSnapshotSHA256`, passed at
+`anchor.go:378`. The forward loop is driven by which snapshots the *local envelope* marks purged, so
+a row for a snapshot the chain never references generates no claim either. Both directions are blind
+to the same population.
+
+Executed against a clean, provisioned database, as `owl_ledger_ddl`:
+
+```
+INSERT INTO screening_ledger_retention_tombstone (snapshot_sha256, purged_at, operator, reason)
+VALUES ('cap9unknown0000...0000','2020-01-01 00:00:00+00','compliance-bot',
+        'purged under 90d retention policy');                              -> INSERT 0 1
+
+the reverse pass's predicate, with a KnownSnapshotSHA256 not containing it:
+  snapshot_sha256 | status
+  snap-cap9       | IN reverse-pass scope        <- the fabricated row is ABSENT
+```
+
+**D70's scope limit is legitimate and this addendum does not remove it.** Its stated reason -- another
+ledger's rows in a shared schema must never be named as this ledger's forgery -- is correct, and
+widening the *adjudicating* scope would make a shared-schema deployment fail on rows it has no
+standing to judge.
+
+**Decision: the reverse pass keeps its adjudicating population and gains a second, unfiltered
+reporting population.**
+
+Two passes over one query rather than one widened query:
+
+- **Adjudicated**, unchanged: rows whose `snapshot_sha256` is in `KnownSnapshotSHA256` are compared
+  against the attesting entry and **fail** verification on divergence, exactly as D70 specified.
+- **Reported**, new: every other tombstone row is surfaced in `VerifyReport` -- named, counted, and
+  carried into the CLI's output -- without failing verification. A row this ledger cannot adjudicate
+  is not evidence of *this ledger's* forgery, but its existence is a fact the verifier currently
+  destroys and an auditor needs.
+
+**Reporting is sufficient to close M-E and adjudicating is not available**, and the distinction is
+the whole decision: the failure M-E demonstrates is that the row is *invisible*, not that it is
+*unjudged*. A deployment that owns its schema exclusively -- which is every deployment this
+repository configures -- can then treat a non-empty report as a failure by policy, and a
+shared-schema deployment retains D70's correct behaviour. R36 records that this addendum does not
+make the single-tenant case fail closed on its own, and why.
+
+---
+
+### D83. M-F, M-I, M-J, M-K: the DR tooling, and a withdrawal that is honoured rather than argued
+
+**M-F -- the D74 reaper is withdrawn, because its own pre-declared condition is met.** D75 states:
+*"If D74's L-E reaper is found to interfere with concurrent CI jobs sharing a runner, the reaper is
+withdrawn and the manual cleanup step ships alone, with the residual re-stated in the PR rather than
+quietly widened."* CAP #8 section 7.7 executed exactly that interference -- two runs three seconds
+apart sharing the default `DR_DATA_DIR`, where run B's reaper stopped run A's **live, healthy**
+cluster and `rm -rf`'d its data directory, run A failing at step 2 with `connection refused`.
+
+**The condition is met and the reaper is withdrawn. It is not patched.** That is the point of
+pre-declaring a withdrawal condition, and this addendum honours it rather than re-arguing it. The
+concurrency race was not re-executed during this design pass; it did not need to be, because the
+mechanism is visible in the code and is sufficient on its own:
+
+```
+scripts/ci/verify_cross_cluster_dr.sh:87-91
+if [[ -f "$DR_DATA_DIR/postmaster.pid" ]]; then
+  echo "== D74 L-E: reaping a cluster a previous (likely SIGKILLed) run left running at $DR_DATA_DIR =="
+  "$PG_BIN_DIR/pg_ctl" -D "$DR_DATA_DIR" -m immediate stop >/dev/null 2>&1 || true
+fi
+rm -rf "$DR_DATA_DIR"
+```
+
+The predicate is the **presence** of a `postmaster.pid`, with no test of whether the process it names
+is alive, and no test of whether it belongs to a dead run rather than a live one. **That is D21's
+condemned shape one domain over** -- presence implies abandonment, exactly as presence implied
+correctness -- and it is worth naming, because the arc's own principle predicted this failure in a
+place nobody was looking for it. `pg_ctl -m immediate stop` then acts on a healthy cluster, and
+`rm -rf` completes the damage.
+
+**What replaces it**, since D74's finding (a `SIGKILL`ed run leaks a live cluster, and `SIGKILL`
+cannot be trapped) remains true and unanswered:
+
+1. **A unique per-invocation data directory.** The fixed path existed *only* so a later run could
+   rediscover the leak; with the reaper gone the reason is gone, and a per-invocation directory means
+   two concurrent runs have nothing to collide over. This also closes M-K entirely: the ~60 s
+   `pg_ctl` stall and the `rm -rf` against a world-writable predictable path both disappear with the
+   fixed path that caused them.
+2. **The manual cleanup step D74 promised and never shipped.** D74's decision text names
+   `pg_ctl -D <dir> -m immediate stop` explicitly; `grep -c pg_ctl docs/operations/sec7-database-copies.md`
+   returns **0**. D84 ships it.
+3. **The script prints its own data directory at startup**, which is what makes step 2 actionable
+   against a non-fixed path -- an operator whose run was `SIGKILL`ed needs the path, and with the
+   fixed path withdrawn the script is the only thing that knows it.
+
+**The residual is stated rather than closed:** on a developer workstation, a `SIGKILL`ed run leaks a
+running cluster until the operator runs the documented command or reboots. CI is bounded by the
+ephemeral runner (`ci.yml:39` `ubuntu-latest`, `release-qualification.yml:31` `ubuntu-24.04`, both
+destroyed after the job), as D74 already recorded. **A mechanism that reliably reaps only abandoned
+clusters is available** -- a fixed *parent* directory with one subdirectory per invocation, reaped
+only where the recorded PID fails a liveness test -- and it is deliberately **not** adopted here: it
+is the same shape as the withdrawn reaper with a better predicate, and adopting a variant of a
+mechanism in the same round its withdrawal condition fired is how a withdrawal becomes decorative.
+R37 records it as available for a later addendum if the leak proves painful in practice.
+
+**M-I -- the temp-file leak, closed as a class rather than as a third instance.** Measured on a
+**successful** run of the script during this design pass:
+
+```
+system temp entries before: 2763
+system temp entries after:  2764
+new entry: <TMPDIR>/tmp.ljMNN13pon   15M   drwx------
+             containing: screening-ledger (15,255,058 bytes)
+```
+
+**D75 test 5's own obligation -- "a run leaves the system temp directory's file count unchanged
+(L-F)" -- is unmet by the implementation that claimed it.**
+
+**Why the fix did not hold, which is the part that matters because this has now failed twice.**
+`cleanup()` (`:64-75`) enumerates temp paths **by name**: `DR_DATA_DIR`, `DR_SOCK_DIR`, and -- added
+by D74 -- `DR_LOG` and `DR_ERR_TMP` (`:74`). Every future `mktemp` must be remembered and added by
+hand. The same commit that added `DR_LOG` to that list added `DR_BINARY="$(mktemp -d)/..."` (`:222`)
+and did not. **The fix was an instance fix for a class defect** -- Addendum 1's original diagnosis of
+this entire arc (`0007:1494-1497`), reappearing inside a remediation written for it. A third instance
+already exists and no CAP has named it: `DR_BOOTSTRAP_PWFILE` (`:103`) is freed at `:107` on the
+success path only and is absent from `cleanup()`, so an `initdb` failure leaves a file containing a
+cluster's bootstrap password in the system temp directory.
+
+**Decision: the enumeration is removed rather than extended.** One `mktemp -d` scratch root is
+created once, at the top; `DR_SOCK_DIR`, `DR_LOG`, `DR_ERR_TMP`, `DR_BOOTSTRAP_PWFILE`, `DR_BINARY`
+and the per-invocation data directory are all allocated **inside** it; `cleanup()` removes that single
+root. A new temp path then cannot be added without being covered, because there is nowhere else to
+put one. This is D31's closed-set answer applied to the script's own scratch state, and it is the
+only form of this fix that a fourth instance cannot defeat. **D85 makes the temp-count assertion a
+test rather than a claim, specifically because the claim has now been made twice and been wrong
+twice.**
+
+**M-J -- what the scram change closed, and the custody model for what it did not.** D74's
+`--auth=scram-sha-256 --pwfile` genuinely ends passwordless access, verified by CAP #8 against a real
+`SIGKILL` orphan (`fe_sendauth: no password supplied`). What remains:
+
+```
+scripts/ci/verify_cross_cluster_dr.sh:31   : "${PRIMARY_PGSUPERPASSWORD:=owl_ci}"
+.github/workflows/ci.yml:289                 PRIMARY_PGSUPERPASSWORD: owl_ci
+.github/workflows/release-qualification.yml:251   PRIMARY_PGSUPERPASSWORD: owl_ci
+```
+
+`owl_ci` is published in this repository, and `listen_addresses` stays `localhost`, so any local user
+who reads the repository reaches a full logical copy of the primary's SEC-7 database as the bootstrap
+superuser for the life of the run.
+
+**The custody model, stated as the brief asks, because "rotate it" is not a model:**
+
+1. **A CI-only credential is generated per run and never defaulted.** The script **already does
+   exactly this** thirty lines below the defect -- `DR_BOOTSTRAP_PASSWORD` is 32 bytes of
+   `/dev/urandom` (`:104`). The pattern is present, reviewed, and simply not applied to the one
+   credential that outlives `initdb`. `PRIMARY_PGSUPERPASSWORD` for the **DR cluster** becomes a
+   per-run generated value, and the `:=owl_ci` default is removed so an unset variable fails rather
+   than silently selecting a published string.
+2. **The distinction that decides the rule: a value that could be mistaken for a deployment default
+   must not exist at all.** The risk is not that an attacker guesses `owl_ci` on a CI runner -- the
+   ephemeral runner bounds that, and D74 said so correctly. The risk is that a value written in a
+   workflow file, in a script default, and in an operator-facing repository is **copied** into
+   something that is not CI. A per-run generated secret cannot be copied because there is nothing to
+   copy. This is why the fix is "generate," not "change the value" or "move it to a secret."
+3. **The primary-cluster credential is a different question and is not changed here.** The four
+   `owl_*` passwords and `PGSUPERPASSWORD=owl_ci` for the *primary* CI database are fixtures the
+   whole suite depends on, they are set in both workflows, and changing them is a CI-wide change with
+   its own blast radius. **Named as out of scope rather than silently left**: this addendum changes
+   the credential the DR script *creates*, not the credentials CI *provisions*.
+4. **Both workflow files are named as the implementation target**, so the pair cannot drift. They
+   match today -- both were read in full during this design pass, and `ci.yml:283-291` and
+   `release-qualification.yml:245-253` carry the identical `PG_BIN_DIR` and five `PRIMARY_*`
+   variables -- and per CLAUDE.md Boundaries the workflow wiring for this change is named explicitly
+   in the stage PR description, following D30's precedent.
+
+**M-K -- withdrawn with the fixed path**, per the reasoning under M-F. CAP #8 recorded it honestly as
+narrower than it first looks -- `pg_ctl` validates the data directory, so no arbitrary-process-kill
+primitive was demonstrated -- and both halves of what remained (a ~60 s stall, a `rm -rf` against a
+path another local user can own first) are properties of the fixed path rather than of the reaper's
+logic.
+
+---
+
+### D84. M-G, M-H: the operator document
+
+**M-G -- the Addendum 8 implementation changed no documentation at all.** `git show --stat 1949763`
+lists eleven files, none under `docs/`. Greps against `docs/operations/sec7-database-copies.md` at
+this commit: `pg_ctl` 0, `immediate stop` 0, `D69` 0, `D71` 0, `D72` 0, `D73` 0, `D74` 0,
+`Addendum 8` 0. D74's decision text promises the manual cleanup step by name and it is absent, and
+the document nowhere records the two new refusal modes `grant-ddl-ownership` gained.
+
+**M-H -- the required first step of both recovery procedures is not runnable as written.** The
+invocation at `:86`, run literally against a live provisioned database:
+
+```
+screening-ledger status --postgres-dsn-env <VAR> --policy-file <policy> --policy-public-key-file <key>
+  -> rc=1   "snapshot encryption key is required"
+```
+
+The error names none of the flags it actually needs. Fully specified -- adding `--key-file`/`--key-env`,
+`--anchor-key-file`/`--anchor-key-env`, `--ledger-dir` and `--ledger-id` -- it works and is correctly
+fail-closed, **so the control is sound and the document is wrong**. Recorded as a smaller
+observation rather than a finding, because it makes the above worse: the CLI **silently accepts
+unknown flags**, verified by execution (`--totally-bogus-flag xyz` returned `rc=0` with no
+diagnostic), so an operator who mistypes a flag in this procedure gets no signal at all.
+
+**Decision: the document is brought level with what the code does, and every claim in it is executed
+before it is written.** It gains:
+
+- **The corrected step 0**, with the full flag list, transcribed from an invocation that actually ran
+  rather than reconstructed.
+- **D74's manual cleanup step**, `pg_ctl -D <dir> -m immediate stop`, against the data directory the
+  script now prints (D83).
+- **The refusal modes**: D62(a)'s two, D69/D77's, D56/D71's, and D80's -- what each means and what to
+  do about it.
+- **M-D's warning**, until D79 lands, and D79's postcondition after it: what state a refusal leaves
+  the database in, and how to confirm enforcement is live before trusting the clone.
+- **D78's repair procedure**: the operator action for a guard function whose body no longer matches,
+  which is the remedy D78 deliberately does not perform automatically.
+
+**This decision is a shipping requirement, not a nicety.** D74 promised a documentation change,
+Addendum 8's implementation shipped none, and a document that describes a procedure nobody executed
+is the same defect as a control nobody tested -- which is the failure this entire arc exists to
+correct. **D85 requires that every command written into this document was run, with its output
+pasted in the stage PR.**
+
+---
+
+### D85. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26 (`0007:1874-1885`), D37 (`0007:2623-2662`),
+D42 (`0007:3455-3523`), D49 (`0007:4237-4307`), D58 (`0007:5231-5321`), D67 (`0007:6365-6461`) and
+D75 (`0007:7296-7344`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #8 transcript
+exists the test reproduces that transcript, not a paraphrase. Several are stated as "must pass today
+and fail after" -- deliberately, per D42's note (`0007:3461-3465`): for these findings the current
+behaviour is *acceptance*, so a test asserting only the post-fix refusal cannot distinguish a working
+fix from a test that never exercised the path.
+
+1. **D77.** `TestGuardFunctionBodyIsDeclaredNotAddressed` (pgx): CAP #8 section 7.1's exact
+   reproduction -- `ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter DISABLE` followed by one
+   `CREATE OR REPLACE FUNCTION`, and **nothing else** -- asserting that D69's four properties are
+   byte-identical after it, that `grant-ddl-ownership` exits 0 and `CheckProvisioningState` returns
+   `Provisioned=true Reason=""` **today**, that the tombstone forgery and the `TRUNCATE` it enables
+   actually succeed as `owl_ledger_ddl` (otherwise the test proves a probe changed rather than a hole
+   closed), and that both refuse after, naming the trigger, the function and the live digest. Both
+   guard functions, both protected relations.
+   **Plus the over-tightening positives, which are a shipping requirement and not a nicety:** a clean
+   **migration-bootstrapped** database and a clean **SchemaSQL-only-bootstrapped** database
+   (`create-schemasql-only-database`) are both accepted. **This is the test that catches the
+   single-digest error**; without the second positive, a declaration sourced from either literal
+   alone passes its own suite and fails in CI or in production.
+   **Plus a unit-level assertion that the two `owl_reject_truncate()` literals differ** --
+   `db/migrations/012_truncate_guards.sql` against `internal/screeningledger/postgres.go`'s SchemaSQL
+   -- so the fact that forces the two-member set is pinned by a test rather than only by this
+   addendum's prose, and a later reader who "simplifies" the set to one member breaks a test that
+   explains why.
+2. **D78.** `TestSchemaSQLRefusesAnAlteredGuardBody` (pgx): `Migrate()` against a database whose
+   guard body has been swapped returns `"provisioned":true` and leaves the body unrepaired **today**,
+   and fails closed after, naming the function and the remedy. Plus the positive: `Migrate()` on both
+   bootstrap paths, and repeated `Migrate()` on a fully provisioned database, still succeed -- the
+   case D34 would refuse if this were implemented as a repair.
+3. **D79.** `TestRefusalPathLeavesEnforcementInstalled` (shell or pgx): for **each** of the five
+   refusal paths (D62(a)'s undeclared trigger and undeclared index, D69/D77's behaviour, D56/D71's
+   missing object, D80's index shape), assert `grant-ddl-ownership` exits 1 **and**
+   `SELECT count(*) FROM pg_event_trigger` is **2**, both `evtenabled='A'`. Today that count is 0,
+   measured. Plus the consequence as a named regression: `DROP TABLE screening_ledger_anchor CASCADE`
+   as `owl_ledger_ddl` is refused by D34 after a refusal, where it succeeds today. Plus the
+   over-tightening positive: a clean run still provisions and still installs both triggers.
+   **The test must run each refusal in the documented recovery state** (`_on_alter` disabled), per
+   drift note 1, or it will not reproduce.
+4. **D80.** `TestDeclaredIndexShapeIsVerifiedNotOnlyPresence` (pgx): CAP #8 section 7.3's exact
+   substitution on both relations, asserting `grant-ddl-ownership` exits 0 and
+   `CheckProvisioningState` returns `Provisioned=true` **today**, that the duplicate
+   `(ledger_id, sequence)` insert succeeds today so the consequence is proven rather than described,
+   and that both refuse after. Table-driven over the five properties, each substitution changing only
+   its own: non-unique, unique-but-not-primary, correct-uniqueness-wrong-columns, partial
+   (`indpred`), and expression (`indexprs`). Plus the positive: both clean relations accepted, and
+   D65's validity branch unregressed.
+5. **D81.** `TestPurgedAtIsBoundedOnBothSides` (pgx): the boundary measured at microsecond
+   resolution -- equal accepted, `+1us` rejected, `-1us` accepted **today**; and after, a `purged_at`
+   before the preceding anchor's `anchored_at` rejected while all three of those keep their current
+   verdicts. Plus CAP #8's own end-to-end case: a tombstone backdated to 1999 with attribution intact
+   verifies clean today and fails after. **Plus the positive D45's rule requires**: a real
+   `Store.PurgeExpired` purge, anchored, verifies clean, and clock skew between the Go process and
+   Postgres does not fail it -- the false-failure D70 correctly refused to create.
+6. **D82.** `TestReverseAdjudicationReportsUnknownTombstones` (pgx): CAP #8 section 7.5's exact
+   single `INSERT` as `owl_ledger_ddl` for a snapshot outside `KnownSnapshotSHA256`, asserting
+   `VerifyAnchored` returns `status=verified err=nil` **today** and that the row is named in
+   `VerifyReport` after. Plus: rows **inside** the known set still **fail** verification on
+   divergence (D70 unregressed, both existing reverse tests keep passing), and a clean ledger reports
+   nothing.
+7. **D83.** The DR script's own assertions become the test: a run leaves the system temp directory's
+   file count **unchanged** -- asserted by counting, not by inspection -- and this obligation is
+   restated from D75 test 5 **because it was claimed and unmet once already**; `cleanup()` removes one
+   scratch root and the script contains no `mktemp` outside it, asserted by a grep-based unit check so
+   a fourth instance cannot be added silently; no `PRIMARY_PGSUPERPASSWORD` default remains in the
+   script or either workflow; and two concurrent invocations both succeed, which is the withdrawn
+   reaper's own failure condition asserted as a test rather than left to a ninth CAP.
+8. **D84.** Every command written into `docs/operations/sec7-database-copies.md` is executed and its
+   output pasted in the stage PR, step 0 included. This is not automatable and is stated as a review
+   obligation rather than pretended into a test.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D77 must not be reduced to a single declared digest per function.** It is the design CAP #8
+  section 11 point 1 recommends and it is refuted above by execution: `owl_reject_truncate()` has two
+  legitimate bodies, and a single digest fails closed on a clean, unattacked, migration-bootstrapped
+  database. A later reader who rediscovers the simplification should find D77's two-database
+  transcript and the D85 test 1 assertion that pins it.
+- **`prosrc` must not be normalised, trimmed or whitespace-folded to collapse the two literals into
+  one.** That would replace a closed set of two committed values with a hand-written equivalence
+  relation over program text -- a new parsing surface, in a security comparison, invented in the same
+  pass that implements it, which is exactly what CLAUDE.md rule 7 forbids and what D69's own
+  rendering refutation was about. If the two texts genuinely must converge, that is a schema change
+  with its own ADR, not a `regexp_replace` in a `WHERE` clause.
+- **If D77's accepted-digest set cannot be stated for all four declared triggers across both
+  bootstrap paths**, the implementation stops and this addendum is amended rather than shipping a
+  comparison covering some triggers and not others -- D75's own condition, restated because D77 is
+  the decision that engaged it.
+- **D77 and D80 ship together**, per D75's "some properties and not others": D77 alone leaves indexes
+  with presence where triggers have behaviour, which is the asymmetry this round exists to close.
+- **D79 must not be implemented as "restore on failure" alone.** The hoist is the part that closes
+  the three refusals this arc added; the trap is the backstop for everything else. A trap-only
+  implementation leaves a window between `:478` and the first refusal in which a crash still
+  disarms, and the hoist is free.
+- **The withdrawn D74 reaper must not be reintroduced in this round, in any form, including a
+  liveness-checking variant.** R37 records that variant as available to a later addendum. Adopting a
+  variant of a mechanism in the same round its own withdrawal condition fired would make every future
+  pre-declared withdrawal condition decorative, which is a worse outcome than the leak it addresses.
+- **If D82's reporting population cannot be surfaced without changing `VerifyReport`'s contract
+  beyond adding a field**, the implementation stops and the design is amended. It does not silently
+  widen the *adjudicating* population instead -- that breaks the shared-schema case D70 correctly
+  protects, and D70's reasoning for the limit is sound.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #8's confirmation. D65's branch is
+untouched and D80 adds beside it rather than changing it, so Addendum 7's "assert validity in D47
+only" fallback is **not** required. D50's collateral-damage cases are unaffected -- D77 and D80 add
+assertions and never change `index_defs`, so D49's second withdrawal condition is not engaged and
+Addendum 6's "record both `index_oids` and `index_defs`" fallback must not be adopted. D60's empty-set
+assertion is untouched by this addendum, as are D72's allowlist and D73's two limbs -- CAP #8 found no
+route past either and this addendum adds nothing to them. The instance binding is still not a gate.
+D46 is not split from D45. D40's collateral-damage cases pass, so Addendum 4's `pg_depend` fallback is
+not required. D38(a) and D38(b) remain shipped together. D69's rejection of `pg_get_triggerdef` is
+re-verified by independent execution above and stands.
+
+### New accepted risks
+
+**R34 -- D76 is a declaration discipline, not an interception, and the T2 window is unchanged.**
+Nothing in this addendum observes a substitution at the moment it happens: under T2 the event
+triggers are disabled by the party performing it, which is the premise of the documented recovery.
+D68's R30 said this and it is restated rather than assumed inherited, because D77 is the decision most
+likely to be over-claimed. What changes is that a substituted **body** can no longer be recorded as
+legitimate (D77 in `grant-ddl-ownership`), can no longer pass verification (D77 in
+`CheckProvisioningState`), and can no longer be walked past silently by the bootstrap path (D78). It
+converts an unobserved substitution into an observed one; it does not prevent it. **D34 is doing more
+work here than a reader might credit** -- it refuses `CREATE OR REPLACE FUNCTION` in every state
+except the one the operator document itself creates (D76 point 4). The residual terminates at the
+bootstrap superuser, where R12/R17 put every other one.
+
+**R35 -- the accepted-digest set is a new coordinated-edit literal, and it is the most fragile one
+this document has added.** R23, R29 and R33 already track the cross-language declaration surface;
+D77 adds a value that must change whenever either guard function's committed text changes, in Go and
+in bash, and whose two-member cardinality encodes a whitespace difference between two files that a
+routine reformat would silently alter. **The mitigation is a CI gate, named here rather than left to
+the implementation's discretion**: a check that extracts both bootstrap paths' literal function
+bodies from `db/migrations/*.sql` and `internal/screeningledger/postgres.go`, digests them, and
+asserts the declared set is exactly that set -- so an edit to either literal fails the gate rather
+than shipping a control that refuses every healthy database. Without that gate this decision is one
+reformat away from being D45's false-failure shape, and this addendum states that plainly rather than
+trusting review to catch it. The aggravating property section 10.3 names -- that these controls have
+no single owner -- is unchanged and not addressed here.
+
+**R36 -- D82 reports where a single-tenant deployment would want it to fail.** The reporting
+population closes M-E's invisibility and stops short of failing verification, because this repository
+configures no shared-schema deployment today but D70's limit exists to protect one. A deployment that
+owns its schema exclusively should treat a non-empty report as a verification failure, and **that
+policy is not expressed anywhere in this repository** -- there is no configuration surface for it and
+this addendum does not invent one. The re-entry condition is the same one section 5.3 set for RFC 3161
+and D70 set for R31: the first deployment that screens real traffic. Until then the fact is visible
+and unjudged, which is strictly better than invisible and is honestly less than adjudicated.
+
+**R37 -- the DR cluster leak is bounded by an operator action rather than by a mechanism.** With the
+D74 reaper withdrawn (D83), a `SIGKILL`ed run on a workstation leaks a live cluster until the operator
+runs the documented `pg_ctl` command. CI is bounded by the ephemeral runner. A liveness-checking
+per-invocation reaper is the mechanism that would close this properly and is deliberately not adopted
+in the round that withdrew its predecessor; it is recorded here so a later addendum has the analysis
+rather than re-deriving it. **The failure mode this accepts is a leaked disposable cluster; the
+failure mode it refuses is a mechanism that kills a healthy one**, which is what the withdrawn reaper
+demonstrably did.
+
+**R31 is re-stated as a live register item rather than a deferred one.** D70 argued against a
+tombstone MAC and the argument is good **against a MAC as a replacement** for the anchored
+adjudication. M-B, M-E and M-C's tombstone limb are three states in which the anchored attestation is
+present, correct, and simply not asked the question -- and D81, D82 and D80 each close one of them
+without a MAC. What none of them closes is R31's own case: an auditor reading the Postgres mirror
+**alone**, with no ledger directory and no `K_anchor` cross-check, still gets no retention guarantee
+from any of this. That is the follow-on ADR D70 scoped, its migration is still free at zero tombstone
+rows and never free afterwards, and **the issue register should carry it as live**. This addendum
+does not open it, for D70's own stated reason -- a new key, a new custody boundary and a new writer
+identity is more than an addendum should introduce -- and does not let it drift out of view either.
+
+### Staging
+
+Same shape and reason as section 8 and the eight prior addenda (`0007:1397-1414`, `0007:2038-2058`,
+`0007:2694-2716`, `0007:3566-3586`, `0007:4342-4367`, `0007:5360-5384`, `0007:6512-6540`,
+`0007:7429-7459`): each stage independently reviewable and independently provable. Ordered by
+dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage L1 -- the refusal that does not disarm.** D79. Sequenced **first**, ahead of the CRITICAL,
+   which is a deliberate departure from every prior addendum's ordering and is argued rather than
+   assumed: D77 and D80 each **add a refusal path**, and every refusal path added before D79 lands is
+   another way to reach the state where the protected tables can be dropped. Shipping the CRITICAL
+   first would make the database strictly easier to destroy for the duration between stages. D79 is
+   also the cheapest stage in the round.
+3. **Stage L2 -- the declaration.** D76, D77, D78 and D80 together (D75's and D85's "ship together"
+   conditions). The CRITICAL, and the only stage that changes what a security check asserts about an
+   object. D77's over-tightening positives across **both** bootstrap paths are a shipping
+   requirement, and its withdrawal conditions are discharged or invoked here.
+4. **Stage L3 -- the retention claim.** D81 and D82. Sequenced after L2 because both corroborate a
+   tombstone whose own guard trigger L2 is what verifies, and because D82 carries the round's second
+   CRITICAL at the lowest reachability tier -- it is not sequenced first only because it depends on
+   nothing L1 or L2 breaks, and splitting `adjudicatePurgeClaims` across L2's edits would produce
+   conflicting versions of one function.
+5. **Stage L4 -- the DR tooling and the document.** D83 and D84. Blocks nothing, and is therefore
+   sequenced last and explicitly **not** droppable -- D23 was sequenced last on the same "blocks
+   nothing" reasoning and CAP #2 rated the resulting gap HIGH, a lesson Addendum 5's staging recorded
+   (`0007:4348-4354`) and Addenda 6, 7 and 8 each repeated. **Addendum 8 is the round that proves the
+   point**: its D74 promised a documentation change, its implementation shipped none, and M-G is that
+   omission. Per CLAUDE.md Boundaries the workflow wiring for D83's credential change is named
+   explicitly in the stage PR description, following D30's precedent.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #8 section 9 re-confirmed that nothing in PR #157 or #158 re-asserted the guarantee; that must
+   remain true through this addendum as well.
+
+**SEC-7 does not close on this addendum, and for the second round running the reason is a forgery.**
+Section 8's closing condition -- "a deliberately forged chain fails a CI run that nobody chose to
+invoke" -- remains met for the **chain**: `anchorMAC` catches M-A's and M-C's anchor-side rewrites,
+and CAP #8 re-confirms the cryptographic layer is unbroken across all eight rounds. It is **not** met
+for the **retention claim**, which the invariant names alongside history and which this round forges
+three ways -- one of them, M-E, at T1 with no precondition at all. D77 through D82 are the whole of
+that barrier.
+
+### Addendum 9 summary
+
+- **CAP #8's verdict is QUALIFIED, not PASS, for the eighth consecutive audit, and for the second
+  consecutive round it demonstrates a forgery.** Eleven findings. D31's scoping principle, Addendum
+  4's referent principle, Addendum 5's population principle, Addendum 6's atomicity principle,
+  Addendum 7's quantifier principle and Addendum 8's naming principle all held; this addendum reopens
+  none of them.
+- **The class is composition: a property set is only as strong as its weakest member.** D69 did what
+  Addendum 8's principle prescribed -- it replaced a name with four catalog properties -- and the one
+  property that says which code runs is `pg_identify_object(tgfoid)`'s identity, a string.
+  `CREATE OR REPLACE FUNCTION` preserves the OID and replaces the body, so all four declared
+  properties survive a guard that now returns `NEW`. **Adding properties to a set does not repair the
+  weakest one.**
+- **The design is D76-D85.** The composition principle with its PostgreSQL support established by
+  execution (D76); the guard function's body as a closed set of accepted `prosrc` digests joined
+  through `tgfoid` (D77); SchemaSQL's presence guard as an assertion that refuses rather than a repair
+  that cannot run (D78); the remedy tool's refusals hoisted above its own teardown (D79); the declared
+  index referent as what the index *is* (D80); `purged_at` bounded on both sides in one clock domain
+  (D81); the reverse pass's second, reporting population (D82); the DR tooling with a withdrawal
+  honoured rather than argued and a temp-leak class closed rather than a third instance patched
+  (D83); the operator document brought level with the code (D84); and the proof obligations with
+  pre-declared withdrawal conditions (D85).
+- **This design pass executed its mechanism assumptions, and the execution refuted the fix CAP #8
+  itself recommended.** `pg_proc.prosrc` is `search_path`-**insensitive**, identical in the recorder's
+  and the verifier's sessions, readable by `owl_migrator` with no new grant, and **survives
+  `pg_dump | psql` byte-identically while OIDs are reassigned** -- so it is a better referent than the
+  `tgfoid` D69 already trusts. But **`owl_reject_truncate()` has two legitimate bodies**, because
+  `db/migrations/012` and SchemaSQL disagree on whitespace, and the single authoritative text CAP #8
+  section 11 point 1 assumes does not exist: declaring only SchemaSQL's returns two FALSE on a clean,
+  unattacked baseline. **The guard functions were already protected objects and `ddl_command_end`
+  already fires for `CREATE OR REPLACE FUNCTION`**, so there was no registry extension to make -- the
+  gap is R30's window and nothing else. And **D62(a)'s, D69's and D71's precondition checks are pure
+  `SELECT`s**, so M-D closes by statement ordering at zero cost.
+- **Two severities are decided here rather than left open**, both with the counter-argument recorded
+  rather than resolved silently. **M-A is CRITICAL** on both of Addendum 8's own grounds for L-B, each
+  met more strongly -- permanently undetectable, and at a *lower* precondition than L-B, since
+  `CREATE OR REPLACE FUNCTION` fires `ddl_command_end` alone and needs only the disable the operator
+  document instructs. **M-E is escalated from CAP #8's HIGH to CRITICAL**, on the ground every prior
+  CRITICAL in this document used: the invariant limb is demonstrably false end to end, and here at
+  **T1 with no precondition at all** -- one `INSERT`, on a privilege D61's own matrix declares, by a
+  role section 2 admits by name.
+- **Four risks are recorded** rather than designed away: D76 is a declaration discipline and not an
+  interception (R34); the accepted-digest set is the most fragile coordinated-edit literal yet added
+  and gets a named CI gate (R35); D82 reports where a single-tenant deployment would want it to fail
+  (R36); the DR cluster leak is bounded by an operator action rather than a mechanism (R37). **R31 is
+  re-stated as live rather than deferred**: D80, D81 and D82 each close a state where the anchored
+  attestation was present and simply not asked, and none of them reaches the mirror-only auditor D70
+  scoped a follow-on ADR for.
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42,
+  D43-D49, D50-D58, D59-D67 and D68-D75 stand. R1-R33 stand. D69's four properties are **kept and
+  supplemented**, not replaced -- the body digest misses `WHEN (false)` and `UPDATE OF <column>`, and
+  D69's four miss the body, so each remains the only member of the set that sees its own
+  substitution. D69's refutation of `pg_get_triggerdef` was re-derived by independent execution and
+  is re-affirmed.
+
+**Audit basis commit:** `be62ceb3dcddc785a1312783740a422a94425aa3`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #8
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
