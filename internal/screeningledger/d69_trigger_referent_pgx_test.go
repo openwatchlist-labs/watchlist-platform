@@ -99,7 +99,7 @@ func preD69And71ProtectedRelationStateReason(t *testing.T, ctx context.Context, 
 				r.identity = $1
 			FROM sec7_protected_relation r
 			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
-		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames).
+		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames()).
 			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &indexesValidOK, &policiesOK, &identityOK)
 		if err != nil {
 			return "", fmt.Errorf("checking sec7_protected_relation recorded state for %s: %w", want.identity, err)

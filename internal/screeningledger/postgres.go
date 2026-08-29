@@ -484,16 +484,44 @@ type requiredProtectedRelationState struct {
 	// session-independent catalog properties that make it the control it
 	// is -- see requiredProtectedTriggerState.
 	triggers []requiredProtectedTriggerState
-	// indexNames: the relation's own primary-key index, one per table,
-	// named literally rather than derived from a naming-pattern guess.
-	// ADR-0007 Addendum 6 D50: "the coordinated-edit surface does not
-	// grow" -- this stays a name literal; only the query in
-	// protectedRelationStateReason below changes, from reconciling the
-	// recorded column against these names' OIDs to reconciling it
-	// against these names' pg_get_indexdef() renderings.
-	indexNames []string
+	// indexes: the relation's own primary-key index, one per table, named
+	// literally rather than derived from a naming-pattern guess. ADR-0007
+	// Addendum 6 D50: "the coordinated-edit surface does not grow" -- the
+	// name stays a literal; only the query in protectedRelationStateReason
+	// below changes, from reconciling the recorded column against these
+	// names' OIDs to reconciling it against these names' pg_get_indexdef()
+	// renderings. ADR-0007 Addendum 9 D80 adds, per index, the shape
+	// properties that make a primary-key index the control it is -- see
+	// requiredProtectedIndexState.
+	indexes []requiredProtectedIndexState
 	// No protected relation carries any RLS policy today -- policy_oids
 	// must be empty.
+}
+
+// requiredProtectedIndexState is ADR-0007 Addendum 9 D80: beside the
+// declared name D71 already asserts resolves to a live object, the
+// properties that make a primary-key index the control it is -- CAP #8's
+// M-C substituted a non-unique, non-primary index on the wrong column(s)
+// under the declared name and D71's own EXISTS check accepted it, because
+// existence is not shape. Every value below was measured against the
+// shipped baseline during this addendum's design pass, not transcribed
+// from the migration. indpred and indexprs are not per-index fields:
+// every declared index requires both NULL (no partial index, no
+// expression index), asserted as literal constants in the query itself,
+// the same shape D69 uses for tgqual IS NULL.
+type requiredProtectedIndexState struct {
+	name string
+	// indisunique/indisprimary: a primary-key index is unique AND
+	// constraint-backed: indisprimary distinguishes it from a bare unique
+	// index, which matters because only a real primary key is what
+	// ON CONFLICT and this schema's foreign keys resolve against.
+	indisunique  bool
+	indisprimary bool
+	// indkey: pg_index.indkey rendered as text (e.g. "1 2"), the ordered
+	// column-number list the index actually covers -- sees a
+	// correctly-unique index built on the WRONG columns, which
+	// indisunique/indisprimary alone do not.
+	indkey string
 }
 
 // triggerNames returns just the names from triggers, for the existing
@@ -504,6 +532,19 @@ func (w requiredProtectedRelationState) triggerNames() []string {
 	names := make([]string, len(w.triggers))
 	for i, trig := range w.triggers {
 		names[i] = trig.name
+	}
+	return names
+}
+
+// indexNames returns just the names from indexes, for the existing
+// recorded-index_defs/D65/D71 comparisons in protectedRelationStateReason,
+// which operate over the declared name set regardless of shape -- D80
+// adds a second, independent shape comparison beside these; it does not
+// replace them.
+func (w requiredProtectedRelationState) indexNames() []string {
+	names := make([]string, len(w.indexes))
+	for i, idx := range w.indexes {
+		names[i] = idx.name
 	}
 	return names
 }
@@ -537,7 +578,54 @@ type requiredProtectedTriggerState struct {
 	tgnargs     int16
 	tgattr      string
 	functionOID string // pg_identify_object('pg_proc', tgfoid, 0).identity
+	// acceptedBodySHA256 is ADR-0007 Addendum 9 D77: the closed set of
+	// accepted sha256(prosrc) digests for the function this trigger is
+	// bound to, joined through the trigger's OWN tgfoid rather than a name
+	// lookup -- so this follows whatever function the trigger actually
+	// calls right now, not whatever function currently bears the declared
+	// name. D69's four properties above are kept and supplemented, not
+	// replaced: the body digest alone misses WHEN (false) and
+	// UPDATE OF <column>, which do not touch the function at all; D69's
+	// four miss a CREATE OR REPLACE FUNCTION body swap, which preserves
+	// every one of them. Each remains the only member of the set that
+	// sees its own substitution.
+	acceptedBodySHA256 []string
 }
+
+// ADR-0007 Addendum 9 D77: the closed set of accepted pg_proc.prosrc
+// digests for each guard function, measured (not guessed) as
+// sha256(prosrc) of the literal function body committed between the
+// $$ ... $$ delimiters at each bootstrap path's own CREATE FUNCTION
+// statement.
+//
+// screeningLedgerRejectMutationBodySHA256 has exactly one legitimate
+// body: db/migrations/008g_screening_ledger.sql's CREATE OR REPLACE
+// FUNCTION and this package's own SchemaSQL agree byte-for-byte.
+//
+// owlRejectTruncateBodySHA256 has TWO legitimate bodies, which is D77's
+// own "no single authoritative text" finding, forced by execution rather
+// than chosen: db/migrations/012_truncate_guards.sql and this package's
+// SchemaSQL disagree on internal whitespace (a multi-line body vs. a
+// single-line one), so declaring only one -- CAP #8's own recommendation,
+// implemented literally -- returns bodyOK=false on every clean,
+// unattacked, migration-bootstrapped database, D45's pre-declared
+// false-failure shape. Both texts are committed, reviewed and unwritable
+// from the database, so the set is closed in D31's sense. R35 records the
+// coordinated-edit cost: TestOwlRejectTruncateAcceptedDigestsMatchCommittedLiterals
+// (d77_body_digest_pgx_test.go) pins these two values against the actual
+// committed source text, so an edit to either literal that is not also
+// reflected here fails a test rather than shipping a control that
+// refuses every healthy database.
+const (
+	screeningLedgerRejectMutationBodySHA256  = "5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1"
+	owlRejectTruncateBodySHA256Migration     = "e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf"
+	owlRejectTruncateBodySHA256SchemaSQLBoot = "fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0"
+)
+
+// owlRejectTruncateAcceptedBodySHA256 is the two-member set D77 requires
+// for owl_reject_truncate() specifically -- shared by both declared
+// no_truncate triggers so the set cannot drift between them.
+var owlRejectTruncateAcceptedBodySHA256 = []string{owlRejectTruncateBodySHA256Migration, owlRejectTruncateBodySHA256SchemaSQLBoot}
 
 // requiredProtectedRelationStates is D47's literal declaration, written
 // beside requiredProtectedRelations rather than derived from it or from
@@ -550,20 +638,24 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 		relowner: "owl_ledger_ddl",
 		relkind:  "r",
 		triggers: []requiredProtectedTriggerState{
-			{name: "screening_ledger_anchor_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()"},
-			{name: "screening_ledger_anchor_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()"},
+			{name: "screening_ledger_anchor_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()", acceptedBodySHA256: []string{screeningLedgerRejectMutationBodySHA256}},
+			{name: "screening_ledger_anchor_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
 		},
-		indexNames: []string{"screening_ledger_anchor_pkey"},
+		indexes: []requiredProtectedIndexState{
+			{name: "screening_ledger_anchor_pkey", indisunique: true, indisprimary: true, indkey: "1 2"},
+		},
 	},
 	{
 		identity: "public.screening_ledger_retention_tombstone",
 		relowner: "owl_ledger_ddl",
 		relkind:  "r",
 		triggers: []requiredProtectedTriggerState{
-			{name: "screening_ledger_retention_tombstone_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()"},
-			{name: "screening_ledger_retention_tombstone_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()"},
+			{name: "screening_ledger_retention_tombstone_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()", acceptedBodySHA256: []string{screeningLedgerRejectMutationBodySHA256}},
+			{name: "screening_ledger_retention_tombstone_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
 		},
-		indexNames: []string{"screening_ledger_retention_tombstone_pkey"},
+		indexes: []requiredProtectedIndexState{
+			{name: "screening_ledger_retention_tombstone_pkey", indisunique: true, indisprimary: true, indkey: "1"},
+		},
 	},
 }
 
@@ -627,7 +719,7 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 				r.identity = $1
 			FROM sec7_protected_relation r
 			WHERE (pg_identify_object('pg_class'::regclass, r.objid, 0)).identity = $1
-		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames).
+		`, want.identity, want.relowner, want.relkind, want.relrowsecurity, want.relforcerowsecurity, want.triggerNames(), want.indexNames()).
 			Scan(&ownerOK, &kindOK, &rlsOK, &forceRLSOK, &triggersOK, &indexesOK, &indexesValidOK, &indexesPresentOK, &policiesOK, &identityOK)
 		if err != nil {
 			return "", fmt.Errorf("checking sec7_protected_relation recorded state for %s: %w", want.identity, err)
@@ -665,7 +757,7 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 		// renders byte-identically to the legitimate guard in exactly the
 		// session that runs this check).
 		for _, trig := range want.triggers {
-			var tgtypeOK, tgqualIsNullOK, tgnargsOK, tgattrOK, functionOK, presentOK bool
+			var tgtypeOK, tgqualIsNullOK, tgnargsOK, tgattrOK, functionOK, presentOK, bodyOK bool
 			err := p.conn.QueryRow(ctx, `
 				SELECT
 					EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2),
@@ -673,11 +765,24 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 					COALESCE((SELECT t.tgqual IS NULL FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
 					COALESCE((SELECT t.tgnargs = $4 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
 					COALESCE((SELECT t.tgattr::text = $5 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
-					COALESCE((SELECT (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = $6 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false)
-			`, want.identity, trig.name, trig.tgtype, trig.tgnargs, trig.tgattr, trig.functionOID).
-				Scan(&presentOK, &tgtypeOK, &tgqualIsNullOK, &tgnargsOK, &tgattrOK, &functionOK)
+					COALESCE((SELECT (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = $6 FROM pg_trigger t WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2), false),
+					-- ADR-0007 Addendum 9 D76/D77: the bound function's own
+					-- BODY, joined through the trigger's live tgfoid --
+					-- never a name lookup -- so this follows whatever
+					-- function the trigger actually calls right now. D69's
+					-- four properties above all survive a CREATE OR REPLACE
+					-- FUNCTION that preserves the function's OID and
+					-- replaces only its body; this is the property that
+					-- does not.
+					COALESCE((
+						SELECT encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex') = ANY($7)
+						FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+						WHERE t.tgrelid = $1::regclass AND NOT t.tgisinternal AND t.tgname = $2
+					), false)
+			`, want.identity, trig.name, trig.tgtype, trig.tgnargs, trig.tgattr, trig.functionOID, trig.acceptedBodySHA256).
+				Scan(&presentOK, &tgtypeOK, &tgqualIsNullOK, &tgnargsOK, &tgattrOK, &functionOK, &bodyOK)
 			if err != nil {
-				return "", fmt.Errorf("checking trigger %s behavior on %s (ADR-0007 Addendum 8 D69): %w", trig.name, want.identity, err)
+				return "", fmt.Errorf("checking trigger %s behavior on %s (ADR-0007 Addendum 8 D69/Addendum 9 D77): %w", trig.name, want.identity, err)
 			}
 			switch {
 			case !presentOK:
@@ -692,6 +797,42 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 				return fmt.Sprintf("%s: trigger %s's tgnargs does not match the declared %d (ADR-0007 Addendum 8 D69)", want.identity, trig.name, trig.tgnargs), nil
 			case !tgattrOK:
 				return fmt.Sprintf("%s: trigger %s's column list does not match the declared set (ADR-0007 Addendum 8 D69): possible UPDATE OF <column> narrowing", want.identity, trig.name), nil
+			case !bodyOK:
+				return fmt.Sprintf("%s: trigger %s's bound function body (prosrc) is not in its declared accepted digest set (ADR-0007 Addendum 9 D77): possible CREATE OR REPLACE FUNCTION substitution of a guard function whose OID and D69 catalog properties were otherwise left unchanged", want.identity, trig.name), nil
+			}
+		}
+		// ADR-0007 Addendum 9 D80: the declared index gains the properties
+		// that make a primary-key index the control it is -- D71's own
+		// EXISTS check above (unchanged) is what makes this meaningful; a
+		// shape check on an index that does not exist has nothing to
+		// evaluate. Stated as its own loop rather than folded into D71's
+		// EXISTS, so a later change cannot remove one on the other's
+		// strength (D41 part three's arrangement for D40).
+		for _, idx := range want.indexes {
+			var uniqueOK, primaryOK, indkeyOK, predNullOK, exprsNullOK bool
+			err := p.conn.QueryRow(ctx, `
+				SELECT
+					COALESCE((SELECT ix.indisunique FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false) = $3,
+					COALESCE((SELECT ix.indisprimary FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false) = $4,
+					COALESCE((SELECT ix.indkey::text FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), '') = $5,
+					COALESCE((SELECT ix.indpred IS NULL FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false),
+					COALESCE((SELECT ix.indexprs IS NULL FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false)
+			`, want.identity, idx.name, idx.indisunique, idx.indisprimary, idx.indkey).
+				Scan(&uniqueOK, &primaryOK, &indkeyOK, &predNullOK, &exprsNullOK)
+			if err != nil {
+				return "", fmt.Errorf("checking index %s shape on %s (ADR-0007 Addendum 9 D80): %w", idx.name, want.identity, err)
+			}
+			switch {
+			case !uniqueOK:
+				return fmt.Sprintf("%s: declared index %s's indisunique does not match the declared %v (ADR-0007 Addendum 9 D80): possible substitution with a non-unique index", want.identity, idx.name, idx.indisunique), nil
+			case !primaryOK:
+				return fmt.Sprintf("%s: declared index %s's indisprimary does not match the declared %v (ADR-0007 Addendum 9 D80): possible substitution with a unique-but-not-primary-key index", want.identity, idx.name, idx.indisprimary), nil
+			case !indkeyOK:
+				return fmt.Sprintf("%s: declared index %s's indkey does not match the declared %q (ADR-0007 Addendum 9 D80): possible substitution with a correctly-unique index on the wrong column(s)", want.identity, idx.name, idx.indkey), nil
+			case !predNullOK:
+				return fmt.Sprintf("%s: declared index %s has a partial-index predicate (indpred), expected none (ADR-0007 Addendum 9 D80): possible substitution with a partial index enforcing uniqueness over only some rows", want.identity, idx.name), nil
+			case !exprsNullOK:
+				return fmt.Sprintf("%s: declared index %s is an expression index (indexprs), expected none (ADR-0007 Addendum 9 D80): possible substitution with an index over a transform of the declared columns", want.identity, idx.name), nil
 			}
 		}
 	}
@@ -1364,6 +1505,51 @@ func (p *PostgresSink) LatestAnchor(ctx context.Context, ledgerID string) (ancho
 	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AuditSequence: auditSequence, PolicySHA256: policySHA256, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
 }
 
+// PreviousAnchorAt implements AnchorReader (ADR-0007 Addendum 9 D81):
+// the anchored_at of this ledger's anchor with the largest Sequence
+// strictly less than beforeSequence -- ORDER BY sequence DESC LIMIT 1
+// over a WHERE sequence < $2, the same tiebreaker shape LatestAnchor
+// uses (anchor_mac DESC), for the same K-F-adjacent reason. found=false
+// (pgx.ErrNoRows) means beforeSequence names this ledger's first anchor,
+// which is not an error -- purgeLowerBoundSource's genesis fallback
+// applies there instead.
+func (p *PostgresSink) PreviousAnchorAt(ctx context.Context, ledgerID string, beforeSequence int64) (anchoredAt time.Time, found bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	err = p.conn.QueryRow(ctx,
+		`SELECT anchored_at FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence < $2 ORDER BY sequence DESC, anchor_mac DESC LIMIT 1`,
+		ledgerID, beforeSequence,
+	).Scan(&anchoredAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, err
+	}
+	return anchoredAt, true, nil
+}
+
+// SnapshotCreatedAt implements PurgeChecker (ADR-0007 Addendum 9 D81's
+// genesis-case lower bound): screening_ledger_snapshot.created_at for
+// snapshotSHA256, a Postgres value from the same database as purged_at
+// and every other bound purgeAttributionMismatch compares, used only
+// when the purge being adjudicated has no preceding anchor to bound it.
+func (p *PostgresSink) SnapshotCreatedAt(ctx context.Context, snapshotSHA256 string) (createdAt time.Time, found bool, err error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	err = p.conn.QueryRow(ctx,
+		`SELECT created_at FROM screening_ledger_snapshot WHERE snapshot_sha256=$1`,
+		snapshotSHA256,
+	).Scan(&createdAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, false, nil
+		}
+		return time.Time{}, false, err
+	}
+	return createdAt, true, nil
+}
+
 // PurgeRecord implements PurgeChecker (ADR-0007 D13/F8, extended by
 // Addendum 8 D70): the tombstone row for a snapshot the caller found
 // marked purged in its own envelope, rather than trusting that
@@ -1390,19 +1576,21 @@ func (p *PostgresSink) PurgeRecord(ctx context.Context, snapshotSHA256 string) (
 }
 
 // AllPurgeRecords implements PurgeChecker (ADR-0007 Addendum 8 D70's
-// reverse direction): every tombstone row whose snapshot_sha256 is in
-// knownSHA256 -- the set the calling ledger's own chain references
-// (VerifyReport.KnownSnapshotSHA256), never the whole table, so another
-// ledger's rows in the same shared Postgres schema are never named as
-// this ledger's forgery. An empty knownSHA256 returns no rows rather
-// than every row: ANY($1) over an empty array matches nothing, which is
-// the correct answer for a ledger with no events yet.
-func (p *PostgresSink) AllPurgeRecords(ctx context.Context, knownSHA256 []string) ([]TombstoneRecord, error) {
+// reverse direction, widened by Addendum 9 D82): every tombstone row,
+// unscoped. D70 originally filtered this query to knownSHA256 so that
+// another ledger's rows in the same shared Postgres schema were never
+// named as this ledger's forgery; D82 moves that scoping into
+// adjudicatePurgeClaims itself (a partition into an unchanged
+// adjudicating pass and a new reporting pass), because scoping the
+// QUERY is what made a fabricated tombstone outside that scope (CAP #8's
+// M-E) invisible to VerifyReport entirely, not merely unadjudicated.
+// Filtering here would reproduce exactly that invisibility one layer
+// down.
+func (p *PostgresSink) AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 	rows, err := p.conn.Query(ctx,
-		`SELECT snapshot_sha256, purged_at, operator, reason FROM screening_ledger_retention_tombstone WHERE snapshot_sha256 = ANY($1)`,
-		knownSHA256,
+		`SELECT snapshot_sha256, purged_at, operator, reason FROM screening_ledger_retention_tombstone`,
 	)
 	if err != nil {
 		return nil, err
@@ -1547,10 +1735,27 @@ CREATE TABLE IF NOT EXISTS screening_ledger_audit(ledger_id text NOT NULL,sequen
 -- does not survive a migrate/sync") in favor of D34's stronger
 -- prevention -- owl_migrator can no longer replace this function at all
 -- once provisioned, so there is nothing left to heal.
+-- ADR-0007 Addendum 9 D78: the presence-only guard above ("does it
+-- exist") becomes D21's second safe shape -- assert and fail closed --
+-- rather than presence-implies-correctness, D21's general form's third,
+-- "never safe" shape. Deliberately does NOT repair: Migrate() runs as
+-- owl_migrator on every CLI invocation, and a repairing CREATE OR REPLACE
+-- is refused by D34 on every already-provisioned database, so a
+-- repairing guard would convert a silent acceptance into a hard failure
+-- of migrate/sync/import-audit on exactly the healthy databases it was
+-- meant to protect. A refusal that names the remedy is strictly better
+-- than a repair that cannot execute; docs/operations/sec7-database-copies.md
+-- gives the operator that remedy.
 DO $$
+DECLARE live_sha256 text;
 BEGIN
   IF to_regprocedure('screening_ledger_reject_mutation()') IS NULL THEN
     EXECUTE $exec$CREATE FUNCTION screening_ledger_reject_mutation()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'screening ledger rows are append-only';END $func$ $exec$;
+  ELSE
+    SELECT encode(sha256(convert_to(prosrc,'UTF8')),'hex') INTO live_sha256 FROM pg_proc WHERE oid = to_regprocedure('screening_ledger_reject_mutation()');
+    IF live_sha256 <> '5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1' THEN
+      RAISE EXCEPTION 'ADR-0007 Addendum 9 D78: screening_ledger_reject_mutation() already exists but its body digest % is not in the accepted set declared by Addendum 9 D77: CREATE OR REPLACE FUNCTION may have substituted a different guard body -- Migrate() deliberately does not repair this (see docs/operations/sec7-database-copies.md for the remedy); investigate before proceeding', live_sha256;
+    END IF;
   END IF;
 END $$;
 DROP TRIGGER IF EXISTS screening_ledger_event_immutable ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_immutable BEFORE UPDATE OR DELETE ON screening_ledger_event FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
@@ -1570,10 +1775,24 @@ DROP TRIGGER IF EXISTS screening_ledger_snapshot_guard_trigger ON screening_ledg
 -- ADR-0007 Addendum 3 D34/G-D: same reasoning and same guard shape as
 -- screening_ledger_reject_mutation() above -- owl_reject_truncate() is
 -- also a protected object once provisioned.
+-- ADR-0007 Addendum 9 D78 (owl_reject_truncate()'s half): same shape as
+-- screening_ledger_reject_mutation() above, against a TWO-member accepted
+-- set -- D77's own forced finding that this function has two legitimate
+-- bodies (db/migrations/012_truncate_guards.sql and this SchemaSQL
+-- literal disagree on whitespace). Declaring only one digest here would
+-- fail closed on a clean, unattacked, migration-bootstrapped database,
+-- D45's pre-declared false-failure shape -- see D77's own text before
+-- narrowing this to one member.
 DO $$
+DECLARE live_sha256 text;
 BEGIN
   IF to_regprocedure('owl_reject_truncate()') IS NULL THEN
     EXECUTE $exec$CREATE FUNCTION owl_reject_truncate()RETURNS trigger LANGUAGE plpgsql AS $func$ BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END $func$ $exec$;
+  ELSE
+    SELECT encode(sha256(convert_to(prosrc,'UTF8')),'hex') INTO live_sha256 FROM pg_proc WHERE oid = to_regprocedure('owl_reject_truncate()');
+    IF live_sha256 NOT IN ('e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf','fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0') THEN
+      RAISE EXCEPTION 'ADR-0007 Addendum 9 D78: owl_reject_truncate() already exists but its body digest % is not in the two-member accepted set declared by Addendum 9 D77 (db/migrations/012_truncate_guards.sql and this SchemaSQL): CREATE OR REPLACE FUNCTION may have substituted a different guard body -- Migrate() deliberately does not repair this (see docs/operations/sec7-database-copies.md for the remedy); investigate before proceeding', live_sha256;
+    END IF;
   END IF;
 END $$;
 DROP TRIGGER IF EXISTS screening_ledger_event_no_truncate ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_no_truncate BEFORE TRUNCATE ON screening_ledger_event FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();

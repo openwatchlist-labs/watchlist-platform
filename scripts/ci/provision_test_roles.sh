@@ -475,6 +475,240 @@ grant-ddl-ownership)
   # only a longer version of the one this idempotent, superuser-only
   # script has always had. A no-op on a true first run, where neither
   # trigger exists yet.
+  # ADR-0007 Addendum 9 D79 (M-D, HIGH): D62(a)'s, D69/D77's and
+  # D56/D71's precondition checks below are pure SELECTs against the
+  # live catalog -- verified by execution during this addendum's
+  # design pass, against a pristine baseline with both event triggers
+  # ENABLE ALWAYS: each returns its correct value and no DDL fires, so
+  # moving them here, before the DROP EVENT TRIGGER statements below,
+  # strengthens rather than reorders their own "checked before
+  # recording" guarantee. Previously they ran with enforcement already
+  # down, so a refusal here left the database exactly as protected as
+  # it was found -- CAP #8's M-D demonstrated the opposite: a refusal
+  # AFTER the drop below left every subsequent DDL statement, including
+  # a bootstrap superuser's DROP TABLE, unblocked. The restore-on-
+  # failure trap immediately below this hoist is the backstop for every
+  # OTHER way this step can fail once the triggers ARE down (a psql
+  # error, the row-count assertion, this file's own later loops); the
+  # hoist is what closes the three refusals this arc itself added.
+  # ADR-0007 Addendum 7 D62(a) (K-B, MEDIUM): before recording either
+  # protected relation's live state below, refuse BY NAME if it diverges
+  # from the declared literal -- the declared trigger names, the
+  # declared index names, relkind, both RLS flags, and an empty policy
+  # set. D50 already states the principle this closes: "having D40
+  # re-record the live state when it detects drift would let a genuine
+  # attack launder itself into the recording, which is the one thing a
+  # recorded-state control must never do" -- the runtime control does not
+  # do it, but this step, run out of band, did. Confirmed by execution
+  # during this addendum's design pass, against both the attack case and
+  # the case that decides whether this is safe to install: an
+  # attacker-planted index or trigger is refused by name; a genuine
+  # pg_dump|psql restore reassigns OIDs but carries the declared objects
+  # unchanged, so it passes this precondition and recovery proceeds. The
+  # comparison terminates on this literal -- committed, reviewed, and
+  # unwritable from the database -- not on the registry's own prior
+  # contents, so a first-ever run against a freshly migrated database has
+  # nothing to conflict with (D67 test 3) and this check passes there
+  # too. Duplicated here rather than read from
+  # internal/screeningledger/postgres.go's requiredProtectedRelationStates:
+  # a bash script cannot import a Go literal, so this is the second
+  # independent declaration R23 already tracks as this control's own
+  # cross-language cost.
+  for decl in \
+    "screening_ledger_anchor:screening_ledger_anchor_immutable,screening_ledger_anchor_no_truncate:screening_ledger_anchor_pkey" \
+    "screening_ledger_retention_tombstone:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey"
+  do
+    decl_table="${decl%%:*}"
+    decl_rest="${decl#*:}"
+    decl_triggers="${decl_rest%%:*}"
+    decl_indexes="${decl_rest#*:}"
+    decl_triggers_sql="'$(echo "$decl_triggers" | sed "s/,/','/g")'"
+    decl_indexes_sql="'$(echo "$decl_indexes" | sed "s/,/','/g")'"
+
+    undeclared_trigger="$(psql_super -tAc "SELECT t.tgname FROM pg_trigger t WHERE t.tgrelid = '${decl_table}'::regclass AND NOT t.tgisinternal AND t.tgname NOT IN (${decl_triggers_sql}) ORDER BY t.tgname LIMIT 1")"
+    [[ -z "$undeclared_trigger" ]] || {
+      echo "FAIL: ${decl_table} has an undeclared trigger '${undeclared_trigger}' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+    undeclared_index="$(psql_super -tAc "SELECT c.relname FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE ix.indrelid = '${decl_table}'::regclass AND c.relname NOT IN (${decl_indexes_sql}) ORDER BY c.relname LIMIT 1")"
+    [[ -z "$undeclared_index" ]] || {
+      echo "FAIL: ${decl_table} has an undeclared index '${undeclared_index}' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+    live_relkind="$(psql_super -tAc "SELECT relkind FROM pg_class WHERE oid = '${decl_table}'::regclass")"
+    [[ "$live_relkind" == "r" ]] || {
+      echo "FAIL: ${decl_table} has relkind '${live_relkind}', expected 'r' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
+      exit 1
+    }
+    live_rls_or_force="$(psql_super -tAc "SELECT (relrowsecurity OR relforcerowsecurity) FROM pg_class WHERE oid = '${decl_table}'::regclass")"
+    [[ "$live_rls_or_force" == "f" ]] || {
+      echo "FAIL: ${decl_table} has a row-level-security flag set, expected both false (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
+      exit 1
+    }
+    live_policy_count="$(psql_super -tAc "SELECT count(*) FROM pg_policy WHERE polrelid = '${decl_table}'::regclass")"
+    [[ "$live_policy_count" == "0" ]] || {
+      echo "FAIL: ${decl_table} has ${live_policy_count} RLS polic(y/ies), expected none (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
+      exit 1
+    }
+  done
+  # ADR-0007 Addendum 8 D69 (L-B, CRITICAL), extended by Addendum 9 D77:
+  # a declared trigger's name locates it and never certifies it --
+  # D62(a)'s own undeclared_trigger check above only ever asked whether
+  # an object bears the declared NAME, never what it DOES. Refuses BY
+  # BEHAVIOR before recording, the same "refuse before recording" shape
+  # D62(a) already established for undeclared names: tgtype (the
+  # trigger's timing/event bitmask), tgqual (must be NULL -- no WHEN
+  # clause), tgnargs and tgattr (must be empty -- no arguments, no
+  # UPDATE OF <column> narrowing), the bound function's identity via
+  # pg_identify_object, which is session-independent where
+  # pg_get_triggerdef's text rendering is not (D69's own
+  # investigated-and-rejected finding: search_path makes the renderer
+  # disagree with itself between the recording and the verifying
+  # session) -- and, D77, the bound function's own BODY, joined through
+  # the trigger's live tgfoid rather than a name lookup, against a
+  # closed set of accepted sha256(prosrc) digests. D69's four properties
+  # alone survive a CREATE OR REPLACE FUNCTION that preserves the
+  # function's OID and replaces only its body (CAP #8's M-A); this is
+  # the property that does not. owl_reject_truncate() carries TWO
+  # accepted digests -- D77's own forced finding that
+  # db/migrations/012_truncate_guards.sql and
+  # internal/screeningledger/postgres.go's SchemaSQL disagree on
+  # whitespace, so a single declared digest fails closed on a clean,
+  # unattacked, migration-bootstrapped database (D45's pre-declared
+  # false-failure shape). Duplicated here rather than read from
+  # internal/screeningledger/postgres.go's requiredProtectedRelationStates
+  # for the same reason D62(a)'s own declaration is duplicated: a bash
+  # script cannot import a Go literal (R23's cross-language cost; R35
+  # names this the most fragile instance of that cost and the CI gate
+  # in scripts/ci/tests that mitigates it).
+  for decl_trigger in \
+    "screening_ledger_anchor_immutable:screening_ledger_anchor:27:screening_ledger_reject_mutation:5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1" \
+    "screening_ledger_anchor_no_truncate:screening_ledger_anchor:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0" \
+    "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone:27:screening_ledger_reject_mutation:5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1" \
+    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0"
+  do
+    trig_name="${decl_trigger%%:*}"
+    trig_rest="${decl_trigger#*:}"
+    trig_table="${trig_rest%%:*}"
+    trig_rest2="${trig_rest#*:}"
+    trig_tgtype="${trig_rest2%%:*}"
+    trig_rest3="${trig_rest2#*:}"
+    trig_funcname="${trig_rest3%%:*}"
+    trig_digests="${trig_rest3#*:}"
+    trig_digests_sql="'$(echo "$trig_digests" | sed "s/,/','/g")'"
+    behavior_ok="$(psql_super -tAc "
+      SELECT (t.tgtype = ${trig_tgtype} AND t.tgqual IS NULL AND t.tgnargs = 0 AND t.tgattr::text = ''
+              AND (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = 'public.${trig_funcname}()'
+              AND encode(sha256(convert_to(p.prosrc, 'UTF8')), 'hex') IN (${trig_digests_sql}))
+      FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+      WHERE t.tgname = '${trig_name}' AND t.tgrelid = '${trig_table}'::regclass AND NOT t.tgisinternal
+    ")"
+    [[ "$behavior_ok" == "t" ]] || {
+      echo "FAIL: declared trigger ${trig_name} on ${trig_table} does not match its declared behavior -- tgtype=${trig_tgtype}, no WHEN clause, no arguments, no column list, bound to public.${trig_funcname}() with an accepted body digest (ADR-0007 Addendum 8 D69 / Addendum 9 D77): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+  done
+  # ADR-0007 Addendum 6 D56 point 5, extended by Addendum 8 D71: a named
+  # precondition, checked before the INSERT below rather than left to
+  # surface as "null value in column \"objid\" ... violates not-null
+  # constraint" -- fail-closed and correct either way, but the raw
+  # constraint violation names neither the missing object nor the
+  # remedy. D56 originally covered triggers only, reachable on exactly
+  # the state J-B (D53) used to leave behind: a clone whose
+  # screening_ledger_anchor_immutable trigger has been dropped. D71
+  # extends the SAME loop to declared indexes -- CAP #7 §7.3's exact
+  # reproduction (the anchor's primary key dropped entirely) passed this
+  # step vacuously before, because nothing here asked whether a declared
+  # index NAME still resolves to anything; one mechanism now covers both
+  # object kinds rather than two half-mechanisms covering one each.
+  for guard_object in \
+    "trigger:screening_ledger_anchor_immutable:screening_ledger_anchor" \
+    "trigger:screening_ledger_anchor_no_truncate:screening_ledger_anchor" \
+    "trigger:screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
+    "trigger:screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone" \
+    "index:screening_ledger_anchor_pkey:screening_ledger_anchor" \
+    "index:screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone"
+  do
+    obj_kind="${guard_object%%:*}"
+    obj_rest="${guard_object#*:}"
+    obj_name="${obj_rest%%:*}"
+    obj_table="${obj_rest##*:}"
+    if [[ "$obj_kind" == "trigger" ]]; then
+      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_trigger WHERE tgname = '${obj_name}' AND tgrelid = '${obj_table}'::regclass")"
+    else
+      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = '${obj_name}' AND ix.indrelid = '${obj_table}'::regclass")"
+    fi
+    [[ "$obj_present" == "1" ]] || {
+      echo "FAIL: declared ${obj_kind} ${obj_name} on ${obj_table} does not exist (ADR-0007 Addendum 6 D56 / Addendum 8 D71): re-run db/migrations/015_screening_ledger_anchor.sql / db/migrations/008g_screening_ledger.sql, or restore the ${obj_kind}, before re-running grant-ddl-ownership" >&2
+      exit 1
+    }
+  done
+  # ADR-0007 Addendum 9 D80 (M-C, HIGH): D71's EXISTS check above (and
+  # D50's own recorded-vs-live index_defs comparison, which a launder can
+  # satisfy by re-recording whatever shape currently exists) both accept
+  # a declared index name resolving to ANY object -- unique or not,
+  # primary or not, on the right columns or not. Refuses BY SHAPE before
+  # recording, the same principle D69/D77 apply to triggers: indisunique,
+  # indisprimary, indkey (the ordered column-number list), and neither a
+  # partial predicate nor an expression. Stated as its own loop after
+  # D71's existence check above, so a shape check never runs against an
+  # index that does not exist (D80's own "does not subsume D71" text).
+  # Duplicated here for the same cross-language reason D62(a)/D69/D77 are
+  # (R23): a bash script cannot import a Go literal.
+  for decl_index in \
+    "screening_ledger_anchor_pkey:screening_ledger_anchor:true:true:1 2" \
+    "screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone:true:true:1"
+  do
+    idx_name="${decl_index%%:*}"
+    idx_rest="${decl_index#*:}"
+    idx_table="${idx_rest%%:*}"
+    idx_rest2="${idx_rest#*:}"
+    idx_unique="${idx_rest2%%:*}"
+    idx_rest3="${idx_rest2#*:}"
+    idx_primary="${idx_rest3%%:*}"
+    idx_indkey="${idx_rest3#*:}"
+    shape_ok="$(psql_super -tAc "
+      SELECT (ix.indisunique = ${idx_unique} AND ix.indisprimary = ${idx_primary}
+              AND ix.indkey::text = '${idx_indkey}' AND ix.indpred IS NULL AND ix.indexprs IS NULL)
+      FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid
+      WHERE c.relname = '${idx_name}' AND ix.indrelid = '${idx_table}'::regclass
+    ")"
+    [[ "$shape_ok" == "t" ]] || {
+      echo "FAIL: declared index ${idx_name} on ${idx_table} does not match its declared shape -- indisunique=${idx_unique}, indisprimary=${idx_primary}, indkey='${idx_indkey}', no partial predicate, no expression (ADR-0007 Addendum 9 D80): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+  done
+  # ADR-0007 Addendum 9 D79: any failure from here on (a psql error,
+  # the row-count assertion below, a later refusal) must not leave
+  # this database less protected than it was before this run started.
+  # Restores both event triggers if either is missing when this step
+  # exits non-zero -- a no-op whenever the step failed before ever
+  # taking them down (a true first run has no guard function yet to
+  # bind them to, and re-creating event triggers against a function
+  # that does not exist would itself fail, so that case is guarded
+  # explicitly rather than assumed away) and whenever the step
+  # succeeded (both already ENABLE ALWAYS by the time this fires).
+  grant_ddl_ownership_restore_on_failure() {
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+      local live_count fn_exists
+      live_count="$(psql_super -tAc "SELECT count(*) FROM pg_event_trigger WHERE evtname IN ('sec7_protect_ddl_objects_on_drop','sec7_protect_ddl_objects_on_alter')" 2>/dev/null || echo 0)"
+      if [[ "$live_count" != "2" ]]; then
+        fn_exists="$(psql_super -tAc "SELECT to_regprocedure('sec7_protect_ddl_objects()') IS NOT NULL" 2>/dev/null || echo f)"
+        if [[ "$fn_exists" == "t" ]]; then
+          echo "== ADR-0007 Addendum 9 D79: grant-ddl-ownership failed after taking DDL enforcement down; restoring both event triggers rather than leaving this database less protected than it was before this run (enforcement is NOT currently live until this restore succeeds) ==" >&2
+          psql_super -c "
+            DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;
+            DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;
+            CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_drop ON sql_drop EXECUTE FUNCTION sec7_protect_ddl_objects();
+            CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_alter ON ddl_command_end EXECUTE FUNCTION sec7_protect_ddl_objects();
+          " >&2 || echo "WARNING: ADR-0007 Addendum 9 D79: failed to restore event-trigger enforcement after grant-ddl-ownership failed -- this database is left with DDL enforcement DISABLED; re-run grant-ddl-ownership or restore manually before trusting it" >&2
+        fi
+      fi
+    fi
+    return $rc
+  }
+  trap grant_ddl_ownership_restore_on_failure EXIT
   psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;"
   psql_super -c "DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;"
   # ADR-0007 Addendum 4 D41: classid records which system catalog each
@@ -566,105 +800,6 @@ grant-ddl-ownership)
            current_database(),
            now();
   "
-  # ADR-0007 Addendum 7 D62(a) (K-B, MEDIUM): before recording either
-  # protected relation's live state below, refuse BY NAME if it diverges
-  # from the declared literal -- the declared trigger names, the
-  # declared index names, relkind, both RLS flags, and an empty policy
-  # set. D50 already states the principle this closes: "having D40
-  # re-record the live state when it detects drift would let a genuine
-  # attack launder itself into the recording, which is the one thing a
-  # recorded-state control must never do" -- the runtime control does not
-  # do it, but this step, run out of band, did. Confirmed by execution
-  # during this addendum's design pass, against both the attack case and
-  # the case that decides whether this is safe to install: an
-  # attacker-planted index or trigger is refused by name; a genuine
-  # pg_dump|psql restore reassigns OIDs but carries the declared objects
-  # unchanged, so it passes this precondition and recovery proceeds. The
-  # comparison terminates on this literal -- committed, reviewed, and
-  # unwritable from the database -- not on the registry's own prior
-  # contents, so a first-ever run against a freshly migrated database has
-  # nothing to conflict with (D67 test 3) and this check passes there
-  # too. Duplicated here rather than read from
-  # internal/screeningledger/postgres.go's requiredProtectedRelationStates:
-  # a bash script cannot import a Go literal, so this is the second
-  # independent declaration R23 already tracks as this control's own
-  # cross-language cost.
-  for decl in \
-    "screening_ledger_anchor:screening_ledger_anchor_immutable,screening_ledger_anchor_no_truncate:screening_ledger_anchor_pkey" \
-    "screening_ledger_retention_tombstone:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey"
-  do
-    decl_table="${decl%%:*}"
-    decl_rest="${decl#*:}"
-    decl_triggers="${decl_rest%%:*}"
-    decl_indexes="${decl_rest#*:}"
-    decl_triggers_sql="'$(echo "$decl_triggers" | sed "s/,/','/g")'"
-    decl_indexes_sql="'$(echo "$decl_indexes" | sed "s/,/','/g")'"
-
-    undeclared_trigger="$(psql_super -tAc "SELECT t.tgname FROM pg_trigger t WHERE t.tgrelid = '${decl_table}'::regclass AND NOT t.tgisinternal AND t.tgname NOT IN (${decl_triggers_sql}) ORDER BY t.tgname LIMIT 1")"
-    [[ -z "$undeclared_trigger" ]] || {
-      echo "FAIL: ${decl_table} has an undeclared trigger '${undeclared_trigger}' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
-      exit 1
-    }
-    undeclared_index="$(psql_super -tAc "SELECT c.relname FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE ix.indrelid = '${decl_table}'::regclass AND c.relname NOT IN (${decl_indexes_sql}) ORDER BY c.relname LIMIT 1")"
-    [[ -z "$undeclared_index" ]] || {
-      echo "FAIL: ${decl_table} has an undeclared index '${undeclared_index}' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
-      exit 1
-    }
-    live_relkind="$(psql_super -tAc "SELECT relkind FROM pg_class WHERE oid = '${decl_table}'::regclass")"
-    [[ "$live_relkind" == "r" ]] || {
-      echo "FAIL: ${decl_table} has relkind '${live_relkind}', expected 'r' (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
-      exit 1
-    }
-    live_rls_or_force="$(psql_super -tAc "SELECT (relrowsecurity OR relforcerowsecurity) FROM pg_class WHERE oid = '${decl_table}'::regclass")"
-    [[ "$live_rls_or_force" == "f" ]] || {
-      echo "FAIL: ${decl_table} has a row-level-security flag set, expected both false (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
-      exit 1
-    }
-    live_policy_count="$(psql_super -tAc "SELECT count(*) FROM pg_policy WHERE polrelid = '${decl_table}'::regclass")"
-    [[ "$live_policy_count" == "0" ]] || {
-      echo "FAIL: ${decl_table} has ${live_policy_count} RLS polic(y/ies), expected none (ADR-0007 Addendum 7 D62): refusing to record this relation's state as legitimate" >&2
-      exit 1
-    }
-  done
-  # ADR-0007 Addendum 8 D69 (L-B, CRITICAL): a declared trigger's name
-  # locates it and never certifies it -- D62(a)'s own undeclared_trigger
-  # check above only ever asked whether an object bears the declared
-  # NAME, never what it DOES. Refuses BY BEHAVIOR before recording, the
-  # same "refuse before recording" shape D62(a) already established for
-  # undeclared names: tgtype (the trigger's timing/event bitmask),
-  # tgqual (must be NULL -- no WHEN clause), tgnargs and tgattr (must be
-  # empty -- no arguments, no UPDATE OF <column> narrowing), and the
-  # bound function's identity via pg_identify_object, which is
-  # session-independent where pg_get_triggerdef's text rendering is not
-  # (D69's own investigated-and-rejected finding: search_path makes the
-  # renderer disagree with itself between the recording and the
-  # verifying session). Duplicated here rather than read from
-  # internal/screeningledger/postgres.go's requiredProtectedRelationStates
-  # for the same reason D62(a)'s own declaration is duplicated: a bash
-  # script cannot import a Go literal (R23's cross-language cost).
-  for decl_trigger in \
-    "screening_ledger_anchor_immutable:screening_ledger_anchor:27:screening_ledger_reject_mutation" \
-    "screening_ledger_anchor_no_truncate:screening_ledger_anchor:34:owl_reject_truncate" \
-    "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone:27:screening_ledger_reject_mutation" \
-    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone:34:owl_reject_truncate"
-  do
-    trig_name="${decl_trigger%%:*}"
-    trig_rest="${decl_trigger#*:}"
-    trig_table="${trig_rest%%:*}"
-    trig_rest2="${trig_rest#*:}"
-    trig_tgtype="${trig_rest2%%:*}"
-    trig_funcname="${trig_rest2#*:}"
-    behavior_ok="$(psql_super -tAc "
-      SELECT (t.tgtype = ${trig_tgtype} AND t.tgqual IS NULL AND t.tgnargs = 0 AND t.tgattr::text = ''
-              AND (pg_identify_object('pg_proc'::regclass, t.tgfoid, 0)).identity = 'public.${trig_funcname}()')
-      FROM pg_trigger t
-      WHERE t.tgname = '${trig_name}' AND t.tgrelid = '${trig_table}'::regclass AND NOT t.tgisinternal
-    ")"
-    [[ "$behavior_ok" == "t" ]] || {
-      echo "FAIL: declared trigger ${trig_name} on ${trig_table} does not match its declared behavior -- tgtype=${trig_tgtype}, no WHEN clause, no arguments, no column list, bound to public.${trig_funcname}() (ADR-0007 Addendum 8 D69): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
-      exit 1
-    }
-  done
   psql_super -c "DELETE FROM sec7_protected_relation;"
   # ADR-0007 Addendum 6 D50: index_defs is populated as the sorted set of
   # pg_get_indexdef() renderings, not the index OIDs -- see the column
@@ -686,41 +821,6 @@ grant-ddl-ownership)
     echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
     exit 1
   }
-  # ADR-0007 Addendum 6 D56 point 5, extended by Addendum 8 D71: a named
-  # precondition, checked before the INSERT below rather than left to
-  # surface as "null value in column \"objid\" ... violates not-null
-  # constraint" -- fail-closed and correct either way, but the raw
-  # constraint violation names neither the missing object nor the
-  # remedy. D56 originally covered triggers only, reachable on exactly
-  # the state J-B (D53) used to leave behind: a clone whose
-  # screening_ledger_anchor_immutable trigger has been dropped. D71
-  # extends the SAME loop to declared indexes -- CAP #7 §7.3's exact
-  # reproduction (the anchor's primary key dropped entirely) passed this
-  # step vacuously before, because nothing here asked whether a declared
-  # index NAME still resolves to anything; one mechanism now covers both
-  # object kinds rather than two half-mechanisms covering one each.
-  for guard_object in \
-    "trigger:screening_ledger_anchor_immutable:screening_ledger_anchor" \
-    "trigger:screening_ledger_anchor_no_truncate:screening_ledger_anchor" \
-    "trigger:screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
-    "trigger:screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone" \
-    "index:screening_ledger_anchor_pkey:screening_ledger_anchor" \
-    "index:screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone"
-  do
-    obj_kind="${guard_object%%:*}"
-    obj_rest="${guard_object#*:}"
-    obj_name="${obj_rest%%:*}"
-    obj_table="${obj_rest##*:}"
-    if [[ "$obj_kind" == "trigger" ]]; then
-      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_trigger WHERE tgname = '${obj_name}' AND tgrelid = '${obj_table}'::regclass")"
-    else
-      obj_present="$(psql_super -tAc "SELECT 1 FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = '${obj_name}' AND ix.indrelid = '${obj_table}'::regclass")"
-    fi
-    [[ "$obj_present" == "1" ]] || {
-      echo "FAIL: declared ${obj_kind} ${obj_name} on ${obj_table} does not exist (ADR-0007 Addendum 6 D56 / Addendum 8 D71): re-run db/migrations/015_screening_ledger_anchor.sql / db/migrations/008g_screening_ledger.sql, or restore the ${obj_kind}, before re-running grant-ddl-ownership" >&2
-      exit 1
-    }
-  done
   psql_super -c "DELETE FROM sec7_protected_object;"
   psql_super -c "
     INSERT INTO sec7_protected_object (objid, classid, note) VALUES

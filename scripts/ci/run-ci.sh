@@ -41,6 +41,13 @@ if [[ -n "${OWL_LEDGER_DDL_DATABASE_URL:-}" ]]; then
 else
   printf 'SKIP: provisioning no-dangling-membership test (OWL_LEDGER_DDL_DATABASE_URL not set; see fail-open banner above)\n'
 fi
+# ADR-0007 Addendum 9 D83/D85 test 7: the static checks (no stray mktemp,
+# no PRIMARY_PGSUPERPASSWORD default) always run; the live checks
+# (temp-count hygiene, concurrent invocations) self-skip inside the test
+# when PG_BIN_DIR does not point at a real PostgreSQL 17 server
+# installation, the same precondition scripts/ci/verify_cross_cluster_dr.sh
+# itself already requires.
+./scripts/ci/tests/test_verify_cross_cluster_dr_temp_hygiene.sh
 
 if [[ -f go.mod ]]; then
   command -v go >/dev/null 2>&1 || { echo 'FAIL: Go is required' >&2; exit 1; }

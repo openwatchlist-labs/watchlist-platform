@@ -83,8 +83,23 @@ before attempting the registry population, rather than failing later with a raw
 Then confirm it took, from a host that can reach the clone as `owl_migrator`:
 
 ```sh
-screening-ledger status --postgres-dsn-env <VAR> --policy-file <policy> --policy-public-key-file <key>
+# ADR-0007 Addendum 9 D84 (M-H): the invocation this document previously
+# showed is not runnable as written -- it fails with "snapshot encryption
+# key is required," naming none of the flags it actually needs. Verified
+# by execution: this is the complete, fully-specified flag set.
+screening-ledger status --postgres-dsn-env <VAR> \
+  --policy-file <policy> --policy-public-key-file <key> \
+  --key-file <K_snap key file> --anchor-key-file <K_anchor key file> \
+  --ledger-dir <ledger directory> --ledger-id <ledger id>
 ```
+
+`--key-env`/`--anchor-key-env` (an environment variable name, rather than a file path) work the same
+way if that is how these keys are provisioned in your environment.
+
+**This CLI silently accepts unknown flags.** `--totally-bogus-flag xyz` returns `rc=0` with no
+diagnostic (confirmed by execution) -- an operator who mistypes a flag in this procedure gets no
+signal at all. Recorded as an observation rather than fixed here: it makes getting the flag list
+above exactly right more important, not less.
 
 Until that reports the database as provisioned, **the clone is not representative of production for
 any SEC-7 purpose.** A schema review performed against an un-reprovisioned clone will report the
@@ -122,6 +137,55 @@ investigate before doing so.
 
 A related message, `sec7_protected_object has 0 row(s), expected exactly 13`, is the **schema-only
 clone** case. The registries were never populated in this database. Re-run `grant-ddl-ownership`.
+
+## Refusal modes `grant-ddl-ownership` can report (ADR-0007 Addendum 9 D84)
+
+`grant-ddl-ownership` now refuses to record several states as legitimate rather than silently
+recording whatever it finds. Each is checked **before** any DDL runs (Addendum 9 D79), so a refusal
+here always leaves the database exactly as protected as it was found -- confirm this with
+`SELECT evtname, evtenabled FROM pg_event_trigger;` if in doubt; a refusal should never change what
+that query returns.
+
+- **D62(a): an undeclared trigger or index.** "has an undeclared trigger/index" names an object on a
+  protected table that is not one of the four declared triggers or two declared indexes. Investigate
+  before re-running -- an attacker-planted object should never be recorded as legitimate.
+- **D62(a): relkind, RLS flags, or an RLS policy.** A protected table's own shape has changed
+  (unlikely; these are structural facts about the table, not something ordinary DDL touches).
+  Investigate before re-running.
+- **D69 / Addendum 9 D77: a declared trigger's behavior or body.** "does not match its declared
+  behavior" names the trigger and, since Addendum 9, covers both *what the trigger does*
+  (`tgtype`/`tgqual`/`tgnargs`/`tgattr`) and *what its bound function's body actually contains*
+  (`prosrc`, joined through the trigger's own `tgfoid`) -- a `CREATE OR REPLACE FUNCTION` that
+  preserves every catalog property while swapping the function's implementation is exactly what this
+  catches. This is the one refusal mode with a documented remedy below (D78's repair procedure) rather
+  than "investigate": if the substitution is illegitimate, treat it as a compromise and investigate
+  fully; if it is a legitimate edit to a guard function's own source, follow D78's repair procedure.
+- **D56 / D71: a declared trigger or index does not exist at all.** Names the missing object and the
+  migration or backup that would restore it. Re-run the named migration, or restore the object, before
+  re-running `grant-ddl-ownership`.
+- **Addendum 9 D80: a declared index exists but has the wrong shape.** "does not match the declared
+  shape" -- non-unique where a unique index is declared, unique-but-not-primary, correct uniqueness on
+  the wrong columns, a partial predicate, or an expression index. The index resolves to something
+  (D71 alone would accept it); it is not the *thing* the declaration requires. Investigate before
+  re-running -- do not simply `DROP INDEX` and recreate one that happens to satisfy this check, since
+  that is itself an unaudited DDL statement against a protected table.
+
+**D78's repair procedure**, for the one case above with a documented remedy: `Migrate()` and
+`grant-ddl-ownership` both deliberately do **not** repair a guard function whose body does not match
+its declared accepted digest set -- a repairing `CREATE OR REPLACE FUNCTION` would itself be refused
+by D34 on every already-provisioned database, converting a silent acceptance into a hard failure of
+every `migrate`/`sync`/`import-audit`/`grant-ddl-ownership` invocation on the healthy databases this
+exists to protect. To repair a body genuinely confirmed legitimate (for example, after intentionally
+editing `db/migrations/012_truncate_guards.sql` or the `SchemaSQL` constant and rolling the change out):
+
+```sh
+# as the bootstrap superuser, with the target guard function's OWN event-trigger disable window open
+# (see "Recovering a bricked restore" below for how to open and close that window safely)
+psql -h <host> -p <port> -U <bootstrap superuser> -d <database> \
+  -c "CREATE OR REPLACE FUNCTION public.<guard function>() RETURNS trigger LANGUAGE plpgsql AS \$\$ <the declared body> \$\$;"
+```
+
+Then re-run `grant-ddl-ownership` to confirm the repaired body is now in the accepted set.
 
 ## A drifted, non-copied database
 
@@ -207,12 +271,42 @@ re-enables the triggers as part of its normal run; step 3 is the check that it d
 **Do not skip step 2 and simply leave the event triggers disabled.** That is the state described in
 the first table row: everything looks installed and nothing is enforcing.
 
+**If step 2 itself refuses (ADR-0007 Addendum 9 D79):** every precondition `grant-ddl-ownership` can
+refuse on (the "Refusal modes" section above) is now checked **before** the event triggers are ever
+taken down, and a `trap` restores them if the step fails after that point for any other reason (a
+`psql` error, its own row-count assertion). A refusal at step 2 therefore leaves the database in
+**exactly the state it was in when step 2 started** -- run step 3's query to confirm this directly
+rather than assuming it. Before this addendum, a refusal at step 2 left both event triggers fully
+**dropped** regardless of what state they started in; that is no longer possible.
+
 ## `event_triggers = off` is not a bypass
 
 The GUC is `SUSET`. A non-superuser -- including `owl_ledger_ddl`, the protected tables' own owner
 and the role these controls exist to bind -- gets `permission denied to set parameter
 "event_triggers"`. Re-confirmed by execution. The residual terminates at the bootstrap superuser,
 where ADR-0007 R12 and R17 put every other residual in this design.
+
+## Cleaning up a killed `scripts/ci/verify_cross_cluster_dr.sh` run (ADR-0007 Addendum 9 D83/D84)
+
+This script stands up a genuinely second, disposable PostgreSQL cluster to test the cross-cluster DR
+procedure above end to end. It prints its own scratch root at startup:
+
+```
+== D83: this run's scratch root is /tmp/tmp.XXXXXXXXXX -- if this run is SIGKILLed, clean up
+   manually with: <PG_BIN_DIR>/pg_ctl -D <scratch root>/data -m immediate stop; rm -rf <scratch root> ==
+```
+
+A normal exit (success or a handled failure) always cleans this up itself. **`SIGKILL` cannot be
+trapped** -- if this script's process is killed with `SIGKILL` (not `Ctrl-C`, which is `SIGINT` and
+is trapped), the second cluster it started keeps running and its scratch root is never removed.
+Earlier versions of this script kept a fixed, rediscoverable path specifically so a later run could
+find and reap a leaked cluster automatically; that reaper is **withdrawn** as of Addendum 9 (its own
+pre-declared withdrawal condition fired: two runs sharing a runner three seconds apart had one run's
+reaper kill the *other* run's live, healthy cluster). There is no automatic reaper now. If a run of
+this script was `SIGKILL`ed, find the scratch root from that run's own printed startup line (or from
+`ps aux | grep postgres` -- the leaked `postmaster` process's `-D` argument names its data directory)
+and run the two commands the script itself printed. CI is unaffected: the runner is destroyed after
+the job regardless.
 
 ## What this does not cover
 

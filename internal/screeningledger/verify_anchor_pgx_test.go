@@ -145,6 +145,10 @@ func (a *anchorReaderForLedger) LatestAnchor(ctx context.Context, _ string) (Anc
 	return a.sink.LatestAnchor(ctx, a.ledgerID)
 }
 
+func (a *anchorReaderForLedger) PreviousAnchorAt(ctx context.Context, _ string, beforeSequence int64) (time.Time, bool, error) {
+	return a.sink.PreviousAnchorAt(ctx, a.ledgerID, beforeSequence)
+}
+
 // TestVerifyAnchoredDetectsTailTruncation is ADR-0007 §7.1 case 2: delete
 // the newest entries, rewrite the head consistently (so the file chain
 // alone, per VerifyPolicy, looks perfectly fine), and confirm
