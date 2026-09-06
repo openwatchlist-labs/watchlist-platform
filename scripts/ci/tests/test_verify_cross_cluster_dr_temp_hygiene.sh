@@ -111,7 +111,7 @@ after="$(tmp_file_count)"
 # change (case 1's own historical bug) would pass the [[ "$before" -eq
 # "$after" ]] check above vacuously; this fails the test if that ever
 # recurs.
-run_scratch_root="$(grep -o "scratch root is [^ ]*" "$LOG_DIR/case3.log" | head -1 | cut -d' ' -f3)"
+run_scratch_root="$(grep -o "scratch root is [^ ]*" "$LOG_DIR/case3.log" | head -1 | sed 's/^scratch root is //')"
 [[ -n "$run_scratch_root" ]] || fail "case 3: could not find the '== D83: this run's scratch root is ...' line in the script's own output"
 run_tmp_root="$(dirname "$run_scratch_root")"
 measured_tmp_root="$(tmp_root)"
