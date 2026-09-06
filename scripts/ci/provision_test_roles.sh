@@ -643,21 +643,26 @@ grant-ddl-ownership)
       exit 1
     }
   done
-  # ADR-0007 Addendum 9 D80 (M-C, HIGH): D71's EXISTS check above (and
-  # D50's own recorded-vs-live index_defs comparison, which a launder can
-  # satisfy by re-recording whatever shape currently exists) both accept
-  # a declared index name resolving to ANY object -- unique or not,
-  # primary or not, on the right columns or not. Refuses BY SHAPE before
-  # recording, the same principle D69/D77 apply to triggers: indisunique,
-  # indisprimary, indkey (the ordered column-number list), and neither a
-  # partial predicate nor an expression. Stated as its own loop after
-  # D71's existence check above, so a shape check never runs against an
-  # index that does not exist (D80's own "does not subsume D71" text).
-  # Duplicated here for the same cross-language reason D62(a)/D69/D77 are
-  # (R23): a bash script cannot import a Go literal.
+  # ADR-0007 Addendum 9 D80 (M-C, HIGH), extended by Addendum 10 D91
+  # (N-C, MEDIUM): D71's EXISTS check above (and D50's own recorded-vs-
+  # live index_defs comparison, which a launder can satisfy by
+  # re-recording whatever shape currently exists) both accept a declared
+  # index name resolving to ANY object -- unique or not, primary or not,
+  # on the right columns or not. Refuses BY SHAPE before recording, the
+  # same principle D69/D77 apply to triggers: indisunique, indisprimary,
+  # indkey (the ordered column-number list, key AND INCLUDE columns
+  # alike), indnkeyatts (D91: the count of KEY columns alone -- the only
+  # declared property that distinguishes "unique over (ledger_id,
+  # sequence)" from "unique over ledger_id, carrying sequence as an
+  # INCLUDE payload," since indkey renders identically for both), and
+  # neither a partial predicate nor an expression. Stated as its own loop
+  # after D71's existence check above, so a shape check never runs
+  # against an index that does not exist (D80's own "does not subsume
+  # D71" text). Duplicated here for the same cross-language reason
+  # D62(a)/D69/D77 are (R23): a bash script cannot import a Go literal.
   for decl_index in \
-    "screening_ledger_anchor_pkey:screening_ledger_anchor:true:true:1 2" \
-    "screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone:true:true:1"
+    "screening_ledger_anchor_pkey:screening_ledger_anchor:true:true:1 2:2" \
+    "screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone:true:true:1:1"
   do
     idx_name="${decl_index%%:*}"
     idx_rest="${decl_index#*:}"
@@ -666,44 +671,151 @@ grant-ddl-ownership)
     idx_unique="${idx_rest2%%:*}"
     idx_rest3="${idx_rest2#*:}"
     idx_primary="${idx_rest3%%:*}"
-    idx_indkey="${idx_rest3#*:}"
+    idx_rest4="${idx_rest3#*:}"
+    idx_indkey="${idx_rest4%:*}"
+    idx_indnkeyatts="${idx_rest4##*:}"
     shape_ok="$(psql_super -tAc "
       SELECT (ix.indisunique = ${idx_unique} AND ix.indisprimary = ${idx_primary}
-              AND ix.indkey::text = '${idx_indkey}' AND ix.indpred IS NULL AND ix.indexprs IS NULL)
+              AND ix.indkey::text = '${idx_indkey}' AND ix.indnkeyatts = ${idx_indnkeyatts}
+              AND ix.indpred IS NULL AND ix.indexprs IS NULL)
       FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid
       WHERE c.relname = '${idx_name}' AND ix.indrelid = '${idx_table}'::regclass
     ")"
     [[ "$shape_ok" == "t" ]] || {
-      echo "FAIL: declared index ${idx_name} on ${idx_table} does not match its declared shape -- indisunique=${idx_unique}, indisprimary=${idx_primary}, indkey='${idx_indkey}', no partial predicate, no expression (ADR-0007 Addendum 9 D80): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      echo "FAIL: declared index ${idx_name} on ${idx_table} does not match its declared shape -- indisunique=${idx_unique}, indisprimary=${idx_primary}, indkey='${idx_indkey}', indnkeyatts=${idx_indnkeyatts}, no partial predicate, no expression (ADR-0007 Addendum 9 D80 / Addendum 10 D91): refusing to record this relation's state as legitimate -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
       exit 1
     }
   done
-  # ADR-0007 Addendum 9 D79: any failure from here on (a psql error,
-  # the row-count assertion below, a later refusal) must not leave
-  # this database less protected than it was before this run started.
-  # Restores both event triggers if either is missing when this step
-  # exits non-zero -- a no-op whenever the step failed before ever
-  # taking them down (a true first run has no guard function yet to
-  # bind them to, and re-creating event triggers against a function
-  # that does not exist would itself fail, so that case is guarded
-  # explicitly rather than assumed away) and whenever the step
-  # succeeded (both already ENABLE ALWAYS by the time this fires).
+  # ADR-0007 Addendum 10 D90: the three registries' DELETE+re-INSERT
+  # (from the same declared literals the normal path always used) is
+  # factored out here so the failure trap below can call the exact same
+  # statements the normal path calls, rather than inventing a second
+  # repair -- D43's population principle applied to what a restored
+  # enforcement object actually reads, not only to the object itself.
+  # `return 1` (never `exit 1`): this function is called bare in the
+  # normal path (so `set -e` aborts the script on failure, unchanged
+  # behavior) and inside `... || echo WARNING` in the trap (so a failure
+  # there is caught and reported rather than compounding the original
+  # failure).
+  sec7_repopulate_registries() {
+    psql_super -c "DELETE FROM sec7_instance_binding;" || return 1
+    psql_super -c "
+      INSERT INTO sec7_instance_binding (system_identifier, database_oid, database_name, provisioned_at)
+      SELECT (SELECT system_identifier FROM pg_control_system()),
+             (SELECT oid FROM pg_database WHERE datname = current_database()),
+             current_database(),
+             now();
+    " || return 1
+    psql_super -c "DELETE FROM sec7_protected_relation;" || return 1
+    psql_super -c "
+      INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_defs, policy_oids, identity)
+      SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity,
+        COALESCE((SELECT array_agg(t.oid ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal), ARRAY[]::oid[]),
+        COALESCE((SELECT array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::text[]),
+        COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
+        (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
+      FROM pg_class c
+      WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
+    " || return 1
+    psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN index_defs SET NOT NULL;" || return 1
+    psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN identity SET NOT NULL;" || return 1
+    local protected_relation_row_count
+    protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")" || return 1
+    if [[ "$protected_relation_row_count" != "2" ]]; then
+      echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
+      return 1
+    fi
+    psql_super -c "DELETE FROM sec7_protected_object;" || return 1
+    psql_super -c "
+      INSERT INTO sec7_protected_object (objid, classid, note) VALUES
+        ('screening_ledger_anchor'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_anchor'),
+        ('screening_ledger_retention_tombstone'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_retention_tombstone'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_immutable' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_immutable'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_no_truncate' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_no_truncate'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_immutable' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_immutable'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_no_truncate'),
+        ('screening_ledger_reject_mutation()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
+        ('owl_reject_truncate()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
+        ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
+        ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
+        ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
+        ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)'),
+        ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)')
+      ;
+    " || return 1
+    psql_super -c "ALTER TABLE sec7_protected_object ALTER COLUMN classid SET NOT NULL;" || return 1
+    local registry_row_count
+    registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")" || return 1
+    if [[ "$registry_row_count" != "13" ]]; then
+      echo "FAIL: expected 13 rows in sec7_protected_object, found $registry_row_count" >&2
+      return 1
+    fi
+    return 0
+  }
+
+  # ADR-0007 Addendum 9 D79, extended by Addendum 10 D90: any failure
+  # from here on (a psql error, the row-count assertion below, a later
+  # refusal) must not leave this database less protected than it was
+  # before this run started, and a refusal must restore what it took
+  # down -- including what the restored objects READ. CAP #9's M-A
+  # reproduced in one statement, as owl_migrator, against a database
+  # this trap had already "restored": the pre-D90 trap only re-created
+  # the two event triggers (bare CREATE, not ENABLE ALWAYS -- so
+  # evtenabled='O') and never touched the three registries a DELETE
+  # earlier in this step may have already emptied, so a database it
+  # called "restored" still had `evtenabled='O','O'` and an EMPTY
+  # sec7_protected_object -- both independently sufficient to let M-A's
+  # one-statement forgery through unrefused (measured during this
+  # addendum's design pass). D90's three parts, in order:
+  #   1. Repopulate all three registries from the same declared literals
+  #      the normal path uses (sec7_repopulate_registries above) --
+  #      restoring the event triggers without the population they read
+  #      is enforcement pointed at nothing (D43's population principle).
+  #   2. Re-create the event triggers AND set them ENABLE ALWAYS, the
+  #      same two ALTER statements the normal path runs at the very end
+  #      -- 'O' is not a weaker version of 'A', it is the state the
+  #      normal path's own postcondition assertion exists to refuse.
+  #   3. Assert the postcondition here too, not only in the normal path:
+  #      both event triggers ENABLE ALWAYS and all three registry row
+  #      counts 13/2/1. If it cannot be restored, name the exact state
+  #      left behind rather than a generic warning, so an operator does
+  #      not have to re-derive what "not fully restored" means.
+  # A no-op on a true first run that failed before the guard function
+  # ever existed (nothing to bind the event triggers to -- guarded
+  # explicitly, matching the pre-D90 trap's own reasoning) and whenever
+  # the step succeeded (everything already in its declared state by the
+  # time this fires).
   grant_ddl_ownership_restore_on_failure() {
     local rc=$?
     if [[ $rc -ne 0 ]]; then
-      local live_count fn_exists
-      live_count="$(psql_super -tAc "SELECT count(*) FROM pg_event_trigger WHERE evtname IN ('sec7_protect_ddl_objects_on_drop','sec7_protect_ddl_objects_on_alter')" 2>/dev/null || echo 0)"
-      if [[ "$live_count" != "2" ]]; then
-        fn_exists="$(psql_super -tAc "SELECT to_regprocedure('sec7_protect_ddl_objects()') IS NOT NULL" 2>/dev/null || echo f)"
-        if [[ "$fn_exists" == "t" ]]; then
-          echo "== ADR-0007 Addendum 9 D79: grant-ddl-ownership failed after taking DDL enforcement down; restoring both event triggers rather than leaving this database less protected than it was before this run (enforcement is NOT currently live until this restore succeeds) ==" >&2
-          psql_super -c "
-            DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;
-            DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;
-            CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_drop ON sql_drop EXECUTE FUNCTION sec7_protect_ddl_objects();
-            CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_alter ON ddl_command_end EXECUTE FUNCTION sec7_protect_ddl_objects();
-          " >&2 || echo "WARNING: ADR-0007 Addendum 9 D79: failed to restore event-trigger enforcement after grant-ddl-ownership failed -- this database is left with DDL enforcement DISABLED; re-run grant-ddl-ownership or restore manually before trusting it" >&2
-        fi
+      echo "== ADR-0007 Addendum 9 D79 / Addendum 10 D90: grant-ddl-ownership failed; restoring the full declared state (all three registries, then both event triggers ENABLE ALWAYS) rather than leaving this database less protected than it was before this run (enforcement is NOT currently live until this restore succeeds) ==" >&2
+      sec7_repopulate_registries || echo "WARNING: ADR-0007 Addendum 10 D90: failed to repopulate one or more SEC-7 registries during failure recovery (see the FAIL/ERROR line above) -- this database's registries may not reflect its live schema; re-run grant-ddl-ownership from a clean state before trusting it" >&2
+      local fn_exists
+      fn_exists="$(psql_super -tAc "SELECT to_regprocedure('sec7_protect_ddl_objects()') IS NOT NULL" 2>/dev/null || echo f)"
+      if [[ "$fn_exists" == "t" ]]; then
+        psql_super -c "
+          DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_drop;
+          DROP EVENT TRIGGER IF EXISTS sec7_protect_ddl_objects_on_alter;
+          CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_drop ON sql_drop EXECUTE FUNCTION sec7_protect_ddl_objects();
+          CREATE EVENT TRIGGER sec7_protect_ddl_objects_on_alter ON ddl_command_end EXECUTE FUNCTION sec7_protect_ddl_objects();
+          ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_drop ENABLE ALWAYS;
+          ALTER EVENT TRIGGER sec7_protect_ddl_objects_on_alter ENABLE ALWAYS;
+        " >&2 || echo "WARNING: ADR-0007 Addendum 9 D79: failed to restore event-trigger enforcement after grant-ddl-ownership failed -- this database is left with DDL enforcement DISABLED; re-run grant-ddl-ownership or restore manually before trusting it" >&2
+      else
+        echo "WARNING: ADR-0007 Addendum 9 D79: sec7_protect_ddl_objects() does not exist -- this is a true first run that failed before the guard function was ever created, so DDL enforcement cannot be restored (nothing to bind the event triggers to); re-run grant-ddl-ownership from a clean state" >&2
+      fi
+      # ADR-0007 Addendum 10 D90 part 3: the trap asserts its own
+      # postcondition rather than only claiming success in the messages
+      # above.
+      local live_count obj_count rel_count bind_count
+      live_count="$(psql_super -tAc "SELECT count(*) FROM pg_event_trigger WHERE evtname IN ('sec7_protect_ddl_objects_on_drop','sec7_protect_ddl_objects_on_alter') AND evtenabled='A'" 2>/dev/null || echo 0)"
+      obj_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object" 2>/dev/null || echo 0)"
+      rel_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation" 2>/dev/null || echo 0)"
+      bind_count="$(psql_super -tAc "SELECT count(*) FROM sec7_instance_binding" 2>/dev/null || echo 0)"
+      if [[ "$live_count" == "2" && "$obj_count" == "13" && "$rel_count" == "2" && "$bind_count" == "1" ]]; then
+        echo "== ADR-0007 Addendum 10 D90: failure recovery restored the full declared state (both event triggers ENABLE ALWAYS; sec7_protected_object=13, sec7_protected_relation=2, sec7_instance_binding=1) ==" >&2
+      else
+        echo "WARNING: ADR-0007 Addendum 10 D90: this database is left with DDL enforcement NOT fully restored (event triggers ENABLE ALWAYS: ${live_count}/2, sec7_protected_object: ${obj_count}/13, sec7_protected_relation: ${rel_count}/2, sec7_instance_binding: ${bind_count}/1) -- do not trust it until grant-ddl-ownership succeeds" >&2
       fi
     fi
     return $rc
@@ -792,59 +904,13 @@ grant-ddl-ownership)
   # their own installation state, so re-populating on every invocation of
   # this step is safe and keeps every registry from drifting if this
   # script is ever edited to protect a different object/relation set.
-  psql_super -c "DELETE FROM sec7_instance_binding;"
-  psql_super -c "
-    INSERT INTO sec7_instance_binding (system_identifier, database_oid, database_name, provisioned_at)
-    SELECT (SELECT system_identifier FROM pg_control_system()),
-           (SELECT oid FROM pg_database WHERE datname = current_database()),
-           current_database(),
-           now();
-  "
-  psql_super -c "DELETE FROM sec7_protected_relation;"
-  # ADR-0007 Addendum 6 D50: index_defs is populated as the sorted set of
-  # pg_get_indexdef() renderings, not the index OIDs -- see the column
-  # migration above.
-  psql_super -c "
-    INSERT INTO sec7_protected_relation (objid, relowner, relkind, relrowsecurity, relforcerowsecurity, trigger_oids, index_defs, policy_oids, identity)
-    SELECT c.oid, c.relowner, c.relkind, c.relrowsecurity, c.relforcerowsecurity,
-      COALESCE((SELECT array_agg(t.oid ORDER BY t.oid) FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal), ARRAY[]::oid[]),
-      COALESCE((SELECT array_agg(pg_get_indexdef(ix.indexrelid) ORDER BY pg_get_indexdef(ix.indexrelid)) FROM pg_index ix WHERE ix.indrelid = c.oid), ARRAY[]::text[]),
-      COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
-      (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
-    FROM pg_class c
-    WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
-  "
-  psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN index_defs SET NOT NULL;"
-  psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN identity SET NOT NULL;"
-  protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")"
-  [[ "$protected_relation_row_count" == "2" ]] || {
-    echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
-    exit 1
-  }
-  psql_super -c "DELETE FROM sec7_protected_object;"
-  psql_super -c "
-    INSERT INTO sec7_protected_object (objid, classid, note) VALUES
-      ('screening_ledger_anchor'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_anchor'),
-      ('screening_ledger_retention_tombstone'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_retention_tombstone'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_immutable' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_immutable'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_anchor_no_truncate' AND tgrelid='screening_ledger_anchor'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_anchor_no_truncate'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_immutable' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_immutable'),
-      ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_no_truncate'),
-      ('screening_ledger_reject_mutation()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
-      ('owl_reject_truncate()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
-      ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
-      ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
-      ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
-      ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)'),
-      ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)')
-    ;
-  "
-  psql_super -c "ALTER TABLE sec7_protected_object ALTER COLUMN classid SET NOT NULL;"
-  registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")"
-  [[ "$registry_row_count" == "13" ]] || {
-    echo "FAIL: expected 13 rows in sec7_protected_object, found $registry_row_count" >&2
-    exit 1
-  }
+  # ADR-0007 Addendum 10 D90: factored into sec7_repopulate_registries
+  # (defined above, before the failure trap) so the trap can call the
+  # exact same statements on failure rather than inventing a second
+  # repair. ADR-0007 Addendum 6 D50: index_defs is populated as the
+  # sorted set of pg_get_indexdef() renderings, not the index OIDs -- see
+  # the column migration above.
+  sec7_repopulate_registries || exit 1
   # sec7_protect_ddl_objects() becomes SECURITY DEFINER -- load-bearing,
   # not hygiene, confirmed by execution: an INVOKER-rights version (the
   # default) failed an UNRELATED CREATE TABLE with "permission denied for

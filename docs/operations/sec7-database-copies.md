@@ -187,6 +187,40 @@ psql -h <host> -p <port> -U <bootstrap superuser> -d <database> \
 
 Then re-run `grant-ddl-ownership` to confirm the repaired body is now in the accepted set.
 
+**D87's repair procedure (ADR-0007 Addendum 10): the same shape, one object over.** Both
+`screening_ledger_purge_snapshots` overloads -- the definer functions that actually write
+`purged_at` -- are now `requiredDefinerFunctions` members with their own declared accepted body
+digests (D87/D86 row 8), so `Migrate()`'s `db/migrations/019`/`020` re-application and any legitimate
+edit to their bodies is refused by D34 on an already-provisioned database, exactly as D78 already
+refuses for the two guard functions. This is a **re-provisioning event**, not a repair
+`Migrate()`/`grant-ddl-ownership` attempt on their own: open the same event-trigger disable window as
+above, apply the migration or `CREATE OR REPLACE FUNCTION` directly, then re-run `grant-ddl-ownership`
+to re-enable enforcement and confirm the new body is in its declared accepted set. On a **fresh**
+database this cost does not apply at all -- the new migration runs before `grant-ddl-ownership` ever
+installs the event triggers. **Verified by execution: the migration must be applied as the bootstrap
+superuser, not as `owl_migrator`** -- `grant-ddl-ownership` has already transferred ownership of both
+overloads to `owl_ledger_ddl`, so `owl_migrator` (the identity `db/migrations/` ordinarily runs as)
+gets a plain `ERROR: must be owner of function screening_ledger_purge_snapshots` regardless of
+event-trigger state, distinct from and in addition to D34's own refusal:
+
+```sh
+# as the bootstrap superuser, with the event-trigger disable window open (see step 1 above)
+psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -v ON_ERROR_STOP=1 \
+  -f db/migrations/020_screening_ledger_purge_server_side_floor.sql
+```
+
+Then re-run `grant-ddl-ownership` to re-enable enforcement and confirm the new bodies are in their
+declared accepted sets.
+
+**A note on `screening_ledger_snapshot` (ADR-0007 Addendum 10 D89, R40):** that table's own guard
+triggers (`screening_ledger_snapshot_guard_trigger`, `screening_ledger_snapshot_no_truncate`) are
+**not** protected objects -- neither the table, the guard function, nor either trigger appears in
+`sec7_protected_object`. `owl_migrator` can drop them with no event-trigger refusal and nothing
+observes it. This is a known, separately-scoped gap (not part of any SEC-7 retention-claim guarantee
+this document describes: D89 withdrew `created_at` as a referent of any control, so this relation's
+guards no longer undermine a purge's `purged_at` floor either way) -- do not assume the drop is
+refused the way the anchor and tombstone tables' own triggers are.
+
 ## A drifted, non-copied database
 
 **Step 0: run `screening-ledger status` first (ADR-0007 Addendum 7 D62(b)).** If it reports anything
@@ -232,8 +266,15 @@ than passing silently.
 
 **Step 0: run `screening-ledger status` first (ADR-0007 Addendum 7 D62(b)).** On a genuinely bricked
 restore (message (a), "this database is a copy or restore of another"), this reports the database as
-unprovisioned, naming the mismatched instance -- confirming you are looking at the state this section
-describes before you act on it. If it instead reports the database as already provisioned, stop:
+unprovisioned -- confirming you are looking at the state this section describes before you act on it.
+**This step's own message does not name the mismatched instance** (ADR-0007 Addendum 10 D94, N-H):
+it reports `sec7_protected_object has no row whose OID resolves (via pg_identify_object) to pg_class
+public.screening_ledger_anchor (ADR-0007 Addendum 4 D41): the registry is stale, repointed, or was
+never populated with this object`, which is D41's registry-resolution reason, not an instance
+identifier. **The instance IS named, on a different surface**: the first ordinary DDL statement run
+against the database (for example, step 2 below, or an accidental `CREATE TABLE` by `owl_migrator`)
+raises D46's message, which names both the recorded and the live `system_identifier`/database OID/name.
+If step 0 instead reports the database as already provisioned, stop:
 something other than an ordinary logical copy produced this state, and re-running `grant-ddl-ownership`
 blind is not the next step. As with the drift section above, this is a second gate: the mechanism that
 actually makes recovery safe to run is `grant-ddl-ownership` itself refusing to record any undeclared
@@ -271,13 +312,32 @@ re-enables the triggers as part of its normal run; step 3 is the check that it d
 **Do not skip step 2 and simply leave the event triggers disabled.** That is the state described in
 the first table row: everything looks installed and nothing is enforcing.
 
-**If step 2 itself refuses (ADR-0007 Addendum 9 D79):** every precondition `grant-ddl-ownership` can
-refuse on (the "Refusal modes" section above) is now checked **before** the event triggers are ever
-taken down, and a `trap` restores them if the step fails after that point for any other reason (a
-`psql` error, its own row-count assertion). A refusal at step 2 therefore leaves the database in
-**exactly the state it was in when step 2 started** -- run step 3's query to confirm this directly
-rather than assuming it. Before this addendum, a refusal at step 2 left both event triggers fully
-**dropped** regardless of what state they started in; that is no longer possible.
+**If step 2 itself refuses (ADR-0007 Addendum 9 D79, extended by Addendum 10 D90):** every
+precondition `grant-ddl-ownership` can refuse on (the "Refusal modes" section above) is checked
+**before** the event triggers are ever taken down, so most refusals leave the database in exactly the
+state step 2 started in. For a failure **after** that point (a `psql` error, the registry row-count
+assertion, or any other failure once enforcement is already down), the trap now restores the **full
+declared state** -- not only the two event triggers, but all three registries
+(`sec7_protected_object`=13, `sec7_protected_relation`=2, `sec7_instance_binding`=1), from the same
+declared literals the normal run uses, and it asserts its own postcondition before finishing. **Before
+Addendum 10, the trap re-created the two event triggers but left them `evtenabled='O'` (not `'A'`) and
+never touched the registries** -- a database in that state passed for "restored" by eye (both event
+triggers present) while a single, unprotected `CREATE OR REPLACE FUNCTION` on the shared row-guard
+function succeeded with no event-trigger disable of its own. Confirm a real restoration, not merely
+that the trap ran, with:
+
+```sh
+psql -h <host> -p <port> -U <bootstrap superuser> -d <the restored db> -c "
+  SELECT evtname, evtenabled FROM pg_event_trigger WHERE evtname LIKE 'sec7%';   -- expect 'A' for both
+  SELECT (SELECT count(*) FROM sec7_protected_object) obj,
+         (SELECT count(*) FROM sec7_protected_relation) rel,
+         (SELECT count(*) FROM sec7_instance_binding) bind;                     -- expect 13, 2, 1
+"
+```
+
+If either check comes back short, `grant-ddl-ownership` printed a `WARNING` naming exactly which
+counts are short when the trap fired -- re-run it from a clean state rather than trusting the database
+until that warning is gone.
 
 ## `event_triggers = off` is not a bypass
 

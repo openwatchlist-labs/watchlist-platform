@@ -337,40 +337,9 @@ func TestD77AcceptsCleanBaseline(t *testing.T) {
 	})
 }
 
-// TestOwlRejectTruncateAcceptedDigestsMatchCommittedLiterals is D77/D85's
-// own unit-level, no-database assertion: the fact that forces the
-// two-member set is pinned by a test rather than only by this addendum's
-// prose, so a later reader who "simplifies" the set to one member breaks
-// a test that explains why. Extracts both bootstrap paths' literal
-// function bodies directly from the committed source text and digests
-// them -- R35's own named CI gate, run as a Go test rather than a
-// separate script, so it executes on every `go test ./...` rather than
-// requiring a dedicated invocation.
-func TestOwlRejectTruncateAcceptedDigestsMatchCommittedLiterals(t *testing.T) {
-	migrationSrc, err := os.ReadFile("../../db/migrations/012_truncate_guards.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	const migrationMarker = "CREATE OR REPLACE FUNCTION owl_reject_truncate() RETURNS trigger\nLANGUAGE plpgsql AS $$ BEGIN\n  RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;\nEND $$;"
-	if !strings.Contains(string(migrationSrc), migrationMarker) {
-		t.Fatal("db/migrations/012_truncate_guards.sql's owl_reject_truncate() literal has changed -- ADR-0007 Addendum 9 D77's migration-path accepted digest (owlRejectTruncateBodySHA256Migration) must be re-derived from the new text, not left stale")
-	}
-
-	if !strings.Contains(SchemaSQL, "IF to_regprocedure('owl_reject_truncate()') IS NULL THEN") {
-		t.Fatal("SchemaSQL no longer guards owl_reject_truncate() with the expected presence check -- D77/D78 assume this shape")
-	}
-	const schemaSQLBodyMarker = "BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END"
-	if !strings.Contains(SchemaSQL, schemaSQLBodyMarker) {
-		t.Fatal("SchemaSQL's owl_reject_truncate() literal has changed -- ADR-0007 Addendum 9 D77's SchemaSQL-path accepted digest (owlRejectTruncateBodySHA256SchemaSQLBoot) must be re-derived from the new text, not left stale")
-	}
-
-	// D85's own required assertion: the two literals differ. If a future
-	// reformat ever makes them byte-identical, this is the test that
-	// notices -- and per D77's own text, the fix is still a two-member
-	// set (a schema change to converge them is a new ADR, not a
-	// `regexp_replace`), so this test intentionally does not react to
-	// convergence by simplifying anything itself.
-	if owlRejectTruncateBodySHA256Migration == owlRejectTruncateBodySHA256SchemaSQLBoot {
-		t.Fatal("ADR-0007 Addendum 9 D77: the migration and SchemaSQL owl_reject_truncate() literals are no longer distinct -- re-derive whether the two-member set is still required before removing a member")
-	}
-}
+// TestOwlRejectTruncateAcceptedDigestsMatchCommittedLiterals is
+// superseded by d92_digest_gate_derivation_test.go's
+// TestGuardAndDefinerBodyDigestsAreDerivedFromCommittedLiterals
+// (ADR-0007 Addendum 10 D92, N-D): the marker-substring shape this test
+// used is exactly what D92 found insufficient (a substring match survives
+// a whitespace change that a real digest comparison must not).

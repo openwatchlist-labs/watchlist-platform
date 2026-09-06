@@ -46,6 +46,19 @@ BEGIN
   END IF;
 END $$;
 
+-- SEC-7 Addendum 10 D87 (N-A's enabler, CLAUDE.md's own named trap):
+-- ON CONFLICT (snapshot_sha256) DO NOTHING silently adopted a
+-- pre-existing tombstone row instead of surfacing the divergence it
+-- signals -- exactly CLAUDE.md's "Do not swallow conflicts. ON CONFLICT
+-- DO NOTHING on ledger and idempotency writes hides real divergence.
+-- Catch 23505 and surface it." A conflict here is reachable only when a
+-- tombstone already exists for a snapshot the mirror still records as
+-- unpurged (both overloads gate on purged_at IS NULL, so an already-
+-- purged snapshot produces no INSERT at all) -- i.e. exactly the
+-- pre-emption shape N-A rides on. The bare INSERT below therefore costs
+-- nothing on any sanctioned path: three consecutive legitimate purges
+-- remain idempotent (1, then 0, then 0), because the second and third
+-- runs' SELECT finds nothing eligible in the first place.
 CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz, p_operator text, p_reason text)
 RETURNS bigint
 LANGUAGE plpgsql
@@ -53,17 +66,33 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
 DECLARE affected bigint;
+DECLARE conflict_sha256 text;
+DECLARE conflict_purged_at timestamptz;
+DECLARE conflict_operator text;
 BEGIN
-  INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256, purged_at, operator, reason)
-    SELECT s.snapshot_sha256, clock_timestamp(), p_operator, p_reason
-    FROM screening_ledger_snapshot s
-    WHERE s.purged_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM screening_ledger_event e
-        WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
-          AND e.expires_at < clock_timestamp()
-      )
-    ON CONFLICT (snapshot_sha256) DO NOTHING;
+  BEGIN
+    INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256, purged_at, operator, reason)
+      SELECT s.snapshot_sha256, clock_timestamp(), p_operator, p_reason
+      FROM screening_ledger_snapshot s
+      WHERE s.purged_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM screening_ledger_event e
+          WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
+            AND e.expires_at < clock_timestamp()
+        );
+  EXCEPTION WHEN unique_violation THEN
+    SELECT s.snapshot_sha256, t.purged_at, t.operator INTO conflict_sha256, conflict_purged_at, conflict_operator
+      FROM screening_ledger_snapshot s
+      JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256 = s.snapshot_sha256
+      WHERE s.purged_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM screening_ledger_event e
+          WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
+            AND e.expires_at < clock_timestamp()
+        )
+      LIMIT 1;
+    RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator;
+  END;
   UPDATE screening_ledger_snapshot s
     SET purged_at = clock_timestamp(), purge_reason = p_reason,
         envelope_json = (envelope_json - 'nonce_base64' - 'ciphertext_base64')
@@ -86,29 +115,45 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
 DECLARE recorded text[];
+DECLARE conflict_sha256 text;
+DECLARE conflict_purged_at timestamptz;
+DECLARE conflict_operator text;
 BEGIN
-  WITH eligible AS (
-    SELECT s.snapshot_sha256
-    FROM screening_ledger_snapshot s
-    WHERE s.snapshot_sha256 = ANY(p_snapshot_sha256) AND s.purged_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM screening_ledger_event e
-        WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
-          AND e.expires_at < clock_timestamp()
-      )
-  ), inserted AS (
-    INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256, purged_at, operator, reason)
-      SELECT snapshot_sha256, clock_timestamp(), p_operator, p_reason FROM eligible
-      ON CONFLICT (snapshot_sha256) DO NOTHING
-  ), updated AS (
-    UPDATE screening_ledger_snapshot
-      SET purged_at = clock_timestamp(), purge_reason = p_reason,
-          envelope_json = (envelope_json - 'nonce_base64' - 'ciphertext_base64')
-            || jsonb_build_object('purged_at', clock_timestamp(), 'purge_reason', p_reason)
-      WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible)
-      RETURNING snapshot_sha256
-  )
-  SELECT array_agg(snapshot_sha256) INTO recorded FROM updated;
+  BEGIN
+    WITH eligible AS (
+      SELECT s.snapshot_sha256
+      FROM screening_ledger_snapshot s
+      WHERE s.snapshot_sha256 = ANY(p_snapshot_sha256) AND s.purged_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM screening_ledger_event e
+          WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
+            AND e.expires_at < clock_timestamp()
+        )
+    ), inserted AS (
+      INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256, purged_at, operator, reason)
+        SELECT snapshot_sha256, clock_timestamp(), p_operator, p_reason FROM eligible
+    ), updated AS (
+      UPDATE screening_ledger_snapshot
+        SET purged_at = clock_timestamp(), purge_reason = p_reason,
+            envelope_json = (envelope_json - 'nonce_base64' - 'ciphertext_base64')
+              || jsonb_build_object('purged_at', clock_timestamp(), 'purge_reason', p_reason)
+        WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible)
+        RETURNING snapshot_sha256
+    )
+    SELECT array_agg(snapshot_sha256) INTO recorded FROM updated;
+  EXCEPTION WHEN unique_violation THEN
+    SELECT s.snapshot_sha256, t.purged_at, t.operator INTO conflict_sha256, conflict_purged_at, conflict_operator
+      FROM screening_ledger_snapshot s
+      JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256 = s.snapshot_sha256
+      WHERE s.snapshot_sha256 = ANY(p_snapshot_sha256) AND s.purged_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM screening_ledger_event e
+          WHERE (e.request_snapshot_sha256 = s.snapshot_sha256 OR e.response_snapshot_sha256 = s.snapshot_sha256)
+            AND e.expires_at < clock_timestamp()
+        )
+      LIMIT 1;
+    RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator;
+  END;
   RETURN COALESCE(recorded, ARRAY[]::text[]);
 END;
 $$;

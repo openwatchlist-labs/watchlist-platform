@@ -171,7 +171,19 @@ func main() {
 			must(sink.PersistAudit(ctx, audit))
 			synced++
 		}
-		output(map[string]any{"status": "ok", "synced_event_count": synced, "verification_mode": verifyResult.VerificationMode, "anchor_status": verifyResult.AnchorStatus})
+		output(map[string]any{
+			"status": "ok", "synced_event_count": synced,
+			"verification_mode": verifyResult.VerificationMode, "anchor_status": verifyResult.AnchorStatus,
+			// ADR-0007 Addendum 10 D93(c): sync already runs the same
+			// anchored verification status/verify do and discarded these
+			// two D82 fields -- the adjudication ran, the reporting pass
+			// ran, and an operator whose routine is `sync` never saw a
+			// fabricated out-of-scope tombstone. sync is the command an
+			// operator actually schedules; D82 exists for the auditor who
+			// reads what a scheduled command prints.
+			"out_of_scope_retention_tombstone_count":           len(verifyResult.OutOfScopeRetentionTombstones),
+			"out_of_scope_retention_tombstone_snapshot_sha256": outOfScopeSnapshotSHA256(verifyResult.OutOfScopeRetentionTombstones),
+		})
 	case "anchor":
 		// ADR-0007 D19/F1b: the anchor's operational write path. D3
 		// designed the mechanism; nothing ever called it. This

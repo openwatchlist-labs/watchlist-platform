@@ -145,7 +145,7 @@ func (a *anchorReaderForLedger) LatestAnchor(ctx context.Context, _ string) (Anc
 	return a.sink.LatestAnchor(ctx, a.ledgerID)
 }
 
-func (a *anchorReaderForLedger) PreviousAnchorAt(ctx context.Context, _ string, beforeSequence int64) (time.Time, bool, error) {
+func (a *anchorReaderForLedger) PreviousAnchorAt(ctx context.Context, _ string, beforeSequence int64) (Anchor, bool, error) {
 	return a.sink.PreviousAnchorAt(ctx, a.ledgerID, beforeSequence)
 }
 
