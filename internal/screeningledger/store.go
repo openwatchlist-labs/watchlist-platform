@@ -67,17 +67,24 @@ type TombstoneRecord struct {
 // M-E's fabricated out-of-scope row invisible to VerifyReport entirely,
 // not merely unadjudicated -- CAP #8 section 7.5's finding.
 //
-// SnapshotCreatedAt is ADR-0007 Addendum 9 D81's genesis-case fallback:
-// purgeAttributionMismatch's lower bound is normally the anchor
-// immediately preceding the one being verified, but a ledger's very
-// first anchor has no such predecessor -- there, a legitimate purge
-// still cannot predate the snapshot it purges, so that snapshot's own
-// screening_ledger_snapshot.created_at (a Postgres value from the same
-// database, like every other bound this comparison uses) stands in.
+// EventExpiresAtForSnapshot is ADR-0007 Addendum 10 D89's mirror
+// corroboration for the chain-authenticated lower bound
+// purgeLowerBoundSource.forSnapshot applies to every claim/row, not only
+// at genesis: screening_ledger_event.expires_at for the event that
+// references snapshotSHA256, read from the same database as every other
+// bound this comparison uses. The chain's own Event.ExpiresAt is the
+// authority; this is corroboration only, and a disagreement is a named
+// mirror/chain divergence rather than being silently resolved either
+// way (D89's own stated caution).
+//
+// SnapshotCreatedAt (ADR-0007 Addendum 9 D81's genesis-case fallback) is
+// withdrawn by D89 and must not be reinstated in any form, including
+// "when screening_ledger_snapshot is a protected relation" -- see D89's
+// own text for the two independent, measured grounds.
 type PurgeChecker interface {
 	PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error)
 	AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, error)
-	SnapshotCreatedAt(ctx context.Context, snapshotSHA256 string) (createdAt time.Time, found bool, err error)
+	EventExpiresAtForSnapshot(ctx context.Context, snapshotSHA256 string) (expiresAt time.Time, found bool, err error)
 }
 
 // PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart

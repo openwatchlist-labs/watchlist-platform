@@ -61,8 +61,30 @@ fi
 : "${PRIMARY_PGDATABASE:=owl_ci}"
 export PG_BIN_DIR PRIMARY_PGHOST PRIMARY_PGPORT PRIMARY_PGSUPERUSER PRIMARY_PGSUPERPASSWORD PRIMARY_PGDATABASE
 
+# ADR-0007 Addendum 10 D94 (N-G, LOW): ${TMPDIR:-/tmp} is where mktemp
+# writes on the CI runner (Ubuntu, TMPDIR usually unset, /tmp a real
+# directory) but is NOT where it writes on macOS, with or without TMPDIR
+# set -- macOS mktemp -d always resolves through
+# confstr(_CS_DARWIN_USER_TEMP_DIR) (a path under /var/folders/...),
+# regardless of TMPDIR. Measured during this addendum's implementation
+# pass: with TMPDIR unset on macOS, `find "${TMPDIR:-/tmp}" -maxdepth 1`
+# lists exactly 1 entry (/tmp itself, a symlink `find` without -H does
+# not follow) while `mktemp -d` writes into a directory holding thousands
+# of entries -- so the shipped counter was a constant that could not
+# register a leak. tmp_root() asks mktemp directly where it writes,
+# rather than guessing from TMPDIR; -H follows a symlinked start path
+# (the other half of the same defect, harmless on Ubuntu where /tmp is
+# already a real directory and TMPDIR usually agrees with tmp_root()).
+tmp_root() {
+  local d r
+  d="$(mktemp -d)"
+  r="$(dirname "$d")"
+  rmdir "$d"
+  printf '%s' "$r"
+}
+
 tmp_file_count() {
-  find "${TMPDIR:-/tmp}" -maxdepth 1 2>/dev/null | wc -l | tr -d ' '
+  find -H "$(tmp_root)" -maxdepth 1 2>/dev/null | wc -l | tr -d ' '
 }
 
 # This test's OWN log files must not be counted as a leak: LOG_DIR is
@@ -81,7 +103,20 @@ DR_PORT="${DR_PORT:-55499}" "$SCRIPT" >"$LOG_DIR/case3.log" 2>&1 || {
 }
 after="$(tmp_file_count)"
 [[ "$before" -eq "$after" ]] || fail "case 3: system temp directory file count changed from $before to $after across a successful run -- a temp file leaked"
-echo "PASS: case 3 (a successful run leaves the system temp directory file count unchanged: $before)"
+
+# ADR-0007 Addendum 10 D94's own required assertion: the counter must be
+# non-vacuous -- the root it measures must be the one the script's own
+# "== D83: this run's scratch root is ..." line names, not merely a
+# constant that happens not to have changed. A counter that cannot
+# change (case 1's own historical bug) would pass the [[ "$before" -eq
+# "$after" ]] check above vacuously; this fails the test if that ever
+# recurs.
+run_scratch_root="$(grep -o "scratch root is [^ ]*" "$LOG_DIR/case3.log" | head -1 | cut -d' ' -f3)"
+[[ -n "$run_scratch_root" ]] || fail "case 3: could not find the '== D83: this run's scratch root is ...' line in the script's own output"
+run_tmp_root="$(dirname "$run_scratch_root")"
+measured_tmp_root="$(tmp_root)"
+[[ "$run_tmp_root" == "$measured_tmp_root" ]] || fail "case 3: this test's own tmp_root() ($measured_tmp_root) does not match the directory the script's scratch root actually lived in ($run_tmp_root) -- the counter would be measuring the wrong directory"
+echo "PASS: case 3 (a successful run leaves the system temp directory file count unchanged: $before; counter confirmed non-vacuous against $measured_tmp_root)"
 
 # --- Case 4: two concurrent invocations both succeed ------------------------
 DR_PORT=55501 "$SCRIPT" >"$LOG_DIR/case4a.log" 2>&1 &

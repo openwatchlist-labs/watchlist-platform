@@ -113,22 +113,54 @@ func (p *PostgresSink) Migrate(ctx context.Context) error {
 // already exist, so Migrate() must confirm, by querying the live
 // catalog, that whichever one actually got created is SECURITY DEFINER --
 // not assume it because SchemaSQL executed without error.
+//
+// acceptedBodySHA256 is ADR-0007 Addendum 10 D87/D86 row 8: D77 declared
+// the guard TRIGGER functions' bodies and stopped -- these two functions
+// are the ones that actually write purged_at, and until this addendum
+// nothing declared their body at all, so a T2 substitution was reported
+// by no observer (CheckProvisioningState and grant-ddl-ownership both
+// clean). D77's own reasoning applies one object over: the live body on
+// a migration-bootstrapped database is 020's (019 is superseded by
+// 020's CREATE OR REPLACE the moment both run in order), so the
+// two-member set is 020's literal plus SchemaSQL's -- not 019's, which
+// is never the live body on any bootstrap path this repository ships.
 type requiredDefinerFunction struct {
-	name         string
-	identityArgs string
-	installedBy  string
+	name               string
+	identityArgs       string
+	installedBy        string
+	acceptedBodySHA256 []string
 }
 
 var requiredDefinerFunctions = []requiredDefinerFunction{
 	{
 		name: "screening_ledger_purge_snapshots", identityArgs: "timestamptz,text,text",
-		installedBy: "db/migrations/019_screening_ledger_purge_definer.sql",
+		installedBy: "db/migrations/020_screening_ledger_purge_server_side_floor.sql",
+		acceptedBodySHA256: []string{
+			purgeSnapshotsTimeFloorBodySHA256Migration,
+			purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot,
+		},
 	},
 	{
 		name: "screening_ledger_purge_snapshots", identityArgs: "text[],timestamptz,text,text",
-		installedBy: "db/migrations/019_screening_ledger_purge_definer.sql",
+		installedBy: "db/migrations/020_screening_ledger_purge_server_side_floor.sql",
+		acceptedBodySHA256: []string{
+			purgeSnapshotsArrayFormBodySHA256Migration,
+			purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot,
+		},
 	},
 }
+
+// ADR-0007 Addendum 10 D87/D86 row 8: measured (not guessed) as
+// sha256(prosrc) of the literal committed function bodies -- 020's
+// CREATE OR REPLACE (the live body on a migration-bootstrapped database)
+// and SchemaSQL's own copy, which differ on formatting exactly as
+// D77's owl_reject_truncate() pair does.
+const (
+	purgeSnapshotsTimeFloorBodySHA256Migration     = "eed7e96d9d341a3f2e9b53a64e8367e9bbeaeae4747fbb1eda28552ec2b079c5"
+	purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot = "d723fc9399eae791098ad13bc1a2feae3d01488979f57a4b82de52d9d3a50392"
+	purgeSnapshotsArrayFormBodySHA256Migration     = "67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4"
+	purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot = "0b2a8c5b86a7450b149393eab9dce94cfca1f1dc175bdf7a8a5d2cd2684b72c7"
+)
 
 // checkPurgeSnapshotsDefiner is ADR-0007 Addendum 2 D27's postcondition:
 // both screening_ledger_purge_snapshots overloads must exist and be
@@ -230,6 +262,23 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 		}
 		if owner != "owl_ledger_ddl" {
 			return ProvisioningState{Reason: fmt.Sprintf("function %s is owned by %q, not owl_ledger_ddl (ADR-0007 Addendum 3 D33): grant-ddl-ownership has not transferred ownership", signature, owner)}, nil
+		}
+		// ADR-0007 Addendum 10 D87/D86 row 8: D77's own reasoning applied
+		// one object over -- these two functions are what actually WRITE
+		// purged_at, and until this addendum nothing declared their body,
+		// so a CREATE OR REPLACE substitution at T2 was reported by
+		// neither this check nor grant-ddl-ownership. Joined through the
+		// function's own regprocedure OID, exactly as D77 joins through a
+		// trigger's tgfoid -- so this follows whatever body is actually
+		// live, not whatever the declaring migration says it should be.
+		if len(fn.acceptedBodySHA256) > 0 {
+			var bodyOK bool
+			if err := p.conn.QueryRow(ctx, `SELECT encode(sha256(convert_to(prosrc,'UTF8')),'hex') = ANY($2) FROM pg_proc WHERE oid = $1::regprocedure`, signature, fn.acceptedBodySHA256).Scan(&bodyOK); err != nil {
+				return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 10 D87: checking function %s body digest: %w", signature, err)
+			}
+			if !bodyOK {
+				return ProvisioningState{Reason: fmt.Sprintf("function %s's body (prosrc) is not in its declared accepted digest set (ADR-0007 Addendum 10 D87): possible CREATE OR REPLACE FUNCTION substitution of a definer function that writes purged_at", signature)}, nil
+			}
 		}
 	}
 	// ADR-0007 Addendum 7 D61: D39's three named-role probes (H-C) are
@@ -522,6 +571,16 @@ type requiredProtectedIndexState struct {
 	// correctly-unique index built on the WRONG columns, which
 	// indisunique/indisprimary alone do not.
 	indkey string
+	// indnkeyatts is ADR-0007 Addendum 10 D91 (N-C, MEDIUM): indkey
+	// renders ALL index attributes, key columns AND INCLUDE columns
+	// alike, so "PRIMARY KEY (ledger_id) INCLUDE (sequence)" and
+	// "PRIMARY KEY (ledger_id, sequence)" both render indkey="1 2" --
+	// indnkeyatts is the only declared property that distinguishes them
+	// (the count of KEY columns; INCLUDE columns are payload, not part
+	// of what the index enforces uniqueness over). Measured against the
+	// baseline: 2 for the anchor pkey (ledger_id, sequence), 1 for the
+	// tombstone pkey (snapshot_sha256).
+	indnkeyatts int16
 }
 
 // triggerNames returns just the names from triggers, for the existing
@@ -642,7 +701,7 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 			{name: "screening_ledger_anchor_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
 		},
 		indexes: []requiredProtectedIndexState{
-			{name: "screening_ledger_anchor_pkey", indisunique: true, indisprimary: true, indkey: "1 2"},
+			{name: "screening_ledger_anchor_pkey", indisunique: true, indisprimary: true, indkey: "1 2", indnkeyatts: 2},
 		},
 	},
 	{
@@ -654,7 +713,7 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 			{name: "screening_ledger_retention_tombstone_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
 		},
 		indexes: []requiredProtectedIndexState{
-			{name: "screening_ledger_retention_tombstone_pkey", indisunique: true, indisprimary: true, indkey: "1"},
+			{name: "screening_ledger_retention_tombstone_pkey", indisunique: true, indisprimary: true, indkey: "1", indnkeyatts: 1},
 		},
 	},
 }
@@ -809,18 +868,19 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 		// EXISTS, so a later change cannot remove one on the other's
 		// strength (D41 part three's arrangement for D40).
 		for _, idx := range want.indexes {
-			var uniqueOK, primaryOK, indkeyOK, predNullOK, exprsNullOK bool
+			var uniqueOK, primaryOK, indkeyOK, indnkeyattsOK, predNullOK, exprsNullOK bool
 			err := p.conn.QueryRow(ctx, `
 				SELECT
 					COALESCE((SELECT ix.indisunique FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false) = $3,
 					COALESCE((SELECT ix.indisprimary FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false) = $4,
 					COALESCE((SELECT ix.indkey::text FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), '') = $5,
+					COALESCE((SELECT ix.indnkeyatts FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), -1) = $6,
 					COALESCE((SELECT ix.indpred IS NULL FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false),
 					COALESCE((SELECT ix.indexprs IS NULL FROM pg_index ix JOIN pg_class c ON c.oid = ix.indexrelid WHERE c.relname = $2 AND ix.indrelid = $1::regclass), false)
-			`, want.identity, idx.name, idx.indisunique, idx.indisprimary, idx.indkey).
-				Scan(&uniqueOK, &primaryOK, &indkeyOK, &predNullOK, &exprsNullOK)
+			`, want.identity, idx.name, idx.indisunique, idx.indisprimary, idx.indkey, idx.indnkeyatts).
+				Scan(&uniqueOK, &primaryOK, &indkeyOK, &indnkeyattsOK, &predNullOK, &exprsNullOK)
 			if err != nil {
-				return "", fmt.Errorf("checking index %s shape on %s (ADR-0007 Addendum 9 D80): %w", idx.name, want.identity, err)
+				return "", fmt.Errorf("checking index %s shape on %s (ADR-0007 Addendum 9 D80/Addendum 10 D91): %w", idx.name, want.identity, err)
 			}
 			switch {
 			case !uniqueOK:
@@ -829,6 +889,8 @@ func (p *PostgresSink) protectedRelationStateReason(ctx context.Context) (string
 				return fmt.Sprintf("%s: declared index %s's indisprimary does not match the declared %v (ADR-0007 Addendum 9 D80): possible substitution with a unique-but-not-primary-key index", want.identity, idx.name, idx.indisprimary), nil
 			case !indkeyOK:
 				return fmt.Sprintf("%s: declared index %s's indkey does not match the declared %q (ADR-0007 Addendum 9 D80): possible substitution with a correctly-unique index on the wrong column(s)", want.identity, idx.name, idx.indkey), nil
+			case !indnkeyattsOK:
+				return fmt.Sprintf("%s: declared index %s's indnkeyatts does not match the declared %d (ADR-0007 Addendum 10 D91): possible substitution with a weaker index whose key columns are a strict subset of the declared ones (the rest demoted to INCLUDE payload) -- indkey alone cannot see this", want.identity, idx.name, idx.indnkeyatts), nil
 			case !predNullOK:
 				return fmt.Sprintf("%s: declared index %s has a partial-index predicate (indpred), expected none (ADR-0007 Addendum 9 D80): possible substitution with a partial index enforcing uniqueness over only some rows", want.identity, idx.name), nil
 			case !exprsNullOK:
@@ -1505,49 +1567,60 @@ func (p *PostgresSink) LatestAnchor(ctx context.Context, ledgerID string) (ancho
 	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AuditSequence: auditSequence, PolicySHA256: policySHA256, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
 }
 
-// PreviousAnchorAt implements AnchorReader (ADR-0007 Addendum 9 D81):
-// the anchored_at of this ledger's anchor with the largest Sequence
-// strictly less than beforeSequence -- ORDER BY sequence DESC LIMIT 1
-// over a WHERE sequence < $2, the same tiebreaker shape LatestAnchor
-// uses (anchor_mac DESC), for the same K-F-adjacent reason. found=false
-// (pgx.ErrNoRows) means beforeSequence names this ledger's first anchor,
-// which is not an error -- purgeLowerBoundSource's genesis fallback
-// applies there instead.
-func (p *PostgresSink) PreviousAnchorAt(ctx context.Context, ledgerID string, beforeSequence int64) (anchoredAt time.Time, found bool, err error) {
+// PreviousAnchorAt implements AnchorReader (ADR-0007 Addendum 9 D81,
+// extended by Addendum 10 D88(a)): this ledger's anchor row with the
+// largest Sequence strictly less than beforeSequence -- ORDER BY
+// sequence DESC LIMIT 1 over a WHERE sequence < $2, the same tiebreaker
+// shape LatestAnchor uses (anchor_mac DESC), for the same K-F-adjacent
+// reason. found=false (pgx.ErrNoRows) means beforeSequence names this
+// ledger's first anchor, which is not an error -- D89's genesis case
+// (no previousAnchoredAt term) applies there instead. This method does
+// not MAC-verify the row it returns -- see AnchorReader's own doc
+// comment on why that is the caller's job, not this one's.
+func (p *PostgresSink) PreviousAnchorAt(ctx context.Context, ledgerID string, beforeSequence int64) (anchor Anchor, found bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
+	var sequence, auditSequence int64
+	var eventSHA, auditSHA, policySHA256, mac string
+	var anchoredAt time.Time
 	err = p.conn.QueryRow(ctx,
-		`SELECT anchored_at FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence < $2 ORDER BY sequence DESC, anchor_mac DESC LIMIT 1`,
+		`SELECT sequence, event_sha256, audit_sha256, audit_sequence, policy_sha256, anchored_at, anchor_mac
+		 FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence < $2 ORDER BY sequence DESC, anchor_mac DESC LIMIT 1`,
 		ledgerID, beforeSequence,
-	).Scan(&anchoredAt)
+	).Scan(&sequence, &eventSHA, &auditSHA, &auditSequence, &policySHA256, &anchoredAt, &mac)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return time.Time{}, false, nil
+			return Anchor{}, false, nil
 		}
-		return time.Time{}, false, err
+		return Anchor{}, false, err
 	}
-	return anchoredAt, true, nil
+	return Anchor{LedgerID: ledgerID, Sequence: sequence, EventSHA256: eventSHA, AuditSHA256: auditSHA, AuditSequence: auditSequence, PolicySHA256: policySHA256, AnchoredAt: anchoredAt, AnchorMAC: mac}, true, nil
 }
 
-// SnapshotCreatedAt implements PurgeChecker (ADR-0007 Addendum 9 D81's
-// genesis-case lower bound): screening_ledger_snapshot.created_at for
-// snapshotSHA256, a Postgres value from the same database as purged_at
-// and every other bound purgeAttributionMismatch compares, used only
-// when the purge being adjudicated has no preceding anchor to bound it.
-func (p *PostgresSink) SnapshotCreatedAt(ctx context.Context, snapshotSHA256 string) (createdAt time.Time, found bool, err error) {
+// EventExpiresAtForSnapshot implements PurgeChecker (ADR-0007 Addendum
+// 10 D89): screening_ledger_event.expires_at for the event whose
+// request_snapshot_sha256 or response_snapshot_sha256 is snapshotSHA256
+// -- the mirror corroboration for the chain-authenticated lower bound.
+// A snapshot referenced by more than one event column in the same row
+// (request==response, the same snapshot serving both roles) still
+// returns one row; a snapshot referenced by two DIFFERENT events cannot
+// occur, since request_snapshot_sha256/response_snapshot_sha256 are
+// content-addressed by SnapshotSHA256 (crypto.go) and a given plaintext
+// only ever has one expires_at, computed once at Append time.
+func (p *PostgresSink) EventExpiresAtForSnapshot(ctx context.Context, snapshotSHA256 string) (expiresAt time.Time, found bool, err error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 	err = p.conn.QueryRow(ctx,
-		`SELECT created_at FROM screening_ledger_snapshot WHERE snapshot_sha256=$1`,
+		`SELECT expires_at FROM screening_ledger_event WHERE request_snapshot_sha256=$1 OR response_snapshot_sha256=$1 LIMIT 1`,
 		snapshotSHA256,
-	).Scan(&createdAt)
+	).Scan(&expiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return time.Time{}, false, nil
 		}
 		return time.Time{}, false, err
 	}
-	return createdAt, true, nil
+	return expiresAt, true, nil
 }
 
 // PurgeRecord implements PurgeChecker (ADR-0007 D13/F8, extended by
@@ -1859,8 +1932,8 @@ BEGIN
     EXECUTE 'CREATE TABLE screening_ledger_retention_tombstone(snapshot_sha256 text PRIMARY KEY,purged_at timestamptz NOT NULL,operator text NOT NULL,reason text NOT NULL)';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_immutable BEFORE UPDATE OR DELETE ON screening_ledger_retention_tombstone FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_no_truncate BEFORE TRUNCATE ON screening_ledger_retention_tombstone FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT s.snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot s WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()) ON CONFLICT(snapshot_sha256) DO NOTHING; UPDATE screening_ledger_snapshot s SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()); GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_before timestamptz,p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; BEGIN WITH eligible AS (SELECT s.snapshot_sha256 FROM screening_ledger_snapshot s WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp())), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible ON CONFLICT(snapshot_sha256) DO NOTHING), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; BEGIN BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT s.snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot s WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()); EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; UPDATE screening_ledger_snapshot s SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()); GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_before timestamptz,p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; BEGIN BEGIN WITH eligible AS (SELECT s.snapshot_sha256 FROM screening_ledger_snapshot s WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp())), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at<clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
   END IF;
 END $$;
 COMMIT;

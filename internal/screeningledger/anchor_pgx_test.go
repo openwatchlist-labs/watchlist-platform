@@ -121,10 +121,17 @@ func TestSEC7AnchorWriterCanInsertButDoesNotOwnTheRow(t *testing.T) {
 	verify := verifyConn(t, ctx, migratorDSN)
 	defer verify.Close(context.Background())
 	var mac string
-	if err := verify.QueryRow(ctx, `SELECT anchor_mac FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence=1`, ledgerID).Scan(&mac); err != nil {
+	var anchoredAt time.Time
+	if err := verify.QueryRow(ctx, `SELECT anchor_mac, anchored_at FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence=1`, ledgerID).Scan(&mac, &anchoredAt); err != nil {
 		t.Fatalf("read back anchor row: %v", err)
 	}
-	want := anchorMAC(kAnchor, ledgerID, 1, "event-sha-fixture", "audit-sha-fixture", 1, policySHA256)
+	// ADR-0007 Addendum 10 D88(b): anchored_at is resolved from
+	// Postgres's own clock inside WriteAnchor (SELECT clock_timestamp()),
+	// so this test reads the stored value back rather than predicting it
+	// -- the point of this assertion is that the STORED mac matches a
+	// recomputation over the STORED anchored_at, not that WriteAnchor
+	// picked any particular instant.
+	want := anchorMAC(kAnchor, ledgerID, 1, "event-sha-fixture", "audit-sha-fixture", 1, policySHA256, anchoredAt)
 	if mac != want {
 		t.Fatalf("stored anchor_mac = %q, want %q", mac, want)
 	}

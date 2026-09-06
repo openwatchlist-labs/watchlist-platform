@@ -243,7 +243,7 @@ func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context) ([]TombstoneR
 	return nil, nil
 }
 
-func (alwaysRecordedPurgeChecker) SnapshotCreatedAt(context.Context, string) (time.Time, bool, error) {
+func (alwaysRecordedPurgeChecker) EventExpiresAtForSnapshot(context.Context, string) (time.Time, bool, error) {
 	return time.Time{}, false, nil
 }
 

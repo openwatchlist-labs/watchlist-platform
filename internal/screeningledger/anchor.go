@@ -22,18 +22,35 @@ import (
 // on.
 //
 // anchorMAC computes anchor_mac exactly as ADR-0007 §5.3 specifies it,
-// extended by Addendum 1 D11 (policySHA256) and AR7 (auditSequence):
-// HMAC-SHA256(K_anchor, ledger_id ‖ sequence ‖ event_sha256 ‖
-// audit_sha256 ‖ audit_sequence ‖ policy_sha256). The ADR's concatenation
-// notation does not specify a wire format; this uses a NUL-byte
-// delimiter between fields so that, for example, ledger_id="a"
-// sequence=1 cannot collide with ledger_id="a1" sequence=<empty> -- none
-// of the inputs (a ledger id, decimal integers, hex digests) can
+// extended by Addendum 1 D11 (policySHA256), AR7 (auditSequence) and
+// Addendum 10 D88 (anchoredAt): HMAC-SHA256(K_anchor, ledger_id ‖
+// sequence ‖ event_sha256 ‖ audit_sha256 ‖ audit_sequence ‖
+// policy_sha256 ‖ anchored_at). The ADR's concatenation notation does
+// not specify a wire format; this uses a NUL-byte delimiter between
+// fields so that, for example, ledger_id="a" sequence=1 cannot collide
+// with ledger_id="a1" sequence=<empty> -- none of the inputs (a ledger
+// id, decimal integers, hex digests, an RFC3339Nano UTC timestamp) can
 // themselves contain a NUL byte, so the delimiter introduces no
 // ambiguity.
-func anchorMAC(kAnchor []byte, ledgerID string, sequence int64, eventSHA256, auditSHA256 string, auditSequence int64, policySHA256 string) string {
-	raw := strings.Join([]string{ledgerID, strconv.FormatInt(sequence, 10), eventSHA256, auditSHA256, strconv.FormatInt(auditSequence, 10), policySHA256}, "\x00")
+//
+// D88: before this addendum, anchored_at was outside this MAC's input
+// entirely -- a genuine row with its timestamp moved still verified
+// (measured by execution). anchoredAt must be formatted identically at
+// write time and at verify time for the MAC to reconcile: both call
+// sites format via anchoredAtMACString (anchoredAt.UTC().Format(time.
+// RFC3339Nano)), so a location difference between the writing
+// connection (owl_ledger_anchor) and the reading one (owl_migrator)
+// cannot silently change what this function hashes.
+func anchorMAC(kAnchor []byte, ledgerID string, sequence int64, eventSHA256, auditSHA256 string, auditSequence int64, policySHA256 string, anchoredAt time.Time) string {
+	raw := strings.Join([]string{ledgerID, strconv.FormatInt(sequence, 10), eventSHA256, auditSHA256, strconv.FormatInt(auditSequence, 10), policySHA256, anchoredAtMACString(anchoredAt)}, "\x00")
 	return macHex(kAnchor, []byte(raw))
+}
+
+// anchoredAtMACString is the single, shared serialization anchorMAC uses
+// for anchored_at -- see anchorMAC's own comment on why write and verify
+// must agree on it exactly.
+func anchoredAtMACString(anchoredAt time.Time) string {
+	return anchoredAt.UTC().Format(time.RFC3339Nano)
 }
 
 // Anchor is one row of screening_ledger_anchor, read back for
@@ -73,7 +90,7 @@ type Anchor struct {
 // since. It does not check the row against the live chain; that is
 // Store.VerifyAnchored's job.
 func (a Anchor) Verify(kAnchor []byte) bool {
-	return hmac.Equal([]byte(a.AnchorMAC), []byte(anchorMAC(kAnchor, a.LedgerID, a.Sequence, a.EventSHA256, a.AuditSHA256, a.AuditSequence, a.PolicySHA256)))
+	return hmac.Equal([]byte(a.AnchorMAC), []byte(anchorMAC(kAnchor, a.LedgerID, a.Sequence, a.EventSHA256, a.AuditSHA256, a.AuditSequence, a.PolicySHA256, a.AnchoredAt)))
 }
 
 // AnchorSink writes exactly one relation, screening_ledger_anchor, and is
@@ -140,16 +157,34 @@ func (a *AnchorSink) Close(ctx context.Context) error {
 // This is the mechanism D3 specifies, given an operational write path by
 // Addendum 1 D19's `screening-ledger anchor` subcommand. Cadence remains
 // ADR-0007 §8/D6/D18's separate, future gate-PR concern.
+//
+// ADR-0007 Addendum 10 D88(b): anchored_at is now part of anchorMAC's
+// input, which means Go must know its exact value before computing the
+// MAC -- the column's own DEFAULT clock_timestamp() (db/migrations/015)
+// is no longer usable for that, since a DEFAULT is resolved by Postgres
+// only at INSERT execution, after any MAC over it would already need to
+// have been computed. This resolves anchored_at with a first round trip
+// (SELECT clock_timestamp() on this same connection -- Postgres's own
+// clock, not time.Now(), so this introduces no new cross-clock
+// comparison: D70/D81/D89 all rest on anchored_at and purged_at being
+// the same clock domain, and this keeps it that way) and then supplies
+// it explicitly in the INSERT rather than relying on the DEFAULT, which
+// becomes unreachable for this call site but is left in the schema
+// (harmless: nothing else INSERTs this table).
 func (a *AnchorSink) WriteAnchor(ctx context.Context, kAnchor []byte, ledgerID string, sequence int64, eventSHA256, auditSHA256 string, auditSequence int64, policySHA256 string) error {
 	if len(kAnchor) != 32 {
 		return errors.New("anchor key (K_anchor) must be 32 bytes")
 	}
-	mac := anchorMAC(kAnchor, ledgerID, sequence, eventSHA256, auditSHA256, auditSequence, policySHA256)
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
+	var anchoredAt time.Time
+	if err := a.conn.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&anchoredAt); err != nil {
+		return fmt.Errorf("resolving anchored_at from Postgres's own clock (ADR-0007 Addendum 10 D88): %w", err)
+	}
+	mac := anchorMAC(kAnchor, ledgerID, sequence, eventSHA256, auditSHA256, auditSequence, policySHA256, anchoredAt)
 	_, err := a.conn.Exec(ctx,
-		`INSERT INTO screening_ledger_anchor(ledger_id,sequence,event_sha256,audit_sha256,audit_sequence,policy_sha256,anchor_mac) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		ledgerID, sequence, eventSHA256, auditSHA256, auditSequence, policySHA256, mac)
+		`INSERT INTO screening_ledger_anchor(ledger_id,sequence,event_sha256,audit_sha256,audit_sequence,policy_sha256,anchor_mac,anchored_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		ledgerID, sequence, eventSHA256, auditSHA256, auditSequence, policySHA256, mac, anchoredAt)
 	return err
 }
 
@@ -159,15 +194,27 @@ func (a *AnchorSink) WriteAnchor(ctx context.Context, kAnchor []byte, ledgerID s
 // typed nil-interface check rather than a *PostgresSink-specific one.
 type AnchorReader interface {
 	LatestAnchor(ctx context.Context, ledgerID string) (Anchor, bool, error)
-	// PreviousAnchorAt is ADR-0007 Addendum 9 D81: the anchored_at of
-	// this ledger's anchor with the largest Sequence strictly less than
-	// beforeSequence -- the exclusive lower bound purgeAttributionMismatch
-	// compares a tombstone's purged_at against, in the same clock domain
-	// the upper bound (the anchor being verified) already uses. found is
-	// false exactly when beforeSequence names the first anchor in the
-	// chain, in which case the genesis fallback
-	// (PurgeChecker.SnapshotCreatedAt) applies instead.
-	PreviousAnchorAt(ctx context.Context, ledgerID string, beforeSequence int64) (anchoredAt time.Time, found bool, err error)
+	// PreviousAnchorAt is ADR-0007 Addendum 9 D81, extended by Addendum 10
+	// D88(a): this ledger's anchor row with the largest Sequence strictly
+	// less than beforeSequence -- the row loadPurgeLowerBoundSource
+	// derives the exclusive lower bound purgeAttributionMismatch compares
+	// a tombstone's purged_at against, in the same clock domain the upper
+	// bound (the anchor being verified) already uses. found is false
+	// exactly when beforeSequence names the first anchor in the chain, in
+	// which case the genesis fallback (D89's chain-authenticated
+	// expires_at floor) applies instead.
+	//
+	// D88's own finding: before this addendum, PreviousAnchorAt returned
+	// only anchored_at, read by nothing that MAC-verified it -- a row at
+	// the queried sequence was read and trusted regardless of whether it
+	// was ever written by a K_anchor holder. Returning the whole row lets
+	// the caller (loadPurgeLowerBoundSource) verify it under K_anchor
+	// before using anything from it; this method itself does not
+	// verify -- it has no K_anchor to verify with, by the same
+	// architectural choice AnchorSink/PostgresSink already make
+	// throughout this file (K_anchor is never stored on a sink, only
+	// threaded through call parameters at the point of use).
+	PreviousAnchorAt(ctx context.Context, ledgerID string, beforeSequence int64) (anchor Anchor, found bool, err error)
 }
 
 // AnchorVerifyStatus reports what VerifyAnchored was actually able to
@@ -337,40 +384,107 @@ func purgeAttributionMismatch(record TombstoneRecord, entry AuditEvent, anchored
 	return nil
 }
 
-// purgeLowerBoundSource is ADR-0007 Addendum 9 D81: resolves the single
-// lower bound every claim/row one adjudicatePurgeClaims call checks
-// against -- the anchor immediately preceding the one being verified,
-// read once (loadPurgeLowerBoundSource), since it is a property of which
-// anchor is being verified, not of any individual snapshot. hasPrevious
-// is false only for a ledger's first anchor, in which case forSnapshot
-// falls back to that specific snapshot's own created_at (D81's genesis
-// case), read lazily per snapshot since -- unlike the preceding anchor
-// -- it does vary across claims/rows.
+// purgeLowerBoundSource is ADR-0007 Addendum 9 D81, redesigned by
+// Addendum 10 D88/D89: lowerBound(snapshot S, attesting anchor A) =
+// max(expiresAt(S), previousAnchoredAt(A)) -- expiresAt(S) always
+// applies (D89: screening_ledger_event.expires_at for the event that
+// references S, chain-authenticated and corroborated against the
+// mirror); previousAnchoredAt(A) applies only when a MAC-verified
+// anchor immediately precedes A (D88(a): PreviousAnchorAt's row is
+// verified here, once, before any value from it is used -- a
+// verification failure is a named, hard failure, never a silent
+// fall-through to genesis).
+//
+// D89 withdraws SnapshotCreatedAt as a referent entirely: it is a
+// Go-supplied envelope field on an unprotected relation, covered by no
+// MAC anywhere, and protecting the relation does not fix that (see D89's
+// own text in docs/adr/0007-audit-chain-integrity.md -- both grounds
+// were measured, not assumed). It must not be reinstated in any form.
 type purgeLowerBoundSource struct {
 	previousAnchoredAt time.Time
 	hasPrevious        bool
+	// eventsBySnapshot is the local, chain-authenticated Event chain
+	// indexed by request/response snapshot sha256, read once
+	// (loadPurgeLowerBoundSource) since it does not vary per claim/row --
+	// unlike the pre-D89 genesis fallback, expiresAt(S) is looked up here
+	// for every snapshot, not only at genesis.
+	eventsBySnapshot map[string]Event
 }
 
-func loadPurgeLowerBoundSource(ctx context.Context, anchors AnchorReader, ledgerID string, anchorSequence int64) (purgeLowerBoundSource, error) {
-	previousAnchoredAt, hasPrevious, err := anchors.PreviousAnchorAt(ctx, ledgerID, anchorSequence)
+func loadPurgeLowerBoundSource(ctx context.Context, store *Store, anchors AnchorReader, kAnchor []byte, ledgerID string, anchorSequence int64) (purgeLowerBoundSource, error) {
+	anchor, hasPrevious, err := anchors.PreviousAnchorAt(ctx, ledgerID, anchorSequence)
 	if err != nil {
 		return purgeLowerBoundSource{}, fmt.Errorf("reading the anchor preceding sequence %d (ADR-0007 Addendum 9 D81): %w", anchorSequence, err)
 	}
-	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious}, nil
+	var previousAnchoredAt time.Time
+	if hasPrevious {
+		// ADR-0007 Addendum 10 D88(a): verified here, once, rather than
+		// trusted because it was returned by a query at the right
+		// sequence -- a row PreviousAnchorAt selects is otherwise read by
+		// no MAC check anywhere (D88's own finding).
+		if len(kAnchor) != 32 {
+			return purgeLowerBoundSource{}, errors.New("anchor key (K_anchor) must be 32 bytes to verify the anchor preceding this one (ADR-0007 Addendum 10 D88)")
+		}
+		if !anchor.Verify(kAnchor) {
+			return purgeLowerBoundSource{}, fmt.Errorf("the anchor preceding sequence %d (its own sequence %d) failed MAC verification under K_anchor (ADR-0007 Addendum 10 D88): the row may have been planted or altered since it was written", anchorSequence, anchor.Sequence)
+		}
+		previousAnchoredAt = anchor.AnchoredAt
+	}
+	events, err := store.ListEvents()
+	if err != nil {
+		return purgeLowerBoundSource{}, fmt.Errorf("reading local event chain for the chain-authenticated expiry floor (ADR-0007 Addendum 10 D89): %w", err)
+	}
+	bySnapshot := make(map[string]Event, len(events)*2)
+	for _, e := range events {
+		if e.RequestSnapshotSHA256 != "" {
+			bySnapshot[e.RequestSnapshotSHA256] = e
+		}
+		if e.ResponseSnapshotSHA256 != "" {
+			bySnapshot[e.ResponseSnapshotSHA256] = e
+		}
+	}
+	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious, eventsBySnapshot: bySnapshot}, nil
 }
 
+// forSnapshot is D89's rule applied to one snapshot: the chain's own
+// Event.ExpiresAt is the authority (inside hashEvent's MAC under
+// K_chain, committed under K_anchor through the anchor's event_sha256 --
+// the same termination D70's operator/reason comparison already enjoys).
+// The mirror's screening_ledger_event.expires_at is corroboration: the
+// two must agree, and a disagreement is a named failure reporting
+// mirror/ledger divergence -- never silently resolved either way, and
+// the mirror value is never promoted to the authority (D89's own stated
+// caution, mirroring D32's arrangement for condition 3).
 func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChecker, snapshotSHA256 string) (time.Time, error) {
-	if b.hasPrevious {
-		return b.previousAnchoredAt, nil
+	event, ok := b.eventsBySnapshot[snapshotSHA256]
+	if !ok {
+		return time.Time{}, fmt.Errorf("snapshot %s has a purge claim or tombstone row but no local event chain entry references it (ADR-0007 Addendum 10 D89): mirror/ledger divergence", snapshotSHA256)
 	}
-	createdAt, found, err := purges.SnapshotCreatedAt(ctx, snapshotSHA256)
+	chainExpiresAt, err := time.Parse(time.RFC3339Nano, event.ExpiresAt)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("reading screening_ledger_snapshot.created_at for %s (ADR-0007 Addendum 9 D81's genesis-case lower bound): %w", snapshotSHA256, err)
+		return time.Time{}, fmt.Errorf("parsing chain-authenticated expires_at %q for snapshot %s (ADR-0007 Addendum 10 D89): %w", event.ExpiresAt, snapshotSHA256, err)
+	}
+	mirrorExpiresAt, found, err := purges.EventExpiresAtForSnapshot(ctx, snapshotSHA256)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("reading mirror screening_ledger_event.expires_at for %s (ADR-0007 Addendum 10 D89): %w", snapshotSHA256, err)
 	}
 	if !found {
-		return time.Time{}, fmt.Errorf("snapshot %s has a purge claim or tombstone row but no screening_ledger_snapshot row to derive ADR-0007 Addendum 9 D81's genesis-case lower bound from: mirror/ledger divergence", snapshotSHA256)
+		return time.Time{}, fmt.Errorf("snapshot %s has a chain-authenticated event but no mirror screening_ledger_event row references it (ADR-0007 Addendum 10 D89): mirror/ledger divergence", snapshotSHA256)
 	}
-	return createdAt, nil
+	// Postgres timestamptz has microsecond precision; event.ExpiresAt is
+	// parsed at whatever precision the chain committed (RFC3339Nano can
+	// carry nanoseconds). Truncated to microseconds before comparison so
+	// a value the chain always writes at microsecond precision or
+	// coarser (every writer in this package does) is not spuriously
+	// flagged as a divergence by a representational artifact.
+	if !mirrorExpiresAt.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
+		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event.expires_at (%s) disagrees with the chain-authenticated Event.ExpiresAt (%s) (ADR-0007 Addendum 10 D89): mirror/chain divergence", snapshotSHA256, mirrorExpiresAt.Format(time.RFC3339Nano), chainExpiresAt.Format(time.RFC3339Nano))
+	}
+	lowerBound := chainExpiresAt
+	if b.hasPrevious && b.previousAnchoredAt.After(lowerBound) {
+		lowerBound = b.previousAnchoredAt
+	}
+	return lowerBound, nil
 }
 
 // adjudicatePurgeClaims is ADR-0007 Addendum 3 D32's adjudication half of
@@ -402,66 +516,116 @@ func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChec
 // exactly one snapshot of four -- a budget of "at least one check ran"
 // walks straight past that).
 //
-// ADR-0007 Addendum 9 D82: the reverse direction now makes two passes
-// over one unscoped AllPurgeRecords query, rather than one query
-// pre-filtered to knownSnapshotSHA256 -- adjudicated (in scope: compared
-// against the attesting entry and failing on divergence, exactly as D70
-// specified) and reported (out of scope: named and returned, never
-// failing verification). D70's original reason to scope the QUERY --
-// another ledger's rows in a shared schema must never be named as this
-// ledger's forgery -- is preserved by the partition rather than by
-// narrowing the fetch: the reporting pass never treats an out-of-scope
-// row as a forgery, so widening the query no longer reproduces the harm
-// D70 was written against, and a fabricated row outside scope (CAP #8's
-// M-E) is surfaced rather than destroyed. The returned []TombstoneRecord
-// is that reported population; nil on any error, since nothing
-// downstream reads it once VerifyAnchored has already failed.
-func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, anchoredAt time.Time, anchorSequence int64, anchors AnchorReader, knownSnapshotSHA256 []string, purges PurgeChecker) ([]TombstoneRecord, error) {
+// ADR-0007 Addendum 9 D82, split by Addendum 10 D93: the reverse
+// direction used to make two passes over one unscoped AllPurgeRecords
+// query itself -- adjudicated (in scope) and reported (out of scope) --
+// which meant the reporting half only ever ran when this whole function
+// did, i.e. only in `anchored` mode (D93's own finding: `historical-
+// unanchored` mode reported an out-of-scope count of 0 against the exact
+// same database an anchored run reported 3 against). D93 moves the
+// reporting half out to reportOutOfScopePurgeRecords below, callable
+// with no anchor at all; this function keeps only the in-scope
+// adjudication (compared against the attesting entry, failing on
+// divergence, exactly as D70 specified) and is unchanged in every other
+// respect, including staying gated to `anchored` mode -- condition 2 has
+// no anchored audit sequence to compare against otherwise, which is
+// D32's own correct reasoning and is not reopened here.
+func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, anchoredAt time.Time, anchorSequence int64, anchors AnchorReader, kAnchor []byte, knownSnapshotSHA256 []string, purges PurgeChecker) error {
 	if len(claims) == 0 && purges == nil {
-		return nil, nil
+		return nil
 	}
 	attesting, err := s.attestingAuditEntries()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	// ADR-0007 Addendum 9 D81: read once -- this bound is a property of
-	// which anchor is being verified, not of any individual claim/row.
-	lowerBound, err := loadPurgeLowerBoundSource(ctx, anchors, s.ledgerID, anchorSequence)
+	// ADR-0007 Addendum 9 D81, extended by Addendum 10 D88/D89: read
+	// once -- this bound is a property of which anchor is being
+	// verified, not of any individual claim/row.
+	lowerBound, err := loadPurgeLowerBoundSource(ctx, s, anchors, kAnchor, s.ledgerID, anchorSequence)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, claim := range claims {
 		entry, attested := attesting[claim.SnapshotSHA256]
 		if !attested {
-			return nil, fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
+			return fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
 		}
 		if int64(entry.Sequence) > anchoredAuditSequence {
-			return nil, fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
+			return fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
 		}
 		if purges == nil {
-			return nil, fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
+			return fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
 		}
 		record, err := purges.PurgeRecord(ctx, claim.SnapshotSHA256)
 		if err != nil {
-			return nil, fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
+			return fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
 		}
 		if record == nil {
-			return nil, fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
+			return fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
 		}
 		claimLowerBound, err := lowerBound.forSnapshot(ctx, purges, claim.SnapshotSHA256)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if err := purgeAttributionMismatch(*record, entry, anchoredAt, claimLowerBound); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	if purges == nil {
+		return nil
+	}
+	all, err := purges.AllPurgeRecords(ctx)
+	if err != nil {
+		return fmt.Errorf("listing tombstone records for reverse purge-claim adjudication (ADR-0007 Addendum 8 D70): %w", err)
+	}
+	known := make(map[string]struct{}, len(knownSnapshotSHA256))
+	for _, sha := range knownSnapshotSHA256 {
+		known[sha] = struct{}{}
+	}
+	for _, record := range all {
+		if _, inScope := known[record.SnapshotSHA256]; !inScope {
+			// ADR-0007 Addendum 9 D82, extended by Addendum 10 D93: outside
+			// this ledger's own known history -- reportOutOfScopePurgeRecords
+			// (below) reports these; this pass never adjudicates them. D70's
+			// reason this ledger has no standing to judge it is unchanged.
+			continue
+		}
+		entry, attested := attesting[record.SnapshotSHA256]
+		if !attested {
+			return fmt.Errorf("snapshot %s has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired", record.SnapshotSHA256)
+		}
+		if int64(entry.Sequence) > anchoredAuditSequence {
+			return fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
+		}
+		rowLowerBound, err := lowerBound.forSnapshot(ctx, purges, record.SnapshotSHA256)
+		if err != nil {
+			return err
+		}
+		if err := purgeAttributionMismatch(record, entry, anchoredAt, rowLowerBound); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reportOutOfScopePurgeRecords is ADR-0007 Addendum 10 D93(a): the
+// reporting half of D82's reverse pass, factored out so it needs no
+// anchor and runs in every verification mode -- before this addendum it
+// ran only inside adjudicatePurgeClaims, which VerifyAnchored calls only
+// when mode == VerificationModeAnchored, so historical-unanchored mode
+// reported an out-of-scope count of 0 against the exact same database an
+// anchored run reported a nonzero count against (D93's own measured
+// finding). Purely a partition of AllPurgeRecords against
+// knownSnapshotSHA256; never adjudicates (compares against an attesting
+// audit entry) any row, in or out of scope -- that stays
+// adjudicatePurgeClaims's job, unchanged.
+func (s *Store) reportOutOfScopePurgeRecords(ctx context.Context, knownSnapshotSHA256 []string, purges PurgeChecker) ([]TombstoneRecord, error) {
 	if purges == nil {
 		return nil, nil
 	}
 	all, err := purges.AllPurgeRecords(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("listing tombstone records for reverse purge-claim adjudication (ADR-0007 Addendum 8 D70): %w", err)
+		return nil, fmt.Errorf("listing tombstone records for the out-of-scope reporting pass (ADR-0007 Addendum 10 D93): %w", err)
 	}
 	known := make(map[string]struct{}, len(knownSnapshotSHA256))
 	for _, sha := range knownSnapshotSHA256 {
@@ -470,27 +634,7 @@ func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, 
 	var reported []TombstoneRecord
 	for _, record := range all {
 		if _, inScope := known[record.SnapshotSHA256]; !inScope {
-			// ADR-0007 Addendum 9 D82: outside this ledger's own known
-			// history -- reported, never adjudicated. D70's reason this
-			// ledger has no standing to judge it is unchanged, which is
-			// exactly why this branch compares it against nothing and
-			// never returns an error.
 			reported = append(reported, record)
-			continue
-		}
-		entry, attested := attesting[record.SnapshotSHA256]
-		if !attested {
-			return nil, fmt.Errorf("snapshot %s has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired", record.SnapshotSHA256)
-		}
-		if int64(entry.Sequence) > anchoredAuditSequence {
-			return nil, fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
-		}
-		rowLowerBound, err := lowerBound.forSnapshot(ctx, purges, record.SnapshotSHA256)
-		if err != nil {
-			return nil, err
-		}
-		if err := purgeAttributionMismatch(record, entry, anchoredAt, rowLowerBound); err != nil {
-			return nil, err
 		}
 	}
 	return reported, nil
@@ -652,16 +796,16 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 		return base, fmt.Errorf("audit chain digest at sequence %d (%s) disagrees with the anchor's committed audit digest (%s): possible tampering after anchoring (AR7)", latest.AuditSequence, auditAtAnchor, latest.AuditSHA256)
 	}
 
-	// ADR-0007 Addendum 3 D32: purge-claim adjudication runs only in
+	// ADR-0007 Addendum 3 D32: purge-claim ADJUDICATION runs only in
 	// anchored mode -- historical-unanchored mode has no anchor for
 	// condition 2 to compare against (D9/D13's existing double gate
 	// already tolerates skipped snapshot checks there, unchanged). Placed
 	// after every prior cross-check has succeeded, per D32's own
 	// sequencing: "VerifyAnchored adjudicates every claim after the
-	// anchor cross-check succeeds."
+	// anchor cross-check succeeds." This condition is NOT reopened by
+	// D93 -- see the withdrawal condition in D95's text.
 	if mode == VerificationModeAnchored {
-		reported, err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, latest.AnchoredAt, latest.Sequence, opts.Anchors, report.KnownSnapshotSHA256, opts.Purges)
-		if err != nil {
+		if err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, latest.AnchoredAt, latest.Sequence, opts.Anchors, opts.KAnchor, report.KnownSnapshotSHA256, opts.Purges); err != nil {
 			base.AnchorStatus = AnchorStatusFailed
 			return base, err
 		}
@@ -671,10 +815,20 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 		// SnapshotChecksTotal once both the originally-decrypted
 		// snapshots and every legitimately-purged one are accounted for.
 		base.SnapshotChecksPerformed = report.SnapshotChecksPerformed + len(report.PurgeClaims)
-		// ADR-0007 Addendum 9 D82: the reporting population, carried into
-		// the result unconditionally (nil on a clean ledger).
-		base.OutOfScopeRetentionTombstones = reported
 	}
+	// ADR-0007 Addendum 10 D93(a): the REPORTING pass, unlike adjudication
+	// above, needs no anchor -- only a database connection -- so it runs
+	// regardless of mode. Before this addendum it ran only inside the
+	// anchored-mode branch above, which is exactly what let the same
+	// out-of-scope tombstone rows be reported in `anchored` mode and
+	// silently unreported (count 0) in `historical-unanchored` mode
+	// against the identical database (D93's own measured finding).
+	reported, err := s.reportOutOfScopePurgeRecords(ctx, report.KnownSnapshotSHA256, opts.Purges)
+	if err != nil {
+		base.AnchorStatus = AnchorStatusFailed
+		return base, err
+	}
+	base.OutOfScopeRetentionTombstones = reported
 
 	base.AnchorStatus = AnchorStatusVerified
 	base.AnchorSequence = latest.Sequence

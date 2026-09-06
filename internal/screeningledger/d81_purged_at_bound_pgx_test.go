@@ -101,12 +101,14 @@ func TestPurgedAtIsBoundedOnBothSides(t *testing.T) {
 	}
 }
 
-// TestPurgedAtGenesisFallbackUsesSnapshotCreatedAt is D81's genesis case:
-// where no anchor precedes the one being verified (this ledger's very
-// first anchor), the lower bound falls back to the purged snapshot's own
-// screening_ledger_snapshot.created_at -- a purge cannot predate the
-// thing it purges.
-func TestPurgedAtGenesisFallbackUsesSnapshotCreatedAt(t *testing.T) {
+// TestPurgedAtGenesisFallbackUsesChainAuthenticatedExpiresAt is D81's
+// genesis case, redesigned by Addendum 10 D89: where no anchor precedes
+// the one being verified (this ledger's very first anchor), the lower
+// bound is the purged snapshot's own chain-authenticated
+// Event.ExpiresAt (D89 withdraws screening_ledger_snapshot.created_at as
+// a referent entirely -- it is a Go-supplied envelope field on an
+// unprotected relation, covered by no MAC anywhere).
+func TestPurgedAtGenesisFallbackUsesChainAuthenticatedExpiresAt(t *testing.T) {
 	ctx := context.Background()
 	superuserDSN := requireBootstrapSuperuserDatabaseURL(t)
 	migratorDSN := requireMigratorDSN(t)
@@ -197,8 +199,13 @@ func TestPurgedAtGenesisFallbackUsesSnapshotCreatedAt(t *testing.T) {
 		t.Fatalf("expected a clean verified genesis anchor after a legitimate purge with no preceding anchor, got status=%v err=%v", r.AnchorStatus, err)
 	}
 
-	var createdAt time.Time
-	if err := sink.conn.QueryRow(ctx, `SELECT created_at FROM screening_ledger_snapshot WHERE snapshot_sha256=$1`, result.Event.RequestSnapshotSHA256).Scan(&createdAt); err != nil {
+	// ADR-0007 Addendum 10 D89: the floor is now the chain-authenticated
+	// Event.ExpiresAt for the event that references this snapshot,
+	// parsed directly from the local chain -- the same value
+	// purgeLowerBoundSource.forSnapshot reads and corroborates against
+	// the mirror.
+	expiresAt, err := time.Parse(time.RFC3339Nano, result.Event.ExpiresAt)
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -214,16 +221,41 @@ func TestPurgedAtGenesisFallbackUsesSnapshotCreatedAt(t *testing.T) {
 		scriptPath: d62ScriptPath(t), superuserDSN: clone.superuserDSN,
 	}
 
-	t.Run("backdated_before_snapshot_created_at_rejected", func(t *testing.T) {
-		err := forgePurgedAtAndVerify(t, ctx, chain, superuser, createdAt.Add(-time.Hour))
+	t.Run("backdated_before_expires_at_rejected", func(t *testing.T) {
+		err := forgePurgedAtAndVerify(t, ctx, chain, superuser, expiresAt.Add(-time.Hour))
 		if err == nil {
-			t.Fatalf("ADR-0007 Addendum 9 D81: expected a purged_at before the purged snapshot's own created_at (%s) to be rejected with no preceding anchor to bound it", createdAt)
+			t.Fatalf("ADR-0007 Addendum 10 D89: expected a purged_at before the purged snapshot's own chain-authenticated expires_at (%s) to be rejected with no preceding anchor to bound it", expiresAt)
 		}
 	})
-	t.Run("just_after_snapshot_created_at_accepted", func(t *testing.T) {
-		err := forgePurgedAtAndVerify(t, ctx, chain, superuser, createdAt.Add(time.Microsecond))
+	t.Run("just_after_expires_at_accepted", func(t *testing.T) {
+		err := forgePurgedAtAndVerify(t, ctx, chain, superuser, expiresAt.Add(time.Microsecond))
 		if err != nil {
-			t.Fatalf("expected a purged_at just after the purged snapshot's created_at (%s) to be accepted, got: %v", createdAt, err)
+			t.Fatalf("expected a purged_at just after the purged snapshot's chain-authenticated expires_at (%s) to be accepted, got: %v", expiresAt, err)
+		}
+	})
+	t.Run("backdated_created_at_no_longer_consulted", func(t *testing.T) {
+		// ADR-0007 Addendum 10 D89's own decisive transcript: created_at
+		// is withdrawn as a referent, so backdating it changes nothing --
+		// a purged_at just after expires_at must still verify even with
+		// created_at moved arbitrarily far into the past, and a
+		// purged_at before expires_at must still be rejected even though
+		// it may now be AFTER the (irrelevant) backdated created_at.
+		withD34TriggersDisabled(t, ctx, superuser, func() {
+			if _, err := superuser.Exec(ctx, `ALTER TABLE screening_ledger_snapshot DISABLE TRIGGER screening_ledger_snapshot_guard_trigger`); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := superuser.Exec(ctx, `UPDATE screening_ledger_snapshot SET created_at='1980-01-01' WHERE snapshot_sha256=$1`, chain.purgedSHA); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := superuser.Exec(ctx, `ALTER TABLE screening_ledger_snapshot ENABLE TRIGGER screening_ledger_snapshot_guard_trigger`); err != nil {
+				t.Fatal(err)
+			}
+		})
+		if err := forgePurgedAtAndVerify(t, ctx, chain, superuser, expiresAt.Add(time.Microsecond)); err != nil {
+			t.Fatalf("ADR-0007 Addendum 10 D89: expected a purged_at just after expires_at to still verify with created_at backdated to 1980, got: %v", err)
+		}
+		if err := forgePurgedAtAndVerify(t, ctx, chain, superuser, expiresAt.Add(-time.Hour)); err == nil {
+			t.Fatalf("ADR-0007 Addendum 10 D89: expected a purged_at before expires_at to still be rejected with created_at backdated to 1980 (proving the floor no longer consults created_at)")
 		}
 	})
 }
