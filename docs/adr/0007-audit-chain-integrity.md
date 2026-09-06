@@ -8660,3 +8660,1271 @@ that barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #8
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 10: the composition audit as a process obligation -- CAP #9's forgery through D81, the third consecutive round to be defeated by the mechanism it shipped (2026-09-05)
+
+- **Status:** Proposed
+- **Trigger:** a ninth Composition Audit Program record produced against the implemented
+  Addendum 9 (`docs/backlog/sec-7-cap-record-bdeb83b.md`, adversarial posture, audit basis commit
+  `bdeb83be20874c68e91848691c2d63fecb5a85c3`) returned **QUALIFIED, not PASS** for the ninth
+  consecutive audit. Eight findings, and for the **third consecutive round** the record demonstrates
+  a forgery -- and for the third consecutive round the forgery runs through a mechanism the same or
+  the immediately prior round shipped. **SEC-7 is not closed.**
+- **What CAP #9 confirmed and this addendum does not disturb.** D77 is closed and holds: M-A's exact
+  one-statement reproduction is refused by the installer and the verifier, naming the trigger, the
+  function and the live digest, and the two-member accepted set is correct on both bootstrap paths.
+  D78 fails closed without attempting a repair D34 would refuse. D79's *hoist* is real -- all five
+  refusal paths leave both event triggers exactly as they were found. D80 refuses every substitution
+  CAP #8 demonstrated. D82 closed M-E: the fabricated row is named, not merely counted. D83's
+  temp-leak class is genuinely closed, the D74 reaper withdrawal was honoured, and no
+  `PRIMARY_PGSUPERPASSWORD` default remains. **D31's scoping principle, Addendum 4's referent
+  principle, Addendum 5's population principle, Addendum 6's atomicity principle, Addendum 7's
+  quantifier principle, Addendum 8's naming principle and Addendum 9's composition principle are each
+  correct**, and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75,
+  not D76-D85, not the D19 correction note, not R1-R37. Decision numbering continues at **D86**;
+  risk numbering at **R38**. Where a prior decision's *text* is narrower than what the code does, or
+  is wrong, the new decision says so in its own words -- the convention AR7 established and every
+  addendum since has followed.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `bdeb83be20874c68e91848691c2d63fecb5a85c3` rather than copied from the CAP record or from a prior
+  addendum.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-9
+  held to -- and for the third addendum running, the execution refuted the fix this addendum was
+  expected to reach.** A disposable PostgreSQL 17.11 cluster was built on **port 55520** and
+  provisioned with the **real** schema in `.github/workflows/ci.yml:141-235`'s exact order
+  (`create-roles`, all seventeen `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`,
+  `grant-ddl-ownership`). Baseline confirmed byte-identical to CAP #9 section 7.0 -- thirteen
+  `sec7_protected_object` rows, two `sec7_protected_relation` rows, one `sec7_instance_binding` row,
+  both event triggers `evtenabled='A'`, and D69/D77's four-row trigger-property table exact down to
+  `tgfoid` 16462 and 16846 and all three body digests:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+   sec7_instance_binding   |     1
+
+                tgname                      | tgtype | qual_null | tgnargs | tgenabled | tgfoid |  body_sha
+  ------------------------------------------+--------+-----------+---------+-----------+--------+-------------
+   screening_ledger_anchor_immutable        |     27 | t         |       0 | O         |  16462 | 5632734b5c67
+   screening_ledger_anchor_no_truncate      |     34 | t         |       0 | O         |  16846 | e8db5083c6bf
+   screening_ledger_retention_tombstone_immutable   |  27 | t     |       0 | O         |  16462 | 5632734b5c67
+   screening_ledger_retention_tombstone_no_truncate |  34 | t     |       0 | O         |  16846 | e8db5083c6bf
+  ```
+
+  Every destructive probe ran against a `CREATE DATABASE ... TEMPLATE` clone. **The cluster was torn
+  down and the teardown is proven by pasted `lsof`/`ps` output in the PR description**, the standing
+  obligation Addendum 9 records (`0007:7570-7573`). The developer's own server on port 5432 was never
+  contacted. Four temporary probe test files in `internal/screeningledger` were deleted before this
+  addendum was written and `git status --porcelain` is back to its pass-start value. **The five
+  results that changed the design:**
+  1. **`screening_ledger_snapshot.created_at` cannot be repaired into a sound referent, and
+     protecting the relation does not make it one.** The guard trigger already forbids rewriting it;
+     what it does not and cannot do is authenticate the value at INSERT. It is covered by no MAC
+     anywhere (D89).
+  2. **Making `screening_ledger_snapshot` a protected relation is not a simple addition** -- it
+     breaks `Migrate()` on every provisioned database, measured, and the blocking statements were
+     isolated one class at a time (D89).
+  3. **`anchored_at` is not inside `anchorMAC`'s input**, so MAC-verifying a non-latest anchor row
+     authenticates *which* anchor it is and not *when* it says it was written (D88).
+  4. **`screening_ledger_event.expires_at` is a sound, chain-authenticated lower bound in Postgres's
+     own clock domain**, and the mirror column and the chain-MACed `Event.ExpiresAt` were measured
+     equal (D89).
+  5. **A third guard body -- both `screening_ledger_purge_snapshots` overloads, the functions that
+     actually write `purged_at` -- is declared nowhere**, and substituting one is reported by no
+     observer. Found by the D86 audit, named by no CAP (D86, D87).
+
+---
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554`, `0007:6660-6700` and `0007:7591-7630` set.
+
+1. **CAP #9's N-A limb 1 transcript records `created_at` being backdated to `1990-01-01` in one line
+   and `1980-01-01` in the transcript below it.** Both reproduce; the discrepancy is cosmetic and
+   changes nothing. Recorded because a reader re-executing section 7.1 will notice it.
+2. **CAP #9 section 7.1 states the non-genesis limb's gap as "sequences 2..2" with
+   `preceding=1 attesting=3`.** Reproduced here at `preceding=2 attesting=4`, gap `3..3`, on a
+   fixture built by this pass rather than the CAP's. The shape is what matters -- a gap exists
+   whenever more than one event is appended between two anchors -- and it is the ordinary operating
+   shape, not a contrived one.
+3. **Addendum 9's `file:line` citations resolve against `be62ceb`, not against this tree.** PR #160
+   moved several; CAP #9 section 3-5 lists ten. Re-derived at this commit and confirmed:
+   `requiredProtectedIndexState` is `internal/screeningledger/postgres.go:512-525`,
+   `requiredProtectedTriggerState` is `:568-593` with the declared digests at `:619-623`,
+   `requiredProtectedRelationStates` is `:635-660`, `PreviousAnchorAt` is `:1516-1530`,
+   `SnapshotCreatedAt` is `:1537-1551`, `AllPurgeRecords` is `:1589-1611`, D79's trap is
+   `scripts/ci/provision_test_roles.sh:688-711` and its normal path `:1103-1110`. Expected, not a
+   defect.
+4. **D81's own text says the bound "introduces no new cross-clock comparison"** (`0007:8126-8127`).
+   That is true and it is not the question. **The sentence that does not survive is the one before
+   it** -- that the lower bound is "drawn from the same domain" is offered as the justification for
+   the referent, and being in the right clock is not the same as being unforgeable. D86 withdraws
+   the inference, not the clock-domain fact, and states what remains true of D81 afterwards.
+
+---
+
+### Addendum 10 context: six principles were right, and three rounds applied each to one decision
+
+Addendum 1 diagnosed the original's structural error as fixing instances rather than causes
+(`0007:1494-1497`). Addendum 2 named its findings as one class -- "a control whose installation is
+asserted rather than checked, by the party the control constrains" (`0007:1499-1500`). Addendum 3
+sharpened it to "a control that decides what to protect, or what to protect against, by listing
+members of an open set" (`0007:2172-2173`). Addendum 4 sharpened it again to "the enumeration was
+fixed and the referent drifted" (`0007:2853-2857`). Addendum 5 moved one axis over -- "the referent
+is correct and its population was never stated" (`0007:3742-3746`). Addendum 6 moved to a third, the
+referent a *legitimate* operation rewrites (`0007:4526-4534`). Addendum 7 moved to a fourth, the
+quantifier (`0007:5574-5580`). Addendum 8 moved to a fifth, the name as terminating literal
+(`0007:6732-6738`). Addendum 9 moved to a sixth, composition -- **"a property set is only as strong
+as its weakest member"** (`0007:7668-7674`) -- and produced D76 and D77.
+
+CAP #9 section 0.1 states what survived all six, and it is right:
+
+> Addendum 3's scoping principle, Addendum 4's referent principle, Addendum 5's population
+> principle, Addendum 6's atomicity principle, Addendum 7's quantifier principle, Addendum 8's
+> naming principle and Addendum 9's composition principle are each correct. **The defect that
+> survives all seven is that a round applies its own new principle to the decision that motivated it
+> and not to the decisions it ships alongside.**
+
+That is exactly what happened, and it is visible inside one addendum:
+
+| Addendum 9 decision | D76 applied? | Outcome |
+|---|---|---|
+| **D77** (the decision D76 was written for) | **yes** -- the recursion runs to committed source text | holds against everything CAP #9 tried |
+| **D81** (a *new* comparison, same addendum) | **no** -- both endpoints are mutable database values | **N-A, CRITICAL: forged at T1, both limbs** |
+| **D80** (a *new* property set, same addendum) | **no** -- the set omits the member that decides what the index enforces | **N-C** |
+| **D82**/R35 (a *new* declaration, same addendum) | **no** -- the gate is a marker match, not a derivation | **N-D** |
+| **D79** (a *new* recovery path, same addendum) | population principle not applied -- restores the object, not what it reads | **N-B** |
+
+Three consecutive rounds have now shipped a correct new principle and been defeated through a
+mechanism of their own. Addenda 8, 9 and 10 are the same story with different nouns. **The
+conclusion this addendum draws is that the missing control is procedural, not technical**, and CAP
+#9 section 11 says so in as many words: *"before a round ships, apply its own stated principle to
+every decision in the round and record the result -- including 'checked, and it does not apply.'
+D76's text is good enough to have caught N-A, N-C and N-D at design time."*
+
+**The principle this addendum adopts, stated once and discharged in D86 before any repair is
+designed:**
+
+> **A round's own principle is not discharged by the decision that motivated it. Every decision a
+> round ships -- and every referent every one of them reads -- is audited against that principle in
+> the round's own text, and the result is recorded for each, including "checked, and it does not
+> apply." A principle applied once is an anecdote; a principle applied to the whole round is a
+> control.**
+
+This is deliberately the weakest-sounding decision in the arc and the one most likely to be the
+useful one. It costs a table. Its absence has cost three CRITICALs.
+
+---
+
+### D86. The composition audit, discharged for this addendum before any fix is designed
+
+**Decision: this addendum answers D76's own question -- "does the recursion terminate at a value the
+adversary cannot rewrite without the control noticing?" -- for every referent it touches or
+introduces, before the repairs below are designed, and records the answer for each. Where the answer
+is "checked, and it does not apply," that is recorded too. Every row was executed against the
+provisioned baseline, not reasoned from the code.**
+
+| # | Referent | What the recursion terminates on today | D76 verdict | Disposition |
+|---|---|---|---|---|
+| 1 | `purged_at` upper bound: the attesting anchor's `anchored_at` | a row whose MAC **is** verified (`LatestAnchor`), but on a column outside `anchorMAC`'s input | **partial** | D88 puts `anchored_at` inside the MAC |
+| 2 | `purged_at` lower bound, non-genesis: `PreviousAnchorAt` -> `screening_ledger_anchor.anchored_at` | a row that **no MAC check ever visits**; `owl_ledger_anchor` holds column-level `INSERT` | **FAILS** | D88 |
+| 3 | `purged_at` lower bound, genesis: `SnapshotCreatedAt` -> `screening_ledger_snapshot.created_at` | a Go-supplied envelope field on an unprotected relation, covered by no MAC anywhere | **FAILS, and unrepairable as a referent** | D89 withdraws it |
+| 4 | tombstone existence (D32 condition 3) | a row `owl_ledger_ddl` may `INSERT` by D61's own matrix, kept by `ON CONFLICT DO NOTHING` | **FAILS** | D87 |
+| 5 | tombstone `operator`/`reason` (D70 forward) | the chain-MACed, anchor-committed audit entry | **holds** | unchanged |
+| 6 | the guard **trigger** referents (D69) | `tgtype`/`tgnargs`/`tgattr`/`tgqual` catalog values + `tgfoid` | **holds** | unchanged |
+| 7 | the guard **function body** (D77) | committed source text, unwritable from the database | **holds** -- the model row | unchanged |
+| 8 | the **definer** function bodies: both `screening_ledger_purge_snapshots` overloads | **nothing.** No declared digest exists. These are the functions that *write* `purged_at` | **FAILS** -- named by no CAP | D87 extends D77's set to them |
+| 9 | `screening_ledger_snapshot_guard()`'s body | nothing declares it, and its OID is not in `sec7_protected_object` | **FAILS** | D89, disposition decided and bounded |
+| 10 | declared index shape (D80) | five properties; `indnkeyatts` -- which decides what the index enforces -- is not among them | **FAILS** | D91 |
+| 11 | D77's own accepted-digest declaration (R35) | three `strings.Contains` marker matches; no digest is computed | **FAILS** | D92 |
+| 12 | the D79 trap's restored state | the event trigger *objects*; the registries they read are not restored | **FAILS** (D43's population principle, not D76) | D90 |
+| 13 | D82's reported population | `adjudicatePurgeClaims`, which runs in one mode only | **checked -- not a D76 failure.** A reporting gap, not a forgeable referent | D93 |
+| 14 | `sec7_protect_ddl_objects()`'s own body | superuser-owned; no non-superuser can `CREATE OR REPLACE` it | **checked, and it does not apply** -- terminates at R12/R17's superuser | none |
+| 15 | `sec7_protected_object` / `sec7_protected_relation` / `sec7_instance_binding` contents | superuser-only writes, asserted against literals by D41/D47 | **checked, and it does not apply** | none |
+| 16 | `screening_ledger_event.expires_at` (the referent **D89 introduces**) | `Event.ExpiresAt`, inside the chain digest under `K_chain` and committed under `K_anchor` | **holds** -- and it is why D89 chooses it | D89 |
+| 17 | the anchor's `event_sha256`/`audit_sha256`/`audit_sequence`/`policy_sha256` | `anchorMAC` under `K_anchor` | **holds** | unchanged |
+
+**Row 8 is a finding this addendum owes to the audit rather than to the CAP, and it is stated
+plainly because it is the exact shape D76 was written for.** D77 declared the bodies of the two
+functions the guard *triggers* call, and stopped. The two functions that actually write the
+`purged_at` value D81 exists to bound have no declared body at all. Executed on a `TEMPLATE` clone,
+at T2 (both event triggers down, the documented recovery window), replacing the array-form overload
+with one that writes `purged_at='1999-01-01'` for every snapshot handed to it:
+
+```
+[baseline]
+ proname                          | args                                          | body_sha         | objid_protected
+ screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_before ...        | b28d1c9736844425 | t
+ screening_ledger_purge_snapshots | p_before timestamptz, p_operator, p_reason    | e29c0c5e691599cd | t
+ screening_ledger_snapshot_guard  |                                               | f9cb95289a3fdead | f
+
+[after CREATE OR REPLACE of the array form, event triggers re-enabled]
+ screening_ledger_purge_snapshots | 14055b9c600fd62c      <- was b28d1c9736844425
+
+CheckProvisioningState -> Provisioned=true  Reason=""
+grant-ddl-ownership    -> EXIT=0, 0 FAIL lines
+```
+
+Both observers report clean. **D34's `objid` membership does prevent the substitution while the
+event triggers are live** -- that is real and is credited -- but the declaration-based observers,
+which exist precisely because R30/R34 concede the T2 window, do not see it. D77's own reasoning
+applies verbatim one object over.
+
+**Row 3 deserves its own note, because it is the row that decides D89.** The obvious remedy is
+"make `screening_ledger_snapshot` a protected relation." That was investigated first and it does not
+work, for two independent reasons, both measured. They are in D89.
+
+---
+
+### N-A, reproduced independently on both limbs before anything is repaired
+
+Neither limb is taken from the CAP's transcript. Both were rebuilt against the baseline above, using
+this package's own `newD70Chain` scaffolding -- a real chain, real snapshots, a real
+`Store.PurgeExpired` through `RecordPurge` + `AppendAudit`, real anchors written by `AnchorSink` --
+and each was run with the CAP's own controls so that what is load-bearing is measured rather than
+asserted.
+
+**Limb 2, the non-genesis bound.** Anchors at sequences 1, 2 and 4; the purge is attested by anchor
+4; `PreviousAnchorAt(4)` returns the largest sequence below 4. Gap `3..3`. Control first, with the
+tombstone's `purged_at` rewritten to 1999 and the guard restored so only D81 is left to catch it:
+
+```
+A10PROBE anchor seq=1 anchored_at=2026-09-05T20:56:37.737508-04:00
+A10PROBE anchor seq=2 anchored_at=2026-09-05T20:56:37.793076-04:00
+A10PROBE anchor seq=4 anchored_at=2026-09-05T20:56:37.847179-04:00
+A10PROBE event triggers ENABLE ALWAYS: 2
+A10PROBE tombstone purged_at rewritten to 1999-01-01, guard restored
+A10PROBE step SKIPPED (control: no spurious anchor row)
+A10PROBE after VerifyAnchored: status=failed err=tombstone row for snapshot 4da08f25... has purged_at
+  1998-12-31T19:00:00-05:00, at or before 2026-09-05T20:56:37.793076-04:00 (ADR-0007 Addendum 9 D81)
+```
+
+The mechanism is real and it rejects. Now the attack -- one `INSERT`, as `owl_ledger_anchor`, a role
+section 2 admits by name, using a privilege D61's own declared matrix grants:
+
+```
+A10PROBE attesting anchor=4 preceding anchor=2 (gap = 3..3)
+A10PROBE spurious anchor INSERT at sequence 3 as owl_ledger_anchor: err=<nil>
+A10PROBE after VerifyAnchored: status=verified err=<nil>
+A10PROBE after CheckProvisioningState={Provisioned:true Reason:} err=<nil>
+```
+
+The row carries `anchor_mac='not-a-real-mac'` and `anchored_at='1990-01-01'`. Both event triggers
+were `ENABLE ALWAYS` throughout. No superuser, no laundering.
+
+**Limb 1, the genesis bound, end to end through the real front door**, in the CAP's own order:
+`owl_ledger_ddl` pre-empts the tombstone with a chosen `purged_at` matching the operator and reason
+the purge job will use; `owl_migrator` drops the snapshot guards and backdates `created_at`; the
+**legitimate** `Store.PurgeExpired` then runs and `ON CONFLICT (snapshot_sha256) DO NOTHING` leaves
+the forged row in place while the audit chain attests to the purge:
+
+```
+A10PROBE step 1 OK: owl_ledger_ddl pre-empted the tombstone for 5a0b9a1c6abee367 with purged_at=1999-01-01
+A10PROBE event triggers ENABLE ALWAYS before step 2: 2
+A10PROBE step 2 OK: owl_migrator dropped both snapshot guards and set created_at=1980-01-01;
+                    event triggers ENABLE ALWAYS after: 2
+A10PROBE step 3: legitimate PurgeExpired purged=2 err=<nil>
+A10PROBE tombstone purged_at=1998-12-31T19:00:00-05:00 operator="legit-operator" reason="legit-reason"
+A10PROBE VerifyAnchored: status=verified err=<nil>
+A10PROBE CheckProvisioningState={Provisioned:true Reason:} err=<nil>
+```
+
+Control, identical run with `created_at` left as written:
+
+```
+A10PROBE step 2 SKIPPED (control: created_at left as written)
+A10PROBE VerifyAnchored: status=failed err=tombstone row for snapshot 4a59335d228d1496... has purged_at
+  1998-12-31T19:00:00-05:00, at or before 1999-12-31T19:00:00-05:00 (ADR-0007 Addendum 9 D81)
+```
+
+**And the two structural facts both limbs rest on, measured on the baseline:**
+
+```
+ relname                              | owner          | in_protected_object | in_protected_relation
+ screening_ledger_anchor              | owl_ledger_ddl | t                   | t
+ screening_ledger_retention_tombstone | owl_ledger_ddl | t                   | t
+ screening_ledger_event               | owl_migrator   | f                   | f
+ screening_ledger_snapshot            | owl_migrator   | f                   | f
+
+ tgname                                  | fn                                | trg_protected | fn_protected
+ screening_ledger_snapshot_guard_trigger | screening_ledger_snapshot_guard() | f             | f
+ screening_ledger_snapshot_no_truncate   | owl_reject_truncate()             | f             | t
+```
+
+---
+
+### D87. N-A's enabler: the swallowed conflict, fixed the way CLAUDE.md already prescribes -- and the definer body joins D77's declared set
+
+**The enabler, restated from the code.** `screening_ledger_purge_snapshots` inserts the tombstone
+with `ON CONFLICT (snapshot_sha256) DO NOTHING` in **six** places: both overloads in
+`db/migrations/019_screening_ledger_purge_definer.sql:47` and `:82`, both again in
+`db/migrations/020_screening_ledger_purge_server_side_floor.sql:66` and `:102`, and both again in
+`SchemaSQL` (`internal/screeningledger/postgres.go:1862`, `:1863`). CLAUDE.md names this exact shape
+as a repo-wide trap by name -- *"Do not swallow conflicts. `ON CONFLICT DO NOTHING` on ledger and
+idempotency writes hides real divergence. Catch `23505` and surface it."* -- and CAP #9 section 9
+records that it is "not itself named as a risk anywhere in ADR-0007." It is now.
+
+**Decision, part one: the conflict is surfaced, not swallowed. The prescribed fix is applied rather
+than a new one invented.** Both overloads drop `ON CONFLICT (snapshot_sha256) DO NOTHING`, so a
+tombstone that already exists for a snapshot the server has just found eligible raises `23505` and
+the purge fails loudly instead of adopting the pre-existing row.
+
+**Why a conflict here can only mean divergence, and why the fix therefore costs nothing legitimate.**
+Both overloads gate on `s.purged_at IS NULL` (`020:60`, `:93`), so a snapshot that has already been
+purged is not selected at all and produces no insert. A conflict is reachable only when a tombstone
+exists for a snapshot the mirror still records as unpurged -- which is exactly the pre-emption N-A
+rides on, and is not otherwise reachable through any sanctioned path. Executed, against the
+prototype with the clause removed and nothing else changed:
+
+```
+[legitimate repeat purges -- idempotency]
+run 1 returned: 1
+run 2 returned: 0
+run 3 returned: 0
+tombstones: 1
+
+[a pre-empted tombstone, then the legitimate purge]
+A10PROBE step 1 OK: owl_ledger_ddl pre-empted the tombstone for b5f621a232cf6765 with purged_at=1999-01-01
+A10PROBE (F1) prototype installed: screening_ledger_purge_snapshots without ON CONFLICT DO NOTHING
+A10PROBE step 3: legitimate PurgeExpired purged=0
+                 err=ERROR: duplicate key value violates unique constraint
+                     "screening_ledger_retention_tombstone_pkey" (SQLSTATE 23505)
+
+[no pre-emption -- the positive control]
+A10PROBE step 1 SKIPPED (control: no pre-emptive tombstone INSERT)
+A10PROBE step 3: legitimate PurgeExpired purged=2 err=<nil>
+A10PROBE VerifyAnchored: status=verified err=<nil>
+```
+
+**What this buys, stated precisely so it is not read as more.** It does not make `purged_at`
+authenticated -- D88 and D89 do that. What it does is remove the composition: the pre-empted row can
+no longer coexist with an audit attestation the legitimate purge produced, because the legitimate
+purge no longer completes. The forged row is left with no attesting entry, which D70's reverse pass
+adjudicates and refuses for any snapshot the chain references. **The three components of N-A close
+different halves of one attack and none of them may be removed on the strength of another** -- the
+arrangement D41 part three set for D40 (`0007:3447-3448`).
+
+**A named `23505` rather than a bare one.** The raise is caught and re-raised with a message naming
+the snapshot, the pre-existing row's `purged_at`/`operator`, and the fact that a tombstone exists for
+a snapshot the mirror records as unpurged -- CLAUDE.md's "catch `23505` and surface it," not merely
+"let it propagate."
+
+**Decision, part two: both `screening_ledger_purge_snapshots` overloads gain declared accepted
+`prosrc` digests, exactly as D77 declared the guard functions'.** This is D86 row 8. The reasoning
+is D77's, one object over and stated in its own words: the function that writes `purged_at` is part
+of the retention control, its body is the thing that decides what `purged_at` means, and nothing in
+this repository declares it. D77's two-member finding recurs here and must be measured rather than
+assumed. `019`, `020` and `SchemaSQL` each carry a literal, and `020` re-issues both overloads with
+`CREATE OR REPLACE`, so the body live on a migration-bootstrapped database is `020`'s -- measured on
+this pass's baseline as `e29c0c5e691599cd` (time-floor form) and `b28d1c9736844425` (array form).
+Whether those and the `SchemaSQL` texts agree byte-for-byte is a fact the implementation measures on
+both bootstrap paths before declaring the set. **If they
+disagree, the set has two members and that is correct, not a defect** -- D77's own finding, and
+D92's gate is what keeps either set honest.
+
+**The cost, stated because it is real and because a reader will hit it.** Both overloads are
+`requiredProtectedObjects` members (`postgres.go:358-359`), so a new migration's
+`CREATE OR REPLACE FUNCTION` runs as `owl_migrator` and is refused by D34 on every already-provisioned
+database. This is D77's own "a repairing migration cannot run" (`0007:7888-7891`), one object over,
+and it was re-confirmed here rather than inherited:
+
+```
+[re-running 008g as owl_migrator on a provisioned database]
+psql:db/migrations/008g_screening_ledger.sql:10: ERROR: ADR-0007 Addendum 3 D34:
+  public.screening_ledger_reject_mutation() (objid 16462, tag CREATE FUNCTION) is protected
+  by a superuser-only DDL event trigger
+```
+
+So **changing the definer body is a re-provisioning event**: on a fresh database the new migration
+runs before `grant-ddl-ownership` and nothing is refused; on an existing one the operator follows the
+documented window (`ALTER EVENT TRIGGER ... DISABLE`, apply, `grant-ddl-ownership`). D94 documents
+it as a named procedure rather than leaving an operator to discover it from a D34 refusal. This cost
+is not new and not introduced here -- it is the standing consequence of D34 protecting these objects,
+and it is the reason D78 chose refusal over repair.
+
+---
+
+### D88. N-A limb 2: the preceding anchor becomes a MAC-verified row, and `anchored_at` enters the MAC
+
+**The finding, restated from the code.** `PreviousAnchorAt` (`internal/screeningledger/postgres.go:1516-1530`)
+is `SELECT anchored_at FROM screening_ledger_anchor WHERE ledger_id=$1 AND sequence < $2 ORDER BY
+sequence DESC, anchor_mac DESC LIMIT 1`. It selects one column and verifies nothing.
+`purgeLowerBoundSource.forSnapshot` (`internal/screeningledger/anchor.go:362-374`) hands that value
+straight to `purgeAttributionMismatch` (`:327-338`) as the exclusive floor. Only `LatestAnchor`'s row
+is ever MAC-checked; a non-latest anchor row is read by `PreviousAnchorAt` and by nothing else.
+
+**Decision, two parts, because one without the other leaves a hole and the measurement says which.**
+
+**(a) `PreviousAnchorAt` returns the whole anchor row, and its `anchor_mac` is verified under
+`K_anchor` before any value from it is used. A verification failure is a named, hard failure, not a
+fallback to the next-lower row.** Falling through to an older anchor would let an adversary *choose*
+which bound applies by planting a row -- the same shape one level down.
+
+Executed against the planted spurious row, with the genuine rows as controls:
+
+```
+A10PROBE planted spurious anchor at sequence 3 (attesting=4, genuine preceding=2)
+A10PROBE anchor seq=1 anchored_at=2026-09-05T20:57:26-04:00 mac_verifies=true
+A10PROBE anchor seq=2 anchored_at=2026-09-05T20:57:26-04:00 mac_verifies=true
+A10PROBE anchor seq=3 anchored_at=1989-12-31T19:00:00-05:00 mac_verifies=false
+A10PROBE anchor seq=4 anchored_at=2026-09-05T20:57:26-04:00 mac_verifies=true
+A10PROBE cheap fix -- PreviousAnchorAt row seq=3 mac_verifies=false
+```
+
+**The cost/coverage tradeoff the brief requires, measured rather than assumed.** Two shapes were
+built: verify only the single row `PreviousAnchorAt` returns, or verify every anchor row for the
+ledger on every verification.
+
+```
+A10PROBE cost: one HMAC=700ns ; one-row query=52.617us ; all-rows query (4 rows)=40.831us
+```
+
+The HMAC is free; the query dominates, and at four rows the unfiltered scan is *cheaper* than the
+targeted index probe. **The cheap option is adopted, and the reason is coverage, not cost.** The
+exhaustive sweep is O(n) in a ledger's anchor count and buys nothing here, because the only anchor
+row D81's bound can consult is the one `PreviousAnchorAt` returns, and an adversary cannot make a
+*different* row be returned without planting one -- which is the case the cheap check already
+catches. That reasoning depends on two facts that were executed rather than reasoned about:
+
+```
+A10PROBE replay of the genuine seq=1 MAC at gap sequence 3 verifies=false
+         (sequence is inside anchorMAC's input)
+```
+
+and the row is immutable in place (D16's `screening_ledger_anchor_immutable`) and non-duplicable at a
+sequence (the primary key), both re-confirmed on the baseline. So a row that verifies under
+`K_anchor` at a given sequence was written by a `K_anchor` holder at that sequence, and cannot
+afterwards be moved or edited. **A later reader who wants the exhaustive sweep should note that it is
+affordable and that this decision declines it for coverage-equivalence, not for cost** -- if a future
+change ever lets a second row at the same sequence exist, or lets `PreviousAnchorAt`'s selection be
+influenced by an unverified value, that equivalence is void and R38 records it.
+
+**(b) `anchored_at` enters `anchorMAC`'s input.** MAC verification alone is *not* sufficient for
+D76, and the measurement is what settles it:
+
+```
+A10PROBE genuine row with anchored_at moved to 1990 still verifies=true
+         (anchored_at is NOT in anchorMAC's input)
+```
+
+`anchorMAC` (`internal/screeningledger/anchor.go:34-37`) covers
+`ledger_id ‖ sequence ‖ event_sha256 ‖ audit_sha256 ‖ audit_sequence ‖ policy_sha256` and nothing
+else. Without (b), the endpoint D81's bound terminates on is authenticated only transitively -- "the
+row is genuine and immutable, therefore the timestamp inside it is whatever a `K_anchor` holder
+wrote." That is a *strictly weaker* statement than the one the other five anchor fields enjoy, and it
+is precisely the "one member of the set is weaker than the others" shape D76 exists to forbid. Under
+(b), `anchored_at` terminates on `K_anchor` exactly as `event_sha256` does.
+
+**The cost, and the precedent.** Changing `anchorMAC`'s input invalidates every existing anchor row.
+D11 made exactly this change to add `policy_sha256`, AR7 to add `audit_sequence`, and both made the
+same argument this one makes: `screening-ledger` remains absent from `runtime_executables`
+(`scripts/deployment/r2-4/harness/config/policy.json:150-155`, re-confirmed at this commit), so the
+rows that exist are CI fixtures and test scaffolding, regenerated by the suite that builds them. It
+is free now and never free again. `AnchorSink.WriteAnchor`, `Anchor.Verify` and every in-package
+caller move together; there is no wire format outside this module to coordinate with.
+
+**(a) and (b) ship together.** (a) alone leaves the endpoint value outside the MAC that authenticates
+its row; (b) alone leaves a garbage-MAC row unread by any check on the path that uses it. Stated
+here so a later change cannot remove one on the other's strength.
+
+---
+
+### D89. N-A limb 1: `created_at` is withdrawn as a referent, and the floor becomes a chain-authenticated fact
+
+**The obvious remedy was investigated first and it does not work.** CAP #9 section 11 lists "making
+`screening_ledger_snapshot` a protected relation" as the first candidate, and the brief asks for it
+to be tested rather than assumed. It fails on two independent grounds, both measured.
+
+**Ground one: it is not a simple addition -- it breaks `Migrate()` on every provisioned database.**
+`SchemaSQL` runs as `owl_migrator` on every `migrate`, `sync` and `import-audit` invocation
+(`postgres.go:98-101`; `cmd/screening-ledger/main.go:32`, `:132`, `:258`) and contains, unconditionally,
+a `CREATE OR REPLACE FUNCTION screening_ledger_snapshot_guard()` (`postgres.go:1766`) and a
+`DROP TRIGGER IF EXISTS ... CREATE TRIGGER` for each of the relation's two triggers (`:1767`,
+`:1799`). Executed, registering the objects one class at a time on `TEMPLATE` clones:
+
+```
+A10PROBE Migrate() with control (snapshot NOT protected)                    -> <nil>
+A10PROBE Migrate() with guard FUNCTION only
+  -> ERROR: ADR-0007 Addendum 3 D34: public.screening_ledger_snapshot_guard()
+     (objid 16469, tag CREATE FUNCTION) is protected by a superuser-only DDL event trigger
+A10PROBE Migrate() with two TRIGGERS only
+  -> ERROR: ADR-0007 Addendum 3 D34: screening_ledger_snapshot_guard_trigger on
+     public.screening_ledger_snapshot (objid 16470) is protected ... and cannot be dropped
+A10PROBE Migrate() with RELATION only (sec7_protected_object)               -> <nil>
+A10PROBE Migrate() with RELATION in sec7_protected_relation (D40 phase 2)
+  -> ERROR: ADR-0007 Addendum 4 D40: protected relation "public.screening_ledger_snapshot"
+     (objid 16401): its trigger set changed
+```
+
+Three of the four registrations break the bootstrap path, and the fourth -- registering the relation
+alone in `sec7_protected_object` -- protects nothing that matters. Doing this properly means giving
+`screening_ledger_snapshot_guard()` D78's assert-and-fail treatment and making both trigger
+creations conditional, which is a `SchemaSQL` restructuring in its own right. That cost would be
+worth paying if it produced a sound referent. It does not, which is ground two.
+
+**Ground two, and it is decisive: the guard trigger makes `created_at` un-rewritable, and nothing
+makes it unforgeable.** `screening_ledger_snapshot_guard()`
+(`db/migrations/008g_screening_ledger.sql:17`, and identically `postgres.go:1766`) refuses `DELETE`
+outright and permits an `UPDATE` only when `OLD.created_at = NEW.created_at`. That is already a real
+control and it was verified rather than assumed:
+
+```
+[guard trigger INSTALLED, both event triggers ENABLE ALWAYS]
+[owl_migrator]   UPDATE screening_ledger_snapshot SET created_at='1990-01-01' ...
+  -> ERROR: screening snapshot mutation is not an allowed retention transition
+[owl_ledger_ddl] the same statement (it holds SELECT, UPDATE by provision_test_roles.sh:350)
+  -> ERROR: screening snapshot mutation is not an allowed retention transition
+[owl_migrator]   DROP TRIGGER screening_ledger_snapshot_guard_trigger ...   -> DROP TRIGGER
+[owl_migrator]   the same UPDATE                                            -> created_at = 1989-12-31
+```
+
+But the value is written at `INSERT` by `owl_migrator` from `SnapshotEnvelope.CreatedAt`
+(`postgres.go:1699-1703`, `internal/screeningledger/types.go:71`) under
+`ON CONFLICT (snapshot_sha256) DO NOTHING`, and it is **covered by no MAC anywhere**:
+`SnapshotSHA256` is computed over plaintext (`internal/screeningledger/crypto.go:109`, `:112`) and the
+envelope is not part of any chain digest. So even a fully protected relation gives a referent that is
+un-*rewritable* and freely chosen at insert -- **the D76 recursion terminating on a value the
+adversary supplied**, one level down from where it started. Protecting the relation would raise the
+cost of limb 1 and would not close it.
+
+**Decision: `SnapshotCreatedAt` is withdrawn as D81's genesis-case lower bound. The floor becomes
+`screening_ledger_event.expires_at` for the event that references the snapshot, read from the
+chain-MACed `Event` and corroborated against the mirror -- and it applies in BOTH limbs, not only at
+genesis.**
+
+The rule, stated so nothing weaker satisfies it:
+
+```
+lowerBound(snapshot S, attesting anchor A) =
+    max( expiresAt(S)                                  -- always; chain-authenticated
+       , previousAnchoredAt(A) )                       -- when a MAC-verified preceding anchor exists
+```
+
+`expiresAt(S)` is `Event.ExpiresAt` (`internal/screeningledger/types.go:59`) of the event whose
+`RequestSnapshotSHA256` or `ResponseSnapshotSHA256` is `S`. It is an ordinary field of `Event`, so it
+is inside `hashEvent`'s MAC under `K_chain` and committed under `K_anchor` through the anchor's
+`event_sha256` -- the same termination D70's `operator`/`reason` comparison already enjoys and the
+reason that one holds (D86 row 5).
+
+**Why this is exact rather than approximately right, and why it introduces no cross-clock
+comparison.** Both purge overloads select on `e.expires_at < clock_timestamp()` and write
+`purged_at = clock_timestamp()` **in the same statement**
+(`db/migrations/020_screening_ledger_purge_server_side_floor.sql:57-66`, `:90-102`;
+the predicate at `:64` and `:97`, the written value at `:58` and `:101`). So
+`purged_at > expires_at` holds by construction for every legitimate purge, as one Postgres
+comparison against one stored value -- there is no second clock anywhere in it. D70's own reasoning
+for rejecting `OccurredAt` (`0007:6975-6980`) is preserved exactly: what it forbids is comparing
+against a *Go-process* timestamp, and `expires_at` is not one. It is a value the chain carries and
+the mirror stores, and the two were measured equal:
+
+```
+A10PROBE mirror screening_ledger_event.expires_at=2000-01-01T19:00:00-05:00
+         chain Event.ExpiresAt=2000-01-02T00:00:00Z   equal=true
+```
+
+**Executed against the exact reproduction and against the positive control:**
+
+```
+[the CAP's forgery -- purged_at backdated to 1999, created_at backdated to 1980]
+A10PROBE candidate bound: purged_at AFTER event.expires_at? false     <- REJECTED
+
+[the honest purge -- no pre-emption, no backdating]
+A10PROBE step 3: legitimate PurgeExpired purged=2 err=<nil>
+A10PROBE tombstone purged_at=2026-09-05T20:59:18-04:00
+A10PROBE candidate bound: purged_at AFTER event.expires_at? true      <- ACCEPTED
+A10PROBE VerifyAnchored: status=verified err=<nil>
+```
+
+The forged 1999 date is refused because the snapshot's event expired in 2000, and an honest purge
+verifies clean. **This is the transcript that matters: `created_at` was backdated to 1980 in that
+first run and the new floor does not consult it at all.**
+
+**The authority/corroboration split, stated so a later reader does not collapse it.** The chain's
+`Event.ExpiresAt` is the **authority**. The mirror's `screening_ledger_event.expires_at` is
+**corroboration**: the two must agree, and a disagreement is a named failure reporting
+mirror/ledger divergence. This is deliberately D32 condition 3's arrangement (`0007:2326-2330`) --
+the mirror value is not load-bearing, and requiring both costs nothing and detects divergence for
+free. **A later reader must not remove the mirror comparison on the reasoning that the chain is the
+authority, nor promote the mirror value to the authority on the reasoning that it is what the
+definer function compared.**
+
+**What this bound is weaker at, stated rather than left to a tenth CAP.** At genesis the window is
+`(expires_at, attestingAnchoredAt]` rather than `(previousAnchoredAt, attestingAnchoredAt]`, so a
+genesis-case `purged_at` is unconstrained anywhere between the snapshot's expiry and the ledger's
+first anchor. That is looser than the non-genesis bound and it is the honest maximum: **at a
+ledger's first anchor there is no earlier Postgres-clock value that anything in this system
+authenticates**, and inventing one would mean either a cross-clock comparison D70 correctly refused
+or a referent inside section 2's reach. R39 states it. Note also that the floor is a *strict
+tightening* of the non-genesis limb too, since `max(...)` applies `expires_at` there as well -- a
+purge that predates its own snapshot's expiry is now refused whether or not a preceding anchor
+exists.
+
+**`screening_ledger_snapshot`'s unprotected guards are a real gap and are NOT closed here, and that
+is a decision.** After this decision `created_at` is no referent of any SEC-7 control, so the
+droppable snapshot guard no longer undermines any guarantee this document makes -- which is the test
+"a weakness that would make the new guarantee false is not adjacent cleanup" (section 5.1, D13) sets,
+and it is not met. What remains true is that `owl_migrator` can drop a retention-integrity trigger on
+a relation holding encrypted evidence, with both event triggers live, and nothing observes it. That
+is a snapshot-content integrity question rather than a retention-claim one, it needs the `SchemaSQL`
+restructuring ground one measures, and folding it in here would mean designing a new bootstrap
+contract in the same pass that implements it -- CLAUDE.md rule 7's own prohibition. **R40 records it
+as live with its re-entry condition**, and the register should carry it.
+
+---
+
+### D90. N-B (HIGH): a refusal must restore what it took down, including what the restored objects read
+
+**The finding, reproduced with a control.** D79's trap (`scripts/ci/provision_test_roles.sh:688-711`)
+fires on any non-zero exit after the two `DROP EVENT TRIGGER` statements at `:712-713`. The normal
+path runs `CREATE EVENT TRIGGER` **and then** `ALTER EVENT TRIGGER ... ENABLE ALWAYS` (`:1103-1105`)
+and asserts `evtenabled='A'` for both (`:1106-1110`). The trap runs only the two bare `CREATE`s
+(`:700-704`), and says nothing about the three registries the step deletes from and re-populates.
+Reproduced with a forced `psql` error landing between the registry `DELETE`s and their
+re-population -- a stand-in for the class the trap's own comment names ("a psql error, the row-count
+assertion below, a later refusal"), not for any particular cause:
+
+```
+[state BEFORE]  evt_a=2  obj=13  rel=2  bind=1
+
+grant-ddl-ownership -> EXIT=1
+  ERROR: new row for relation "sec7_protected_object" violates check constraint "a10_force_error"
+  == ADR-0007 Addendum 9 D79: grant-ddl-ownership failed after taking DDL enforcement down;
+     restoring both event triggers rather than leaving this database less protected ... ==
+
+[state AFTER the failure + trap]
+              evtname              | evtenabled
+ sec7_protect_ddl_objects_on_alter | O            <- not 'A'
+ sec7_protect_ddl_objects_on_drop  | O            <- not 'A'
+
+ protected_object_rows | protected_relation_rows | instance_binding_rows
+                     0 |                       2 |                     1
+```
+
+**The consequence, side by side with a pristine `TEMPLATE` clone.** M-A -- this round's predecessor's
+own CRITICAL -- reproduces in one statement, as `owl_migrator`, with no event-trigger disable:
+
+```
+########## trap-restored (evt=O,O  obj=0) ##########
+-- M-A's one statement, as owl_migrator, event triggers NOT disabled --
+   guard body sha256 = b3771fd26ec5                     <- SUCCEEDED
+
+########## pristine (evt=A,A  obj=13) ##########
+-- M-A's one statement, as owl_migrator, event triggers NOT disabled --
+ERROR:  ADR-0007 Addendum 3 D34: public.screening_ledger_reject_mutation() (objid 16462,
+        tag CREATE FUNCTION) is protected by a superuser-only DDL event trigger
+   guard body sha256 = 5632734b5c67                     <- REFUSED
+```
+
+**The two defects are independent, and that was isolated rather than assumed.** With
+`ENABLE ALWAYS` restored by hand and the registry still empty, a second guard function is still
+substitutable -- so the empty registry alone is sufficient:
+
+```
+ evt=A,A  obj=0
+[owl_migrator] CREATE OR REPLACE FUNCTION public.owl_reject_truncate() ... RETURN NEW ...
+   owl_reject_truncate body = b3771fd26ec5              <- SUCCEEDED
+```
+
+**Decision: the trap restores the state the step's own postcondition declares, or it says loudly that
+it could not.** Three parts:
+
+1. **`ENABLE ALWAYS`.** The trap runs the same two `ALTER EVENT TRIGGER ... ENABLE ALWAYS` statements
+   the normal path runs at `:1104-1105`. Two lines. `evtenabled='O'` is not a weaker version of `'A'`
+   -- it is the state the normal path's own assertion at `:1106-1110` exists to refuse.
+2. **The registries.** Restoring an enforcement object without the population it reads is D43's
+   population principle unapplied, and it produces the operator document's own first table row -- the
+   enforcement machinery present and pointed at nothing. The trap re-runs the same registry
+   population the normal path runs, from the same declared literals, rather than inventing a repair.
+3. **The postcondition is asserted by the trap, not only by the normal path.** After restoring, the
+   trap re-checks both event triggers `evtenabled='A'` and all three registry row counts. **If it
+   cannot restore them, it says so in one sentence naming the state** -- "this database is left with
+   DDL enforcement not fully restored; do not trust it until `grant-ddl-ownership` succeeds" -- which
+   is what the existing `WARNING` at `:705-706` gestures at and does not cover, because it fires only
+   when the `CREATE`s themselves fail.
+
+**A stronger alternative was considered and is recorded as unexecuted rather than adopted.** Wrapping
+the whole teardown-repopulate-recreate region in one transaction would make a failure roll back to
+exactly the starting state, which is the postcondition D79 actually wants. `CREATE EVENT TRIGGER` and
+the registry writes are ordinarily transactional in PostgreSQL, but **this pass did not execute
+that**, and this document does not assert PostgreSQL behaviour it has not run -- the standard
+Addendum 3 set (`0007:2129-2139`) and R22 and R26 followed. It is recorded so the implementation can
+evaluate it, and R41 carries it. The three parts above do not depend on it.
+
+**Sequenced first, ahead of the CRITICAL**, on D79's own logic and CAP #9's recommendation: every new
+refusal path shipped before the trap is fixed is another route to a database that presents as
+protected and is not, and D87, D88, D91 and D92 each add or change one.
+
+---
+
+### D91. N-C (MEDIUM): the declared index gains the property that decides what it enforces
+
+**The finding, reproduced.** `requiredProtectedIndexState`
+(`internal/screeningledger/postgres.go:512-525`) declares `indisunique`, `indisprimary` and `indkey`,
+and asserts `indpred`/`indexprs` null as literals in the query. `indkey` renders **all** index
+attributes, key and `INCLUDE` alike; `indnkeyatts` is the count of key columns and is declared
+nowhere. Executed, in the documented recovery window, on a `TEMPLATE` clone:
+
+```
+[baseline]
+ relname                                   | indisunique | indisprimary | indkey | indnkeyatts | indnatts
+ screening_ledger_anchor_pkey              | t           | t            | 1 2    |           2 |        2
+ screening_ledger_retention_tombstone_pkey | t           | t            | 1      |           1 |        1
+
+ALTER TABLE screening_ledger_anchor DROP CONSTRAINT screening_ledger_anchor_pkey;
+ALTER TABLE screening_ledger_anchor ADD CONSTRAINT screening_ledger_anchor_pkey
+  PRIMARY KEY (ledger_id) INCLUDE (sequence);
+
+ relname                      | uniq | prim | indkey | nkey | natts | pred_null | exprs_null
+ screening_ledger_anchor_pkey | t    | t    | 1 2    |    1 |     2 | t         | t
+                                 ^^     ^^     ^^^^^     ^ uniqueness is over ledger_id ALONE
+                                 all five declared properties match the baseline exactly
+
+grant-ddl-ownership -> EXIT=0, 3 PASS lines, 0 FAIL lines
+```
+
+**The consequence, executed.** The anchor table can now hold at most one row per ledger, so the
+external commitment section 8's closing condition rests on can no longer be extended:
+
+```
+  substituted db:   INSERT two anchors for one ledger
+    -> ERROR:  duplicate key value violates unique constraint "screening_ledger_anchor_pkey"
+  pristine control: the identical INSERT
+    -> (succeeds, both rows inserted)
+```
+
+**Decision: `indnkeyatts` joins `requiredProtectedIndexState`, declared per index and measured on the
+baseline (`2` for the anchor pkey, `1` for the tombstone pkey), asserted in the installer and the
+verifier alike.**
+
+This is D75's own withdrawal condition -- "shipping a comparison covering some properties and not
+others" -- engaged and discharged rather than tripped in implementation. `indnkeyatts` is not a sixth
+decoration: it is the only declared property that distinguishes "unique over `(ledger_id, sequence)`"
+from "unique over `ledger_id`, carrying `sequence` as payload," and those are different constraints
+with different consequences for whether this ledger can be anchored again.
+
+**`indclass`, `indcollation` and `indnullsnotdistinct` are deliberately not added, and the reason is
+recorded so it is not re-derived.** CAP #9 section 7.12 establishes by execution that `indisprimary`
+forecloses the entire opclass/collation axis -- PostgreSQL refuses to attach a `text_pattern_ops` or
+nondeterministic-collation index as a `PRIMARY KEY` (`column number 1 does not have default sorting
+behavior`) -- and that `indnullsnotdistinct` has no reachable effect while both key columns of both
+declared indexes are `NOT NULL`. Adding them would be declaration for its own sake, which is a
+different failure from omitting the one that matters. **If a future migration ever makes a declared
+index non-primary or a key column nullable, that reasoning is void and the properties must be
+re-evaluated** -- D95's invalidating conditions record it.
+
+---
+
+### D92. N-D (MEDIUM): the gate that keeps the declared digests honest computes a digest
+
+**The finding, restated from the code and reproduced.** R35 (`0007:8518-8529`) names its own
+mitigation precisely: *"a check that extracts both bootstrap paths' literal function bodies from
+`db/migrations/*.sql` and `internal/screeningledger/postgres.go`, digests them, and asserts the
+declared set is exactly that set."* What shipped is
+`TestOwlRejectTruncateAcceptedDigestsMatchCommittedLiterals`
+(`internal/screeningledger/d77_body_digest_pgx_test.go:349-376`): three `strings.Contains` against
+hard-coded markers plus one inequality between two constants. It never extracts a body, never digests
+one, and never compares a digest to a declared constant. That is D21's condemned
+presence-implies-correctness shape (`0007:1657-1662`), inside the mitigation R35 named to prevent a
+stale declaration.
+
+All three declared digests **do** derive correctly from the committed literals today. Re-derived here
+independently rather than transcribed:
+
+```
+migration owl_reject_truncate   repr=" BEGIN\n  RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;\nEND "
+                                digest=e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf  == declared
+SchemaSQL owl_reject_truncate   repr=" BEGIN RAISE EXCEPTION 'relation % is append-only; TRUNCATE is prohibited', TG_TABLE_NAME;END "
+                                digest=fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0  == declared
+008g      slrm                  repr=" BEGIN RAISE EXCEPTION 'screening ledger rows are append-only';END "
+                                digest=5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1  == declared
+SchemaSQL slrm                  digest=5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1  == declared
+```
+
+**The gate that is supposed to keep them that way sees none of it.** The `SchemaSQL` marker is a
+*substring* of the body, so the surrounding whitespace -- which is exactly what makes the two-member
+set necessary -- lies outside it:
+
+```
+AS $func$BEGIN ... END$func$      (outer spaces removed)   marker matches=True  digest=5a6529387527…  == declared? False
+AS $func$  BEGIN ... END  $func$  (outer spaces doubled)   marker matches=True  digest=07777e190064…  == declared? False
+trailing newline added                                     marker matches=True  digest=d521f1029d67…  == declared? False
+```
+
+**And `screeningLedgerRejectMutationBodySHA256` (`postgres.go:620`) has no static pin at all.**
+`db/migrations/008g_screening_ledger.sql` is read by no test in the repository -- the fourth line of
+the derivation above is a fact this pass established and nothing in CI does.
+
+**The consequence of a stale digest is not a weakened control but a hard refusal on every clean,
+unattacked database** -- D45's pre-declared false-failure shape, and the shape D77's two-member set
+exists to avoid. R35 says as much: *"Without that gate this decision is one reformat away from being
+D45's false-failure shape."*
+
+**Decision: the gate computes the digests it asserts, over all four committed literals, and every
+declared constant gains a static pin.**
+
+- **Extract, digest, compare.** Each literal is located by its `CREATE ... FUNCTION` statement and
+  the body taken between the delimiters that statement uses, `sha256`'d, and compared for **equality**
+  against the declared constant. Marker presence stops being the assertion; it survives only as the
+  extraction anchor, and a failure to extract is itself a failure rather than a silently skipped
+  check.
+- **Four literals, not two.** `db/migrations/012_truncate_guards.sql` and `SchemaSQL` for
+  `owl_reject_truncate()`; `db/migrations/008g_screening_ledger.sql` and `SchemaSQL` for
+  `screening_ledger_reject_mutation()`. The 008g literal being read by nothing is what let a
+  one-member declaration for that function go unverified against its own migration path.
+- **Set equality, not membership.** The declared set must be *exactly* the set of digests derived
+  from the committed literals -- so a declared member with no literal behind it fails, and a literal
+  with no declared member fails. That is D61's own direction (`0007:5867-5873`) and it is what makes
+  the check a derivation rather than a spot check.
+- **DSN-free.** The check reads committed files and package constants only, so it runs on every
+  `go test ./...` with no database -- which is the property that makes it a gate rather than
+  something that self-skips. D77's existing pgx tests are unchanged and keep proving the live half.
+- **D87's new definer digests are covered by the same gate on the same terms**, so the set that
+  decision introduces cannot drift either.
+
+---
+
+### D93. N-E (MEDIUM) and N-F (LOW): the reporting pass reports in every mode, and every command
+
+**The finding, reproduced.** `adjudicatePurgeClaims` runs only under
+`mode == VerificationModeAnchored` (`internal/screeningledger/anchor.go:662`), and D82's fields are
+emitted unconditionally (`cmd/screening-ledger/main.go:125-126`). So historical-unanchored mode
+reports `out_of_scope_retention_tombstone_count: 0` beside `status: ok`. Executed against **the same
+database with the same rows**, one policy field apart:
+
+```
+A10PROBE ANCHORED   mode: status=verified verification_mode=anchored              out_of_scope_count=3
+A10PROBE UNANCHORED mode: status=verified verification_mode=historical-unanchored out_of_scope_count=0
+A10PROBE the SAME database holds 5 tombstone rows in both runs
+```
+
+Nothing in the output distinguishes "checked and clean" from "never looked." That is D24's own lesson
+-- *"'I could not check' and 'I checked and it was fine' no longer share an outcome"*
+(`0007:1102-1104`) -- not applied to the field D82 added, and it is D12's subject one level down.
+
+**`sync` (N-F) runs the same anchored verification and discards the result.** `main.go:174` emits
+`status`, `synced_event_count`, `verification_mode` and `anchor_status`, and not the two D82 fields,
+where `status`/`verify` emit them at `:125-126`. The adjudication ran, the reporting pass ran, and an
+operator whose routine is `sync` never sees a fabricated tombstone.
+
+**Decision, two parts.**
+
+**(a) The reporting pass is separated from the adjudicating pass and runs in every mode.** D82's own
+text already describes them as "two passes over one query" (`0007:8186`); the implementation fused
+them by placing both inside the `mode == VerificationModeAnchored` branch. The reporting pass needs
+no anchor: it partitions `AllPurgeRecords` against `KnownSnapshotSHA256`, and both are available in
+historical-unanchored mode. The **adjudicating** pass stays exactly where it is -- condition 2 has no
+anchor to compare against in that mode, which is D32's own correct reasoning and is not reopened.
+
+**(b) Where a mode genuinely cannot report, it says so rather than reporting zero.** The reporting
+pass depends on a database connection, which `status`/`verify` already fail closed without
+(re-confirmed: omitting `--postgres-dsn-env` in anchored mode fails before any pass runs). Should any
+future path reach the reporting pass without one, the field is emitted as an explicit
+not-checked marker rather than `0` -- the same rule (a) is fixing, applied to the mode below it, so
+this decision cannot recreate its own finding one layer down.
+
+**(c) `sync` emits the same two fields**, from the same report it already computes and discards.
+One-line change, and the reason it matters is stated rather than assumed: `sync` is the command an
+operator schedules, and D82 exists for the auditor who reads what a scheduled command prints.
+
+---
+
+### D94. N-G (LOW), N-H (LOW): a counter that measures the directory `mktemp` uses, and a document that says what the command prints
+
+**N-G, reproduced -- and D83's underlying fix independently re-verified first, because the brief
+asks for exactly that separation.** The fix is sound. Measured here against the directory
+`mktemp -d` actually writes to, on a real, successful run of the script:
+
+```
+the directory macOS mktemp -d actually uses: /var/folders/29/4xbbdtg13dnghfy6mh75w3k80000gn/T
+entries BEFORE: 3107
+DR script EXIT=0
+== D83: this run's scratch root is /var/folders/…/T/tmp.CV9fcpOzcB -- if this run is SIGKILLed, …
+PASS: ADR-0007 Addendum 7 D66 / Addendum 8 D74 -- corrected cross-cluster DR procedure completed
+      with zero errors on a genuinely second PostgreSQL cluster …
+entries AFTER:  3107
+--- NO LEAK ---
+```
+
+**The test that covers it cannot see any of that on macOS with `TMPDIR` unset.** `tmp_file_count()`
+is `find "${TMPDIR:-/tmp}" -maxdepth 1 | wc -l`
+(`scripts/ci/tests/test_verify_cross_cluster_dr_temp_hygiene.sh:64-65`). `/tmp` on macOS is a
+symlink and `find` does not follow a symlinked start path, so the count is a constant `1`, while
+`mktemp -d` writes to `confstr(_CS_DARWIN_USER_TEMP_DIR)` regardless of `TMPDIR`:
+
+```
+$ ls -ld /tmp
+lrwxr-xr-x@ 1 root  wheel  11 Aug 12 22:51 /tmp -> private/tmp
+TMPDIR unset -> ${TMPDIR:-/tmp} = /tmp        find count: 1
+                                              find /private/tmp count: 260
+             mktemp -d actually wrote:        /var/folders/…/T/tmp.pH4qvmHTWe
+             the shipped tmp_file_count():    1
+```
+
+That is the exact configuration commit `5a992fa`'s own message says the fix was re-verified in.
+**The obligation "has now failed twice" was re-verified a third time against a counter that could not
+have changed.**
+
+**Decision: the counter asks where `mktemp` writes rather than where `TMPDIR` points, and both halves
+of the defect are fixed rather than the visible one.** The two halves are independent -- the symlink
+(fixed by `find -H`) and the wrong directory (fixed only by asking `mktemp`) -- and fixing the first
+alone still measures `/private/tmp`'s 260 entries while the script writes elsewhere. Illustrative
+only:
+
+```sh
+tmp_root() { local d; d="$(mktemp -d)"; local r; r="$(dirname "$d")"; rmdir "$d"; printf '%s' "$r"; }
+tmp_file_count() { find -H "$(tmp_root)" -maxdepth 1 2>/dev/null | wc -l | tr -d ' '; }
+```
+
+Executed in both configurations, and the point is that they agree:
+
+```
+TMPDIR set:   root=/var/folders/29/4xbbdtg13dnghfy6mh75w3k80000gn/T count=3107
+TMPDIR unset: root=/var/folders/29/4xbbdtg13dnghfy6mh75w3k80000gn/T count=3107
+```
+
+On the Ubuntu runner `mktemp -d` writes to `/tmp`, `dirname` yields `/tmp`, `/tmp` is a real
+directory and `-H` is a no-op -- so the same counter is correct there, which is what makes this
+cross-platform rather than a macOS special case. **The test must also assert that its own counter is
+non-vacuous** -- that the root it measures is the one the script's scratch line names -- because a
+counter that cannot change is exactly what shipped.
+
+**N-H, reproduced.** `docs/operations/sec7-database-copies.md:233-236` (the claim itself at `:235`) says step 0 "reports the
+database as unprovisioned, **naming the mismatched instance**." Run literally against a real
+`pg_dump | psql` restore:
+
+```
+CheckProvisioningState Provisioned=false
+  Reason=sec7_protected_object has no row whose OID resolves (via pg_identify_object) to
+         pg_class public.screening_ledger_anchor (ADR-0007 Addendum 4 D41): the registry is
+         stale, repointed, or was never populated with this object
+```
+
+No instance is named. The instance *is* named -- by D46's runtime event-trigger message, on the same
+database, reached a different way:
+
+```
+[owl_migrator] CREATE TABLE a10_probe_x(x int);
+ERROR: ADR-0007 Addendum 5 D46: protected relation "public.screening_ledger_anchor" (registry objid
+  16914) no longer exists. This database is a copy or restore of another (registry recorded instance
+  7682218658431157491/16384 owl_ci; live instance 7682218658431157491/17061 a10_restored) …
+```
+
+**Decision: the sentence says what the command prints, and points at the surface that does name the
+instance.** Step 0 reports D41's registry-resolution reason; the instance appears in D46's message on
+the next DDL statement. Both are correct and they are different surfaces, and a document that
+conflates them tells an operator to look for something that is not there -- which is the same class
+as D63's "not a copy" overclaim, corrected for the same reason.
+
+**The document also gains what D87 and D90 make it owe an operator**, executed before it is written,
+per D84's standard:
+
+- **D87's re-provisioning procedure**: changing a definer function body is refused by D34 on an
+  already-provisioned database, so it is applied inside the documented window. The transcript above
+  is what an operator sees if they skip it.
+- **D90's corrected postcondition**: what state a refusal leaves the database in, and the
+  confirmation query (`evtenabled` for both, and all three registry row counts) that distinguishes a
+  fully restored database from a trap-restored one. `:274-280`'s claim (the sentence at `:278`) -- true for the five hoisted
+  refusals, false for the trap path -- is corrected to say which is which.
+- **D89's note** that `screening_ledger_snapshot`'s guards are not protected objects, so a `DROP
+  TRIGGER` on that relation is not refused and not reported (R40).
+
+---
+
+### D95. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26 (`0007:1874-1885`), D37 (`0007:2623-2662`),
+D42 (`0007:3455-3523`), D49 (`0007:4237-4307`), D58 (`0007:5231-5321`), D67 (`0007:6365-6461`), D75
+(`0007:7296-7344`) and D85 (`0007:8383-8458`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #9 transcript
+exists the test reproduces that transcript, not a paraphrase. Several are stated as "must pass today
+and fail after" -- deliberately, per D42's note (`0007:3461-3465`): for these findings the current
+behaviour is *acceptance*, so a test asserting only the post-fix refusal cannot distinguish a working
+fix from a test that never exercised the path.
+
+1. **D87.** `TestPurgePreemptionSurfacesRatherThanBeingSwallowed` (pgx): CAP #9 section 7.1's exact
+   sequence -- `owl_ledger_ddl` pre-empts the tombstone, then the real `Store.PurgeExpired` runs --
+   asserting the purge **succeeds today** leaving the forged row in place and `VerifyAnchored`
+   returns `verified`, and that after the change the purge fails with a **named** `23505` identifying
+   the snapshot and the pre-existing row. **Plus the three positives that make it safe to install**:
+   three consecutive legitimate purges are idempotent (1, then 0, then 0, one tombstone row); a
+   purge with no pre-emption still succeeds and still verifies clean; and both overloads are covered,
+   not only the array form `RecordPurge` uses.
+   `TestPurgeDefinerBodyIsDeclaredNotAddressed` (pgx): substitute either overload's body at T2, assert
+   `CheckProvisioningState` returns `Provisioned=true Reason=""` and `grant-ddl-ownership` exits 0
+   **today**, and that both refuse after, naming the function and the live digest. **Plus the
+   over-tightening positives on both bootstrap paths**, D85 test 1's own requirement -- a clean
+   migration-bootstrapped database and a clean `create-schemasql-only-database` are both accepted,
+   because that is the test that catches a one-member set declared from one literal.
+2. **D88.** `TestPreviousAnchorIsMACVerified` (pgx): CAP #9 section 7.1's exact spurious gap anchor,
+   asserting `VerifyAnchored` returns `verified` **today** on a tombstone backdated to 1999 and fails
+   after, naming the sequence and the MAC failure. **Plus the controls that prove each step is
+   load-bearing**: the same run with no spurious row (D81 already rejects), and the same run with the
+   referent left honest. **Plus the `anchorMAC` half**: a genuine anchor row whose `anchored_at` is
+   altered verifies **today** and fails after -- the assertion that would fail if only (a) shipped.
+   **Plus the positive**: a clean, legitimately anchored ledger with a real purge verifies clean, and
+   every existing anchor test is regenerated rather than pinned to the old MAC input.
+3. **D89.** `TestPurgedAtFloorIsChainAuthenticated` (pgx): CAP #9 section 7.1's limb-1 sequence in
+   full -- pre-emption, both snapshot guards dropped, `created_at` backdated, then the legitimate
+   purge -- asserting `VerifyAnchored` returns `status=verified err=<nil>` **today** and a named
+   failure after. **Plus the assertion that isolates the fix**: the same run with `created_at`
+   backdated and the new floor in place must still fail, proving the floor no longer consults it.
+   **Plus the mirror/chain reconciliation in both directions**: they agree on a clean ledger, and a
+   mirror `expires_at` altered away from the chain's value is a named divergence failure.
+   **Plus the positives**, which are the ones D45's rule requires: a real `Store.PurgeExpired` purge,
+   anchored, verifies clean at genesis **and** past a preceding anchor; and clock skew between the Go
+   process and Postgres does not fail it -- the false-failure D70 correctly refused to create.
+4. **D90.** `TestRefusalRestoresTheDeclaredState` (shell or pgx): for **each** of the five refusal
+   paths, and additionally for a failure landing between the registry `DELETE`s and their
+   re-population, assert `grant-ddl-ownership` exits 1 **and** both event triggers are `evtenabled='A'`
+   **and** all three registry row counts are 13/2/1. Today the trap path measures `'O'`/`'O'` and 0.
+   **Plus the consequence as a named regression**: M-A's one statement, as `owl_migrator` with no
+   event-trigger disable, is refused by D34 after a trap-restored failure, where it succeeds today --
+   and the pristine control asserts the same statement was already refused there, so the test cannot
+   pass by the fix being absent from both. **Plus the isolation**: `ENABLE ALWAYS` restored with the
+   registry still empty must still fail, which is what proves part 2 is load-bearing and not
+   redundant with part 1.
+5. **D91.** `TestDeclaredIndexKeyColumnCountIsVerified` (pgx): CAP #9 section 7.4's exact
+   `PRIMARY KEY (ledger_id) INCLUDE (sequence)` substitution, asserting `grant-ddl-ownership` exits 0
+   and `CheckProvisioningState` returns `Provisioned=true` **today**, that the second anchor for a
+   ledger is rejected today so the consequence is proven rather than described, and that both refuse
+   after. **Plus the positive**: both clean relations accepted, and D65's validity branch and D80's
+   five properties unregressed.
+6. **D92.** The gate is rewritten as a derivation and must **fail** against a deliberately
+   whitespace-altered copy of each of the four literals while the marker still matches -- the three
+   variants measured above are the table. Plus set equality in both directions: a declared digest
+   with no literal behind it fails, and a literal with no declared digest fails. Plus the assertion
+   that it runs with no DSN.
+7. **D93.** `TestOutOfScopeTombstonesAreReportedInEveryMode` (pgx): the same database and the same
+   rows, anchored and historical-unanchored, asserting the counts are `3` and `0` **today** and equal
+   after. Plus `sync`'s output carrying both fields. Plus the negative that keeps D70's scope limit
+   intact: rows **inside** the known set still fail verification on divergence, in anchored mode, and
+   are still not adjudicated in unanchored mode.
+8. **D94.** The hygiene test's counter must be asserted **non-vacuous**: the test fails if the root it
+   measures is not the one the script's own `== D83: this run's scratch root is ... ==` line names.
+   Executed with `TMPDIR` set and with `TMPDIR` unset, and the PR states which platforms it was run
+   on. Every command written into `docs/operations/sec7-database-copies.md` is executed and its
+   output pasted in the stage PR, D84's standard, step 0 included.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D87, D88 and D89 ship together.** Each closes a different half of N-A and none closes it alone:
+  D87 removes the composition, D88 authenticates the non-genesis endpoint, D89 removes the genesis
+  endpoint. Shipping any subset leaves a demonstrated forgery, and the arrangement is stated here so
+  a later change cannot remove one on another's strength.
+- **`SnapshotCreatedAt` must not be reinstated as a lower bound, in any form, including "when the
+  snapshot relation is protected."** It is the design this section was expected to reach and it is
+  refuted above by execution on two independent grounds. A later reader who rediscovers it should
+  find D89's two transcripts -- the `Migrate()` refusals and the `INSERT`-time origin of
+  `created_at` -- before implementing it.
+- **If the mirror/chain `expires_at` reconciliation cannot be made exact** for any legitimate event
+  in the shipped configuration -- the two were measured equal here, so this is expected to remain
+  un-triggered -- the implementation stops and this addendum is amended rather than shipping a
+  comparison with a tolerance. **A tolerance invented in the implementing pass is a new equivalence
+  relation over a security comparison**, which is what D85's own second withdrawal condition forbids
+  for `prosrc` and forbids here for the same reason.
+- **D88(b) must not be dropped to avoid regenerating anchor fixtures.** That is a cost, not an
+  argument, and it is the cheapest it will ever be. If it is dropped anyway, D88(a) still closes the
+  demonstrated reproduction and the addendum must record that `anchored_at` remains outside the MAC
+  and that D86 row 1 stays **partial** -- explicitly, not by omission.
+- **D90 must not be implemented as the `ENABLE ALWAYS` half alone.** The two-line half is the visible
+  one; the isolation transcript above shows the empty registry is independently sufficient to
+  reproduce M-A.
+- **If D93(a) cannot separate the two passes without changing `VerifyReport`'s contract beyond what
+  D82 already added**, the implementation stops and the design is amended. It does not silently
+  widen the *adjudicating* population into unanchored mode -- condition 2 has nothing to compare
+  against there, and D32's reasoning for that is sound.
+- **The `screening_ledger_snapshot` protection question must not be reopened inside this addendum's
+  implementation.** R40 scopes it, D89 explains why it is neither necessary nor sufficient for N-A,
+  and folding a `SchemaSQL` bootstrap-contract change into a stage that is repairing three referents
+  is how a round ships a mechanism it did not audit -- which is the finding this addendum exists to
+  answer.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #9's confirmation. D77's
+two-member set is untouched and D92 strengthens the gate that protects it rather than the set itself,
+so D85's first and third conditions are not engaged; D87 adds a *new* declared set on the same terms
+and D92 covers it. `prosrc` is not normalised, trimmed or whitespace-folded anywhere in this
+addendum. D77 and D80 remain shipped together and D91 adds a property beside D80's five rather than
+replacing any. D79's hoist is untouched -- D90 fixes only the trap the hoist explicitly does not
+cover. D65's validity branch and D50's `index_defs` are untouched, so Addendum 6's "record both
+`index_oids` and `index_defs`" fallback and Addendum 7's "assert validity in D47 only" fallback are
+both **not** required and **must not** be adopted. The withdrawn D74 reaper is not reintroduced in any
+form, including the liveness-checking variant R37 records. D82's reporting population is widened in
+*mode* only, never in *adjudicating scope*, so D85's last condition is honoured. The instance binding
+is still not a gate. D46 is not split from D45. D40's collateral-damage cases pass. D38(a) and
+D38(b) remain shipped together. D69's rejection of `pg_get_triggerdef` stands and is not revisited.
+
+### New accepted risks
+
+**R38 -- D88(a) verifies the anchor row the bound uses, not every anchor row, and that equivalence has
+a stated precondition.** The cheap check is coverage-equivalent to the exhaustive sweep only because
+three facts hold together, each measured here: `sequence` is inside `anchorMAC`'s input so a MAC
+cannot be replayed at another sequence, the primary key forecloses a second row at one sequence, and
+D16's row-immutability trigger forecloses editing a row in place. **If any future change breaks one
+of those -- a composite key change, a relaxed uniqueness constraint (D91's own finding shows that is
+reachable), or a neutered immutability trigger -- the equivalence is void and the sweep becomes
+necessary.** The exhaustive form was measured and is affordable (40.8 microseconds for four rows,
+700 nanoseconds per HMAC), so the fallback is cheap; what it is not is free of a decision, and this
+records which decision. A second residual, stated because it is real: a planted garbage-MAC row now
+makes verification **fail** rather than pass, so an adversary at T1 can force a verification failure.
+That is a denial of service against an audit, it is strictly better than a silent forgery, and it is
+the direction D12 requires.
+
+**R39 -- the genesis-case floor is looser than the non-genesis one, and that is the honest maximum.**
+After D89 a purge attested by a ledger's *first* anchor is bounded below by the snapshot's own
+chain-authenticated expiry and above by that anchor's `anchored_at`; a `purged_at` anywhere inside
+that window is accepted. At a ledger's first anchor **there is no earlier Postgres-clock value that
+anything in this system authenticates**, and the two ways to appear to close it are both refused:
+comparing against a Go-process timestamp is the cross-clock false-failure generator D70 correctly
+rejected, and comparing against any mirror column is a referent inside section 2's reach, which is
+N-A. The window narrows to nothing as soon as a second anchor exists, so this is bounded by anchor
+cadence -- joining R2/R11's tamper window, R14's rollback window, R16's purge attestation and R27's
+privilege-observation window as a security parameter this design leaves unscheduled, and still
+section 8/D6/D18's separate gate concern.
+
+**R40 -- `screening_ledger_snapshot`'s guard trigger is droppable by its owner, with both event
+triggers live, and nothing observes it.** Measured: `owl_migrator` owns the relation, neither the
+relation nor `screening_ledger_snapshot_guard()` nor either of its triggers appears among the
+thirteen `sec7_protected_object` rows, and the `DROP TRIGGER` succeeds at T1. After D89 this
+falsifies no guarantee this document makes -- `created_at` is no longer a referent of anything -- so
+it is **not** in N-A's scope by section 5.1's own test. What it remains is a retention-integrity
+control on a relation holding encrypted evidence that the constrained party can remove unobserved.
+Closing it requires giving `screening_ledger_snapshot_guard()` D78's assert-and-fail treatment and
+making both trigger creations in `SchemaSQL` conditional -- a bootstrap-contract change with its own
+positives to prove on both paths. **The register should carry it**, and the re-entry condition is the
+first change that makes any snapshot column a referent of any control, or the first deployment that
+screens real traffic.
+
+**R41 -- D90 restores the declared state; it does not make the step atomic, and the transactional
+alternative is stated as unverified rather than asserted.** Wrapping the teardown, the registry
+repopulation and the trigger recreation in one transaction would give D79 the postcondition it
+actually wants -- either fully provisioned or byte-identical to the starting state -- and PostgreSQL
+is ordinarily transactional for all three statement kinds. **This pass did not execute it**, and this
+document does not assert PostgreSQL behaviour it has not run, the standard Addendum 3 set
+(`0007:2129-2139`) and R22 and R26 followed. D90's three parts do not depend on it and close the
+measured defects on their own; the transactional form is recorded so a later addendum has the
+question rather than re-deriving it.
+
+**R42 -- the coordinated-edit surface grew along the axis R23, R29 and R33 already track.** D87 adds
+declared digests for two definer overloads across the migration and `SchemaSQL` paths; D91 adds one
+property per declared index; D88 changes `anchorMAC`'s input, which every anchor fixture and every
+anchor test depends on. No new *kind* of literal is introduced -- every one is a property of an
+object this document already declares -- but the count grew again and this addendum does not pretend
+otherwise. **The mitigating property is unchanged and is why the arrangement survives: every one of
+those assertions fails closed.** D92 is the first decision in the arc that actually derives a
+declared constant from its source rather than asserting a marker beside it, which narrows R35's own
+stated fragility for the digests it covers. The aggravating property section 10.3 names -- that these
+controls have no single owner -- is unchanged and is not addressed here.
+
+### Staging
+
+Same shape and reason as section 8 and the nine prior addenda (`0007:1397-1414`, `0007:2038-2058`,
+`0007:2694-2716`, `0007:3566-3586`, `0007:4342-4367`, `0007:5360-5384`, `0007:6512-6540`,
+`0007:7429-7459`, `0007:8560-8593`): each stage independently reviewable and independently provable.
+Ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage M1 -- the refusal that restores what it took down.** D90. Sequenced **first**, ahead of
+   the CRITICAL, for the reason Addendum 9's L1 gave and CAP #9 section 11 repeats: D87, D91 and D92
+   each add or change a refusal path, and every refusal path shipped before the trap is fixed is
+   another route to a database that presents as protected and is not. It is also the cheapest stage.
+3. **Stage M2 -- the retention claim's referents.** D86's audit obligation, D87, D88 and D89
+   together (D95's first withdrawal condition). The CRITICAL. D88's `anchorMAC` change and the
+   fixture regeneration it forces ride here rather than in a later stage, because splitting a MAC
+   input change across stages leaves a window in which the fixtures and the verifier disagree.
+   D89's positives -- an honest purge verifying clean at genesis and past a preceding anchor -- are a
+   shipping requirement, not a nicety.
+4. **Stage M3 -- the declarations.** D91 and D92 together. Both are "the declared set omits a
+   member" in the same round's own decisions, both edit `requiredProtectedRelationStates`'s
+   neighbourhood, and D92's gate is what keeps D87's new digests honest, so it must not lag them by
+   more than a stage.
+5. **Stage M4 -- the reporting and the document.** D93 and D94. Blocks nothing, and is therefore
+   sequenced last and explicitly **not** droppable -- D23 was sequenced last on the same "blocks
+   nothing" reasoning and CAP #2 rated the resulting gap HIGH, a lesson Addendum 5's staging recorded
+   (`0007:4348-4354`) and Addenda 6, 7, 8 and 9 each repeated, and which **Addendum 9's own M-G is
+   the standing proof of**: D74 promised a documentation change and its implementation shipped none.
+   Per CLAUDE.md Boundaries any workflow wiring is named explicitly in the stage PR description,
+   following D30's precedent.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #9 re-confirmed that nothing in PR #159 or #160 re-asserted the guarantee; that must remain
+   true through this addendum as well.
+
+**SEC-7 does not close on this addendum, and for the third round running the reason is a forgery.**
+Section 8's closing condition -- "a deliberately forged chain fails a CI run that nobody chose to
+invoke" -- remains met for the **chain**: `anchorMAC` still catches every history-side rewrite and
+CAP #9 re-confirms the cryptographic layer is unbroken across all nine rounds. It is **not** met for
+the **retention claim**, which the invariant names alongside history and which this round forges on
+both of D81's limbs at T1, for a snapshot inside this ledger's own history. D87 through D89 are the
+whole of that barrier, and D86 is the whole of the barrier to a fourth instance of the same shape.
+
+### Addendum 10 summary
+
+- **CAP #9's verdict is QUALIFIED, not PASS, for the ninth consecutive audit, and for the third
+  consecutive round it demonstrates a forgery -- each time through a mechanism the round itself
+  shipped.** Eight findings. Addendum 3's scoping principle, Addendum 4's referent principle,
+  Addendum 5's population principle, Addendum 6's atomicity principle, Addendum 7's quantifier
+  principle, Addendum 8's naming principle and Addendum 9's composition principle all held; this
+  addendum reopens none of them.
+- **The class is not a seventh principle. It is that a round applies its own principle to the
+  decision that motivated it and not to the decisions it ships alongside.** D76 obliged a
+  declaration's recursion to terminate on something the adversary cannot rewrite; D77 obeyed it and
+  D79, D80, D81 and R35 -- all four shipped in the same addendum -- did not. **The remedy is
+  procedural: D86 discharges D76 for every referent this addendum touches, in the addendum's own
+  text, before any repair is designed, and records the answer for each including "checked, and it
+  does not apply."**
+- **The design is D86-D95.** The composition audit as a discharged obligation with its
+  seventeen-row table (D86); the swallowed conflict fixed the way CLAUDE.md prescribes, plus the
+  definer bodies joining D77's declared set (D87); the preceding anchor as a MAC-verified row with
+  `anchored_at` inside the MAC (D88); `created_at` withdrawn and the floor becoming a
+  chain-authenticated `expires_at` applied in both limbs (D89); a refusal that restores the declared
+  state and not only the enforcement object (D90); `indnkeyatts` joining the declared index shape
+  (D91); a gate that computes the digests it asserts, over all four committed literals (D92); a
+  reporting pass that reports in every mode and every command (D93); a temp counter that measures the
+  directory `mktemp` uses and a document that says what the command prints (D94); and the proof
+  obligations with pre-declared withdrawal conditions (D95).
+- **This design pass executed its mechanism assumptions, and the execution refuted the fix this
+  addendum was expected to reach.** Making `screening_ledger_snapshot` a protected relation is
+  **not** the answer: it breaks `Migrate()` on every provisioned database (three of four object
+  classes measured, one at a time), and even fully protected it yields a referent
+  `owl_migrator` chooses at `INSERT` and no MAC covers -- **un-rewritable is not unforgeable**. Also
+  confirmed by execution: `anchored_at` is **not** inside `anchorMAC`'s input, so a genuine row with
+  its timestamp moved still verifies; a MAC cannot be replayed at another sequence; the mirror's
+  `screening_ledger_event.expires_at` and the chain-MACed `Event.ExpiresAt` are **equal**, and
+  `purged_at > expires_at` holds by construction for every legitimate purge because both are decided
+  against one `clock_timestamp()` in one statement; removing `ON CONFLICT DO NOTHING` makes a
+  pre-empted tombstone a loud `23505` and leaves three consecutive legitimate purges idempotent; the
+  D79 trap restores `'O'` and a 0-row registry, and **either half alone** reproduces M-A; the D83
+  hygiene counter reads a constant `1` on macOS with `TMPDIR` unset while the fix it covers is sound,
+  measured at 3107 to 3107 across a successful run; and step 0 on a real restore names no instance.
+- **One finding is owed to the audit rather than to the CAP.** Both `screening_ledger_purge_snapshots`
+  overloads -- the functions that actually write `purged_at` -- have **no declared body digest**, and
+  substituting one at T2 leaves `CheckProvisioningState` at `Provisioned=true Reason=""` and
+  `grant-ddl-ownership` at exit 0. D77's own reasoning applies one object over, and D86 is what
+  found it.
+- **Five risks are recorded** rather than designed away: the cheap MAC check's coverage equivalence
+  has a stated precondition and a cheap fallback (R38); the genesis floor is looser than the
+  non-genesis one and that is the honest maximum (R39); `screening_ledger_snapshot`'s droppable guard
+  is a real, separately-scoped gap this addendum deliberately does not close (R40); D90 restores
+  rather than makes atomic, with the transactional alternative stated as unverified (R41); and the
+  coordinated-edit surface grew again (R42).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42,
+  D43-D49, D50-D58, D59-D67, D68-D75 and D76-D85 stand. R1-R37 stand. D81's substantive decision --
+  that `purged_at` needs a lower bound and that the bound belongs in Postgres's own clock domain --
+  is correct and is **kept**; what D86 withdraws is the inference that being in the right clock
+  domain made either endpoint a sound referent, and D88 and D89 are what make D81's own sentence true
+  of the values it now compares.
+
+**Audit basis commit:** `bdeb83be20874c68e91848691c2d63fecb5a85c3`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #9
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
