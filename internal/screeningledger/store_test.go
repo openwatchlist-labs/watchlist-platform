@@ -25,7 +25,7 @@ func testKey() []byte { return bytes.Repeat([]byte{0x42}, 32) }
 // policy build their own.
 func testPolicy(ledgerID string) VerificationPolicy {
 	return VerificationPolicy{
-		SchemaVersion:        VerificationPolicySchemaV3,
+		SchemaVersion:        VerificationPolicySchemaV4,
 		LedgerID:             ledgerID,
 		MinEventSchema:       EventSchemaV2,
 		MinAuditSchema:       AuditSchemaV2,
@@ -35,7 +35,32 @@ func testPolicy(ledgerID string) VerificationPolicy {
 		// zero value "" deliberately -- genesis sequence 1 requires
 		// exactly the empty-string sentinel, so this is the correct
 		// value, not an omission.
+		// Tenancy (D110): TenancyShared, not the "default a bootstrap
+		// policy needs" exclusive -- D110's own R43 measurement is that
+		// the shared OWL_TEST_DATABASE_URL/OWL_MIGRATOR_DATABASE_URL this
+		// whole suite runs against genuinely carries many ledger_ids at
+		// once (every other pgx test's own fixture), so declaring
+		// exclusive here would be false of the database every test in
+		// this package actually runs against, and D110's own new
+		// exclusive-mode check (VerifyAnchored) would then correctly
+		// fail nearly every test in this package for a reason unrelated
+		// to what it is testing. Tests that specifically exercise
+		// exclusive-mode behavior build their own policy against a
+		// genuinely isolated single-ledger clone (see
+		// testExclusivePolicy and newD50Clone).
+		Tenancy: TenancyShared,
 	}
+}
+
+// testExclusivePolicy is D110's exclusive-mode variant of testPolicy,
+// for tests that specifically exercise TenancyExclusive against a
+// genuinely isolated single-ledger database (a newD50Clone, not the
+// shared primary this whole suite otherwise writes into) -- where the
+// assertion it makes is actually true.
+func testExclusivePolicy(ledgerID string) VerificationPolicy {
+	p := testPolicy(ledgerID)
+	p.Tenancy = TenancyExclusive
+	return p
 }
 
 // testPolicySHA256 wraps PolicySHA256 for tests that don't care about a
@@ -58,7 +83,7 @@ func testPolicySHA256(t *testing.T, policy VerificationPolicy) string {
 // tombstone_forgery_pgx_test.go.
 type fakePurgeRecorder struct{}
 
-func (fakePurgeRecorder) RecordPurge(_ context.Context, eligibleSHA256 []string, _ time.Time, _, _ string) ([]string, error) {
+func (fakePurgeRecorder) RecordPurge(_ context.Context, eligibleSHA256 []string, _ map[string]snapshotObligation, _, _, _ string) ([]string, error) {
 	return eligibleSHA256, nil
 }
 

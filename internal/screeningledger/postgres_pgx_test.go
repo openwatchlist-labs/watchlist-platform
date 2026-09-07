@@ -243,8 +243,12 @@ func TestPostgresSinkPurgeExpiredRoundTrip(t *testing.T) {
 	defer verify.Close(ctx)
 
 	snapshotSHA := uniqueID("snapshot-sha")
-	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
-	future := time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)
+	// Truncated to whole seconds so the D107 leading-refusal comparison
+	// below is not sensitive to the D105 half-to-even/Truncate reduction
+	// question at all -- this test is about the purge round trip, not
+	// about reduction agreement.
+	pastTime := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	past := pastTime.UTC().Format(time.RFC3339Nano)
 	if _, err := verify.Exec(ctx,
 		`INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json) VALUES ($1,'request',$2::timestamptz,$3::timestamptz,'screening-standard','{}'::jsonb)`,
 		snapshotSHA, past, past,
@@ -255,17 +259,20 @@ func TestPostgresSinkPurgeExpiredRoundTrip(t *testing.T) {
 	// screening_ledger_event.expires_at, joined through
 	// request_snapshot_sha256/response_snapshot_sha256 -- a referencing
 	// event row is required for the predicate to find this snapshot.
+	ledgerID := uniqueID("ledger-for-purge")
 	if _, err := verify.Exec(ctx,
 		`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
 		 VALUES ($1,$2,1,$3,'',$4::timestamptz,'/screen',200,'req-sha','resp-sha',$5,$5,'screening-standard',$6::timestamptz,'{}'::jsonb)`,
-		uniqueID("event-for-purge"), uniqueID("ledger-for-purge"), uniqueID("event-sha-for-purge"), past, snapshotSHA, past,
+		uniqueID("event-for-purge"), ledgerID, uniqueID("event-sha-for-purge"), past, snapshotSHA, past,
 	); err != nil {
 		t.Fatalf("seed referencing event for expired snapshot: %v", err)
 	}
 
 	operator := "pgx-test-operator"
 	reason := "retention expiration"
-	if err := sink.PurgeExpired(ctx, future, operator, reason); err != nil {
+	// ADR-0007 Addendum 12 D107: PurgeExpired's leading refusal compares
+	// against this ledger's TOTAL mirror aggregate -- the one seeded row.
+	if err := sink.PurgeExpired(ctx, ledgerID, 1, pastTime, operator, reason); err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}
 
@@ -370,7 +377,14 @@ func TestPostgresSinkNoProcessSpawn(t *testing.T) {
 	if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 		t.Fatalf("Persist with empty PATH: %v", err)
 	}
-	if err := sink.PurgeExpired(ctx, time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano), "no-spawn-operator", "expired"); err != nil {
+	expiresAt, err := time.Parse(time.RFC3339Nano, result.Event.ExpiresAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ADR-0007 Addendum 12 D107: the one persisted event above is this
+	// ledger's entire mirror population, so (count=1, max=its ExpiresAt)
+	// is the true total obligation the leading refusal must agree with.
+	if err := sink.PurgeExpired(ctx, result.Event.LedgerID, 1, expiresAt, "no-spawn-operator", "expired"); err != nil {
 		t.Fatalf("PurgeExpired with empty PATH: %v", err)
 	}
 }

@@ -90,6 +90,11 @@ type PurgeChecker interface {
 	PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error)
 	AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, error)
 	EventExpiresAggregateForSnapshot(ctx context.Context, snapshotSHA256, ledgerID string) (count int, maxExpiresAt time.Time, found bool, err error)
+	// ForeignLedgerIDs is ADR-0007 Addendum 12 D110: every ledger_id in
+	// screening_ledger_event that is NOT ledgerID, distinct and sorted --
+	// what an exclusive-tenancy policy asserts is empty, and what a
+	// declared-shared policy already expects to be nonzero.
+	ForeignLedgerIDs(ctx context.Context, ledgerID string) ([]string, error)
 }
 
 // PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart
@@ -102,8 +107,20 @@ type PurgeChecker interface {
 // returns exactly the subset it actually recorded -- local-narrows,
 // server-floors, per D28. Only that returned subset may be marked purged
 // in local envelopes.
+//
+// obligations is ADR-0007 Addendum 12 D107: the chain-authenticated
+// snapshotObligation (count, MAX(Event.ExpiresAt)) this ledger's own
+// local chain computes for each sha in eligibleSHA256 -- the same
+// aggregate forSnapshot (anchor.go) already computes for verification,
+// supplied here at purge time instead. The server refuses the whole
+// call unless its own mirror aggregate agrees with every supplied pair
+// exactly: a caller can only make the floor MORE restrictive (a true,
+// larger obligation than the mirror alone would show), never widen it,
+// because eligibility itself is unchanged. ledgerID scopes the
+// corroboration to this ledger's own obligations, exactly as D97(b)'s
+// verification-time aggregate already is.
 type PurgeRecorder interface {
-	RecordPurge(ctx context.Context, eligibleSHA256 []string, before time.Time, operator, reason string) (recorded []string, err error)
+	RecordPurge(ctx context.Context, eligibleSHA256 []string, obligations map[string]snapshotObligation, ledgerID, operator, reason string) (recorded []string, err error)
 }
 
 // VerifyOptions carries what VerifyPolicy needs to check the file chain
@@ -389,6 +406,17 @@ type VerifyReport struct {
 	// slice's length as meaningful.
 	OutOfScopeRetentionTombstones        []TombstoneRecord
 	OutOfScopeRetentionTombstonesChecked OutOfScopeCheckStatus
+	// SharedTenancyUnattestedTombstones (ADR-0007 Addendum 12 D110) is
+	// every IN-SCOPE (KnownSnapshotSHA256) tombstone row this ledger's
+	// own audit chain does NOT attest to -- under a policy declaring
+	// TenancyShared, D70's reverse pass NAMES AND COUNTS this rather than
+	// failing verification over it, since one ledger's verifier
+	// structurally cannot adjudicate another ledger's retention claim
+	// (R31/R36's standing limit, R49). Under the default TenancyExclusive
+	// this is never populated -- the same row still fails verification
+	// there, exactly as D70 originally specified. nil whenever tenancy
+	// is exclusive or no such row exists.
+	SharedTenancyUnattestedTombstones []TombstoneRecord
 }
 
 // OutOfScopeCheckStatus is ADR-0007 Addendum 11 D101(a)'s not-checked
@@ -894,12 +922,21 @@ func hashEvent(event Event, chainKey []byte) (string, error) {
 	}
 	return macHex(chainKey, raw), nil
 }
+
+// mustExpires truncates to microsecond precision (ADR-0007 Addendum 12
+// D105(a)) before formatting: Event.ExpiresAt -- inside hashEvent's MAC
+// under K_chain and committed under K_anchor -- must carry no precision
+// the mirror's timestamptz column cannot hold, so the server's own
+// rounding on the write path (D105(b)) becomes a no-op on an input with
+// no fractional part left to round, rather than a second, independent
+// reduction that disagrees with the read path's truncation (anchor.go)
+// on 4,995 of every 9,999 nanosecond values.
 func mustExpires(occurred string, days int) string {
 	parsed, err := time.Parse(time.RFC3339Nano, occurred)
 	if err != nil {
 		parsed = time.Now().UTC()
 	}
-	return parsed.Add(time.Duration(days) * 24 * time.Hour).UTC().Format(time.RFC3339Nano)
+	return parsed.Add(time.Duration(days) * 24 * time.Hour).UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 }
 func marshalAndWrite(path string, v any, mode os.FileMode) error {
 	raw, err := json.Marshal(v)

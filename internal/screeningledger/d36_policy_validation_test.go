@@ -70,7 +70,8 @@ func TestDecodeUnsignedPolicyRejectsCAPTwoSevenPointEightInputs(t *testing.T) {
 				"allow_unanchored":true,
 				"min_anchor_sequence":0,
 				"genesis_event_sha256":"",
-				"genesis_audit_sha256":""
+				"genesis_audit_sha256":"",
+				"tenancy":""
 			}`,
 			wantErrLike: "schema_version",
 		},
@@ -123,7 +124,7 @@ func TestSignVerificationPolicyRefusesInvalidPolicy(t *testing.T) {
 // everything is not a validator.
 func TestDecodeUnsignedPolicyAcceptsTheCommittedExampleFixture(t *testing.T) {
 	document := `{
-		"schema_version":"openwatchlist.screening-ledger-verification-policy.v3",
+		"schema_version":"openwatchlist.screening-ledger-verification-policy.v4",
 		"ledger_id":"screening-api-v8g-example",
 		"min_event_schema":"openwatchlist.screening-ledger-event.v2",
 		"min_audit_schema":"openwatchlist.screening-ledger-audit.v2",
@@ -132,7 +133,8 @@ func TestDecodeUnsignedPolicyAcceptsTheCommittedExampleFixture(t *testing.T) {
 		"allow_unanchored":false,
 		"min_anchor_sequence":0,
 		"genesis_event_sha256":"",
-		"genesis_audit_sha256":""
+		"genesis_audit_sha256":"",
+		"tenancy":"exclusive"
 	}`
 	policy, err := DecodeUnsignedPolicy(strings.NewReader(document))
 	if err != nil {

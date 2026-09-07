@@ -454,17 +454,42 @@ func loadPurgeLowerBoundSource(ctx context.Context, store *Store, anchors Anchor
 	if err != nil {
 		return purgeLowerBoundSource{}, fmt.Errorf("reading local event chain for the chain-authenticated expiry floor (ADR-0007 Addendum 10 D89): %w", err)
 	}
+	obligations, err := computeSnapshotObligations(events)
+	if err != nil {
+		return purgeLowerBoundSource{}, err
+	}
+	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious, obligationsBySnapshot: obligations}, nil
+}
+
+// computeSnapshotObligations is ADR-0007 Addendum 11 D97's reduction of
+// a local event chain to one snapshotObligation per referenced sha256,
+// factored out so ADR-0007 Addendum 12 D107's purge-time corroboration
+// (replay.go, Store.PurgeExpired) computes the SAME aggregate
+// forSnapshot verifies with, rather than a second, independently
+// written reduction that could drift from it.
+func computeSnapshotObligations(events []Event) (map[string]snapshotObligation, error) {
 	obligations := make(map[string]snapshotObligation, len(events)*2)
 	for _, e := range events {
 		expiresAt, err := time.Parse(time.RFC3339Nano, e.ExpiresAt)
 		if err != nil {
-			return purgeLowerBoundSource{}, fmt.Errorf("parsing chain-authenticated expires_at %q for event %s (ADR-0007 Addendum 11 D97): %w", e.ExpiresAt, e.EventID, err)
+			return nil, fmt.Errorf("parsing chain-authenticated expires_at %q for event %s (ADR-0007 Addendum 11 D97): %w", e.ExpiresAt, e.EventID, err)
 		}
-		// ADR-0007 Addendum 11 D102: truncated once, here, to the same
-		// precision the mirror's timestamptz always carries -- the
-		// truncated value is both what is compared against the mirror
-		// below AND what a caller later uses as the lower bound, so the
-		// two can never diverge on precision alone.
+		// ADR-0007 Addendum 11 D102, corrected by Addendum 12 D105(c):
+		// truncated once, here, to the same precision the mirror's
+		// timestamptz column carries -- the truncated value is both what
+		// is compared against the mirror below AND what a caller later
+		// uses as the lower bound, so the two can never diverge on
+		// precision alone. Before D105, this was true only in belief: the
+		// mirror wrote a TEXT LITERAL through a ::timestamptz cast, which
+		// the server rounds half-to-even rather than truncating, so this
+		// Truncate and the mirror's actual stored value disagreed on
+		// 4,995 of every 9,999 nanosecond values (D104's measurement).
+		// D105(a) moves the reduction to the point Event.ExpiresAt is
+		// created (mustExpires) and D105(b) binds it to the mirror as a
+		// typed parameter with no server-side parser on the path, so this
+		// Truncate is now provably the SAME function of the SAME value
+		// the write path already applied -- this comment's claim is true
+		// by construction, not merely intended.
 		expiresAt = expiresAt.Truncate(time.Microsecond)
 		// A single event may reference the same sha through both its
 		// request and response columns (request bytes == response
@@ -488,7 +513,60 @@ func loadPurgeLowerBoundSource(ctx context.Context, store *Store, anchors Anchor
 			obligations[sha] = o
 		}
 	}
-	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious, obligationsBySnapshot: obligations}, nil
+	return obligations, nil
+}
+
+// MirrorChainCountDivergence is ADR-0007 Addendum 12 D109: forSnapshot's
+// count-mismatch outcome, typed so a caller (sync) can distinguish it
+// programmatically from every other verification failure -- errors.As,
+// not string matching -- and, when MirrorCount is strictly less than
+// ChainCount (a shortfall, not an overage), check whether it is
+// EXACTLY the narrow, accounted-for shape D109 permits deferring: every
+// missing row corresponds to an event this ledger's own store already
+// knows is unreplicated. The max-mismatch outcome deliberately stays a
+// plain, untyped error -- D109's own scope: "every other divergence...
+// still aborts before the first Persist, unchanged," and a max
+// disagreement on a row that IS mirrored is explicitly one of D112 item
+// 6's required negatives.
+type MirrorChainCountDivergence struct {
+	SnapshotSHA256 string
+	MirrorCount    int
+	ChainCount     int
+}
+
+func (e *MirrorChainCountDivergence) Error() string {
+	return fmt.Sprintf("snapshot %s's mirror screening_ledger_event row count (%d, this ledger) disagrees with the chain-authenticated event count referencing it (%d) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", e.SnapshotSHA256, e.MirrorCount, e.ChainCount)
+}
+
+// ShortfallExplainedByUnreplicatedEvents is ADR-0007 Addendum 12 D109's
+// narrow discriminator: true only when div's shortfall (MirrorCount
+// strictly less than ChainCount -- an overage is never this shape) is
+// EXACTLY the count of events THIS store's own IsReplicated already
+// reports as unreplicated among those referencing div.SnapshotSHA256.
+// "Exactly" is load-bearing: this is the one condition sync may defer;
+// a shortfall covering an event MarkReplicated already recorded as
+// replicated is a genuinely different anomaly and this returns false
+// for it, same as it does for an overage or a max-only disagreement
+// (which never reaches here at all -- MirrorChainCountDivergence is
+// the count branch only).
+func (s *Store) ShortfallExplainedByUnreplicatedEvents(div *MirrorChainCountDivergence) (bool, error) {
+	if div.MirrorCount >= div.ChainCount {
+		return false, nil
+	}
+	events, err := s.ListEvents()
+	if err != nil {
+		return false, err
+	}
+	replicatedCount := 0
+	for _, e := range events {
+		if e.RequestSnapshotSHA256 != div.SnapshotSHA256 && e.ResponseSnapshotSHA256 != div.SnapshotSHA256 {
+			continue
+		}
+		if s.IsReplicated(e.EventID) {
+			replicatedCount++
+		}
+	}
+	return replicatedCount == div.MirrorCount, nil
 }
 
 // forSnapshot is D89's rule, generalised by D97/D96 row 16/18 to the
@@ -519,7 +597,7 @@ func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChec
 		return time.Time{}, fmt.Errorf("snapshot %s has a chain-authenticated event but no mirror screening_ledger_event row references it (ADR-0007 Addendum 10 D89): mirror/ledger divergence", snapshotSHA256)
 	}
 	if mirrorCount != obligation.count {
-		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event row count (%d, this ledger) disagrees with the chain-authenticated event count referencing it (%d) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", snapshotSHA256, mirrorCount, obligation.count)
+		return time.Time{}, &MirrorChainCountDivergence{SnapshotSHA256: snapshotSHA256, MirrorCount: mirrorCount, ChainCount: obligation.count}
 	}
 	if !mirrorMax.Equal(obligation.max) {
 		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event MAX(expires_at) (%s, this ledger) disagrees with the chain-authenticated MAX(Event.ExpiresAt) (%s) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", snapshotSHA256, mirrorMax.Format(time.RFC3339Nano), obligation.max.Format(time.RFC3339Nano))
@@ -574,58 +652,72 @@ func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChec
 // respect, including staying gated to `anchored` mode -- condition 2 has
 // no anchored audit sequence to compare against otherwise, which is
 // D32's own correct reasoning and is not reopened here.
-func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, anchoredAt time.Time, anchorSequence int64, anchors AnchorReader, kAnchor []byte, knownSnapshotSHA256 []string, purges PurgeChecker) error {
+// tenancy is ADR-0007 Addendum 12 D110: under TenancyShared, an
+// in-scope tombstone this ledger's own chain does not attest is
+// reported (returned, named and counted by the caller) rather than
+// failing verification -- one ledger's verifier structurally cannot
+// adjudicate another ledger's retention claim (R31/R36, R49). Under the
+// default TenancyExclusive (or an empty string, which callers that
+// predate D110's policy field are not expected to pass -- VerifyAnchored
+// always supplies opts.Policy.Tenancy, already validated non-empty by
+// VerificationPolicy.Validate()) this returns the pre-D110 hard failure,
+// unchanged. Every OTHER adjudicated condition (forward claims, the
+// anchored-sequence bound, the purge/lower-bound comparisons) is
+// UNCHANGED by tenancy -- D110 touches only the one branch its own text
+// names.
+func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, anchoredAuditSequence int64, anchoredAt time.Time, anchorSequence int64, anchors AnchorReader, kAnchor []byte, knownSnapshotSHA256 []string, purges PurgeChecker, tenancy string) ([]TombstoneRecord, error) {
 	if len(claims) == 0 && purges == nil {
-		return nil
+		return nil, nil
 	}
 	attesting, err := s.attestingAuditEntries()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// ADR-0007 Addendum 9 D81, extended by Addendum 10 D88/D89: read
 	// once -- this bound is a property of which anchor is being
 	// verified, not of any individual claim/row.
 	lowerBound, err := loadPurgeLowerBoundSource(ctx, s, anchors, kAnchor, s.ledgerID, anchorSequence)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, claim := range claims {
 		entry, attested := attesting[claim.SnapshotSHA256]
 		if !attested {
-			return fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
+			return nil, fmt.Errorf("snapshot %s (referenced at event sequence %d) is marked purged locally but no audit entry attests to it (ADR-0007 Addendum 3 D32): possible forged retention state", claim.SnapshotSHA256, claim.EventSequence)
 		}
 		if int64(entry.Sequence) > anchoredAuditSequence {
-			return fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
+			return nil, fmt.Errorf("snapshot %s's purge attestation is at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 3 D32): the purge is not yet anchored", claim.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
 		}
 		if purges == nil {
-			return fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
+			return nil, fmt.Errorf("snapshot %s's purge cannot be corroborated: no independent purge-record source is configured (ADR-0007 Addendum 3 D32)", claim.SnapshotSHA256)
 		}
 		record, err := purges.PurgeRecord(ctx, claim.SnapshotSHA256)
 		if err != nil {
-			return fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
+			return nil, fmt.Errorf("checking independent purge record for %s: %w", claim.SnapshotSHA256, err)
 		}
 		if record == nil {
-			return fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
+			return nil, fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
 		}
 		claimLowerBound, err := lowerBound.forSnapshot(ctx, purges, s.ledgerID, claim.SnapshotSHA256)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := purgeAttributionMismatch(*record, entry, anchoredAt, claimLowerBound); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	if purges == nil {
-		return nil
+		return nil, nil
 	}
 	all, err := purges.AllPurgeRecords(ctx)
 	if err != nil {
-		return fmt.Errorf("listing tombstone records for reverse purge-claim adjudication (ADR-0007 Addendum 8 D70): %w", err)
+		return nil, fmt.Errorf("listing tombstone records for reverse purge-claim adjudication (ADR-0007 Addendum 8 D70): %w", err)
 	}
 	known := make(map[string]struct{}, len(knownSnapshotSHA256))
 	for _, sha := range knownSnapshotSHA256 {
 		known[sha] = struct{}{}
 	}
+	var sharedTenancyUnattested []TombstoneRecord
 	for _, record := range all {
 		if _, inScope := known[record.SnapshotSHA256]; !inScope {
 			// ADR-0007 Addendum 9 D82, extended by Addendum 10 D93: outside
@@ -636,20 +728,24 @@ func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, 
 		}
 		entry, attested := attesting[record.SnapshotSHA256]
 		if !attested {
-			return fmt.Errorf("snapshot %s has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired", record.SnapshotSHA256)
+			if tenancy == TenancyShared {
+				sharedTenancyUnattested = append(sharedTenancyUnattested, record)
+				continue
+			}
+			return nil, fmt.Errorf("snapshot %s has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired", record.SnapshotSHA256)
 		}
 		if int64(entry.Sequence) > anchoredAuditSequence {
-			return fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
+			return nil, fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
 		}
 		rowLowerBound, err := lowerBound.forSnapshot(ctx, purges, s.ledgerID, record.SnapshotSHA256)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := purgeAttributionMismatch(record, entry, anchoredAt, rowLowerBound); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return sharedTenancyUnattested, nil
 }
 
 // reportOutOfScopePurgeRecords is ADR-0007 Addendum 10 D93(a): the
@@ -856,10 +952,29 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 	// anchor cross-check succeeds." This condition is NOT reopened by
 	// D93 -- see the withdrawal condition in D95's text.
 	if mode == VerificationModeAnchored {
-		if err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, latest.AnchoredAt, latest.Sequence, opts.Anchors, opts.KAnchor, report.KnownSnapshotSHA256, opts.Purges); err != nil {
+		// ADR-0007 Addendum 12 D110: exclusive is ASSERTED, not assumed.
+		// In exclusive mode, a screening_ledger_event row carrying a
+		// ledger_id other than this ledger's is itself a named
+		// verification failure, naming the foreign ids found -- checked
+		// before adjudication below, which is what a foreign row would
+		// otherwise silently widen the scope of.
+		if opts.Policy.Tenancy == TenancyExclusive && opts.Purges != nil {
+			foreign, err := opts.Purges.ForeignLedgerIDs(ctx, s.ledgerID)
+			if err != nil {
+				base.AnchorStatus = AnchorStatusFailed
+				return base, fmt.Errorf("checking for foreign ledger_id rows under exclusive tenancy (ADR-0007 Addendum 12 D110): %w", err)
+			}
+			if len(foreign) > 0 {
+				base.AnchorStatus = AnchorStatusFailed
+				return base, fmt.Errorf("this ledger's verification policy declares exclusive tenancy, but screening_ledger_event carries row(s) for foreign ledger_id(s) %v (ADR-0007 Addendum 12 D110): the schema is shared, contradicting the signed policy", foreign)
+			}
+		}
+		sharedTenancyUnattested, err := s.adjudicatePurgeClaims(ctx, report.PurgeClaims, latest.AuditSequence, latest.AnchoredAt, latest.Sequence, opts.Anchors, opts.KAnchor, report.KnownSnapshotSHA256, opts.Purges, opts.Policy.Tenancy)
+		if err != nil {
 			base.AnchorStatus = AnchorStatusFailed
 			return base, err
 		}
+		base.SharedTenancyUnattestedTombstones = sharedTenancyUnattested
 		// Every claim adjudicated successfully (adjudicatePurgeClaims
 		// returns on the first failure otherwise), so each now counts as
 		// checked -- SnapshotChecksPerformed only reaches

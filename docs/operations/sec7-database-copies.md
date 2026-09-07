@@ -187,30 +187,57 @@ psql -h <host> -p <port> -U <bootstrap superuser> -d <database> \
 
 Then re-run `grant-ddl-ownership` to confirm the repaired body is now in the accepted set.
 
-**D87's repair procedure (ADR-0007 Addendum 10): the same shape, one object over.** Both
-`screening_ledger_purge_snapshots` overloads -- the definer functions that actually write
-`purged_at` -- are now `requiredDefinerFunctions` members with their own declared accepted body
-digests (D87/D86 row 8), so `Migrate()`'s `db/migrations/019`/`020` re-application and any legitimate
-edit to their bodies is refused by D34 on an already-provisioned database, exactly as D78 already
-refuses for the two guard functions. This is a **re-provisioning event**, not a repair
-`Migrate()`/`grant-ddl-ownership` attempt on their own: open the same event-trigger disable window as
-above, apply the migration or `CREATE OR REPLACE FUNCTION` directly, then re-run `grant-ddl-ownership`
-to re-enable enforcement and confirm the new body is in its declared accepted set. On a **fresh**
-database this cost does not apply at all -- the new migration runs before `grant-ddl-ownership` ever
-installs the event triggers. **Verified by execution: the migration must be applied as the bootstrap
-superuser, not as `owl_migrator`** -- `grant-ddl-ownership` has already transferred ownership of both
-overloads to `owl_ledger_ddl`, so `owl_migrator` (the identity `db/migrations/` ordinarily runs as)
-gets a plain `ERROR: must be owner of function screening_ledger_purge_snapshots` regardless of
-event-trigger state, distinct from and in addition to D34's own refusal:
+**D87's repair procedure (ADR-0007 Addendum 10, corrected by Addendum 12 D111): the same shape, one
+object over.** Both `screening_ledger_purge_snapshots` overloads -- the definer functions that
+actually write `purged_at` -- are now `requiredDefinerFunctions` members with their own declared
+accepted body digests (D87/D86 row 8, moved again by Addendum 12 D107), so `Migrate()`'s
+`db/migrations/019`/`020`/`021`/`022` re-application and any legitimate edit to their bodies is
+refused by D34 on an already-provisioned database, exactly as D78 already refuses for the two guard
+functions. This is a **re-provisioning event**, not a repair `Migrate()`/`grant-ddl-ownership`
+attempt on their own: open the same event-trigger disable window as above, apply the migration or
+`CREATE OR REPLACE FUNCTION` directly, then re-run `grant-ddl-ownership` to re-enable enforcement
+and confirm the new body is in its declared accepted set. On a **fresh** database this cost does not
+apply at all -- the new migration runs before `grant-ddl-ownership` ever installs the event
+triggers. **Verified by execution: the migration must be applied as the bootstrap superuser, not as
+`owl_migrator`** -- `grant-ddl-ownership` has already transferred ownership of both overloads to
+`owl_ledger_ddl`, so `owl_migrator` (the identity `db/migrations/` ordinarily runs as) gets a plain
+`ERROR: must be owner of function screening_ledger_purge_snapshots` regardless of event-trigger
+state, distinct from and in addition to D34's own refusal:
 
 ```sh
 # as the bootstrap superuser, with the event-trigger disable window open (see step 1 above)
 psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -v ON_ERROR_STOP=1 \
-  -f db/migrations/020_screening_ledger_purge_server_side_floor.sql
+  -f db/migrations/022_screening_ledger_purge_chain_corroboration.sql
 ```
 
-Then re-run `grant-ddl-ownership` to re-enable enforcement and confirm the new bodies are in their
-declared accepted sets.
+**This `db/migrations/` filename is a pointer to the newest purge migration, not a fixed reference
+-- it has already moved twice (020 to 021 for D98, 021 to 022 for D107) and will move again the next
+time either overload's body changes.** Confirm which file is current by listing
+`db/migrations/0*_screening_ledger_purge_*.sql` in apply order and applying the last one, rather than
+trusting this document's own literal filename against a tree that has moved past it.
+
+**Confirmation, named rather than described.** "Confirm the new bodies are in their declared
+accepted sets" means two concrete commands, both of which must be run and both of which now check
+the body digest (ADR-0007 Addendum 12 D111(a) closes the half that used to check nothing):
+
+```sh
+# 1. the installer's OWN assertion (D111(a)): grant-ddl-ownership now joins the prosrc digest
+#    comparison it already performs for the two guard functions to both purge_snapshots overloads,
+#    and exits non-zero, naming the function and the live digest, if either substitution is present.
+scripts/ci/provision_test_roles.sh grant-ddl-ownership
+
+# 2. the independent verifier (unchanged by D111, D33's own "installer AND verifier" convention):
+#    reads live prosrc through the function's own regprocedure OID, so it follows whatever body is
+#    actually live regardless of which migration file most recently created it.
+screening-ledger status --postgres-dsn-env <VAR> \
+  --policy-file <path> --policy-public-key-file <path> --ledger-dir <dir> --ledger-id <id>
+```
+
+Before Addendum 12 D111, only command 2 examined the body at all -- `grant-ddl-ownership` printed
+`PASS` unconditionally, whether or not the two purge_snapshots overloads had actually been repaired
+correctly (D111's own reproduction: the pre-D111 procedure installs the superseded, pre-D98
+ANY-expired bodies and is told it succeeded). Both commands must now report clean before the
+recovery is considered complete.
 
 **A note on `screening_ledger_snapshot` (ADR-0007 Addendum 10 D89, R40):** that table's own guard
 triggers (`screening_ledger_snapshot_guard_trigger`, `screening_ledger_snapshot_no_truncate`) are

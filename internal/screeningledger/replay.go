@@ -216,7 +216,18 @@ func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reaso
 		eligible = append(eligible, sha)
 	}
 
-	recorded, err := recorder.RecordPurge(ctx, eligible, now, operator, reason)
+	// ADR-0007 Addendum 12 D107: the caller supplies the chain-
+	// authenticated (count, MAX) obligation for every eligible sha --
+	// the same snapshotObligation forSnapshot (anchor.go) already
+	// computes for verification, computed here from the SAME events
+	// this loop already read, through the same shared reduction
+	// (computeSnapshotObligations) rather than a second one that could
+	// drift from it.
+	obligations, err := computeSnapshotObligations(events)
+	if err != nil {
+		return 0, err
+	}
+	recorded, err := recorder.RecordPurge(ctx, eligible, obligations, s.ledgerID, operator, reason)
 	if err != nil {
 		return 0, err
 	}

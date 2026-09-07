@@ -43,7 +43,18 @@ func TestPurgePreemptionSurfacesRatherThanBeingSwallowed(t *testing.T) {
 			t.Fatalf("connect as owl_migrator: %v", err)
 		}
 		defer migratorConn.Close(context.Background())
-		_, err = migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::timestamptz,'legit-op','legit-reason')`, time.Now())
+		// ADR-0007 Addendum 12 D107: the time-floor overload's leading
+		// refusal now needs an honest (count, max) for this ledger's
+		// TOTAL mirror population -- computed from the mirror itself, so
+		// this specific call is not refused for the WRONG reason (a
+		// corroboration mismatch) before it ever reaches the D87
+		// pre-emption check this test is actually about.
+		var mirrorCount int64
+		var mirrorMax time.Time
+		if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE ledger_id=$1`, chain.store.ledgerID).Scan(&mirrorCount, &mirrorMax); err != nil {
+			t.Fatal(err)
+		}
+		_, err = migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1,$2,$3,'legit-op','legit-reason')`, chain.store.ledgerID, mirrorCount, mirrorMax)
 		if err == nil {
 			t.Fatalf("ADR-0007 Addendum 10 D87: legitimate purge succeeded despite a pre-empted tombstone for %s", targetSHA)
 		}
@@ -70,7 +81,15 @@ func TestPurgePreemptionSurfacesRatherThanBeingSwallowed(t *testing.T) {
 			t.Fatalf("connect as owl_migrator: %v", err)
 		}
 		defer migratorConn.Close(context.Background())
-		_, err = migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::text[],$2::timestamptz,'legit-op','legit-reason')`, []string{targetSHA}, time.Now())
+		// ADR-0007 Addendum 12 D107: honest, per-sha corroboration for
+		// targetSHA, read straight from the mirror -- same reason as
+		// the time-floor subtest above.
+		var mirrorCount int32
+		var mirrorMax time.Time
+		if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE (request_snapshot_sha256=$1 OR response_snapshot_sha256=$1) AND ledger_id=$2`, targetSHA, chain.store.ledgerID).Scan(&mirrorCount, &mirrorMax); err != nil {
+			t.Fatal(err)
+		}
+		_, err = migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::text[],$2,$3::int[],$4::timestamptz[],'legit-op','legit-reason')`, []string{targetSHA}, chain.store.ledgerID, []int32{mirrorCount}, []time.Time{mirrorMax})
 		if err == nil {
 			t.Fatalf("ADR-0007 Addendum 10 D87: legitimate array-form purge succeeded despite a pre-empted tombstone for %s", targetSHA)
 		}
@@ -92,11 +111,21 @@ func TestPurgePreemptionSurfacesRatherThanBeingSwallowed(t *testing.T) {
 		// unpurged by other tests sharing the primary database) makes
 		// eligible -- not asserted to any particular value, matching
 		// CAP #9's own transcript ("run 1 returned: 1"). What idempotency
-		// actually requires is runs 2 and 3 finding nothing left.
+		// actually requires is runs 2 and 3 finding nothing left. The
+		// mirror aggregate is re-read before each run (ADR-0007
+		// Addendum 12 D107): a purge changes no screening_ledger_event
+		// row, so it is stable across all three, but re-reading rather
+		// than caching keeps this honest about what the leading refusal
+		// actually compares against.
 		var counts []int64
 		for i := 0; i < 3; i++ {
+			var mirrorCount int64
+			var mirrorMax time.Time
+			if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE ledger_id=$1`, chain.store.ledgerID).Scan(&mirrorCount, &mirrorMax); err != nil {
+				t.Fatal(err)
+			}
 			var n int64
-			if err := migratorConn.QueryRow(ctx, `SELECT screening_ledger_purge_snapshots($1::timestamptz,'legit-op','legit-reason')`, time.Now()).Scan(&n); err != nil {
+			if err := migratorConn.QueryRow(ctx, `SELECT screening_ledger_purge_snapshots($1,$2,$3,'legit-op','legit-reason')`, chain.store.ledgerID, mirrorCount, mirrorMax).Scan(&n); err != nil {
 				t.Fatalf("run %d: %v", i, err)
 			}
 			counts = append(counts, n)
@@ -172,8 +201,13 @@ func TestPurgeDefinerBodyIsDeclaredNotAddressed(t *testing.T) {
 		superuser := connectSuperuser(t, ctx, clone.superuserDSN)
 		defer superuser.Close(context.Background())
 		withD34TriggersDisabled(t, ctx, superuser, func() {
+			// ADR-0007 Addendum 12 D107: substitutes the CURRENT
+			// (text[],text,int4[],timestamptz[],text,text) array-form
+			// signature -- the corroboration check stripped out
+			// entirely, exactly the shape of substitution D87 exists to
+			// catch.
 			mustExec(t, ctx, superuser, `
-				CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[], p_before timestamptz, p_operator text, p_reason text)
+				CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text)
 				RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $$
 				DECLARE recorded text[];
 				BEGIN
@@ -238,7 +272,7 @@ func TestPurgeDefinerBodyIsDeclaredNotAddressed(t *testing.T) {
 		}
 		var definerOK bool
 		if err := sink.conn.QueryRow(ctx, `SELECT encode(sha256(convert_to(prosrc,'UTF8')),'hex') = ANY($2) FROM pg_proc WHERE oid = $1::regprocedure`,
-			"screening_ledger_purge_snapshots(text[],timestamptz,text,text)",
+			"screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)",
 			[]string{purgeSnapshotsArrayFormBodySHA256Migration, purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot},
 		).Scan(&definerOK); err != nil {
 			t.Fatal(err)

@@ -67,14 +67,26 @@ func TestRecordPurgeFloorsAgainstServerExpiry(t *testing.T) {
 
 	expiredSHA := uniqueID("snapshot-expired")
 	notExpiredSHA := uniqueID("snapshot-not-expired")
-	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)
-	future := time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)
-	now := time.Now()
+	// Truncated to whole seconds so the D107 corroboration built below is
+	// not sensitive to the D105 reduction question.
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+	future := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	pastStr := past.Format(time.RFC3339Nano)
+	futureStr := future.Format(time.RFC3339Nano)
 
-	for sha, expires := range map[string]string{expiredSHA: past, notExpiredSHA: future} {
+	// ADR-0007 Addendum 12 D107: RecordPurge's corroboration is scoped to
+	// ONE ledger per call (matching D97's own per-ledger aggregate), so
+	// both snapshots below belong to the SAME ledger -- "one caller,
+	// with a skewed clock or an adversarial claim about two of its own
+	// snapshots" is the shape this test models, not two different
+	// ledgers sharing a call.
+	ledgerID := uniqueID("ledger-for-forgery-floor")
+	obligations := map[string]snapshotObligation{}
+	sequence := int64(0)
+	for sha, expires := range map[string]string{expiredSHA: pastStr, notExpiredSHA: futureStr} {
 		if _, err := verify.Exec(ctx,
 			`INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json) VALUES ($1,'request',$2::timestamptz,$3::timestamptz,'screening-standard','{}'::jsonb)`,
-			sha, past, expires,
+			sha, pastStr, expires,
 		); err != nil {
 			t.Fatalf("seed snapshot %s: %v", sha, err)
 		}
@@ -83,19 +95,30 @@ func TestRecordPurgeFloorsAgainstServerExpiry(t *testing.T) {
 		// request_snapshot_sha256/response_snapshot_sha256), not
 		// screening_ledger_snapshot.expires_at -- a referencing event row
 		// is required for the predicate to find this snapshot at all.
+		// ADR-0007 Addendum 12 D107: both events now share ledgerID, so
+		// each needs its own sequence to satisfy
+		// screening_ledger_event_ledger_id_sequence_key.
+		sequence++
 		eventID := uniqueID("event-for-" + sha)
 		if _, err := verify.Exec(ctx,
 			`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
-			 VALUES ($1,$2,1,$3,'',$4::timestamptz,'/screen',200,'req-sha','resp-sha',$5,$5,'screening-standard',$6::timestamptz,'{}'::jsonb)`,
-			eventID, uniqueID("ledger-for-"+sha), uniqueID("event-sha-for-"+sha), past, sha, expires,
+			 VALUES ($1,$2,$3,$4,'',$5::timestamptz,'/screen',200,'req-sha','resp-sha',$6,$6,'screening-standard',$7::timestamptz,'{}'::jsonb)`,
+			eventID, ledgerID, sequence, uniqueID("event-sha-for-"+sha), pastStr, sha, expires,
 		); err != nil {
 			t.Fatalf("seed referencing event for snapshot %s: %v", sha, err)
 		}
+		expiresParsed, err := time.Parse(time.RFC3339Nano, expires)
+		if err != nil {
+			t.Fatal(err)
+		}
+		obligations[sha] = snapshotObligation{count: 1, max: expiresParsed}
 	}
 
 	// The caller claims BOTH are eligible -- exactly what an adversary,
-	// or a caller with a wrong local clock, would do.
-	recorded, err := sink.RecordPurge(ctx, []string{expiredSHA, notExpiredSHA}, now, "test-operator", "retention expiration")
+	// or a caller with a wrong local clock, would do. The D107
+	// corroboration is HONEST (matches the seeded mirror rows exactly),
+	// so this test still isolates D28's own server-side expiry floor.
+	recorded, err := sink.RecordPurge(ctx, []string{expiredSHA, notExpiredSHA}, obligations, ledgerID, "test-operator", "retention expiration")
 	if err != nil {
 		t.Fatalf("RecordPurge: %v", err)
 	}
@@ -137,7 +160,7 @@ type fakeHoldingRecorder struct {
 	sawEligible []string
 }
 
-func (f *fakeHoldingRecorder) RecordPurge(_ context.Context, eligibleSHA256 []string, _ time.Time, _, _ string) ([]string, error) {
+func (f *fakeHoldingRecorder) RecordPurge(_ context.Context, eligibleSHA256 []string, _ map[string]snapshotObligation, _, _, _ string) ([]string, error) {
 	f.sawEligible = append([]string{}, eligibleSHA256...)
 	return eligibleSHA256, nil
 }

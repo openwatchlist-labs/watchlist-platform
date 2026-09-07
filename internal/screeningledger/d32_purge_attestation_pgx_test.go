@@ -146,7 +146,11 @@ func TestPurgeRequiresAnchoredAttestation(t *testing.T) {
 	// "hardening that rides along," not the fix) legitimately treats
 	// this snapshot as expired -- exactly the CAP's point: the front
 	// door itself is not the defect; the missing attestation is.
-	recorded, err := sink.RecordPurge(ctx, []string{targetSHA}, time.Now(), "adversary", "front door")
+	obligations, err := computeSnapshotObligations(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded, err := sink.RecordPurge(ctx, []string{targetSHA}, obligations, store.ledgerID, "adversary", "front door")
 	if err != nil {
 		t.Fatalf("RecordPurge (the real sanctioned front door): %v", err)
 	}
@@ -184,7 +188,9 @@ func TestPurgeSnapshotsIgnoresCallerTimestamp(t *testing.T) {
 	defer verify.Close(ctx)
 
 	sha := uniqueID("snapshot-not-yet-expired")
-	notYetExpired := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339Nano)
+	// Truncated to whole seconds so the D107 corroboration check below is
+	// not sensitive to the D105 reduction question at all.
+	notYetExpired := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second).Format(time.RFC3339Nano)
 	if _, err := verify.Exec(ctx,
 		`INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json) VALUES ($1,'request',now(),$2::timestamptz,'screening-standard','{}'::jsonb)`,
 		sha, notYetExpired,
@@ -192,28 +198,34 @@ func TestPurgeSnapshotsIgnoresCallerTimestamp(t *testing.T) {
 		t.Fatalf("seed not-yet-expired snapshot: %v", err)
 	}
 	eventID := uniqueID("event-for-" + sha)
+	ledgerID := uniqueID("ledger-for-" + sha)
 	if _, err := verify.Exec(ctx,
 		`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
 		 VALUES ($1,$2,1,$3,'',now(),'/screen',200,'req-sha','resp-sha',$4,$4,'screening-standard',$5::timestamptz,'{}'::jsonb)`,
-		eventID, uniqueID("ledger-for-"+sha), uniqueID("event-sha-for-"+sha), sha, notYetExpired,
+		eventID, ledgerID, uniqueID("event-sha-for-"+sha), sha, notYetExpired,
 	); err != nil {
 		t.Fatalf("seed referencing event: %v", err)
 	}
 
-	// The caller claims the far future -- exactly what CAP #2 §7.3's
-	// "'infinity'" argument modeled. Under the pre-D32 predicate this
-	// tombstones the snapshot regardless of its real expiry. Go's
-	// time.Time cannot literally encode SQL 'infinity', but any value the
-	// caller supplies must be equally ignored -- this uses a timestamp
-	// decades out, which is exactly what the old predicate would have
-	// accepted and the new one must not.
-	callerClaimedNow := time.Date(2200, 1, 1, 0, 0, 0, 0, time.UTC)
-	recorded, err := sink.RecordPurge(ctx, []string{sha}, callerClaimedNow, "adversary", "front door")
+	// ADR-0007 Addendum 12 D107 removes p_before entirely (CAP #11 drift
+	// note 2: it was consulted by neither overload since 020), so "the
+	// caller claims the far future" is no longer expressible at all --
+	// this test's mechanism is obsolete, but its property survives: an
+	// HONEST caller-supplied obligation (matching the seeded not-yet-
+	// expired event exactly, so D107's own corroboration passes) still
+	// cannot purge a snapshot 021's unchanged ALL-expired-over-the-mirror
+	// eligibility predicate does not consider expired.
+	notYetExpiredParsed, err := time.Parse(time.RFC3339Nano, notYetExpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obligations := map[string]snapshotObligation{sha: {count: 1, max: notYetExpiredParsed.Truncate(time.Microsecond)}}
+	recorded, err := sink.RecordPurge(ctx, []string{sha}, obligations, ledgerID, "adversary", "front door")
 	if err != nil {
 		t.Fatalf("RecordPurge: %v", err)
 	}
 	if len(recorded) != 0 {
-		t.Fatalf("ADR-0007 Addendum 3 D32 hardening did not hold: a caller-supplied timestamp was honored, recorded=%v", recorded)
+		t.Fatalf("ADR-0007 Addendum 3 D32 hardening did not hold: a not-yet-expired snapshot was purged, recorded=%v", recorded)
 	}
 
 	var purgedAt *time.Time
@@ -245,6 +257,10 @@ func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context) ([]TombstoneR
 
 func (alwaysRecordedPurgeChecker) EventExpiresAggregateForSnapshot(context.Context, string, string) (int, time.Time, bool, error) {
 	return 0, time.Time{}, false, nil
+}
+
+func (alwaysRecordedPurgeChecker) ForeignLedgerIDs(context.Context, string) ([]string, error) {
+	return nil, nil
 }
 
 func TestVerifyPolicyFailsClosedOnUnadjudicatedClaims(t *testing.T) {

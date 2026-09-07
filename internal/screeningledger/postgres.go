@@ -133,16 +133,16 @@ type requiredDefinerFunction struct {
 
 var requiredDefinerFunctions = []requiredDefinerFunction{
 	{
-		name: "screening_ledger_purge_snapshots", identityArgs: "timestamptz,text,text",
-		installedBy: "db/migrations/021_screening_ledger_purge_all_obligations.sql",
+		name: "screening_ledger_purge_snapshots", identityArgs: "text,int8,timestamptz,text,text",
+		installedBy: "db/migrations/022_screening_ledger_purge_chain_corroboration.sql",
 		acceptedBodySHA256: []string{
 			purgeSnapshotsTimeFloorBodySHA256Migration,
 			purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot,
 		},
 	},
 	{
-		name: "screening_ledger_purge_snapshots", identityArgs: "text[],timestamptz,text,text",
-		installedBy: "db/migrations/021_screening_ledger_purge_all_obligations.sql",
+		name: "screening_ledger_purge_snapshots", identityArgs: "text[],text,int4[],timestamptz[],text,text",
+		installedBy: "db/migrations/022_screening_ledger_purge_chain_corroboration.sql",
 		acceptedBodySHA256: []string{
 			purgeSnapshotsArrayFormBodySHA256Migration,
 			purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot,
@@ -161,19 +161,31 @@ var requiredDefinerFunctions = []requiredDefinerFunction{
 // set rather than adding them to it, so a database still running 020's
 // ANY-expired body is refused rather than silently accepted.
 const (
-	purgeSnapshotsTimeFloorBodySHA256Migration     = "5e919d8e7e9fb4716e2f081e73e370d1411785944f7015460771e5b4376a5482"
-	purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot = "25ca6336979cb2a602c648ec6c41a69377f094f1e07659b8a78673ee7b369329"
-	purgeSnapshotsArrayFormBodySHA256Migration     = "ccb592a2abaff65e144b79be5be4a0bea5449f7bc3394e7fd496b3e4efb75d8c"
-	purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot = "b1305fecd3e5d0063b61d13a8b3ff21a82d42912e93776956a3777b5056c927c"
+	// ADR-0007 Addendum 12 D107: these two moved again, one round after
+	// D98 moved them -- measured (not guessed) as sha256(prosrc) of
+	// 022's literal bodies and SchemaSQL's own copy, D87's standing cost
+	// (0007:9031-9049), one migration later (D107's own text).
+	purgeSnapshotsTimeFloorBodySHA256Migration     = "8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be"
+	purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot = "047ea55d4968a9af112c2e61a779ec23360883fa39ffb7d2c530e167f2ae5d47"
+	purgeSnapshotsArrayFormBodySHA256Migration     = "925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d"
+	purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot = "196dd178de6996f976ab647e13585436df427869b38e6676109fd93d3c0373f9"
 
-	// purgeSnapshotsTimeFloorBodySHA256Superseded020 and
-	// purgeSnapshotsArrayFormBodySHA256Superseded020 are 020's own
-	// ANY-expired bodies (D87/D86 row 8's constants, renamed rather than
-	// deleted) -- D99(b)'s "every OTHER committed literal for a declared
-	// function digests to something NOT in the accepted set" needs the
-	// superseded literal's own digest to assert against, not merely its
-	// absence.
-	purgeSnapshotsTimeFloorBodySHA256Superseded020 = "eed7e96d9d341a3f2e9b53a64e8367e9bbeaeae4747fbb1eda28552ec2b079c5"
+	// purgeSnapshotsArrayFormBodySHA256Superseded020 is 020's own
+	// ANY-expired array-form body (D87/D86 row 8's constant, unchanged
+	// by this addendum) -- D99(b)'s "every OTHER committed literal for a
+	// declared function digests to something NOT in the accepted set"
+	// needs the superseded literal's own digest to assert against, not
+	// merely its absence. The array-form's prefix ("p_snapshot_sha256
+	// text[]") still matches 019/020/021's historical bodies, so this
+	// constant stays checkable; the TIME-FLOOR overload's
+	// 019/020/021-era (p_before timestamptz,...) signature is a shape
+	// D107 DROPs outright (022_screening_ledger_purge_chain_corroboration
+	// .sql), not merely respells -- it is no longer part of the current
+	// time-floor declaration's own population at all (D108's
+	// signatureContains, "p_ledger_id text", does not match its prefix),
+	// so there is no live/superseded pair to declare for it here; its
+	// own former constant (purgeSnapshotsTimeFloorBodySHA256Superseded020)
+	// is removed rather than left unreferenced.
 	purgeSnapshotsArrayFormBodySHA256Superseded020 = "67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4"
 )
 
@@ -419,8 +431,8 @@ var requiredProtectedObjects = []protectedObjectIdentity{
 	{"pg_trigger", "screening_ledger_retention_tombstone_no_truncate on public.screening_ledger_retention_tombstone"},
 	{"pg_proc", "public.screening_ledger_reject_mutation()"},
 	{"pg_proc", "public.owl_reject_truncate()"},
-	{"pg_proc", "public.screening_ledger_purge_snapshots(timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
-	{"pg_proc", "public.screening_ledger_purge_snapshots(pg_catalog.text[],timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
+	{"pg_proc", "public.screening_ledger_purge_snapshots(pg_catalog.text,bigint,timestamp with time zone,pg_catalog.text,pg_catalog.text)"},
+	{"pg_proc", "public.screening_ledger_purge_snapshots(pg_catalog.text[],pg_catalog.text,integer[],timestamp with time zone[],pg_catalog.text,pg_catalog.text)"},
 	// ADR-0007 Addendum 5 D45: sec7_instance_binding, the copy-diagnosis
 	// marker, is itself a protected object -- same reasoning as the two
 	// registries above it (R15: a registry is a new trust object).
@@ -1444,13 +1456,34 @@ func (p *PostgresSink) Persist(ctx context.Context, event Event, request, respon
 		}
 	}
 
+	// ADR-0007 Addendum 12 D105(b): expires_at is bound as a typed
+	// time.Time, not a text literal the server parses -- the same
+	// convention AnchorSink.WriteAnchor already uses for anchored_at
+	// (anchor.go:181-188). A text literal plus ::timestamptz makes the
+	// server's own fractional-second parser (round-half-to-even) a
+	// SECOND, independent reduction of the value hashEvent's MAC already
+	// committed to, which disagrees with the read path's Truncate
+	// (anchor.go) on 4,995 of every 9,999 nanosecond values (D104/D105).
+	// event.ExpiresAt is already microsecond-precision at creation
+	// (D105(a), mustExpires), so this Truncate is a no-op on every value
+	// this binary writes; it stays explicit so a chain written by an
+	// older binary -- carrying genuine sub-microsecond precision -- still
+	// verifies, because both the write path here and the read path
+	// (anchor.go) truncate the SAME way rather than one truncating and
+	// the other letting the server round.
+	expiresAt, err := time.Parse(time.RFC3339Nano, event.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("parsing Event.ExpiresAt %q (ADR-0007 Addendum 12 D105(b)): %w", event.ExpiresAt, err)
+	}
+	expiresAt = expiresAt.Truncate(time.Microsecond)
+
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
-		 VALUES ($1,$2,$3,$4,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14::timestamptz,$15::jsonb)
+		 VALUES ($1,$2,$3,$4,$5,$6::timestamptz,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
 		 ON CONFLICT (event_id) DO NOTHING`,
 		event.EventID, event.LedgerID, int64(event.Sequence), event.EventSHA256, event.PreviousEventSHA256,
 		event.OccurredAt, event.Route, event.HTTPStatus, event.RequestSHA256, event.ResponseSHA256,
-		event.RequestSnapshotSHA256, event.ResponseSnapshotSHA256, event.RetentionClass, event.ExpiresAt, eventJSON,
+		event.RequestSnapshotSHA256, event.ResponseSnapshotSHA256, event.RetentionClass, expiresAt, eventJSON,
 	); err != nil {
 		return err
 	}
@@ -1647,6 +1680,34 @@ func (p *PostgresSink) EventExpiresAggregateForSnapshot(ctx context.Context, sna
 	return count, *maxNullable, true, nil
 }
 
+// ForeignLedgerIDs implements PurgeChecker (ADR-0007 Addendum 12 D110):
+// every DISTINCT ledger_id in screening_ledger_event other than
+// ledgerID, sorted. Read by owl_migrator with no new role, DSN or
+// grant -- SELECT on screening_ledger_event is already held for the
+// D97/D107 aggregate reads above, checked rather than assumed, the
+// standard D33/D41/D45/D59/D68/D76 each held to.
+func (p *PostgresSink) ForeignLedgerIDs(ctx context.Context, ledgerID string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	rows, err := p.conn.Query(ctx, `SELECT DISTINCT ledger_id FROM screening_ledger_event WHERE ledger_id<>$1 ORDER BY ledger_id`, ledgerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var foreign []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		foreign = append(foreign, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return foreign, nil
+}
+
 // PurgeRecord implements PurgeChecker (ADR-0007 D13/F8, extended by
 // Addendum 8 D70): the tombstone row for a snapshot the caller found
 // marked purged in its own envelope, rather than trusting that
@@ -1709,15 +1770,23 @@ func (p *PostgresSink) AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, 
 
 // PurgeExpired calls the time-floor overload of screening_ledger_purge_
 // snapshots directly -- a standalone, direct-database retention sweep
-// ("purge everything expired as of before") independent of any local
-// ledger directory or its legal holds. Distinct from RecordPurge (D28),
-// which cmd/screening-ledger's purge command actually uses: that form
-// takes the caller's already holds-filtered candidate set and lets the
-// server re-check the expiry floor against exactly those snapshots.
-// PurgeExpired's own predicate (SECURITY DEFINER since 019) is unchanged
-// from 008g's version. See PersistAudit's doc comment for the
-// bare-statement hazard this method also avoids.
-func (p *PostgresSink) PurgeExpired(ctx context.Context, before, operator, reason string) error {
+// independent of any local ledger directory or its legal holds. Distinct
+// from RecordPurge (D28), which cmd/screening-ledger's purge command
+// actually uses: that form takes the caller's already holds-filtered
+// candidate set and lets the server re-check the expiry floor against
+// exactly those snapshots. PurgeExpired's own eligibility predicate
+// (SECURITY DEFINER since 019, ALL-expired-over-the-mirror since 021) is
+// unchanged; ADR-0007 Addendum 12 D107 adds a leading refusal, the
+// coarsest version of the corroboration RecordPurge below carries per
+// snapshot: expectedCount/expectedMax is this ledger's OWN belief about
+// its TOTAL chain-authenticated screening_ledger_event population
+// (every event this ledger has appended, and the latest ExpiresAt among
+// them), refused unless the mirror's own total for ledgerID agrees
+// exactly. PurgeExpired has no non-test Go caller (D107's own
+// measurement) but must be no weaker than RecordPurge beside it (D76).
+// See PersistAudit's doc comment for the bare-statement hazard this
+// method also avoids.
+func (p *PostgresSink) PurgeExpired(ctx context.Context, ledgerID string, expectedCount int, expectedMax time.Time, operator, reason string) error {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
@@ -1727,23 +1796,34 @@ func (p *PostgresSink) PurgeExpired(ctx context.Context, before, operator, reaso
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::timestamptz,$2,$3)`, before, operator, reason); err != nil {
+	// expectedMax binds NULL when expectedCount is 0 -- a ledger with no
+	// mirror rows at all has mirror max(expires_at) NULL, and a bound
+	// zero-value time.Time would compare IS DISTINCT FROM NULL as true.
+	var expectedMaxParam *time.Time
+	if expectedCount != 0 {
+		expectedMaxParam = &expectedMax
+	}
+	if _, err := tx.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1,$2,$3,$4,$5)`, ledgerID, int64(expectedCount), expectedMaxParam, operator, reason); err != nil {
 		return err
 	}
 
 	return tx.Commit(ctx)
 }
 
-// RecordPurge implements PurgeRecorder (ADR-0007 Addendum 2 D27/D28): the
-// local-narrows/server-floors purge path. eligibleSHA256 is the set
-// Store.PurgeExpired's local pass already determined eligible under this
-// ledger's legal-holds rule (holds/, which this call does not and should
-// not learn about); the array-form overload of screening_ledger_purge_
-// snapshots re-validates every one of them against expires_at
-// server-side and records only what is actually expired, regardless of
-// what the caller claims. The caller may then mark purged, locally, only
-// the snapshots this call reports as recorded.
-func (p *PostgresSink) RecordPurge(ctx context.Context, eligibleSHA256 []string, before time.Time, operator, reason string) ([]string, error) {
+// RecordPurge implements PurgeRecorder (ADR-0007 Addendum 2 D27/D28,
+// corroboration added by Addendum 12 D107): the local-narrows/
+// server-floors purge path. eligibleSHA256 is the set Store.PurgeExpired's
+// local pass already determined eligible under this ledger's legal-holds
+// rule (holds/, which this call does not and should not learn about);
+// obligations is the chain-authenticated (count, MAX) per sha in
+// eligibleSHA256 (D107). The array-form overload of
+// screening_ledger_purge_snapshots refuses the WHOLE call unless its own
+// mirror aggregate agrees with every supplied pair, then re-validates
+// eligibility against expires_at server-side and records only what is
+// actually expired, regardless of what the caller claims. The caller may
+// then mark purged, locally, only the snapshots this call reports as
+// recorded.
+func (p *PostgresSink) RecordPurge(ctx context.Context, eligibleSHA256 []string, obligations map[string]snapshotObligation, ledgerID, operator, reason string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 
@@ -1753,10 +1833,27 @@ func (p *PostgresSink) RecordPurge(ctx context.Context, eligibleSHA256 []string,
 	}
 	defer tx.Rollback(ctx)
 
+	expectedCount := make([]int32, len(eligibleSHA256))
+	// expectedMax is *time.Time, nil for a sha with no chain obligation
+	// at all (obligations[sha] not present, count 0) -- the mirror's own
+	// max(expires_at) over zero matching rows is SQL NULL, and a bound
+	// zero-value time.Time would compare IS DISTINCT FROM NULL as true,
+	// turning "nothing to purge" into a spurious corroboration refusal.
+	expectedMax := make([]*time.Time, len(eligibleSHA256))
+	for i, sha := range eligibleSHA256 {
+		o, ok := obligations[sha]
+		if !ok || o.count == 0 {
+			continue
+		}
+		expectedCount[i] = int32(o.count)
+		max := o.max
+		expectedMax[i] = &max
+	}
+
 	var recorded []string
 	if err := tx.QueryRow(ctx,
-		`SELECT screening_ledger_purge_snapshots($1::text[],$2::timestamptz,$3,$4)`,
-		eligibleSHA256, before, operator, reason,
+		`SELECT screening_ledger_purge_snapshots($1::text[],$2,$3::int[],$4::timestamptz[],$5,$6)`,
+		eligibleSHA256, ledgerID, expectedCount, expectedMax, operator, reason,
 	).Scan(&recorded); err != nil {
 		return nil, err
 	}
@@ -1956,8 +2053,10 @@ BEGIN
     EXECUTE 'CREATE TABLE screening_ledger_retention_tombstone(snapshot_sha256 text PRIMARY KEY,purged_at timestamptz NOT NULL,operator text NOT NULL,reason text NOT NULL)';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_immutable BEFORE UPDATE OR DELETE ON screening_ledger_retention_tombstone FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()';
     EXECUTE 'CREATE TRIGGER screening_ledger_retention_tombstone_no_truncate BEFORE TRUNCATE ON screening_ledger_retention_tombstone FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; BEGIN BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT s.snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot s WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()); EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; UPDATE screening_ledger_snapshot s SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()); GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
-    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_before timestamptz,p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; BEGIN BEGIN WITH eligible AS (SELECT s.snapshot_sha256 FROM screening_ledger_snapshot s WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp())), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
+    EXECUTE 'DROP FUNCTION IF EXISTS screening_ledger_purge_snapshots(timestamptz,text,text)';
+    EXECUTE 'DROP FUNCTION IF EXISTS screening_ledger_purge_snapshots(text[],timestamptz,text,text)';
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_ledger_id text,p_expected_count bigint,p_expected_max timestamptz,p_operator text,p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE affected bigint; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; DECLARE mirror_count bigint; DECLARE mirror_max timestamptz; BEGIN SELECT count(*),max(e.expires_at) INTO mirror_count,mirror_max FROM screening_ledger_event e WHERE e.ledger_id=p_ledger_id; IF mirror_count IS DISTINCT FROM p_expected_count OR mirror_max IS DISTINCT FROM p_expected_max THEN RAISE EXCEPTION 'ADR-0007 Addendum 12 D107: ledger %''s TOTAL mirror screening_ledger_event aggregate (count=%, max=%) disagrees with the caller-supplied chain-authenticated obligation (count=%, max=%): refusing rather than purging under an unverified claim', p_ledger_id, mirror_count, mirror_max, p_expected_count, p_expected_max; END IF; BEGIN INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT s.snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM screening_ledger_snapshot s WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()); EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; UPDATE screening_ledger_snapshot s SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()); GET DIAGNOSTICS affected=ROW_COUNT; RETURN affected; END $func$ $exec$;
+    EXECUTE $exec$CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[],p_ledger_id text,p_expected_count int[],p_expected_max timestamptz[],p_operator text,p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public AS $func$ DECLARE recorded text[]; DECLARE conflict_sha256 text; DECLARE conflict_purged_at timestamptz; DECLARE conflict_operator text; DECLARE i int; DECLARE mirror_count int; DECLARE mirror_max timestamptz; BEGIN IF array_length(p_snapshot_sha256,1) IS DISTINCT FROM array_length(p_expected_count,1) OR array_length(p_snapshot_sha256,1) IS DISTINCT FROM array_length(p_expected_max,1) THEN RAISE EXCEPTION 'ADR-0007 Addendum 12 D107: p_snapshot_sha256, p_expected_count and p_expected_max must be arrays of the same length'; END IF; IF array_length(p_snapshot_sha256,1) IS NOT NULL THEN FOR i IN 1 .. array_length(p_snapshot_sha256,1) LOOP SELECT count(*),max(e.expires_at) INTO mirror_count,mirror_max FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=p_snapshot_sha256[i] OR e.response_snapshot_sha256=p_snapshot_sha256[i]) AND e.ledger_id=p_ledger_id; IF mirror_count IS DISTINCT FROM p_expected_count[i] OR mirror_max IS DISTINCT FROM p_expected_max[i] THEN RAISE EXCEPTION 'ADR-0007 Addendum 12 D107: snapshot %''s mirror screening_ledger_event aggregate (count=%, max=%, ledger=%) disagrees with the caller-supplied chain-authenticated obligation (count=%, max=%): refusing rather than purging under an unverified claim', p_snapshot_sha256[i], mirror_count, mirror_max, p_ledger_id, p_expected_count[i], p_expected_max[i]; END IF; END LOOP; END IF; BEGIN WITH eligible AS (SELECT s.snapshot_sha256 FROM screening_ledger_snapshot s WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp())), inserted AS (INSERT INTO screening_ledger_retention_tombstone(snapshot_sha256,purged_at,operator,reason) SELECT snapshot_sha256,clock_timestamp(),p_operator,p_reason FROM eligible), updated AS (UPDATE screening_ledger_snapshot SET purged_at=clock_timestamp(),purge_reason=p_reason,envelope_json=(envelope_json-'nonce_base64'-'ciphertext_base64')||jsonb_build_object('purged_at',clock_timestamp(),'purge_reason',p_reason) WHERE snapshot_sha256 IN (SELECT snapshot_sha256 FROM eligible) RETURNING snapshot_sha256) SELECT array_agg(snapshot_sha256) INTO recorded FROM updated; EXCEPTION WHEN unique_violation THEN SELECT s.snapshot_sha256,t.purged_at,t.operator INTO conflict_sha256,conflict_purged_at,conflict_operator FROM screening_ledger_snapshot s JOIN screening_ledger_retention_tombstone t ON t.snapshot_sha256=s.snapshot_sha256 WHERE s.snapshot_sha256=ANY(p_snapshot_sha256) AND s.purged_at IS NULL AND EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256))AND NOT EXISTS (SELECT 1 FROM screening_ledger_event e WHERE (e.request_snapshot_sha256=s.snapshot_sha256 OR e.response_snapshot_sha256=s.snapshot_sha256) AND e.expires_at>=clock_timestamp()) LIMIT 1; RAISE EXCEPTION 'ADR-0007 Addendum 10 D87: a retention tombstone already exists for snapshot % (purged_at=%, operator=%), but the mirror still records it unpurged -- refusing rather than adopting the pre-existing row (SQLSTATE 23505)', conflict_sha256, conflict_purged_at, conflict_operator; END; RETURN COALESCE(recorded,ARRAY[]::text[]); END $func$ $exec$;
   END IF;
 END $$;
 COMMIT;

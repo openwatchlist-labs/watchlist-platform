@@ -43,6 +43,33 @@ const VerificationPolicySchemaV2 = "openwatchlist.screening-ledger-verification-
 // path is provided; that is the decision, not an omission.
 const VerificationPolicySchemaV3 = "openwatchlist.screening-ledger-verification-policy.v3"
 
+// VerificationPolicySchemaV4 is ADR-0007 Addendum 12 D110: adds Tenancy,
+// the signed, externally-authenticated fact D110 requires -- a mirror-
+// derived discriminator was evaluated and refused ("is some other
+// ledger's event row present for this sha?" is a question owl_migrator
+// can answer in its own favour with one INSERT into a table it owns),
+// so the discriminator is a field inside the Ed25519-signed policy
+// (D10), which terminates outside section 2's reach, the same way
+// AllowUnanchored already does. Retired by the same exact-equality
+// convention D25/D38(b) established: a v3-labelled document is
+// rejected outright, not silently narrowed to exclusive.
+const VerificationPolicySchemaV4 = "openwatchlist.screening-ledger-verification-policy.v4"
+
+// TenancyExclusive and TenancyShared are D110's two Tenancy values.
+// TenancyExclusive is the default a bootstrap policy needs (D110's own
+// text): this ledger asserts it is the ONLY ledger in its Postgres
+// schema, and a screening_ledger_event row carrying a foreign ledger_id
+// becomes a named verification failure. TenancyShared withdraws that
+// assertion: a tombstone this ledger's chain does not attest is
+// reported (named and counted in VerifyReport) rather than failing --
+// R31's standing limit ("one ledger's verifier cannot adjudicate
+// another ledger's retention claim") made explicit rather than
+// discovered as an unstated precondition.
+const (
+	TenancyExclusive = "exclusive"
+	TenancyShared    = "shared"
+)
+
 // VerificationPolicy carries the externally-authenticated facts ADR-0007
 // D8 names EA1-EA3, plus Addendum 2 D25's MinAnchorSequence (EA4's
 // floor), plus Addendum 4 D38(b)'s genesis prefix-commitment pin: the
@@ -76,6 +103,11 @@ type VerificationPolicy struct {
 	// GenesisXSequence).
 	GenesisEventSHA256 string `json:"genesis_event_sha256"`
 	GenesisAuditSHA256 string `json:"genesis_audit_sha256"`
+	// Tenancy (ADR-0007 Addendum 12 D110): TenancyExclusive or
+	// TenancyShared, see their own doc comments. Signed, so an adversary
+	// who cannot forge the Ed25519 signature cannot move a verifier from
+	// exclusive into the weaker, reporting-only shared mode.
+	Tenancy string `json:"tenancy"`
 }
 
 // Validate is ADR-0007 Addendum 3 D36 (G-F): validity defined as a
@@ -87,8 +119,11 @@ type VerificationPolicy struct {
 // CAP #2 §7.8 signed an invalid document with no complaint at all,
 // because nothing on the producing side ever asked.
 func (p VerificationPolicy) Validate() error {
-	if p.SchemaVersion != VerificationPolicySchemaV3 {
-		return fmt.Errorf("verification policy schema_version %q is not %q", p.SchemaVersion, VerificationPolicySchemaV3)
+	if p.SchemaVersion != VerificationPolicySchemaV4 {
+		return fmt.Errorf("verification policy schema_version %q is not %q", p.SchemaVersion, VerificationPolicySchemaV4)
+	}
+	if p.Tenancy != TenancyExclusive && p.Tenancy != TenancyShared {
+		return fmt.Errorf("verification policy tenancy %q is not %q or %q (ADR-0007 Addendum 12 D110)", p.Tenancy, TenancyExclusive, TenancyShared)
 	}
 	if strings.TrimSpace(p.LedgerID) == "" {
 		return errors.New("verification policy ledger_id must not be empty")
@@ -162,6 +197,10 @@ type unsignedPolicyInput struct {
 	// pins the genesis boundary.
 	GenesisEventSHA256 *string `json:"genesis_event_sha256"`
 	GenesisAuditSHA256 *string `json:"genesis_audit_sha256"`
+	// Tenancy (D110): pointer so an omitted key is caught as missing
+	// rather than silently defaulting to either value -- the same
+	// presence-checking reasoning D36 established for min_anchor_sequence.
+	Tenancy *string `json:"tenancy"`
 }
 
 // DecodeUnsignedPolicy is ADR-0007 Addendum 3 D36: strict decoding
@@ -226,6 +265,9 @@ func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
 	if in.GenesisAuditSHA256 == nil {
 		missing = append(missing, "genesis_audit_sha256")
 	}
+	if in.Tenancy == nil {
+		missing = append(missing, "tenancy")
+	}
 	if len(missing) > 0 {
 		return VerificationPolicy{}, fmt.Errorf("unsigned policy document is missing required field(s): %s (ADR-0007 Addendum 3 D36) -- an operator who genuinely wants no anchor floor must write \"min_anchor_sequence\": 0 and mean it; silence is not a value", strings.Join(missing, ", "))
 	}
@@ -240,6 +282,7 @@ func DecodeUnsignedPolicy(r io.Reader) (VerificationPolicy, error) {
 		MinAnchorSequence:    *in.MinAnchorSequence,
 		GenesisEventSHA256:   *in.GenesisEventSHA256,
 		GenesisAuditSHA256:   *in.GenesisAuditSHA256,
+		Tenancy:              *in.Tenancy,
 	}
 	if err := policy.Validate(); err != nil {
 		return VerificationPolicy{}, err

@@ -332,13 +332,13 @@ grant-ddl-ownership)
   # addendum's design pass, so an unconditional re-run would trip D34's
   # own event trigger on the second and every subsequent invocation of
   # this script.
-  func1_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func1_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text'")"
   if [[ "$func1_owner_before" != "owl_ledger_ddl" ]]; then
-    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) OWNER TO owl_ledger_ddl;"
+    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) OWNER TO owl_ledger_ddl;"
   fi
-  func2_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func2_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text'")"
   if [[ "$func2_owner_before" != "owl_ledger_ddl" ]]; then
-    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) OWNER TO owl_ledger_ddl;"
+    psql_super -c "ALTER FUNCTION screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) OWNER TO owl_ledger_ddl;"
   fi
   # The definer functions run as owl_ledger_ddl regardless of caller
   # (SECURITY DEFINER), so their INSERT into screening_ledger_retention_
@@ -370,10 +370,10 @@ grant-ddl-ownership)
   # would otherwise leave every role -- not just owl_migrator -- able to
   # invoke a SECURITY DEFINER function without this script's explicit
   # decision to grant it.
-  psql_super -c "REVOKE EXECUTE ON FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) FROM PUBLIC;"
-  psql_super -c "REVOKE EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) FROM PUBLIC;"
-  psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) TO owl_migrator;"
-  psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) TO owl_migrator;"
+  psql_super -c "REVOKE EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) FROM PUBLIC;"
+  psql_super -c "REVOKE EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) FROM PUBLIC;"
+  psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) TO owl_migrator;"
+  psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) TO owl_migrator;"
   tombstone_owner="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone' AND relnamespace = 'public'::regnamespace")"
   [[ "$tombstone_owner" == "owl_ledger_ddl" ]] || {
     echo "FAIL: screening_ledger_retention_tombstone owner is '$tombstone_owner', expected owl_ledger_ddl" >&2
@@ -384,30 +384,67 @@ grant-ddl-ownership)
     echo "FAIL: owl_migrator has INSERT on screening_ledger_retention_tombstone; the CAP's forgery path is still open (D27)" >&2
     exit 1
   }
-  func1_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func1_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text'")"
   [[ "$func1_definer" == "t" ]] || {
-    echo "FAIL: screening_ledger_purge_snapshots(timestamptz,text,text) is not SECURITY DEFINER (prosecdef)" >&2
+    echo "FAIL: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) is not SECURITY DEFINER (prosecdef)" >&2
     exit 1
   }
-  func2_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func2_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text'")"
   [[ "$func2_definer" == "t" ]] || {
-    echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) is not SECURITY DEFINER (prosecdef)" >&2
+    echo "FAIL: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) is not SECURITY DEFINER (prosecdef)" >&2
     exit 1
   }
   # ADR-0007 Addendum 3 D33: ownership of both overloads is now asserted
   # here too, not only reported -- the provisioning completion condition
   # D33 names, checked at the point that installs it rather than left to
   # Migrate()'s deliberately ownership-blind schema check alone.
-  func1_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func1_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text'")"
   [[ "$func1_owner" == "owl_ledger_ddl" ]] || {
-    echo "FAIL: screening_ledger_purge_snapshots(timestamptz,text,text) owner is '$func1_owner', expected owl_ledger_ddl" >&2
+    echo "FAIL: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) owner is '$func1_owner', expected owl_ledger_ddl" >&2
     exit 1
   }
-  func2_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_before timestamp with time zone, p_operator text, p_reason text'")"
+  func2_owner="$(psql_super -tAc "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text'")"
   [[ "$func2_owner" == "owl_ledger_ddl" ]] || {
-    echo "FAIL: screening_ledger_purge_snapshots(text[],timestamptz,text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
+    echo "FAIL: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
     exit 1
   }
+  # ADR-0007 Addendum 12 D111(a): the installer proves the property it
+  # installs, the same G-A shape D62(a) closed inverted (there the
+  # installer checked and the verifier did not; here -- before this
+  # decision -- the verifier (CheckProvisioningState, postgres.go)
+  # checked prosrc and the installer checked only prosecdef/proowner).
+  # Both screening_ledger_purge_snapshots overloads join the same
+  # sha256(prosrc) digest comparison the trigger loop above already
+  # performs for the two guard functions -- measured against
+  # postgres.go's purgeSnapshotsTimeFloorBodySHA256Migration /
+  # purgeSnapshotsArrayFormBodySHA256Migration (R23/R35's cross-language
+  # duplication cost, same reason the trigger loop above duplicates its
+  # own digests rather than importing the Go literal). Only the
+  # MIGRATION-path digest applies: grant-ddl-ownership never runs
+  # against a SchemaSQL-only database (that fixture stays deliberately
+  # unprovisioned), unlike owl_reject_truncate's trigger-bound two-path
+  # digest set above.
+  for decl_purge_fn in \
+    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
+    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
+  do
+    purge_args="${decl_purge_fn%%:*}"
+    purge_rest="${decl_purge_fn#*:}"
+    purge_digest="${purge_rest%%:*}"
+    purge_label="${purge_rest#*:}"
+    purge_body_ok="$(psql_super -tAc "
+      SELECT encode(sha256(convert_to(prosrc, 'UTF8')), 'hex') = '${purge_digest}'
+      FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='${purge_args}'
+    ")"
+    [[ "$purge_body_ok" == "t" ]] || {
+      live_purge_digest="$(psql_super -tAc "
+        SELECT encode(sha256(convert_to(prosrc, 'UTF8')), 'hex')
+        FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='${purge_args}'
+      ")"
+      echo "FAIL: ${purge_label}'s body (prosrc) digest is '${live_purge_digest}', expected '${purge_digest}' (ADR-0007 Addendum 12 D111): possible CREATE OR REPLACE FUNCTION substitution of a definer function that writes purged_at -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      exit 1
+    }
+  done
   # ADR-0007 Addendum 6 D51 / Addendum 7 D60 / Addendum 8 D72/D73: same
   # live-population postcondition as the anchor table above.
   maintain_holders_tombstone="$(psql_super -tAc "
@@ -736,8 +773,8 @@ grant-ddl-ownership)
         ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_no_truncate'),
         ('screening_ledger_reject_mutation()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_reject_mutation (G-D: the shared row-immutability guard every one of the eight protected tables'' trigger calls)'),
         ('owl_reject_truncate()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: owl_reject_truncate (G-D: the shared TRUNCATE guard every one of the eight protected tables'' trigger calls)'),
-        ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
-        ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
+        ('screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text) (D27''s retention control -- D34 extends protection to it since G-B showed the owner can destroy it wholesale via DROP OWNED BY)'),
+        ('screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'),
         ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
         ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)'),
         ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)')
