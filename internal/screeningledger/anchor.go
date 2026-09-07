@@ -400,15 +400,35 @@ func purgeAttributionMismatch(record TombstoneRecord, entry AuditEvent, anchored
 // MAC anywhere, and protecting the relation does not fix that (see D89's
 // own text in docs/adr/0007-audit-chain-integrity.md -- both grounds
 // were measured, not assumed). It must not be reinstated in any form.
+//
+// ADR-0007 Addendum 11 D96/D97: a snapshot's chain-authenticated
+// Event.ExpiresAt is not one value, it is a set -- the same content can
+// be screened more than once, under different retention policies, and
+// every referencing event places its own independent obligation on the
+// bytes. snapshotObligation is that set, reduced to what D97's rule
+// needs: how many chain events reference the snapshot (compared against
+// the mirror's row count, so cardinality is corroborated and not only
+// value -- D76's "no member of the comparison may be weaker") and the
+// MAXIMUM of their ExpiresAt (the latest promise the chain carries,
+// D97's own justification: destroying the bytes when the shortest
+// promise expires breaks the longer one).
+type snapshotObligation struct {
+	count int
+	max   time.Time
+}
+
 type purgeLowerBoundSource struct {
 	previousAnchoredAt time.Time
 	hasPrevious        bool
-	// eventsBySnapshot is the local, chain-authenticated Event chain
-	// indexed by request/response snapshot sha256, read once
-	// (loadPurgeLowerBoundSource) since it does not vary per claim/row --
-	// unlike the pre-D89 genesis fallback, expiresAt(S) is looked up here
-	// for every snapshot, not only at genesis.
-	eventsBySnapshot map[string]Event
+	// obligationsBySnapshot is this ledger's own local, chain-
+	// authenticated Event chain reduced to one snapshotObligation per
+	// request/response snapshot sha256, read once
+	// (loadPurgeLowerBoundSource) since it does not vary per claim/row.
+	// Built from ListEvents(), which is this ledger's own directory, so
+	// the population is implicitly scoped to this ledger by
+	// construction -- the per-ledger half of D98's deliberate
+	// floor/eligibility asymmetry (R43).
+	obligationsBySnapshot map[string]snapshotObligation
 }
 
 func loadPurgeLowerBoundSource(ctx context.Context, store *Store, anchors AnchorReader, kAnchor []byte, ledgerID string, anchorSequence int64) (purgeLowerBoundSource, error) {
@@ -434,53 +454,77 @@ func loadPurgeLowerBoundSource(ctx context.Context, store *Store, anchors Anchor
 	if err != nil {
 		return purgeLowerBoundSource{}, fmt.Errorf("reading local event chain for the chain-authenticated expiry floor (ADR-0007 Addendum 10 D89): %w", err)
 	}
-	bySnapshot := make(map[string]Event, len(events)*2)
+	obligations := make(map[string]snapshotObligation, len(events)*2)
 	for _, e := range events {
+		expiresAt, err := time.Parse(time.RFC3339Nano, e.ExpiresAt)
+		if err != nil {
+			return purgeLowerBoundSource{}, fmt.Errorf("parsing chain-authenticated expires_at %q for event %s (ADR-0007 Addendum 11 D97): %w", e.ExpiresAt, e.EventID, err)
+		}
+		// ADR-0007 Addendum 11 D102: truncated once, here, to the same
+		// precision the mirror's timestamptz always carries -- the
+		// truncated value is both what is compared against the mirror
+		// below AND what a caller later uses as the lower bound, so the
+		// two can never diverge on precision alone.
+		expiresAt = expiresAt.Truncate(time.Microsecond)
+		// A single event may reference the same sha through both its
+		// request and response columns (request bytes == response
+		// bytes); the mirror counts that as ONE row (a single OR-matched
+		// screening_ledger_event row), so this must count it once too --
+		// a set of the distinct sha values this one event references,
+		// not one increment per column.
+		refs := make(map[string]struct{}, 2)
 		if e.RequestSnapshotSHA256 != "" {
-			bySnapshot[e.RequestSnapshotSHA256] = e
+			refs[e.RequestSnapshotSHA256] = struct{}{}
 		}
 		if e.ResponseSnapshotSHA256 != "" {
-			bySnapshot[e.ResponseSnapshotSHA256] = e
+			refs[e.ResponseSnapshotSHA256] = struct{}{}
+		}
+		for sha := range refs {
+			o := obligations[sha]
+			o.count++
+			if o.count == 1 || expiresAt.After(o.max) {
+				o.max = expiresAt
+			}
+			obligations[sha] = o
 		}
 	}
-	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious, eventsBySnapshot: bySnapshot}, nil
+	return purgeLowerBoundSource{previousAnchoredAt: previousAnchoredAt, hasPrevious: hasPrevious, obligationsBySnapshot: obligations}, nil
 }
 
-// forSnapshot is D89's rule applied to one snapshot: the chain's own
-// Event.ExpiresAt is the authority (inside hashEvent's MAC under
-// K_chain, committed under K_anchor through the anchor's event_sha256 --
-// the same termination D70's operator/reason comparison already enjoys).
-// The mirror's screening_ledger_event.expires_at is corroboration: the
-// two must agree, and a disagreement is a named failure reporting
-// mirror/ledger divergence -- never silently resolved either way, and
-// the mirror value is never promoted to the authority (D89's own stated
-// caution, mirroring D32's arrangement for condition 3).
-func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChecker, snapshotSHA256 string) (time.Time, error) {
-	event, ok := b.eventsBySnapshot[snapshotSHA256]
+// forSnapshot is D89's rule, generalised by D97/D96 row 16/18 to the
+// population D89 did not ask about: the chain's own MAX(Event.ExpiresAt)
+// over every local event referencing this snapshot is the authority
+// (inside hashEvent's MAC under K_chain, committed under K_anchor
+// through the anchor's event_sha256 -- the same termination D70's
+// operator/reason comparison already enjoys). The mirror's count and
+// MAX(screening_ledger_event.expires_at), scoped to this ledger, is
+// corroboration: both must agree with the chain's own count and maximum,
+// and a disagreement on EITHER is a named failure reporting mirror/chain
+// divergence -- never silently resolved either way, and the mirror value
+// is never promoted to the authority (D89's own stated caution, carried
+// forward verbatim by D97(d)). Comparing the maximum alone would leave
+// the count as an unprotected weaker member (D97(c)/D76): a mirror row
+// rewritten to any value below the true maximum would otherwise be
+// invisible as long as some other row still carried it.
+func (b purgeLowerBoundSource) forSnapshot(ctx context.Context, purges PurgeChecker, ledgerID, snapshotSHA256 string) (time.Time, error) {
+	obligation, ok := b.obligationsBySnapshot[snapshotSHA256]
 	if !ok {
 		return time.Time{}, fmt.Errorf("snapshot %s has a purge claim or tombstone row but no local event chain entry references it (ADR-0007 Addendum 10 D89): mirror/ledger divergence", snapshotSHA256)
 	}
-	chainExpiresAt, err := time.Parse(time.RFC3339Nano, event.ExpiresAt)
+	mirrorCount, mirrorMax, found, err := purges.EventExpiresAggregateForSnapshot(ctx, snapshotSHA256, ledgerID)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("parsing chain-authenticated expires_at %q for snapshot %s (ADR-0007 Addendum 10 D89): %w", event.ExpiresAt, snapshotSHA256, err)
-	}
-	mirrorExpiresAt, found, err := purges.EventExpiresAtForSnapshot(ctx, snapshotSHA256)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("reading mirror screening_ledger_event.expires_at for %s (ADR-0007 Addendum 10 D89): %w", snapshotSHA256, err)
+		return time.Time{}, fmt.Errorf("reading mirror screening_ledger_event aggregate for %s (ADR-0007 Addendum 11 D97): %w", snapshotSHA256, err)
 	}
 	if !found {
 		return time.Time{}, fmt.Errorf("snapshot %s has a chain-authenticated event but no mirror screening_ledger_event row references it (ADR-0007 Addendum 10 D89): mirror/ledger divergence", snapshotSHA256)
 	}
-	// Postgres timestamptz has microsecond precision; event.ExpiresAt is
-	// parsed at whatever precision the chain committed (RFC3339Nano can
-	// carry nanoseconds). Truncated to microseconds before comparison so
-	// a value the chain always writes at microsecond precision or
-	// coarser (every writer in this package does) is not spuriously
-	// flagged as a divergence by a representational artifact.
-	if !mirrorExpiresAt.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
-		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event.expires_at (%s) disagrees with the chain-authenticated Event.ExpiresAt (%s) (ADR-0007 Addendum 10 D89): mirror/chain divergence", snapshotSHA256, mirrorExpiresAt.Format(time.RFC3339Nano), chainExpiresAt.Format(time.RFC3339Nano))
+	if mirrorCount != obligation.count {
+		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event row count (%d, this ledger) disagrees with the chain-authenticated event count referencing it (%d) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", snapshotSHA256, mirrorCount, obligation.count)
 	}
-	lowerBound := chainExpiresAt
+	if !mirrorMax.Equal(obligation.max) {
+		return time.Time{}, fmt.Errorf("snapshot %s's mirror screening_ledger_event MAX(expires_at) (%s, this ledger) disagrees with the chain-authenticated MAX(Event.ExpiresAt) (%s) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", snapshotSHA256, mirrorMax.Format(time.RFC3339Nano), obligation.max.Format(time.RFC3339Nano))
+	}
+	lowerBound := obligation.max
 	if b.hasPrevious && b.previousAnchoredAt.After(lowerBound) {
 		lowerBound = b.previousAnchoredAt
 	}
@@ -563,7 +607,7 @@ func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, 
 		if record == nil {
 			return fmt.Errorf("snapshot %s is attested and anchored but has no independent tombstone record (ADR-0007 Addendum 3 D32): mirror/ledger divergence between the audit chain and the retention tombstone table", claim.SnapshotSHA256)
 		}
-		claimLowerBound, err := lowerBound.forSnapshot(ctx, purges, claim.SnapshotSHA256)
+		claimLowerBound, err := lowerBound.forSnapshot(ctx, purges, s.ledgerID, claim.SnapshotSHA256)
 		if err != nil {
 			return err
 		}
@@ -597,7 +641,7 @@ func (s *Store) adjudicatePurgeClaims(ctx context.Context, claims []PurgeClaim, 
 		if int64(entry.Sequence) > anchoredAuditSequence {
 			return fmt.Errorf("snapshot %s's tombstone row is attested at audit sequence %d, which is after the anchored audit sequence %d (ADR-0007 Addendum 8 D70): the purge is not yet anchored", record.SnapshotSHA256, entry.Sequence, anchoredAuditSequence)
 		}
-		rowLowerBound, err := lowerBound.forSnapshot(ctx, purges, record.SnapshotSHA256)
+		rowLowerBound, err := lowerBound.forSnapshot(ctx, purges, s.ledgerID, record.SnapshotSHA256)
 		if err != nil {
 			return err
 		}
@@ -685,6 +729,13 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 	if opts.Anchors == nil {
 		if mode == VerificationModeHistoricalUnanchored {
 			base.AnchorStatus = AnchorStatusUnavailable
+			// ADR-0007 Addendum 11 D101(b): set explicitly, at the return,
+			// rather than left to rely on the zero value -- this is the
+			// exact path D93's own table row 3 measures ("the Purges
+			// connection is live and the database still holds the same
+			// nineteen rows, and the count is 0"): the reporting pass never
+			// ran here at all, and the marker must say so.
+			base.OutOfScopeRetentionTombstonesChecked = OutOfScopeCheckNotPerformed
 			return base, nil
 		}
 		return AnchorVerifyResult{}, errors.New("anchored mode requires a database connection to cross-check the anchor (ADR-0007 D12): no AnchorReader was supplied")
@@ -829,6 +880,18 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 		return base, err
 	}
 	base.OutOfScopeRetentionTombstones = reported
+	// ADR-0007 Addendum 11 D101(a): the marker is set explicitly here,
+	// at the one point the reporting pass actually ran and returned
+	// successfully -- every return above this line leaves
+	// OutOfScopeRetentionTombstonesChecked at its zero value,
+	// OutOfScopeCheckNotPerformed, by construction (D101(b): this
+	// includes the AnchorStatusUnavailable early return below opts.Anchors
+	// == nil, the exact path row 3 of D93's own table measures).
+	if len(reported) > 0 {
+		base.OutOfScopeRetentionTombstonesChecked = OutOfScopeCheckFindings
+	} else {
+		base.OutOfScopeRetentionTombstonesChecked = OutOfScopeCheckClean
+	}
 
 	base.AnchorStatus = AnchorStatusVerified
 	base.AnchorSequence = latest.Sequence

@@ -243,8 +243,8 @@ func (alwaysRecordedPurgeChecker) AllPurgeRecords(context.Context) ([]TombstoneR
 	return nil, nil
 }
 
-func (alwaysRecordedPurgeChecker) EventExpiresAtForSnapshot(context.Context, string) (time.Time, bool, error) {
-	return time.Time{}, false, nil
+func (alwaysRecordedPurgeChecker) EventExpiresAggregateForSnapshot(context.Context, string, string) (int, time.Time, bool, error) {
+	return 0, time.Time{}, false, nil
 }
 
 func TestVerifyPolicyFailsClosedOnUnadjudicatedClaims(t *testing.T) {

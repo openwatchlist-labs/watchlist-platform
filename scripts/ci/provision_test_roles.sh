@@ -161,9 +161,9 @@ grant-ddl-ownership)
     echo "FAIL: owl_migrator is already a member of owl_ledger_ddl before this step ran (ADR-0007 Addendum 3 D35/G-E) -- an older script version, an interrupted run, or a manual grant left this membership; a superuser must REVOKE owl_ledger_ddl FROM owl_migrator before re-running this step" >&2
     exit 1
   }
-  table_exists="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
+  table_exists="$(psql_super -tAc "SELECT count(*) FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace")"
   [[ "$table_exists" == "1" ]] || {
-    echo "FAIL: screening_ledger_anchor does not exist; run db/migrations/015_screening_ledger_anchor.sql first" >&2
+    echo "FAIL: public.screening_ledger_anchor matched $table_exists row(s) in pg_class, expected exactly 1 (ADR-0007 Addendum 11 D101/D96 row 20) -- 0 means run db/migrations/015_screening_ledger_anchor.sql first; more than 1 is not possible for a single schema-qualified relation and means this check itself is broken" >&2
     exit 1
   }
   # Guarded on current ownership, not run unconditionally: once D26/D34's
@@ -175,7 +175,7 @@ grant-ddl-ownership)
   # current state" form D21 established, applied here to a script rather
   # than to Migrate(). D35: no GRANT/REVOKE of role membership surrounds
   # this -- see above.
-  anchor_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
+  anchor_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace")"
   if [[ "$anchor_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_ddl;"
   fi
@@ -222,7 +222,7 @@ grant-ddl-ownership)
   # now also proves what F6 found the script previously could NOT
   # express: that owl_ledger_anchor -- the runtime writer -- cannot
   # UPDATE or DELETE and is not the table's owner.
-  owner="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
+  owner="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace")"
   [[ "$owner" == "owl_ledger_ddl" ]] || {
     echo "FAIL: screening_ledger_anchor owner is '$owner', expected owl_ledger_ddl" >&2
     exit 1
@@ -262,7 +262,7 @@ grant-ddl-ownership)
     echo "FAIL: owl_ledger_anchor has DELETE on screening_ledger_anchor; it must be INSERT-only (F6)" >&2
     exit 1
   }
-  anchor_is_owner="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relowner = 'owl_ledger_anchor'::regrole")"
+  anchor_is_owner="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace AND relowner = 'owl_ledger_anchor'::regrole")"
   [[ -z "$anchor_is_owner" ]] || {
     echo "FAIL: owl_ledger_anchor owns screening_ledger_anchor; ownership must belong to owl_ledger_ddl (F6)" >&2
     exit 1
@@ -307,15 +307,15 @@ grant-ddl-ownership)
   # tombstone for a snapshot never actually purged. Run once, after 019
   # has run (owl_migrator owns both functions and the table at that
   # point, having created them).
-  table_exists="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone'")"
+  table_exists="$(psql_super -tAc "SELECT count(*) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone' AND relnamespace = 'public'::regnamespace")"
   [[ "$table_exists" == "1" ]] || {
-    echo "FAIL: screening_ledger_retention_tombstone does not exist; run db/migrations/008g_screening_ledger.sql first" >&2
+    echo "FAIL: public.screening_ledger_retention_tombstone matched $table_exists row(s) in pg_class, expected exactly 1 (ADR-0007 Addendum 11 D101) -- 0 means it does not exist; run db/migrations/008g_screening_ledger.sql first" >&2
     exit 1
   }
   # Same guard as the anchor table above, same reason: once D26's event
   # trigger below exists, it blocks every ALTER TABLE against this
   # relation too, for anyone including a superuser.
-  tombstone_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone'")"
+  tombstone_owner_before="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone' AND relnamespace = 'public'::regnamespace")"
   if [[ "$tombstone_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_retention_tombstone OWNER TO owl_ledger_ddl;"
   fi
@@ -374,7 +374,7 @@ grant-ddl-ownership)
   psql_super -c "REVOKE EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) FROM PUBLIC;"
   psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(timestamptz,text,text) TO owl_migrator;"
   psql_super -c "GRANT EXECUTE ON FUNCTION screening_ledger_purge_snapshots(text[],timestamptz,text,text) TO owl_migrator;"
-  tombstone_owner="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone'")"
+  tombstone_owner="$(psql_super -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_retention_tombstone' AND relnamespace = 'public'::regnamespace")"
   [[ "$tombstone_owner" == "owl_ledger_ddl" ]] || {
     echo "FAIL: screening_ledger_retention_tombstone owner is '$tombstone_owner', expected owl_ledger_ddl" >&2
     exit 1
@@ -1174,7 +1174,7 @@ grant-ddl-ownership)
     echo "FAIL: expected both D34 event triggers to exist and be ENABLE ALWAYS ('A'), found $event_trigger_count" >&2
     exit 1
   }
-  protect_fn_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc WHERE proname='sec7_protect_ddl_objects'")"
+  protect_fn_definer="$(psql_super -tAc "SELECT prosecdef FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='sec7_protect_ddl_objects' AND pg_get_function_identity_arguments(p.oid)=''")"
   [[ "$protect_fn_definer" == "t" ]] || {
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
@@ -1195,9 +1195,9 @@ create-restored-database)
   # its fully provisioned state, which is the state an operator's
   # pg_dump actually runs against in reality -- a not-yet-provisioned
   # source is not the scenario I-A is about.
-  registry_exists="$(psql_super -tAc "SELECT 1 FROM pg_class WHERE relname = 'sec7_protected_relation'")"
+  registry_exists="$(psql_super -tAc "SELECT count(*) FROM pg_class WHERE relname = 'sec7_protected_relation' AND relnamespace = 'public'::regnamespace")"
   [[ "$registry_exists" == "1" ]] || {
-    echo "FAIL: sec7_protected_relation does not exist; run grant-ddl-ownership first" >&2
+    echo "FAIL: public.sec7_protected_relation matched $registry_exists row(s) in pg_class, expected exactly 1 (ADR-0007 Addendum 11 D101) -- 0 means run grant-ddl-ownership first" >&2
     exit 1
   }
 
@@ -1237,7 +1237,7 @@ create-restored-database)
     echo "FAIL: owl_ci_sec7_restored has $restored_obj_rows sec7_protected_object row(s), expected $source_obj_rows (the source's own count) -- pg_dump did not carry the registry rows faithfully" >&2
     exit 1
   }
-  restored_anchor_owner="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor'")"
+  restored_anchor_owner="$(psql -h "$PGHOST" -p "$PGPORT" -U "$PGSUPERUSER" -d owl_ci_sec7_restored -tAc "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace")"
   [[ "$restored_anchor_owner" == "owl_ledger_ddl" ]] || {
     echo "FAIL: owl_ci_sec7_restored's screening_ledger_anchor owner is '$restored_anchor_owner', expected owl_ledger_ddl -- this fixture must reproduce D41's identity assertion catching an ordinary owner-preserving restore, not D33's owner check catching an owner-stripped one" >&2
     exit 1
