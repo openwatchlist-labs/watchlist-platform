@@ -11092,3 +11092,1233 @@ eligible, and the first-order consequence is that an honest ledger fails verific
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #10
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 12: the reduction -- which side reduces a value, and under whose equality, and CAP #11's six findings (2026-09-07)
+
+- **Status:** Proposed
+- **Trigger:** an eleventh Composition Audit Program record produced against the implemented
+  Addendum 11 (`docs/backlog/sec-7-cap-record-9c41632.md`, adversarial posture, audit basis commit
+  `9c416325b77dfcb0df23dcf0630eecd064bba20d`) returned **QUALIFIED, not PASS** for the eleventh
+  consecutive audit. Six findings, one HIGH and five MEDIUM, and for the **second consecutive round
+  no forgery was demonstrated within section 2**. **SEC-7 is not closed.**
+- **What CAP #11 confirmed, and this addendum does not disturb.** D96 is the best thing in Addendum
+  11 and rows 19 and 20 are both genuinely closed -- the function selection now pairs schema with
+  identity arguments and the relation selections carry `relnamespace`, verified against a live
+  five-shadow concurrent session. D97's aggregate is correct for the case it was written for and
+  generalises past two obligations; the count-and-max pair genuinely closes the mirror-rewrite
+  direction, and the independence attack that preserves both and corrupts the per-row assignment is
+  **inert**. D97's ledger scoping holds with three parties. D98's asymmetry works -- a ledger holding
+  the shortest obligation cannot purge a snapshot another ledger still holds -- the leading `EXISTS`
+  is load-bearing, the vacuous case is refused on both overloads, both bootstrap paths carry the new
+  predicate, and there is no stale-plan route back. D99(a) is a real directory scan with a real
+  constructed negative. D101's marker is complete by construction. **Addendum 3's scoping principle,
+  Addendum 4's referent principle, Addendum 5's population principle, Addendum 6's atomicity
+  principle, Addendum 7's quantifier principle, Addendum 8's naming principle, Addendum 9's
+  composition principle, Addendum 10's whole-round obligation and Addendum 11's cardinality principle
+  are each correct**, and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75,
+  not D76-D85, not D86-D95, not D96-D103, not the D19 correction note, not R1-R46. Decision
+  numbering continues at **D104**; risk numbering at **R47**. Where a prior decision's *text* is
+  narrower than what the code does, or is wrong, the new decision says so in its own words -- the
+  convention AR7 established.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `9c416325b77dfcb0df23dcf0630eecd064bba20d` rather than copied from the CAP record or from a prior
+  addendum.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-11
+  held to -- and for the fifth addendum running, the execution refuted the fix this addendum was
+  expected to reach.** A disposable PostgreSQL 17.11 cluster was built on **port 55560** (CAP #11
+  used 55550, Addendum 11's design pass 55540) with `initdb --auth=scram-sha-256 --pwfile`, TCP-only
+  on 127.0.0.1, and provisioned with the **real** schema in `.github/workflows/ci.yml:141-235`'s exact
+  order (`create-roles`, all **eighteen** `db/migrations/*.sql` as `owl_migrator`,
+  `grant-app-privileges`, `grant-ddl-ownership`, then the five fixture databases). Baseline confirmed
+  byte-identical to CAP #11 section 7.0, including all six declared function digests and OIDs:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_instance_binding   |     1
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+
+                evtname              |    evtevent     | evtenabled
+  -----------------------------------+-----------------+------------
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+
+               proname              |              args              |    body_sha16    | objid_protected |  oid
+  ----------------------------------+--------------------------------+------------------+-----------------+-------
+   owl_reject_truncate              |                                | e8db5083c6bf20d9 | t               | 16846
+   screening_ledger_purge_snapshots | p_before timestamp with time z | 5e919d8e7e9fb471 | t               | 16471
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_be | ccb592a2abaff65e | t               | 16926
+   screening_ledger_reject_mutation |                                | 5632734b5c67628b | t               | 16462
+   screening_ledger_snapshot_guard  |                                | f9cb95289a3fdead | f               | 16469
+   sec7_protect_ddl_objects         |                                | de174c42252877d2 | f               | 16946
+  ```
+
+  Suite baseline, taken with the probe file absent and every `OWL_*_DATABASE_URL` wired to that
+  cluster:
+
+  ```
+  $ go test -race -count=1 ./internal/screeningledger/...
+  ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	110.513s
+  ```
+
+  Every destructive probe ran against a `CREATE DATABASE ... TEMPLATE` clone or a purpose-built
+  database. Probes were read through one temporary file,
+  `internal/screeningledger/a12_design_probe_test.go`, calling the real implementations through this
+  package's own `newSharedSnapshotChain` / `newD50Clone` / `testAppendInput` / `NewStore` /
+  `Store.Append` / `PostgresSink.Persist` / `Store.PurgeExpired` / `AnchorSink.WriteAnchor` /
+  `Store.VerifyAnchored` scaffolding; it was **deleted before this addendum was written** and
+  `git status --porcelain` is back to its pass-start value. The developer's own server on port 5432
+  was never contacted. **The five results that changed the design:**
+  1. **PostgreSQL's `timestamptz` input parsing rounds half-to-EVEN, and Go's `time.Round` rounds
+     half-away-from-zero.** The two disagree at *every* exact half-microsecond tie, so "Go adopts the
+     rounding Postgres performs" -- one of the two directions the brief offers -- is not available
+     from the standard library and is refuted rather than deferred (D105).
+  2. **CAP #11's own boundary claim is true only inside the first microsecond.** The disagreement is
+     not "strictly above 500ns"; it is "remainder above 500ns, **or** remainder exactly 500ns and the
+     truncated microsecond odd". Measured over 9,999 values (D104, D105).
+  3. **pgx's binary parameter path truncates**, and `AnchorSink.WriteAnchor` already binds
+     `anchored_at` that way (`anchor.go:180-188`). The repository already contains the convention the
+     fix needs; two columns were left on the other one (D105).
+  4. **A multi-ledger shared schema with a genuinely shared snapshot already exists in this
+     repository's CI**, and the shared snapshot is already tombstoned there. R43's stated premise is
+     false of the only environment in which this code runs (D110).
+  5. **A definer function that verifies a caller-supplied, chain-authenticated `(count, max)` against
+     the mirror refuses every lying direction and can never be widened by one** -- so P-E's fix does
+     not require the server to read a chain it cannot reach (D107).
+
+---
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554`, `0007:6660-6700`, `0007:7591-7630`, `0007:8742-8768` and `0007:10021-10047` set.
+
+1. **CAP #11 section 7.1's boundary statement is correct for the values it sampled and does not
+   generalise.** The record states "**The boundary is strictly above 500ns.** That is the whole of the
+   second half of this finding," having measured ns 100/400/499/500/501/600/900/999 -- every one of
+   them inside the *first* microsecond, where Go's truncation yields microsecond 0. Re-executed over
+   ten full microseconds, the server's rule is round-half-to-even, so the 500ns tie agrees only when
+   the truncated microsecond is even:
+
+   ```
+   bucket                             |  n   | agree | disagree
+   -----------------------------------+------+-------+---------
+   remainder < 500                    | 4999 |  4999 |        0
+   remainder = 500, truncated us EVEN |    5 |     5 |        0
+   remainder = 500, truncated us ODD  |    5 |     0 |        5
+   remainder > 500                    | 4990 |     0 |     4990
+   ```
+
+   The finding is **undiminished** -- it is strictly larger than the record states, at 4,995 of every
+   9,999 nanosecond values rather than 499 of every 999. What changes is that D103 test 10's constant
+   is worse than "the one value in `[1,999]` where the two methods agree": 500ns agrees **because
+   zero is even**, which is a property of the microsecond it sits in and not of the value 500. A test
+   pinned there is pinned to a coincidence of the second kind. D106 is the disposition.
+2. **CAP #11 section 9 residual 4 understates its own subject.** The record notes that `p_before` is
+   consulted by neither overload and that `RecordPurge`'s contract text (`store.go:93-107`) describes
+   a floor that is now `clock_timestamp()`. Re-derived here: the parameter is still *bound* on both
+   call paths (`postgres.go:1730`, `:1758`, both `$1::timestamptz`/`$2::timestamptz`), so it is also a
+   member of D104's cast population below, and it is the one member of that population that is
+   written by a caller and read by nothing at all. D107 rewrites that contract and disposes of it.
+3. **Addendum 11's `file:line` citations resolve against `1be30fb`, not against this tree.** PR #167
+   moved several; re-derived at `9c41632` and confirmed: `loadPurgeLowerBoundSource` is
+   `internal/screeningledger/anchor.go:434`, `forSnapshot` is `:509`, D102's truncation is inside the
+   `for _, e := range events` loop at `:459`, `EventExpiresAggregateForSnapshot` is
+   `internal/screeningledger/postgres.go:1632`, `PreviousAnchorAt` is `:1595`, and `SchemaSQL`'s two
+   purge overloads are `postgres.go:1959` and `:1960`. Expected -- Addendum 11 was written before its
+   own implementation -- and not a defect.
+
+---
+
+### Addendum 12 context: eight principles were right, and none of them asks who reduces
+
+Addendum 3 asked *what* is protected (`0007:2172-2173`). Addendum 4 asked *which property* is
+compared (`0007:2853-2857`). Addendum 5 asked *over what set* (`0007:3742-3746`). Addendum 6 asked
+what a *legitimate* operation rewrites (`0007:4526-4534`). Addendum 7 asked *over how many parties*
+(`0007:5574-5580`). Addendum 8 asked *by what identity* (`0007:6732-6738`). Addendum 9 asked *is any
+member of the set weaker* (`0007:7668-7674`). Addendum 10 made applying a round's principle to the
+round's whole output a numbered obligation (D86). Addendum 11 asked *how many values answer to the
+description* (`0007:10074-10080`).
+
+CAP #11 section 0.1 states what none of them asks, and it is right:
+
+> Cardinality asks *how many*. These ask *reduced by whom, over which population, under whose
+> equality*. That is the axis this round leaves for the twelfth.
+
+Three of the six findings are that shape, and the record names them together:
+
+| Mechanism | Both sides reduce | One side | The other side | Finding |
+|---|---|---|---|---|
+| the `expires_at` corroboration | one timestamp to microsecond precision | the chain **truncates** (`anchor.go:468`) | the mirror **rounds**, half-to-even, in the server's parser (`postgres.go:1449`, `$14::timestamptz`) | **P-A** |
+| purge eligibility | the set of events referencing a snapshot | the Go pass reads the **chain** (`replay.go`) | both definer overloads read the **mirror** (`021`, `postgres.go:1959`, `:1960`) | **P-E** |
+| the digest gate's overload selection | a parameter list to one overload | the gate matches **raw text** (`d92_digest_gate_derivation_test.go:199`, `:206`) | PostgreSQL resolves **argument types** | **P-C** |
+
+**The principle this addendum adopts, stated once and discharged in D104 before any repair is
+designed:**
+
+> **A comparison is only as sound as the reduction both sides apply. Where two sides reduce a value
+> or a set in order to compare it, name the reduction, apply it once, at a point where neither side's
+> behaviour is implicit or cast-dependent, and let every later reader observe an already-reduced
+> value rather than silently re-reducing it. Where the two sides cannot share a reduction, they are
+> not comparing the same thing, and the control must say so rather than compare anyway.**
+
+This is one axis over from Addendum 11's and it is not the same question. Cardinality asks how many
+values answer to a description. Reduction asks what each side *does* to the values it found before
+declaring them equal -- and a control can select exactly one value on both sides, from exactly the
+right population, and still be comparing two different things.
+
+**The three findings that are not this shape are the round's other half, and they share a different
+sentence**, which the addendum states rather than forcing into one class: P-B, P-D and P-F are each a
+control that is correct about the system and wrong about the *operator* -- a documented procedure that
+installs the vulnerable predicate and reports success (P-B), a refusal that blocks the only command
+that could clear it (P-D), and an honest second ledger told it fabricated a record (P-F). CAP #11
+section 11 puts it in one line and this addendum adopts it as the round's disposition: **a
+verification control that fails on correct behaviour is a control that gets disabled.**
+
+---
+
+### D104. The reduction audit: D86's and D96's table re-run, with the equality column, for every row
+
+**Decision: D86's composition audit and D96's cardinality audit gain a third column -- *which side
+reduces this value, how, and do the two reductions agree by construction?* -- and this addendum
+re-runs the audit for every referent it touches or introduces, before the repairs below are designed.
+Where the answer is "checked, and it does not apply," that is recorded too. Every row was executed
+against the provisioned baseline, not reasoned from the code.**
+
+| # | Referent | Reduced by whom, how | Do the reductions agree by construction? | Disposition |
+|---|---|---|---|---|
+| 1 | `Event.ExpiresAt` vs `screening_ledger_event.expires_at` | chain: `time.Truncate(us)` in Go (`anchor.go:468`). mirror: the **server's parser**, half-to-even, on a text literal (`postgres.go:1449`) | **NO** -- 4,995 of every 9,999 nanosecond values disagree | **D105** |
+| 2 | purge eligibility of a shared snapshot | Go: ALL-expired over the **chain**. SQL: ALL-expired over the **mirror** | **NO** -- same quantifier, different population | **D107** |
+| 3 | the digest gate's overload selection | gate: `strings.HasPrefix` on raw parameter text. PostgreSQL: resolved argument types | **NO** -- one spelling, two verdicts | **D108** |
+| 4 | `anchored_at` in `anchorMAC` | both sides: `anchoredAtMACString` -- **one shared function**, `UTC().Format(RFC3339Nano)` (`anchor.go:52-54`) | **YES, and it is the model row** -- write and verify cannot disagree because there is one function | unchanged |
+| 5 | `anchored_at` on the wire | `WriteAnchor` binds a **typed `time.Time`** (`anchor.go:187`, `$8`), no cast; read back by pgx binary | **YES** -- no parser on the path. This is the convention D105 adopts | unchanged |
+| 6 | `purged_at` vs `anchoredAt` / lower bound | all three are Postgres `clock_timestamp()` values read through pgx binary; compared as ordering bounds, never for equality (`anchor.go:374-388`) | **YES** -- one clock, one encoding, and D70's refusal to compare against `OccurredAt` is what keeps it that way | unchanged |
+| 7 | tombstone `operator`/`reason` vs the attesting entry | plain Go string equality on both sides (`anchor.go:375`) | **YES** -- no reduction is applied to either side | unchanged |
+| 8 | `count(*)` vs `obligation.count` | both sides count distinct referencing events; the Go side de-duplicates a single event referencing one sha through both columns (`anchor.go:469-481`) so it counts what one OR-matched mirror row counts | **YES**, and CAP #11 section 7.2 measured the de-duplication correct over an unreachable case | unchanged |
+| 9 | `KnownSnapshotSHA256` partitioning | set membership over hex strings, both sides | **YES** | D110 changes the *predicate*, not the reduction |
+| 10 | `prosrc` digests (D77/D87) | `sha256(convert_to(prosrc,'UTF8'))` server-side; `sha256` over the extracted literal in Go (D92/D99) | **YES** -- D92 is the one decision in the arc that derives the declared constant from its source | D108 fixes the *selection*, not the digest |
+| 11 | `index_defs` (D50) | `pg_get_indexdef` on both the recording and the comparing side | **YES** -- and D68 point 1 measured it `search_path`-insensitive | unchanged |
+| 12 | trigger property set (D69) | catalog integers and arrays, compared directly | **YES** -- no rendering on either side, which is exactly why D69 rejected `pg_get_triggerdef` | unchanged |
+
+**The cast population, enumerated rather than inferred, because row 1 is one member of it and the
+others must be recorded as checked.** Every text-literal `::timestamptz` bind in the package
+(`grep -rn '::timestamptz' internal/screeningledger/*.go`, excluding tests) is eight sites, and the
+question asked of each is: *is a Go-side value ever compared for equality against what this stored?*
+
+| Site | Column | Compared against a Go value? |
+|---|---|---|
+| `postgres.go:1449` `$14` | `screening_ledger_event.expires_at` | **YES** -- `forSnapshot`'s `mirrorMax.Equal(obligation.max)` (`anchor.go:524`). **This is P-A** |
+| `postgres.go:1449` `$6` | `screening_ledger_event.occurred_at` | **No.** Written and never read back for comparison; D70 refuses to compare against `OccurredAt` at all, in terms (`anchor.go:353-355`) |
+| `postgres.go:1466` `$2` | `screening_ledger_replication.verified_at` | **No.** Written by `sync` (`main.go:153`), read back by nothing |
+| `postgres.go:1512` `$5` | `screening_ledger_audit.occurred_at` | **No.** Same shape |
+| `postgres.go:1784` `$6` | `watchlist_operational_audit.occurred_at` | **No.** External-audit import path; its chain is verified under the phase8f algorithm before any persist (the D19 correction note) |
+| `postgres.go:1797` `$3` | `screening_ledger_snapshot.created_at` | **No.** D89 withdrew it as a referent of any control, explicitly and permanently |
+| `postgres.go:1797` `$4` | `screening_ledger_snapshot.expires_at` | **No.** Compared only to itself, inside `screening_ledger_snapshot_guard()`'s allowed-transition test (`OLD.expires_at=NEW.expires_at`) |
+| `postgres.go:1730`, `:1758` | `p_before` | **No, and read by nothing at all** -- neither overload consults it (drift note 2). D107 disposes of it |
+
+**So the population is exactly one, and P-A is it.** That is worth stating as a measured result rather
+than a relief: the other seven are "checked, and it does not apply," and a later change that makes any
+of them a comparand re-opens this table.
+
+---
+
+### P-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #11's transcript. Every run was rebuilt against the baseline above
+through this package's own scaffolding.
+
+**First, the two reductions, measured over the full range rather than sampled.** The literal is built
+exactly as `time.RFC3339Nano` emits it -- trailing zeros trimmed, which is what `Persist` sends -- and
+cast exactly as `postgres.go:1449` casts it:
+
+```
+server_us=0 (agrees with Go Truncate)     ns 1..500    500 values
+server_us=1 (DISAGREES with Go Truncate)  ns 501..999  499 values
+server_us other                                          0 values
+```
+
+and over ten full microseconds, which is where the rule actually shows itself (drift note 1):
+
+```
+bucket                             |  n   | agree | disagree
+-----------------------------------+------+-------+---------
+remainder < 500                    | 4999 |  4999 |        0
+remainder = 500, truncated us EVEN |    5 |     5 |        0
+remainder = 500, truncated us ODD  |    5 |     0 |        5
+remainder > 500                    | 4990 |     0 |     4990
+```
+
+**Second, the refutation of the brief's first option, and it is decisive.** The brief offers "Go
+adopts the same rounding Postgres's cast performs" as one of two directions. Executed against this
+repository's own toolchain (`go 1.26.6`) and this cluster, at the exact half-microsecond ties, where
+the three candidate reductions part company:
+
+```
+A12PROBE tie ns=500   go.Truncate=0  go.Round=1  server_parsed_literal=0
+A12PROBE tie ns=1500  go.Truncate=1  go.Round=2  server_parsed_literal=2
+A12PROBE tie ns=2500  go.Truncate=2  go.Round=3  server_parsed_literal=2
+A12PROBE tie ns=3500  go.Truncate=3  go.Round=4  server_parsed_literal=4
+A12PROBE tie ns=4500  go.Truncate=4  go.Round=5  server_parsed_literal=4
+```
+
+Read the last two columns down: `1,2,3,4,5` against `0,2,2,4,4`. The server's is
+round-half-to-**even**; `time.Round`'s is round-half-**away-from-zero**, which is what it documents
+and does. **These are three different reductions, and Go's standard library does not implement the
+server's.** Adopting `Round` would close `[501,999]` and open a *new* disagreement at every tie whose
+truncated microsecond is even -- trading a measured failure for an unmeasured one, and doing it by
+hand-modelling in Go a rule the server is free to change in a future major. **The brief's first
+option is refuted, not deferred**, and a later reader who rediscovers it should find this transcript
+first.
+
+**Third, the finding end to end, through the real unmodified
+`Store.Append` / `Persist` / `PurgeExpired` / `WriteAnchor` / `VerifyAnchored`, with no adversary, no
+dropped guard, no planted row and no superuser.** Two runs, identical but for the nanosecond digit of
+a caller-supplied `OccurredAt`:
+
+```
+A12PROBE OccurredAt=2000-01-01T00:00:00.0000005Z -> chain Event.ExpiresAt=2000-01-02T00:00:00.0000005Z
+A12PROBE   legitimate PurgeExpired purged=4 err=<nil>
+A12PROBE   VerifyAnchored: anchor_status=verified err=<nil>
+
+A12PROBE OccurredAt=2000-01-01T00:00:00.0000009Z -> chain Event.ExpiresAt=2000-01-02T00:00:00.0000009Z
+A12PROBE   legitimate PurgeExpired purged=4 err=<nil>
+A12PROBE   VerifyAnchored: anchor_status=failed err=snapshot 67715da0386423c8...'s mirror
+  screening_ledger_event MAX(expires_at) (2000-01-01T19:00:00.000001-05:00, this ledger) disagrees
+  with the chain-authenticated MAX(Event.ExpiresAt) (2000-01-02T00:00:00Z)
+  (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence
+```
+
+**An honest ledger is told it has a mirror/chain divergence -- the tamper signal -- for a history
+nobody touched.** And through the real write path across the sampled range:
+
+```
+A12PROBE ns=1   chain.ExpiresAt=2000-01-02T00:00:00.000000001Z   mirror_stored=2000-01-02T00:00:00Z         agree=true
+A12PROBE ns=499 chain.ExpiresAt=2000-01-02T00:00:00.000000499Z   mirror_stored=2000-01-02T00:00:00Z         agree=true
+A12PROBE ns=500 chain.ExpiresAt=2000-01-02T00:00:00.0000005Z     mirror_stored=2000-01-02T00:00:00Z         agree=true
+A12PROBE ns=501 chain.ExpiresAt=2000-01-02T00:00:00.000000501Z   mirror_stored=2000-01-02T00:00:00.000001Z  agree=false
+A12PROBE ns=999 chain.ExpiresAt=2000-01-02T00:00:00.000000999Z   mirror_stored=2000-01-02T00:00:00.000001Z  agree=false
+```
+
+**Reachability, restated from the code.** `OccurredAt` is a caller-supplied `RFC3339Nano` string
+(`store.go:215`); `mustExpires` (`store.go:897`) is `parsed.Add(days*24h)` and preserves the caller's
+precision; `Append` writes the result into `Event.ExpiresAt` (`store.go:238`). Any caller that
+timestamps with `time.Now().UTC().Format(time.RFC3339Nano)` -- which this repository's own tests do
+for `OccurredAt` elsewhere -- has a **just-under-one-in-two** chance per event of landing on a value
+the two sides reduce differently.
+
+---
+
+### D105. P-A (HIGH): one reduction, named, applied where the value is created, with no parser on the path
+
+**Decision: the reduction is `time.Truncate(time.Microsecond)`, it is applied in Go, and it is applied
+at three points that are the same function of the same value rather than three independent policies.
+No `::timestamptz` cast remains on any path that carries a value later compared for equality.**
+
+Three parts, and none may be dropped on another's strength.
+
+**(a) The reduction moves to the point of creation.** `mustExpires` (`store.go:897`) returns a
+microsecond-precision value, so `Event.ExpiresAt` -- the value inside `hashEvent`'s MAC under
+`K_chain` and committed under `K_anchor` -- carries no precision the mirror's `timestamptz` cannot
+hold. The server's rounding stops being a behaviour this design has to model and becomes a **no-op on
+an input that has no fractional part left to round**. That is the brief's "at a point neither side's
+behaviour is implicit or cast-dependent", answered structurally rather than by matching a rule.
+
+**(b) The mirror write path binds a typed parameter, not a text literal the server parses.**
+`Persist` (`postgres.go:1448-1453`) parses `event.ExpiresAt`, truncates it explicitly, and binds the
+resulting `time.Time` -- dropping `$14::timestamptz`. A parse failure becomes a named error rather
+than a value the server interprets. **This is not a new convention; it is this package's own.**
+`AnchorSink.WriteAnchor` already resolves `anchored_at` from `SELECT clock_timestamp()` and binds it
+back as `$8` with no cast (`anchor.go:181-187`), which is precisely why D88's `anchorMAC` extension
+reconciles at all. Two columns were left on the other convention, and row 5 of D104's table is the
+proof that the right one was already here.
+
+Part (b) is what makes part (a) safe rather than a new cliff. Without it, a chain written by a binary
+predating this decision -- carrying a genuinely sub-microsecond `Event.ExpiresAt` -- would still be
+sent as a rounding literal and would still diverge, and the operator's only remedy would be a ledger
+they cannot re-append. **With (b), such a chain verifies correctly**, because both sides truncate.
+Measured: pgx's binary parameter path truncates, and agreed with Go's `Truncate` on every value
+tested, including all five ties:
+
+```
+A12PROBE ns=501  go.Truncate=00:00:00.000000  pgx_binary_param=00:00:00.000000  server_parsed_literal=00:00:00.000001
+A12PROBE ns=1500 go.Truncate=00:00:00.000001  pgx_binary_param=00:00:00.000001  server_parsed_literal=00:00:00.000002
+A12PROBE ns=2500 go.Truncate=00:00:00.000002  pgx_binary_param=00:00:00.000002  server_parsed_literal=00:00:00.000002
+```
+
+**(c) The read path keeps its truncation and it is no longer a second, independent reduction.**
+D102's `expiresAt.Truncate(time.Microsecond)` (`anchor.go:468`) stays exactly where it is. What
+changes is that it is now provably the *same* function of the *same* value the write path applied, so
+the comment above it -- "truncated once, here, to the same precision the mirror's timestamptz always
+carries" -- becomes true, having been false at this commit for every value with a remainder above
+500ns. D102's substantive decision is **kept**; what this addendum withdraws is its premise that the
+mirror's stored value is the truncation, which the transcripts above falsify.
+
+**Executed: the prototype, swept across the full range and the ties.** One reduction, named in Go,
+then bound as a typed parameter -- nothing else changed:
+
+```
+A12PROBE full sweep ns in [1,999]  SHIPPED (text literal + ::timestamptz): 499/999 disagree with Go Truncate, first at ns=501
+A12PROBE full sweep ns in [1,999]  PROTOTYPE (explicit Truncate + typed bind): 0/999 disagree
+A12PROBE tie ns=500   go.Truncate=0  go.Round=1  server_parsed_literal=0  prototype=0
+A12PROBE tie ns=1500  go.Truncate=1  go.Round=2  server_parsed_literal=2  prototype=1
+A12PROBE tie ns=2500  go.Truncate=2  go.Round=3  server_parsed_literal=2  prototype=2
+A12PROBE tie ns=3500  go.Truncate=3  go.Round=4  server_parsed_literal=4  prototype=3
+A12PROBE tie ns=4500  go.Truncate=4  go.Round=5  server_parsed_literal=4  prototype=4
+```
+
+**Zero of 999, and the ties agree too.** The last three columns are the whole argument for the
+direction: the prototype tracks `Truncate` at every tie, `Round` tracks neither, and the shipped
+literal tracks the server.
+
+**Cost, stated with the precedent rather than glossed.** Part (a) changes what `Append` writes, so it
+changes `hashEvent`'s input and regenerates `test/fixtures/screening-ledger/state/`. Section 6 made
+this argument for the fixture migration, D11 for `017`, D25 for policy `v2`, D32 for the transitional
+state, D38 for `v3` and D88 for `anchorMAC`: `screening-ledger` remains absent from
+`runtime_executables` (`scripts/deployment/r2-4/harness/config/policy.json:150-155`, re-confirmed at
+this commit), there is no production writer, and the entire body of real chain data is the committed
+fixture. **It is free now and never free again.** Part (b) alone would avoid that cost and is
+deliberately *not* shipped alone: it leaves the chain authenticating a value with precision nothing
+downstream can observe, which is the "authenticates one value and uses another" residual D102 named
+and this round is closing.
+
+**Withdrawal condition, pre-declared rather than decided after the fact.** `DateStyle` and `TimeZone`
+were varied and neither changes the parse (`DateStyle=German,DMY` and `TimeZone=Asia/Kolkata` both
+yield the same microsecond as the baseline), so the rule is a property of the fractional-second
+parser and not of session settings. **If a future PostgreSQL major changes the rounding rule, parts
+(a) and (b) are unaffected** -- neither depends on what the rule is, only on there being nothing left
+for it to round -- and that is the reason this design does not model the rule. If, contrary to the
+measurement, part (b) cannot bind a typed parameter without changing `Event`'s field type beyond what
+this addendum describes, the implementation stops and the design is amended; it does not ship an
+explicit truncation on one side only, which is the shape of the finding.
+
+---
+
+### D106. P-A's proof obligation: a test may not pin a constant on a boundary it never identified
+
+`TestPurgedAtBoundTruncationIsAppliedOnce`
+(`internal/screeningledger/d97_d98_purge_obligations_pgx_test.go:524`) asserts exactly the property
+P-A violates:
+
+```go
+// d97_d98_purge_obligations_pgx_test.go:533 -- the constant is on its own line,
+// so a grep for the test name does not show it
+nsInput.OccurredAt = "2000-01-01T00:00:00.000000500Z"
+...
+// :563
+if !mirrorMax.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
+```
+
+and it passes. **CAP #11 states the reason as "500 is the single value in `[1,999]` at which
+truncation and rounding agree." The measurement above makes it worse than that**: 500ns agrees
+because the microsecond it truncates into is **zero, and zero is even**. At `1500`ns -- the same
+remainder, one microsecond later -- the same test would fail. The constant is not merely on the one
+safe value; it is on a value that is safe for a reason the test does not know and cannot state.
+
+**Decision: this is a defect in the proof obligation and it is named as its own decision rather than
+folded into test ownership, because the class recurs.** A test that pins a single constant on a
+boundary it has not identified is not a weaker test than intended -- **its passing carries no
+information about the property it names**. That is D20's own founding observation about the shipped
+D5 test (`0007:748-760`, "one field's value is the entire distance between the shipped test and the
+exploit"), reached a second time through a constant rather than a label.
+
+The obligation this round places on every future proof of a reduction property: **the test must state
+where the two reductions part company, and must exercise both sides of that boundary.** Where the
+boundary is a value, the test sweeps it; where it is a parity, the test exercises both parities. D112
+gives the concrete replacement. R45's sweep discipline is the same rule for shell assertions, and
+this is its statement for proof obligations.
+
+---
+
+### D107. P-E (MEDIUM): D97's authority/corroboration split applied to the server-side floor
+
+**The finding, restated from the code and reproduced.** D98 moved both definer overloads from
+ANY-expired to ALL-expired and that change is correct and shipped. What it did not change is *which
+set* the quantifier ranges over: both `NOT EXISTS` subqueries read `screening_ledger_event` -- the
+mirror (`db/migrations/021_screening_ledger_purge_all_obligations.sql`; the identical text in
+`SchemaSQL` at `postgres.go:1959`, `:1960`). The Go pass ranges over the local chain
+(`replay.go:187-205`: `references[sha]` over every event, `ok = false; break` on the first
+`now.Before(expires)`). **The mirror is corroboration, not the authority** -- D89 said so, D97(d)
+carried it forward verbatim -- and D98 left the authority half unapplied to its own new predicate.
+
+Executed. One snapshot, two obligations; the second carries a live retention running to 2046 and is
+**not mirrored**:
+
+```
+A12PROBE shared sha=529ebffb20beee78a02df6795f4098a45dcdfec297095f0defce784f35a80e24
+A12PROBE unmirrored live obligation: seq=3 ExpiresAt=2046-09-02T12:55:57.909762Z
+A12PROBE mirror (what D98's predicate ranges over): count=2 max=2009-12-28T19:00:00-05:00
+A12PROBE (a) Go Store.PurgeExpired (ALL-expired over the local CHAIN): purged=0 err=<nil>
+A12PROBE     tombstones for the shared snapshot: 0
+A12PROBE (b) SERVER floor RecordPurge (021 ALL-expired over the MIRROR): recorded=[529ebffb20be...] err=<nil>
+A12PROBE     tombstones after the server call: 1
+```
+
+**The shipped, post-D98 server floor destroys evidence under a chain-authenticated obligation running
+to 2046. The Go pass, over the same snapshot at the same moment, refuses.** This is D98's own
+sentence, still true after D98: "A guarantee that rests on which of two implementations a caller
+happens to reach, with the stricter one not being the declared authority, is an unstated
+precondition" (`0007:10480-10482`).
+
+**The obvious fix is unavailable, and saying why is what produces the design.** The server cannot read
+the chain: `Event.ExpiresAt` lives in the ledger directory under `K_chain`, and a definer function has
+neither. Widening the predicate's population is therefore not possible; the only values the server can
+range over are mirror values, which is exactly the referent N-A showed is inside section 2's reach.
+
+**Decision: the caller supplies the chain-authenticated aggregate, and the server refuses unless its
+own mirror aggregate agrees. A caller can make the server strictly more restrictive and can never
+widen it.**
+
+`RecordPurge` (`store.go:101`, `postgres.go:1746`) passes, per snapshot sha, the count and MAX the
+chain carries -- the same `snapshotObligation` (`anchor.go:469-481`) D97 already computes -- and both
+overloads gain a leading refusal: if the mirror's own `count(*)` and `max(expires_at)` for that sha
+disagree with the supplied pair, the function records nothing and says so. Eligibility itself is
+unchanged: D98's ALL-expired predicate, over the mirror, with its leading `EXISTS` intact.
+
+**Why this is not G-C's refuted shape, argued rather than asserted, because the resemblance is the
+first thing a reader will notice.** G-C was a *permissive* predicate over caller-supplied data: the
+migrator chose `p_before` and wrote the `expires_at` it was compared against, so supplying a value
+bought the caller a purge it was not entitled to. Here the supplied value is a **constraint the caller
+imposes on itself**. Every direction of lying is a refusal, and that is measured rather than reasoned:
+
+```
+A12PROBE honest caller (chain agrees with mirror)   -> ELIGIBLE
+A12PROBE lying caller: understates the count        -> REFUSED: mirror(count=2,max=2009-12-28 19:00:00-05) disagrees with chain(count=1,max=2009-12-28 19:00:00-05)
+A12PROBE lying caller: overstates the count         -> REFUSED: mirror(count=2,max=2009-12-28 19:00:00-05) disagrees with chain(count=3,max=2009-12-28 19:00:00-05)
+A12PROBE lying caller: understates the max          -> REFUSED: mirror(count=2,max=2009-12-28 19:00:00-05) disagrees with chain(count=2,max=2009-12-27 19:00:00-05)
+A12PROBE lying caller: overstates the max           -> REFUSED: mirror(count=2,max=2009-12-28 19:00:00-05) disagrees with chain(count=2,max=2009-12-29 19:00:00-05)
+```
+
+and the P-E case itself, which is the row that matters:
+
+```
+A12PROBE P-E case: chain now has count=3 max=2046-09-02T12:55:58.174073Z (one obligation UNMIRRORED)
+         -> REFUSED: mirror(count=2,max=2009-12-28 19:00:00-05) disagrees with chain(count=3,max=2046-09-02 08:55:58.174073-04)
+```
+
+**The unmirrored live obligation is now caught, by the server, without the server reading the chain.**
+It is caught because the *caller* could see it and the mirror could not, and the disagreement is the
+signal. This is D97(c)'s count-and-max pair -- already computed, already the authority -- carried one
+boundary further, and it is the same collect-here/adjudicate-there split D32 made for purge claims.
+
+**What this does not claim.** The server still has no independent authority: a caller that supplies
+the mirror's own values back to it (which is what an honest caller does) gets D98's predicate and
+nothing more. The corroboration detects a *divergence between the chain and the mirror*; it does not
+detect a mirror and a caller that are wrong in the same direction, which is the residual R48 records.
+D107 makes the server's floor no weaker than the Go pass; it does not make it independently stronger,
+and a later reader must not cite it as if it did.
+
+**The time-floor overload's callerlessness is decided rather than inherited.**
+`PostgresSink.PurgeExpired` (`postgres.go:1720`) is the time-floor overload's only Go caller, and a
+sweep at this commit finds its own callers are `cmd/screening-ledger/main.go:264`'s `store.PurgeExpired`
+(which is the *Store* method, reaching `RecordPurge` and the array form) plus two tests
+(`postgres_pgx_test.go:268`, `:373`). The time-floor overload therefore has **no non-test caller at
+all**. It gains the same corroboration parameters as the array form rather than being deleted, for
+D22's reason one object over: it is the diagnostic backstop for a database reached by some other path,
+and an overload that exists must be as strict as the one beside it or it is the weaker member D76
+forbids. `p_before` -- consulted by neither overload, written by every caller (drift note 2) -- is
+removed from both signatures in the same change, and `RecordPurge`'s contract text (`store.go:101`,
+"re-validates every one of them against its own expiry floor") is corrected to describe the floor the
+function actually applies.
+
+**D107 changes both definer bodies, so both declared digests move**, and every one of the four
+`(function, bootstrap path)` pairs is re-measured on both paths rather than hand-edited -- D87's
+standing cost (`0007:9031-9049`), one migration later, and the reason D108 must not lag it.
+
+---
+
+### D108. P-C (MEDIUM): the gate selects by resolved identity, and asserts that nothing was dropped
+
+**The finding, restated from the code and reproduced independently.** D99(a) is a genuine directory
+scan and none of that is in question. The **selection rule** is:
+`strings.HasPrefix(found.args, d.signatureContains)` against the raw parameter-list text
+(`d92_digest_gate_derivation_test.go:199`, `:206`), with `signatureContains` `"p_before timestamptz"`
+(`:159`) and `"p_snapshot_sha256 text[]"` (`:166`). PostgreSQL disambiguates by resolved argument
+types, and `timestamptz` and `timestamp with time zone` are one type.
+
+**First, that PostgreSQL treats the respelling as the same function** -- executed on a `TEMPLATE`
+clone, inside the documented disable window:
+
+```
+  when  |  oid  |    body_sha16
+--------+-------+------------------
+ before | 16471 | 5e919d8e7e9fb471
+CREATE FUNCTION                     <- CREATE OR REPLACE ... (p_before timestamp with time zone, ...)
+ after  | 16471 | f54988f5af2322d6
+ how_many_timefloor_overloads_now_exist
+----------------------------------------
+                                      1
+```
+
+Same OID, body replaced, still exactly one overload.
+
+**Second, that the gate cannot see it.** The real `checkLiveDigestMatchesAccepted` run against a real
+copy of `db/migrations/` plus one rogue file that sorts last, once per spelling:
+
+```
+A12PROBE spelling="p_before timestamptz, p_operator text, p_reason text"                 derived_population=5 last=zzz999_rogue.sql -> GATE FAILED (rogue caught)
+A12PROBE spelling="p_before timestamp with time zone, p_operator text, p_reason text"    derived_population=4 last=021_screening_ledger_purge_all_obligations.sql -> GATE PASSED (rogue INVISIBLE)
+```
+
+The population drops from 5 to 4: the rogue literal is silently discarded and `021` is mistaken for
+the live body. **D99's stated property -- "A file added later is covered without an edit"
+(`0007:10603`) -- is false for a spelling `pg_dump` and `psql \df` both emit routinely.**
+
+**The constraint that shapes the fix: D92 requires the gate to be DSN-free** ("so it runs on every
+`go test ./...` with no database -- which is the property that makes it a gate rather than something
+that self-skips", `0007:9484-9486`). It therefore cannot ask PostgreSQL to resolve a type name, and
+that decision is not reopened: a gate that needs a database is a gate that skips.
+
+**Decision, two halves, and the second is what survives a spelling nobody predicted.**
+
+**(a) Normalise through a declared, closed alias map, measured rather than guessed.** A literal
+declaration in the gate maps the type spellings this repository's declared functions actually use to a
+canonical form -- `timestamptz` to `timestamp with time zone`, `text[]` to `text ARRAY`, and whatever
+else the measurement over `db/migrations/*.sql` finds. This is D72's shape exactly: an explicit,
+declared allowlist whose membership is enumerated from the tree, not a pattern and not a range.
+
+**(b) Assert that nothing was dropped, which is the half that does not depend on the map being
+complete.** For each file, the number of bodies extracted for a declared function *name* must equal
+the number of declared overloads that file defines, and each declared overload must be matched
+**exactly once**. A body that fails to map to any declared overload is a **failure**, never a silent
+discard. That is the difference between the shipped gate and this one: today an unrecognised spelling
+*reduces the population by one and the gate reports PASS*; after (b) it reduces the population by one
+and the gate **fails, naming the body it could not place.**
+
+Part (b) is D99's own set-equality direction (`0007:10480-10483`, "a declared member with no literal
+behind it fails, and a literal with no declared member fails") applied to the **selection** rather than
+to the population -- the same move D99 made one layer up, at the layer that was still a hand rule.
+It is also Addendum 11's cardinality principle on the gate's own reduction: the gate believed exactly
+one literal answered to its description, two did, and it counted one without noticing.
+
+**Not exploitable, and that was checked before anything was designed.** The runtime observer joins
+through the function's own `regprocedure` OID (`postgres.go:270-297`), so it follows whatever body is
+live regardless of spelling. On the database whose time-floor body was replaced above:
+
+```
+A12PROBE CheckProvisioningState: Provisioned=false err=<nil>
+A12PROBE   Reason="function screening_ledger_purge_snapshots(timestamptz,text,text)'s body (prosrc) is
+           not in its declared accepted digest set (ADR-0007 Addendum 10 D87): possible CREATE OR
+           REPLACE FUNCTION substitution of a definer function that writes purged_at"
+```
+
+The finding is that D99's stated property is false, and that the mechanism making it false is a
+selection rule that does not match the identity of the thing selected -- the same weight CAP #10 gave
+O-B, which is this defect one round earlier.
+
+---
+
+### D109. P-D (MEDIUM): the repair path stops gating on the failure only it can clear
+
+**The finding, restated from the code and reproduced.** D97(c)'s `count` comparison is right and it is
+what closes the direction a value-only comparison cannot reach. It also makes an **incomplete mirror**
+a hard verification failure -- correctly. The defect is what happens next. `sync`
+(`cmd/screening-ledger/main.go:128-186`) is the only path that repairs an incomplete mirror: it walks
+`store.ListEvents()` and `Persist`s everything not yet replicated (`:155-173`). It runs
+`VerifyAnchored` **first** (`:145-148`) and passes the error to `must(err)` (`:149`), which exits 1 --
+several lines above the loop that would fix it.
+
+Executed, in the state a crash between `store.Append` (file written) and `sink.Persist` leaves:
+
+```
+A12PROBE shared sha=fdd208d5913f12cb4059dbdf87bc9e5e2e436fd9e34c4d8adad6b11ce42ef7db
+A12PROBE event seq=3 appended, deliberately NOT mirrored (the crash window)
+A12PROBE store.IsReplicated(seq=3) = false  <- the fact sync already holds
+A12PROBE mirror aggregate: count=2 max=2009-12-28T19:00:00-05:00 found=true err=<nil>
+A12PROBE legitimate PurgeExpired purged=2 err=<nil>
+A12PROBE sync's own pre-Persist gate: anchor_status=failed err=snapshot fdd208d5913f12cb...'s mirror
+  screening_ledger_event row count (2, this ledger) disagrees with the chain-authenticated event
+  count referencing it (3) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence
+A12PROBE -> sync exits 1 HERE (main.go:149 must(err)), before the mirroring loop at main.go:155
+```
+
+**The refusal blocks its own remedy.** This is the shape D79 and D90 exist for -- a control that
+leaves the system in a state its own tooling cannot leave -- one command over.
+
+**The two states are distinguishable, and the discriminator is data `sync` already holds.** That is
+the design's whole content, and the transcript line that carries it is
+`store.IsReplicated(seq=3) = false`. Stated precisely:
+
+- **"Partial mirror, sync in progress"** -- every shortfall is exactly accounted for by events this
+  store records as not yet replicated: the mirror is strictly *behind* the chain for every affected
+  snapshot, the missing rows correspond one-for-one to events for which `IsReplicated` is false, and
+  no mirrored row disagrees in value with its chain counterpart.
+- **"Partial mirror, genuinely wrong"** -- anything else: a mirror row the chain does not have, a
+  value disagreement on a row that *is* mirrored, a shortfall covering an event `MarkReplicated`
+  already recorded as replicated, or a mirror that is *ahead* of the chain.
+
+**Decision: `sync` verifies in a mode that defers exactly the first condition, mirrors, and then
+re-runs the full, unmodified verification -- failing if anything remains.**
+
+- The deferral is **narrow and named**: only a chain/mirror *count* shortfall whose every missing row
+  is an unreplicated event of this ledger. Every other divergence -- including a `max` disagreement on
+  rows that are present, which is what D97(c) exists beside -- still aborts before the first `Persist`,
+  exactly as today.
+- The deferred condition is **reported, never silent**: `sync`'s output carries what it deferred and
+  how many rows, so "I mirrored past a divergence I chose to defer" and "I verified clean" do not
+  share an outcome. That is D12's rule, applied to a deferral rather than to a mode, and it is the
+  same discipline D101 required of the not-checked marker.
+- The **second verification is the gate**. If the post-mirror run still fails, `sync` exits non-zero
+  and the operator is in the state the control was built to report. Nothing is weakened: a run that
+  would fail today and still fail after mirroring still fails.
+- `status`/`verify` are **unchanged**. They are not repair paths and have no business deferring
+  anything; the deferral belongs to the one command whose job is to make the mirror agree.
+
+**Why not simply move the gate after the loop.** Because that reinstates F5 -- D19 put the
+verification before the first `Persist` precisely so forged rows are not mirrored into tables whose
+immutability triggers then make them permanent (`0007:1254-1256`). The deferral keeps the gate where
+D19 put it and narrows what it defers to a condition that is, by construction, about rows that are not
+in the mirror yet.
+
+---
+
+### D110. P-F (MEDIUM): the premise is decided by measurement, and R43's sentence does not survive it
+
+**The finding, reproduced independently.** D70's reverse pass adjudicates every tombstone row for a
+snapshot in this ledger's `KnownSnapshotSHA256` against *this* ledger's audit chain
+(`anchor.go:630-639`), and `screening_ledger_retention_tombstone` is
+`(snapshot_sha256 PRIMARY KEY, purged_at, operator, reason)` with **no `ledger_id` column**
+(`db/migrations/008g_screening_ledger.sql:7`). Two ledgers in one schema, the same plaintext screened
+by both, ledger B performing a wholly legitimate `Store.PurgeExpired`, ledger A doing nothing at all:
+
+```
+A12PROBE ledger A id=sec7-a11-shared-1788785342618997000 sha=deabc40c260e47ef...
+A12PROBE ledger B id=sec7-a12-B-1788785342695749000      sha=deabc40c260e47ef...  shas equal=true
+A12PROBE screening_ledger_snapshot rows for that sha: 1 (no ledger_id column); screening_ledger_event rows UNSCOPED: 3
+A12PROBE ledger B legitimate PurgeExpired: purged=2 err=<nil>
+A12PROBE tombstone rows for the shared sha (relation has no ledger_id column): 1
+A12PROBE ledger A VerifyAnchored over B's tombstone: anchor_status=failed err=snapshot deabc40c260e47ef...
+  has a tombstone row in the retention table but no audit entry attests to its purge anywhere in the
+  chain (ADR-0007 Addendum 8 D70): possible fabricated retention record, written outside Store.PurgeExpired
+A12PROBE ledger A KnownSnapshotSHA256 contains the shared sha: true
+```
+
+**Ledger A is told that ledger B's lawful purge is a possible fabricated retention record.**
+
+#### The contradiction, and the premise decided rather than patched
+
+The brief requires this to be resolved rather than quieted, and the two halves of Addendum 11 do rest
+on opposite premises. D98 justifies global eligibility scoping explicitly on multi-ledger sharing --
+"scoping the eligibility predicate to one ledger would let ledger A destroy evidence ledger B is still
+holding" (`0007:10508-10509`). R43 states the re-entry condition as "the first deployment that runs
+two ledgers against one schema in earnest. Until then every deployment this repository configures owns
+its schema exclusively" (`0007:10961-10963`).
+
+**R43's sentence does not survive contact with the only environment this repository actually stands
+up.** Measured on the CI database, after one shipped `go test -race -count=1
+./internal/screeningledger/...` with no probe file present:
+
+```
+ distinct_ledger_ids | event_rows
+---------------------+------------
+                   8 |          9
+
+ distinct_ledger_ids_in_anchor
+-------------------------------
+                            11
+
+ shas_referenced_by_more_than_one_ledger
+-----------------------------------------
+                                       1
+```
+
+and that shared sha is not a curiosity, it is three ledgers deep and **already purged and
+tombstoned**:
+
+```
+      sha16       |              ledger_id              | sequence |       expires_at
+------------------+-------------------------------------+----------+------------------------
+ cf28b7549230fe8f | ledger-1788785668983762000          |        1 | 2026-07-15 18:30:00-04
+ cf28b7549230fe8f | pgx-idempotency-1788785668742431000 |        1 | 2026-07-15 18:30:00-04
+ cf28b7549230fe8f | pgx-roundtrip-1788785668661023000   |        1 | 2026-07-15 18:30:00-04
+
+ tombstones_on_the_shared_sha | purged_rows_on_the_shared_sha
+------------------------------+-------------------------------
+                            1 |                             1
+```
+
+Every pgx test constructs a fresh `uniqueID(...)` ledger id against the shared
+`OWL_TEST_DATABASE_URL` database, and several use `testAppendInput()`'s default request bytes, which
+are identical -- so the snapshot is content-addressed to the same sha. **P-F's exact precondition is
+present in CI today.** The only reason it is not a red test is that none of those three ledgers runs
+`VerifyAnchored` against an anchor after that purge -- not that the shas do not collide.
+
+**The claim is stated precisely rather than pressed further than it goes**, because overclaiming it
+would be the failure this document keeps correcting. R43's sentence admits two readings and the
+premise fails under both. Read as covering **every environment this repository configures**, it is
+false by the measurement above: `.github/workflows/ci.yml` and `scripts/ci/provision_test_roles.sh`
+configure that database, and it runs eight ledgers against one schema with a shared snapshot that is
+already purged and tombstoned. Read narrowly, as covering only **production deployments**, it is
+unfalsifiable rather than true -- `screening-ledger` is absent from `runtime_executables`
+(`policy.json:150-155`) and there are none, which is the same reason section 2 has said since the
+original that this ADR "designs for the threat the system *states* while sizing the mechanism to the
+deployment the system *has*". **Neither reading can carry the weight D98's justification puts on it**,
+and a premise that is either false or untestable is not a basis on which to leave an honest ledger
+being told it fabricated a record.
+
+**So: multi-ledger shared schema is real, and this addendum decides it is real rather than deferring
+it.** The schema says so too, and the split is deliberate rather than accidental:
+`screening_ledger_event`, `screening_ledger_audit` and `screening_ledger_anchor` all carry
+`ledger_id`; `screening_ledger_snapshot` and `screening_ledger_retention_tombstone` do not, because
+they are facts about **content-addressed bytes**, not about a ledger. Measured:
+
+```
+ screening_ledger_snapshot has a ledger_id column            | f
+ screening_ledger_retention_tombstone has a ledger_id column | f
+ screening_ledger_event has a ledger_id column               | t
+```
+
+**The tombstone is therefore right to have no `ledger_id`, and adding one is refused.** A tombstone
+records that shared bytes were destroyed; exactly one party destroys them, and which party that was is
+a fact only that party's chain authenticates. A `ledger_id` column would have to be written by the
+definer function from a value the caller supplies, and a forger would set it to a name outside the
+verifying ledger's scope to escape adjudication entirely -- G-C's refuted shape, on the one column
+that decides whether a row is judged at all. **The defect is not the missing column. It is that D70's
+reverse pass asks a per-ledger question of a shared object.**
+
+#### Decision: the schema's tenancy is a signed, externally-authenticated fact, asserted where it is claimed and reported where it cannot be adjudicated
+
+- **The verification policy declares it.** `VerificationPolicy` (`policy.go:54-77`) gains a tenancy
+  field and the schema pin moves to `openwatchlist.screening-ledger-verification-policy.v4`
+  (`policy.go:90-91` is exact equality, so a v3 document is refused outright rather than silently
+  narrowed -- the choice D38 made for v3 and D25 for v2). Default and only value a bootstrap policy
+  needs: **exclusive**.
+- **Why the policy and not a flag, a mirror probe, or a heuristic.** The policy is Ed25519-signed
+  under a key section 2 excludes (D10), so an adversary cannot move a verifier into the weaker mode.
+  A mirror-derived discriminator was evaluated and is **refused**: "is some other ledger's event row
+  present for this sha?" is a question `owl_migrator` can answer in its own favour with one `INSERT`
+  into a table it owns, which would let a forger downgrade a genuine fabricated tombstone from a
+  failure to a report. **The discriminator must terminate outside section 2's reach, and only the
+  signed policy does.** This is D12's doubly-gated shape, the same arrangement
+  `historical-unanchored` already has.
+- **Exclusive is asserted, not assumed.** In exclusive mode, a `screening_ledger_event` row carrying
+  a `ledger_id` other than this ledger's is itself a **named verification failure**, naming the
+  foreign ids found. That converts R43's deployment assumption into a checked completion condition --
+  D33's move, applied to a premise rather than to a provisioning step -- and it means an operator who
+  shares a schema by accident is told *that*, precisely, instead of being told they fabricated a
+  retention record. The fact is readable by `owl_migrator` with no new role, DSN or grant, which was
+  checked rather than assumed, the standard D33/D41/D45/D59/D68/D76 each held to:
+
+  ```
+   rows_for_other_ledgers | other_ledger_ids
+  ------------------------+------------------
+                        8 |                7
+  ```
+
+- **Shared mode reports where exclusive fails.** With tenancy declared shared, a tombstone for an
+  in-scope sha that this ledger's chain does not attest is **named and counted** in `VerifyReport`
+  rather than failing verification -- D82's own adjudicated/reported split, extended to the third
+  category D82 did not have (in scope by sha, outside this ledger's standing). Everything else about
+  D70's reverse pass is unchanged: a tombstone whose attestation this ledger *does* hold is still
+  adjudicated against it and still fails on divergence.
+- **The honest limit, stated rather than discovered.** In shared mode a retention claim over shared
+  bytes is *visible and unadjudicated*, because **one ledger's verifier structurally cannot adjudicate
+  another ledger's retention claim** -- the attesting chain is under a `K_chain` this verifier does
+  not hold, and the anchor committing it is another ledger's. That is R31's and R36's standing limit,
+  restated for this case, and R49 records it rather than letting the mode imply a closure.
+
+**D98's global eligibility scoping is kept, and its justification is corrected.** Not "because
+multi-ledger sharing is real" alone, which is the half that collides with R43, but: the snapshot row
+carries no `ledger_id`, so eligibility **cannot** be made per-ledger without inventing one, and
+inventing one is refused above. Under a checked-exclusive schema the global and per-ledger populations
+coincide, so the scoping costs nothing; under a declared-shared schema global is *required*, for
+exactly the reason D98 gives. The asymmetry with D97's per-ledger floor is unchanged and remains
+sound: the per-ledger maximum is never greater than the global maximum, so the floor stays
+conservative with respect to the rule governing the purge.
+
+**R43's re-entry condition is amended in this decision's own words rather than edited in place**, the
+convention AR7 set. R43's substantive content stands: the floor is per-ledger, the eligibility rule is
+global, and the two are consistent in that direction. What is withdrawn is the sentence "every
+deployment this repository configures owns its schema exclusively" -- the CI database is a deployment
+this repository configures, it runs eight ledgers against one schema, and one of its snapshots is
+shared by three of them and already tombstoned. **R43's conclusion is correct and its premise was
+false when it was written**; D110 is what makes the premise a checked fact instead of a claim, exactly
+as D47 did for R19 and D60 for R25.
+
+---
+
+### D111. P-B (MEDIUM): the document names the migration that exists, and its confirmation step confirms something
+
+**Half one, reproduced.** `docs/operations/sec7-database-copies.md`'s D87 re-provisioning procedure is
+a literal `-f db/migrations/020_screening_ledger_purge_server_side_floor.sql` (`:209`), and the string
+`021` appears nowhere in the file. Executed on a database provisioned at the pre-021 state, following
+the document verbatim:
+
+```
+=== STEP 0: pre-021 database, as provisioned ===
+        args        |   body   |  quantifier
+--------------------+----------+--------------
+ p_before timestamp | eed7e96d | ANY(pre-D98)
+ p_snapshot_sha256  | 67964968 | ANY(pre-D98)
+
+=== doc step 1: open the event-trigger disable window (sec7-database-copies.md:291-292) ===
+=== doc D87/D98 re-provisioning procedure, VERBATIM (sec7-database-copies.md:206-210) ===
+=== doc: 'Then re-run grant-ddl-ownership ... and confirm the new bodies are in their declared accepted sets' (:212-213) ===
+grant-ddl-ownership rc=0  FAIL lines: 0  PASS lines: 3
+=== what the operator actually has now ===
+ p_before timestamp | eed7e96d | ANY(pre-D98)
+ p_snapshot_sha256  | 67964968 | ANY(pre-D98)
+```
+
+**The operator has installed the superseded ANY-expired bodies -- the exact predicate D98 exists to
+remove -- and the document's own confirmation step reported success.** The correct recovery works and
+was run fresh rather than inferred:
+
+```
+=== the CORRECT recovery: apply 021, as bootstrap superuser, inside the window ===
+grant-ddl-ownership rc=0
+        args        |   body   | quantifier
+--------------------+----------+------------
+ p_before timestamp | 5e919d8e | ALL(D98)
+ p_snapshot_sha256  | ccb592a2 | ALL(D98)
+              evtname              | evtenabled
+-----------------------------------+------------
+ sec7_protect_ddl_objects_on_alter | A
+ sec7_protect_ddl_objects_on_drop  | A
+
+=== and now, applying 021 as owl_migrator -- the identity db/migrations/ ordinarily runs as ===
+ERROR:  must be owner of function screening_ledger_purge_snapshots
+```
+
+**Half two, and it is why the confirmation is empty.** The document says to "confirm the new bodies
+are in their declared accepted sets" (`:212-213`). `grant-ddl-ownership` does not check definer
+function bodies at all. Its only `prosrc` digest comparison is the D69/D77 `behavior_ok` query for the
+two **trigger** functions (`scripts/ci/provision_test_roles.sh:599-606`); for the two purge overloads
+it checks `prosecdef` (`:387`, `:392`) and `proowner` (`:401`, `:406`) and nothing else. The definer
+body digest lives only in Go (`postgres.go:270-297`). Demonstrated on a database whose time-floor
+overload body had been replaced with `BEGIN RETURN 424242; END`:
+
+```
+grant-ddl-ownership rc=0  FAIL lines: 0  PASS lines: 3
+--- and the live body it just certified ---
+f54988f5af2322d6
+```
+
+versus the Go observer on that same database:
+
+```
+A12PROBE CheckProvisioningState: Provisioned=false err=<nil>
+A12PROBE   Reason="function screening_ledger_purge_snapshots(timestamptz,text,text)'s body (prosrc) is
+           not in its declared accepted digest set (ADR-0007 Addendum 10 D87): ..."
+```
+
+**The system does fail closed** -- the next `screening-ledger status`, `migrate` or `sync` catches it.
+What fails is the documented procedure's own nominated confirmation, which tells the operator the
+opposite.
+
+**Decision, two parts, and the first is the mechanism.**
+
+**(a) `grant-ddl-ownership` asserts the definer bodies, so the installer proves the property it
+installs.** Both `screening_ledger_purge_snapshots` overloads join the `prosrc` digest comparison the
+step already performs for the two guard functions -- the same `sha256(prosrc) IN (...)` shape at
+`:599-606`, extended, with the accepted sets D87 already declares and D107 re-measures. This is
+D62(a)'s and D69's own arrangement, restated: **the installer and the verifier must fail
+independently**, and today only the verifier can. It is also G-A's shape inverted -- there the
+installer checked and the verifier did not; here the verifier checks and the installer does not, and
+the remedy is the same.
+
+**(b) The document says `021`, and its confirmation step names the command that actually checks.**
+The procedure references `db/migrations/021_screening_ledger_purge_all_obligations.sql`; the
+confirmation step names `screening-ledger status`, which is where the definer-body check has lived all
+along, alongside the `grant-ddl-ownership` re-run. Every command written into the document is executed
+before it is written and its output pasted in the stage PR -- D84's standard, restated by D94 and not
+relaxed here. Note that the file's `021` reference must be maintained as a **pointer to the newest
+purge migration**, and D107 moves that target again in the same round; the document names the
+migration by path, and D112 makes the executed-transcript obligation cover it.
+
+**Carried with this decision, because it is the same document and the same paragraph.** CAP #11
+section 9 residual 3: the `screening_ledger_snapshot` note (`:215-222`) reasons entirely from D89's
+withdrawal of `created_at` and says nothing about `screening_ledger_event`, which D97 made a referent
+in the same paragraph and which R44 records as having droppable, unobserved guard triggers. The note
+gains that relation on R44's own terms. CAP #11's residuals 1 and 2 stay where R44 and R45 already
+carry them and are **not** reopened here.
+
+---
+
+### D112. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge this
+addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95 and D103
+(`0007:10833-10932`) set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a CAP #11 transcript
+exists the test reproduces that transcript, not a paraphrase. Several are stated as "must pass today
+and fail after" -- deliberately, per D42's note: for these findings the current behaviour is
+*acceptance*, so a test asserting only the post-fix refusal cannot distinguish a working fix from a
+test that never exercised the path.
+
+1. **D105/D106 -- the replacement for D103 test 10.** `TestPurgedAtBoundTruncationIsAppliedOnce`'s
+   single constant is deleted. In its place, table-driven over **both sides of the boundary and both
+   parities of the tie**, each case built through the real unmodified `Store.Append` and
+   `PostgresSink.Persist`: `ns` in `{1, 499, 500, 501, 999}` **plus** `{1500, 2500, 3500, 4500}` --
+   the second set is what D106 exists for, since `500` and `2500` agree and `1500` and `3500` do not,
+   and a suite containing only the first set cannot tell those apart. Each asserts the chain bound and
+   the mirror value are **equal after** and, for every case with remainder above 500ns or a
+   remainder-500 odd-microsecond tie, **differ before**. Plus a randomised sweep over `[1,999]` with
+   the seed logged, asserting zero disagreements after.
+2. **D105, end to end.** `TestHonestNanosecondLedgerVerifiesClean` (pgx): the two runs above --
+   `.0000005` and `.0000009` -- through the real `Append`/`Persist`/`PurgeExpired`/`WriteAnchor`/
+   `VerifyAnchored`, asserting `anchor_status=failed` with the named mirror/chain divergence **today**
+   at `.0000009` and `verified` after, and `verified` at `.0000005` in both. **Plus the
+   multi-obligation shape D97 exists for**, where truncation collapses two distinct sub-microsecond
+   maxima, which is the case a single-event fixture cannot reach. **Plus the positive that keeps the
+   fix from being absent from both sides**: an ordinary whole-microsecond ledger verifies clean before
+   and after.
+3. **D105, the write path.** A unit-level assertion that `Persist` binds a **typed** parameter for
+   `expires_at` -- that no `::timestamptz` cast remains on the event insert -- and that an
+   unparseable `Event.ExpiresAt` produces a **named** error rather than a value the server interprets.
+   Plus the pgx-binary fact that makes part (b) load-bearing, pinned by a test so a later reader does
+   not re-derive it: a `time.Time` bound as a parameter round-trips as its truncation, at every tie.
+4. **D107.** `TestServerFloorRefusesWhenTheChainAndMirrorDisagree` (pgx): the P-E state -- one
+   snapshot, one expired obligation mirrored, one live obligation **not** mirrored -- asserting
+   `RecordPurge` **records it today** and refuses after, naming both aggregates, and that
+   `Store.PurgeExpired` refuses in both, so the test proves the Go pass was the only thing holding the
+   line. Table-driven over all four lying directions (count and max, each under- and overstated), each
+   a refusal. **Plus the three positives that make it safe to install**: a legitimate purge still
+   succeeds; three consecutive legitimate purges remain idempotent (1, then 0, then 0, one tombstone
+   row); and a snapshot referenced by no event at all is still **not** made eligible -- the vacuous
+   `NOT EXISTS` case, asserted rather than assumed. **Both overloads, not only the array form.**
+5. **D108.** The gate must **fail** against a `db/migrations/*.sql` file that defines a declared
+   function under an equivalent but differently-spelled signature -- the exact two spellings measured
+   above are the table -- and must name the body it could not place. Plus: the alias map's membership
+   is asserted to cover every type spelling actually present in `db/migrations/*.sql` for a declared
+   function, so an unmapped spelling fails the gate rather than reducing the population. Plus D99's
+   existing negative (`TestDigestGateCoversANewMigrationFileWithNoEdit`) and D92's whitespace and
+   both-directions set-equality assertions unregressed, and the assertion that it still runs with no
+   DSN.
+6. **D109.** `TestSyncRepairsThePartialMirrorItWouldOtherwiseRefuse` (pgx): the crash-window state
+   above, asserting `sync`'s pre-Persist verification **fails today** with the named count divergence
+   and that after the change `sync` mirrors the missing event and the **post-mirror** verification
+   passes. **Plus the four negatives that keep the gate intact**, each asserting `sync` still aborts
+   before the first `Persist`: a mirror row the chain does not have; a `max` disagreement on a row
+   that is mirrored; a shortfall covering an event `MarkReplicated` already recorded; and a mirror
+   ahead of the chain. **Plus the reporting assertion**: a deferred run says what it deferred, so a
+   deferral and a clean verification do not share an output.
+7. **D110.** `TestSharedSchemaTenancyIsDeclaredAndAsserted` (pgx): the two-ledger reproduction above,
+   asserting ledger A's `VerifyAnchored` returns the "possible fabricated retention record" failure
+   **today**; that under a **shared**-tenancy signed policy the row is reported and named rather than
+   failing; and that under an **exclusive**-tenancy policy the foreign `ledger_id` is itself a named
+   failure that identifies the foreign ids. **Plus the negative that keeps the discriminator outside
+   section 2**: a v3 policy is refused outright by the schema pin, and no flag, environment variable
+   or mirror probe can select shared mode. **Plus the positive**: a single-ledger deployment under the
+   default exclusive policy verifies clean, and D70's adjudication of a tombstone this ledger *does*
+   attest still fails on divergence, unchanged.
+8. **D111.** `TestGrantDdlOwnershipDetectsASubstitutedDefinerBody` (shell or pgx): the
+   `BEGIN RETURN 424242; END` substitution above, asserting `grant-ddl-ownership` exits **0 today**
+   with three PASS lines and exits non-zero after, naming the function and the live digest, while
+   `CheckProvisioningState` refuses in both. **Plus the over-tightening positives on both bootstrap
+   paths** -- a clean migration-bootstrapped database and a clean `create-schemasql-only-database` are
+   both accepted, D85 test 1's own requirement, because that is the test that catches a one-member set
+   declared from one literal. **Plus D90 unregressed**: the new refusal path leaves both event
+   triggers `evtenabled='A'` and all three registries at 13/2/1.
+9. **D111(b).** Every command written into `docs/operations/sec7-database-copies.md` is executed and
+   its output pasted in the stage PR, D84's standard, the corrected `021` procedure included. This is
+   not automatable and is stated as a review obligation rather than pretended into a test.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **`time.Round` must not be adopted, in any form, including "match what the server does".** It is one
+  of the two directions the brief offers and it is refuted above by execution: Go rounds
+  half-away-from-zero, PostgreSQL rounds half-to-even, and they disagree at every tie. A later reader
+  who rediscovers it should find D105's five-row tie table before implementing it.
+- **D105(a) and D105(b) ship together.** (a) alone leaves a chain written by an older binary sending a
+  rounding literal, with no remedy; (b) alone leaves the chain authenticating precision nothing
+  downstream can observe. Neither may be removed on the other's strength.
+- **D105 and D106 ship together.** The fix without the boundary sweep leaves a proof obligation whose
+  passing carries no information, which is the finding D106 names.
+- **D107 must not be discharged by scoping the eligibility predicate to one `ledger_id`** -- D103's
+  third condition, restated, and D110 is what settles the premise it rests on.
+- **D107's corroboration must not be turned into an independent server authority.** It detects a
+  chain/mirror divergence; it does not detect a mirror and a caller wrong in the same direction (R48).
+  If it cannot be implemented without changing `PurgeChecker`'s contract beyond passing the aggregate
+  D97 already computes, the implementation stops and this addendum is amended.
+- **D110's shared mode must not be reachable without the signed policy.** A flag, an environment
+  variable or a mirror-derived probe is refused, and the reason is in D110's own words: the mirror
+  discriminator is one `INSERT` away for a role section 2 admits by name.
+- **A `ledger_id` column must not be added to `screening_ledger_retention_tombstone`.** It is the
+  design this section was expected to reach and it is refused above: the value would be caller-supplied
+  and would decide whether a row is adjudicated at all, which is G-C's shape on the one column that
+  matters most.
+- **D108 must not be discharged by adding the second spelling to the alias map alone.** The map is
+  half (a); the no-body-dropped assertion is half (b), and it is the half that survives a third
+  spelling nobody predicted. A gate that silently discards an unplaceable body is the finding.
+- **D109 must not weaken the gate for any divergence other than the accounted-for shortfall**, and
+  must not move the verification after the mirroring loop -- that reinstates F5, which D19 closed.
+- **If the mirror/chain aggregate reconciliation cannot be made exact after D105**, the implementation
+  stops and this addendum is amended rather than shipping a comparison with a tolerance. **A tolerance
+  invented in the implementing pass is a new equivalence relation over a security comparison**, which
+  D85's second withdrawal condition forbids for `prosrc` and D103's fourth forbids here for the same
+  reason. This is the third round to restate it.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #11's confirmation. D97 and D98
+remain shipped together and neither is reopened -- D107 strengthens D98's caller side without touching
+its quantifier, and D105 changes the precision of the values D97 compares without touching its
+aggregate, its population or its count-and-max pair. **D97(c)'s count comparison is not dropped**;
+D109 defers exactly one of its outcomes in exactly one command and re-runs it. A MINIMUM-based floor
+is not adopted in any form. The eligibility population is not scoped to one `ledger_id`. D99's gate is
+strengthened in selection only, never weakened in derivation, and is not discharged by a hand list.
+`screening_ledger_event` is not registered as a protected object or relation. D101's marker is
+untouched and is still not a number. `SnapshotCreatedAt` is not reinstated. `prosrc` is not normalised,
+trimmed or whitespace-folded anywhere in this addendum. D88(a) and D88(b) remain shipped together and
+`anchorMAC`'s input is untouched. D77 and D80 remain shipped together. D79's hoist is untouched. D65's
+validity branch and D50's `index_defs` are untouched, so Addendum 6's "record both `index_oids` and
+`index_defs`" and Addendum 7's "assert validity in D47 only" fallbacks are both **not** required and
+**must not** be adopted. The withdrawn D74 reaper is not reintroduced in any form. The instance
+binding is still not a gate. D46 is not split from D45. D40's collateral-damage cases pass. D38(a) and
+D38(b) remain shipped together. D69's rejection of `pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R47 -- D105(a) changes what `Append` writes, and a ledger written by an older binary carries
+precision this design deliberately drops rather than preserves.** `Event.ExpiresAt` becomes
+microsecond-precision at creation, which changes `hashEvent`'s input and regenerates the committed
+fixture. For a chain appended before this decision, D105(b) makes both sides agree on the truncation,
+so such a chain **verifies** rather than becoming unrepairable -- that is the whole reason (b) is not
+optional -- but the sub-microsecond precision it carries is authenticated and never observed by any
+control. The direction is conservative: the floor is the truncation, which is at or below the
+chain-authenticated value, so it can only ever make a purge claim harder to satisfy. Free at zero
+production events and never free again, the argument section 6, D11, D25, D32, D38 and D88 each made.
+
+**R48 -- D107's corroboration is supplied by the caller and can only cause a refusal; it is not an
+independent server-side authority.** A caller that supplies the mirror's own values gets D98's
+predicate and nothing more, and a mirror and a caller that are wrong in the same direction are not
+detected by it -- the chain-side authority for that is `forSnapshot`'s own comparison
+(`anchor.go:521-526`), which runs at verification time and not at purge time. **D107 makes the server
+floor no weaker than the Go pass; it does not make it independently stronger**, and a later reader
+must not cite it as prevention or remove the Go pass on its strength. The residual terminates where
+R31 puts it: a purge decided entirely inside the mirror, by a party holding no chain, is not something
+a definer function can adjudicate.
+
+**R49 -- in shared-tenancy mode a retention claim over shared bytes is visible and unadjudicated, and
+that is the honest maximum.** D110 stops one ledger accusing another and does not give either the
+ability to verify the other's claim: the attesting entry is under a `K_chain` this verifier does not
+hold and is committed by an anchor it does not own. This is R31's and R36's standing limit reached
+from a third direction, and the re-entry condition is the same one section 5.3 set for RFC 3161 and
+D70 set for R31 -- the first deployment that screens real traffic, where a mirror is read
+independently of the ledger directory that wrote it. **R43's "every deployment this repository
+configures owns its schema exclusively" is withdrawn** (D110) -- false under the reading that covers
+CI, unfalsifiable under the reading that covers production -- and what replaces it is a declared fact
+that exclusive-mode deployments now assert rather than assume.
+
+**R50 -- the coordinated-edit surface grew again along the axis R23, R29, R33, R42 and R46 already
+track.** D105 changes `mustExpires` and one `Persist` bind and regenerates a fixture; D107 changes
+both definer bodies, so all four `(function, bootstrap path)` declared digests move again, one round
+after D98 moved them; D108 adds an alias map; D110 adds a policy field and a schema-version bump, with
+the committed example policy, the operator template and the in-test helper re-issued as v4; D111 adds
+a digest assertion to the provisioning script. No new *kind* of literal is introduced -- every one is
+a property of an object this document already declares -- but the count grew again and this addendum
+does not pretend otherwise. **The mitigating property is unchanged and is why the arrangement
+survives: every one of those assertions fails closed**, and D108 makes the digest gate's selection a
+derivation rather than a hand rule, which narrows R46's own stated fragility. The aggravating property
+section 10.3 names -- that these controls have no single owner -- is unchanged and is not addressed
+here.
+
+### Staging
+
+Same shape and reason as section 8 and the eleven prior addenda: each stage independently reviewable
+and independently provable. Ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage P1 -- the honest ledger stops failing.** D104's audit obligation, D105 and D106 together
+   (D112's second and third withdrawal conditions). The HIGH, and the only stage that changes what the
+   chain writes. The fixture regeneration rides here rather than in a later stage, because splitting a
+   chain-digest change across stages leaves a window in which the fixture and the verifier disagree.
+   D105's positives -- an ordinary whole-microsecond ledger verifying clean before and after, and both
+   parities of the tie -- are a shipping requirement, not a nicety.
+3. **Stage P2 -- the server floor and the document.** D107 and D111 together. One stage because D107
+   moves both definer digests and D111(b) is the procedure an operator follows to install them; D111's
+   own reproduction is the state D107's migration creates on an already-provisioned database, and
+   splitting them would ship a re-provisioning event whose documented procedure names the wrong
+   migration. D111(a)'s installer assertion is what makes D107's new digests provable at both ends.
+4. **Stage P3 -- the declarations.** D108. It must not lag P2 by more than a stage: P2 moves both
+   definer digests and D108's gate is what keeps them honest, the relationship Addendum 10's M3 had to
+   its M2 and Addendum 11's N3 to its N2.
+5. **Stage P4 -- the repair path and the premise.** D109 and D110. Sequenced after P1 because both
+   read the aggregate D105 changes the precision of, and last because neither blocks anything else --
+   and therefore explicitly **not** droppable. D23 was sequenced last on the same "blocks nothing"
+   reasoning and CAP #2 rated the resulting gap HIGH, a lesson Addenda 5 through 11 each repeated, and
+   which D93(b) is the standing proof of. Per CLAUDE.md Boundaries any workflow wiring is named
+   explicitly in the stage PR description, following D30's precedent.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #11 re-confirmed nothing has re-asserted the guarantee; that must remain true through this
+   addendum as well.
+
+**SEC-7 does not close on this addendum.** Section 8's closing condition -- "a deliberately forged
+chain fails a CI run that nobody chose to invoke" -- remains met for the **chain**: CAP #11 confirms
+the cryptographic layer is unbroken across all eleven rounds and, for the second consecutive round, no
+section 2 forgery was demonstrated at all. It is **not** met for the **retention claim**, and for the
+second round running the reason is not an adversary. Four of the six findings need none: an honest
+ledger fails verification on a nanosecond timestamp, an honest crash produces a state the shipped
+repair command refuses to repair, an honest second ledger is accused of fabricating a record, and an
+honest operator following the documented procedure installs the vulnerable predicate and is told it
+succeeded. **A verification control that fails on correct behaviour is a control that gets disabled**,
+and D105 through D111 are the whole of that barrier.
+
+### Addendum 12 summary
+
+- **CAP #11's verdict is QUALIFIED, not PASS, for the eleventh consecutive audit, and for the second
+  consecutive round no forgery was demonstrated within section 2.** Six findings, one HIGH and five
+  MEDIUM, and four of the six require no adversary at all. Every principle from Addenda 3 through 11
+  held; this addendum reopens none of them.
+- **The axis this round adds is reduction: which side reduces a value, how, and whether the two
+  reductions agree by construction.** Cardinality asks how many values answer to a description; this
+  asks what each side does to the values it found before declaring them equal. D104 makes it a column
+  on D86's and D96's tables and re-runs the audit, which is how the `::timestamptz` cast population
+  was enumerated and found to be exactly one member wide.
+- **The design is D104-D112.** The reduction audit (D104); one truncation, named, applied at creation
+  with no parser on the path (D105); the proof obligation that must identify the boundary it pins
+  (D106); the server floor corroborated against the chain-authenticated aggregate the caller already
+  computes (D107); the digest gate selecting by resolved identity and asserting nothing was dropped
+  (D108); the repair path that stops gating on the failure only it can clear (D109); schema tenancy as
+  a signed, asserted fact with R43's premise withdrawn as false (D110); the document naming the
+  migration that exists and an installer that confirms something (D111); and the proof obligations with
+  pre-declared withdrawal conditions (D112).
+- **This design pass executed its mechanism assumptions, and the execution refuted one of the two
+  directions the brief itself offered.** PostgreSQL's `timestamptz` parser rounds **half-to-even**
+  (`0,2,2,4,4`) and Go's `time.Round` rounds **half-away-from-zero** (`1,2,3,4,5`), so "Go adopts the
+  same rounding Postgres performs" is not available from the standard library and would open a new
+  disagreement at every tie. Also confirmed by execution: the disagreement is **4,995 of every 9,999**
+  nanosecond values, not 499 of every 999 -- CAP #11's "strictly above 500ns" holds only inside the
+  first microsecond, because 500ns agrees there only on the evenness of zero; **pgx's binary parameter
+  path truncates**, and `WriteAnchor` already binds `anchored_at` that way, so the convention the fix
+  needs was already in the package; an explicit truncation plus a typed bind disagrees on **0 of 999**
+  values and tracks `Truncate` at every tie; a definer function verifying a caller-supplied
+  `(count, max)` refuses **every** lying direction and catches P-E's unmirrored 2046 obligation without
+  reading the chain; and the respelled overload keeps its OID (16471), replaces the body, and leaves
+  exactly one overload while the gate's population silently drops from 5 to 4.
+- **One premise inherited from Addendum 11 does not survive verification, and it is the round's
+  sharpest result.** R43 states that "every deployment this repository configures owns its schema
+  exclusively." The CI database, after one shipped suite run with no probe present, holds **eight
+  distinct ledger ids** in `screening_ledger_event` and eleven in `screening_ledger_anchor`, and **one
+  snapshot sha is referenced by three different ledgers and is already purged and tombstoned**. P-F's
+  exact precondition is present in CI today; the only reason it is not a red test is that none of
+  those three ledgers verifies against an anchor after that purge. D110 states the claim at exactly
+  its strength rather than pressing it: read as covering every environment this repository configures,
+  the sentence is **false**; read as covering production deployments only, it is **unfalsifiable**,
+  since there are none. Neither reading carries D98's justification. Multi-ledger shared schema is
+  real, the tombstone is right to have no `ledger_id`, and adding one is refused as G-C's shape.
+- **Four risks are recorded** rather than designed away: the chain-format change and what it drops for
+  an older ledger (R47); D107's corroboration can only refuse and is not an independent authority
+  (R48); shared-tenancy retention claims are visible and unadjudicated, with R43's premise withdrawn
+  (R49); and the coordinated-edit surface grew again (R50).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42, D43-D49,
+  D50-D58, D59-D67, D68-D75, D76-D85, D86-D95 and D96-D103 stand. R1-R42 and R44-R46 stand. **D102's
+  substantive decision -- that the value compared must be the value used, and that one truncation is
+  the right reduction -- is correct and is kept**; what D105 withdraws is its premise that the mirror's
+  stored value *is* that truncation, which it is not for 4,995 of every 9,999 nanosecond values, and
+  D105 is what makes D102's own sentence true of the values it now compares. **One sentence of R43
+  (`0007:10961-10963`) is withdrawn**, explicitly and in D110's own words, as false under the reading
+  that covers this repository's own CI and unfalsifiable under the reading that covers production;
+  R43's substantive content -- the per-ledger floor, the global eligibility rule, and the conservative
+  direction between them -- is unaffected.
+
+**Audit basis commit:** `9c416325b77dfcb0df23dcf0630eecd064bba20d`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #11 was
+produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
