@@ -30,12 +30,15 @@ func TestPurgedAtFloorIsChainAuthenticated_MirrorChainAgree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mirrorExpiresAt, found, err := chain.sink.EventExpiresAtForSnapshot(ctx, chain.purgedSHA)
+	mirrorCount, mirrorMax, found, err := chain.sink.EventExpiresAggregateForSnapshot(ctx, chain.purgedSHA, chain.store.ledgerID)
 	if err != nil || !found {
-		t.Fatalf("EventExpiresAtForSnapshot: found=%v err=%v", found, err)
+		t.Fatalf("EventExpiresAggregateForSnapshot: found=%v err=%v", found, err)
 	}
-	if !mirrorExpiresAt.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
-		t.Fatalf("ADR-0007 Addendum 10 D89: mirror expires_at (%s) and chain expires_at (%s) should agree on a clean ledger", mirrorExpiresAt.Format(time.RFC3339Nano), chainExpiresAt.Format(time.RFC3339Nano))
+	if mirrorCount != 1 {
+		t.Fatalf("ADR-0007 Addendum 11 D97: expected exactly 1 mirror row for this ledger's single-obligation snapshot, got %d", mirrorCount)
+	}
+	if !mirrorMax.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
+		t.Fatalf("ADR-0007 Addendum 10 D89 / Addendum 11 D97: mirror MAX(expires_at) (%s) and chain expires_at (%s) should agree on a clean ledger", mirrorMax.Format(time.RFC3339Nano), chainExpiresAt.Format(time.RFC3339Nano))
 	}
 
 	// Past a preceding anchor (anchor 4 attests the purge, anchor 2

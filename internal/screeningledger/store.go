@@ -67,15 +67,20 @@ type TombstoneRecord struct {
 // M-E's fabricated out-of-scope row invisible to VerifyReport entirely,
 // not merely unadjudicated -- CAP #8 section 7.5's finding.
 //
-// EventExpiresAtForSnapshot is ADR-0007 Addendum 10 D89's mirror
+// EventExpiresAggregateForSnapshot is ADR-0007 Addendum 10 D89's mirror
 // corroboration for the chain-authenticated lower bound
 // purgeLowerBoundSource.forSnapshot applies to every claim/row, not only
-// at genesis: screening_ledger_event.expires_at for the event that
-// references snapshotSHA256, read from the same database as every other
-// bound this comparison uses. The chain's own Event.ExpiresAt is the
-// authority; this is corroboration only, and a disagreement is a named
-// mirror/chain divergence rather than being silently resolved either
-// way (D89's own stated caution).
+// at genesis, generalised by Addendum 11 D97 from a single selected row
+// to the aggregate D96 row 16 found was missing: the count of
+// screening_ledger_event rows referencing snapshotSHA256 for THIS ledger
+// and the MAX of their expires_at, read from the same database as every
+// other bound this comparison uses. The chain's own count and
+// MAX(Event.ExpiresAt) are the authority; this is corroboration only,
+// and a disagreement on either is a named mirror/chain divergence rather
+// than being silently resolved either way (D89's own stated caution,
+// D97(d)). Scoped by ledgerID (D97(b)): without it the mirror could
+// corroborate against another ledger's obligation on the same shared
+// snapshot row (R43), and a divergence failure would mean nothing.
 //
 // SnapshotCreatedAt (ADR-0007 Addendum 9 D81's genesis-case fallback) is
 // withdrawn by D89 and must not be reinstated in any form, including
@@ -84,7 +89,7 @@ type TombstoneRecord struct {
 type PurgeChecker interface {
 	PurgeRecord(ctx context.Context, snapshotSHA256 string) (*TombstoneRecord, error)
 	AllPurgeRecords(ctx context.Context) ([]TombstoneRecord, error)
-	EventExpiresAtForSnapshot(ctx context.Context, snapshotSHA256 string) (expiresAt time.Time, found bool, err error)
+	EventExpiresAggregateForSnapshot(ctx context.Context, snapshotSHA256, ledgerID string) (count int, maxExpiresAt time.Time, found bool, err error)
 }
 
 // PurgeRecorder is ADR-0007 Addendum 2 D27/D28's write-time counterpart
@@ -373,8 +378,42 @@ type VerifyReport struct {
 	// Reported, not adjudicated: its presence never fails verification
 	// on its own -- D70's reason to scope the adjudicating pass to this
 	// ledger's own history is unchanged (ADR-0007 Addendum 9 R36).
-	OutOfScopeRetentionTombstones []TombstoneRecord
+	//
+	// ADR-0007 Addendum 11 D101(a): nil and empty are indistinguishable
+	// to len(), which is what let a genuinely-unchecked run (no anchor
+	// reader configured, or an early AnchorStatusUnavailable return) and
+	// a genuinely-clean checked run both report 0 here -- D93(a)'s own
+	// "runs in every mode" claim was false on exactly this path.
+	// OutOfScopeRetentionTombstonesChecked is the tri-state that makes
+	// the difference nameable; a caller must read it before treating this
+	// slice's length as meaningful.
+	OutOfScopeRetentionTombstones        []TombstoneRecord
+	OutOfScopeRetentionTombstonesChecked OutOfScopeCheckStatus
 }
+
+// OutOfScopeCheckStatus is ADR-0007 Addendum 11 D101(a)'s not-checked
+// marker: a real value in the result type, not an absent field, so a
+// reader cannot mistake "0" for "I did not look." The zero value
+// (OutOfScopeCheckNotPerformed, "") is deliberate -- every early return
+// in VerifyAnchored that never reaches reportOutOfScopePurgeRecords
+// leaves this at its zero value, so a future early return added without
+// updating this field still reports not-checked rather than a
+// mimicked "clean" result.
+type OutOfScopeCheckStatus string
+
+const (
+	// OutOfScopeCheckNotPerformed is the zero value: the reporting pass
+	// never ran on this verification. ADR-0007 Addendum 10 D93(a)'s claim
+	// that the pass "runs in every mode" is false on this path
+	// (anchor.go:685-691's early return, per D93(b)/D101(b)); this marker
+	// is what makes that false on purpose rather than silently.
+	OutOfScopeCheckNotPerformed OutOfScopeCheckStatus = ""
+	// OutOfScopeCheckClean means the pass ran and found zero out-of-scope
+	// tombstone rows.
+	OutOfScopeCheckClean OutOfScopeCheckStatus = "checked-clean"
+	// OutOfScopeCheckFindings means the pass ran and found at least one.
+	OutOfScopeCheckFindings OutOfScopeCheckStatus = "checked-with-findings"
+)
 
 // VerifyPolicy is the F1 fix's entry point (ADR-0007 D8, D9 option (c)):
 // checks the event and audit chains, the genesis boundary, and the

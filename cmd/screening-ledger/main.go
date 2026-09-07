@@ -122,7 +122,7 @@ func main() {
 			// limit for the adjudicating pass is unchanged); a
 			// single-tenant deployment that wants a non-empty list treated
 			// as a failure implements that policy itself (R36).
-			"out_of_scope_retention_tombstone_count":           len(report.OutOfScopeRetentionTombstones),
+			"out_of_scope_retention_tombstone_count":           outOfScopeCount(report.OutOfScopeRetentionTombstonesChecked, report.OutOfScopeRetentionTombstones),
 			"out_of_scope_retention_tombstone_snapshot_sha256": outOfScopeSnapshotSHA256(report.OutOfScopeRetentionTombstones),
 		})
 	case "sync":
@@ -181,7 +181,7 @@ func main() {
 			// fabricated out-of-scope tombstone. sync is the command an
 			// operator actually schedules; D82 exists for the auditor who
 			// reads what a scheduled command prints.
-			"out_of_scope_retention_tombstone_count":           len(verifyResult.OutOfScopeRetentionTombstones),
+			"out_of_scope_retention_tombstone_count":           outOfScopeCount(verifyResult.OutOfScopeRetentionTombstonesChecked, verifyResult.OutOfScopeRetentionTombstones),
 			"out_of_scope_retention_tombstone_snapshot_sha256": outOfScopeSnapshotSHA256(verifyResult.OutOfScopeRetentionTombstones),
 		})
 	case "anchor":
@@ -368,6 +368,20 @@ func outOfScopeSnapshotSHA256(records []screeningledger.TombstoneRecord) []strin
 		names[i] = r.SnapshotSHA256
 	}
 	return names
+}
+
+// outOfScopeCount is ADR-0007 Addendum 11 D101(a): emits the explicit
+// not-checked marker rather than the number 0 when
+// OutOfScopeRetentionTombstonesChecked says the reporting pass never
+// ran -- a plain len() here is exactly what let a not-checked run and a
+// genuinely clean one both print 0, distinguishable only by a reader
+// correlating this field against anchor_status (D93's own finding,
+// D24's lesson one field over).
+func outOfScopeCount(status screeningledger.OutOfScopeCheckStatus, records []screeningledger.TombstoneRecord) any {
+	if status == screeningledger.OutOfScopeCheckNotPerformed {
+		return "not-checked"
+	}
+	return len(records)
 }
 
 // mustAnchorKey loads K_anchor via the same LoadKey used for the
