@@ -50,7 +50,7 @@ Write the unsigned policy document (see `internal/screeningledger/policy.go`'s
 
 ```json
 {
-  "schema_version": "openwatchlist.screening-ledger-verification-policy.v3",
+  "schema_version": "openwatchlist.screening-ledger-verification-policy.v4",
   "ledger_id": "<this ledger's authenticated identity>",
   "min_event_schema": "openwatchlist.screening-ledger-event.v2",
   "min_audit_schema": "openwatchlist.screening-ledger-audit.v2",
@@ -59,7 +59,8 @@ Write the unsigned policy document (see `internal/screeningledger/policy.go`'s
   "allow_unanchored": false,
   "min_anchor_sequence": 0,
   "genesis_event_sha256": "",
-  "genesis_audit_sha256": ""
+  "genesis_audit_sha256": "",
+  "tenancy": "exclusive"
 }
 ```
 
@@ -87,6 +88,19 @@ above the chain's actual head silently downgrades the whole chain to unkeyed ver
   never write a `v1` entry, so the frozen prefix and its pinned digest never change for the life of
   the ledger. A policy re-issue that only raises `min_anchor_sequence` or changes
   `allow_unanchored` carries the same two pin values forward unchanged.
+
+**`tenancy` (ADR-0007 Addendum 12 D110) declares whether this ledger's Postgres schema is
+exclusive to it.** `"exclusive"` is the value every ledger's first policy needs: a
+`screening_ledger_event` row carrying a foreign `ledger_id` then becomes a named verification
+failure, naming the foreign id found -- this is checked, not assumed, so an operator who
+unexpectedly shares a schema is told that fact directly rather than being told a legitimate
+retention claim looks fabricated. Use `"shared"` only for a deployment that has deliberately chosen
+to run more than one ledger against one Postgres schema; in that mode a tombstone this ledger's own
+chain does not attest to is reported (named and counted in the verifier's output) rather than
+failing verification, because one ledger's verifier cannot adjudicate another ledger's retention
+claim. There is no flag, environment variable, or database-derived signal that can select shared
+mode -- it is read from this signed field alone, so an adversary who cannot forge the signature
+cannot move a verifier into the weaker mode.
 
 Then, on the offline host holding the private key:
 

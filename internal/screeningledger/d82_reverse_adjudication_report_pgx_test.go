@@ -77,10 +77,18 @@ func TestReverseAdjudicationReportsUnknownTombstones(t *testing.T) {
 		t.Fatalf("ADR-0007 Addendum 9 D82: expected the fabricated snapshot %q among the reported out-of-scope tombstones, got %d rows: %v", fabricatedSHA, len(result.OutOfScopeRetentionTombstones), result.OutOfScopeRetentionTombstones)
 	}
 
-	// D70 unregressed: a row INSIDE the known set still fails
-	// verification on divergence -- reuse the exact orphan-tombstone
-	// reproduction this addendum's predecessor already established.
-	t.Run("d70_in_scope_divergence_still_fails", func(t *testing.T) {
+	// D70 unregressed: a row INSIDE the known set is still SEEN and
+	// adjudicated (not silently swallowed into the out-of-scope
+	// reporting pass, which is what D82 exists to keep separate) --
+	// reuse the exact orphan-tombstone reproduction this addendum's
+	// predecessor already established. ADR-0007 Addendum 12 D110: under
+	// chain2.policy's TenancyShared default (this scaffolding's clone
+	// cannot honestly declare exclusive -- see assertOrphanTombstoneRefused's
+	// own doc comment), an IN-SCOPE unattested tombstone is now
+	// REPORTED (SharedTenancyUnattestedTombstones) rather than failing;
+	// d110_tenancy_pgx_test.go proves the exclusive-mode hard failure
+	// separately, against a genuinely single-tenant database.
+	t.Run("d70_in_scope_divergence_still_reported", func(t *testing.T) {
 		chain2 := newD70Chain(t, ctx)
 		targetSHA := chain2.appendExtraKnownButUnpurgedSnapshot(t, ctx)
 		ledgerDDLConn2, err := pgx.Connect(ctx, withDatabase(t, requireLedgerDDLDatabaseURL(t), chain2.clone.dbName))
@@ -98,8 +106,17 @@ func TestReverseAdjudicationReportsUnknownTombstones(t *testing.T) {
 			VerifyOptions: VerifyOptions{Policy: chain2.policy, Purges: chain2.sink},
 			Anchors:       chain2.sink, Provisioning: chain2.sink, KAnchor: chain2.kAnchor, PolicySHA256: chain2.policySHA256,
 		})
-		if err == nil {
-			t.Fatalf("ADR-0007 Addendum 8 D70: verify succeeded (status=%q) despite an in-scope orphan tombstone -- D82's reporting pass must not have swallowed this into the reporting-only branch", result2.AnchorStatus)
+		if err != nil {
+			t.Fatalf("ADR-0007 Addendum 12 D110: expected shared-tenancy verification to succeed (reporting, not failing), got err=%v", err)
+		}
+		found := false
+		for _, rec := range result2.SharedTenancyUnattestedTombstones {
+			if rec.SnapshotSHA256 == targetSHA {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("ADR-0007 Addendum 8/12 D70/D110: expected the in-scope orphan tombstone %q named in SharedTenancyUnattestedTombstones, got %+v", targetSHA, result2.SharedTenancyUnattestedTombstones)
 		}
 	})
 

@@ -142,38 +142,26 @@ func main() {
 		//
 		// ADR-0007 Addendum 2 D24: --allow-genesis has no legitimate
 		// meaning on sync -- see verificationMode.
-		verifyResult, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
+		//
+		// ADR-0007 Addendum 12 D109: Store.Sync alone may defer EXACTLY
+		// one condition -- a chain/mirror event COUNT shortfall for one
+		// snapshot, fully accounted for by events this ledger's own
+		// store already knows are unreplicated (store.IsReplicated) --
+		// mirroring the backlog before re-running the SAME, unmodified
+		// verification in full. Every other divergence still aborts
+		// before the first Persist, exactly as before D109; status/
+		// verify never see this path at all.
+		verifyOpts := screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
 			Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
-		})
-		must(err)
-		events, err := store.ListEvents()
-		must(err)
-		synced := 0
-		verifiedAt := time.Now().UTC().Format(time.RFC3339Nano)
-		verification := screeningledger.ReplicationVerification{VerifiedAt: verifiedAt, Mode: verifyResult.VerificationMode}
-		for _, event := range events {
-			if store.IsReplicated(event.EventID) {
-				continue
-			}
-			request, err := store.LoadSnapshot(event.RequestSnapshotSHA256)
-			must(err)
-			response, err := store.LoadSnapshot(event.ResponseSnapshotSHA256)
-			must(err)
-			// ADR-0007 D19: verified_at/verification_mode are written in
-			// the same transaction as the replication row (Persist's
-			// INSERT into screening_ledger_replication) -- the row's own
-			// immutability trigger means this can never be added later.
-			must(sink.Persist(ctx, event, request, response, verification))
-			must(store.MarkReplicated(event.EventID, ""))
-			audit, err := store.AppendAudit("postgres_replicated", opts.value("--operator", "screening-ledger-cli"), "manual sync", event.EventID, nil)
-			must(err)
-			must(sink.PersistAudit(ctx, audit))
-			synced++
 		}
+		syncResult, err := store.Sync(ctx, sink, verifyOpts, opts.value("--operator", "screening-ledger-cli"))
+		must(err)
+		verifyResult := syncResult.VerifyResult
 		output(map[string]any{
-			"status": "ok", "synced_event_count": synced,
-			"verification_mode": verifyResult.VerificationMode, "anchor_status": verifyResult.AnchorStatus,
+			"status": "ok", "synced_event_count": syncResult.SyncedEventCount,
+			"deferred_verification": syncResult.DeferredReason,
+			"verification_mode":     verifyResult.VerificationMode, "anchor_status": verifyResult.AnchorStatus,
 			// ADR-0007 Addendum 10 D93(c): sync already runs the same
 			// anchored verification status/verify do and discarded these
 			// two D82 fields -- the adjudication ran, the reporting pass

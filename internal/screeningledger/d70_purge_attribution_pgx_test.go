@@ -396,7 +396,27 @@ func TestPurgeAttributionReverseDirectionCatchesOrphanTombstones(t *testing.T) {
 			t.Fatalf("connect as owl_migrator: %v", err)
 		}
 		defer migratorConn.Close(context.Background())
-		if _, err := migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1::text[], now(), 'attacker-direct', 'no-audit-trail')`, []string{targetSHA}); err != nil {
+		// ADR-0007 Addendum 12 D107: the attacker has DIRECT DATABASE
+		// ACCESS (owl_migrator), so it can simply read the mirror's own
+		// aggregate back and supply it as its own "corroboration" --
+		// this is R48's own documented residual (D107 detects a
+		// chain/mirror DIVERGENCE; it is not an independent authority
+		// against an attacker who already holds the mirror). The point
+		// this test proves is downstream of that: the REVERSE
+		// adjudication (D70) still catches the resulting orphan
+		// tombstone regardless.
+		var mirrorCount int
+		var mirrorMax time.Time
+		if err := migratorConn.QueryRow(ctx,
+			`SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE (request_snapshot_sha256=$1 OR response_snapshot_sha256=$1) AND ledger_id=$2`,
+			targetSHA, chain.store.ledgerID,
+		).Scan(&mirrorCount, &mirrorMax); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := migratorConn.Exec(ctx,
+			`SELECT screening_ledger_purge_snapshots($1::text[], $2, $3::int[], $4::timestamptz[], 'attacker-direct', 'no-audit-trail')`,
+			[]string{targetSHA}, chain.store.ledgerID, []int32{int32(mirrorCount)}, []time.Time{mirrorMax},
+		); err != nil {
 			t.Fatalf("direct definer-function call as owl_migrator: %v", err)
 		}
 
@@ -463,20 +483,41 @@ func (chain d70Chain) appendExtraKnownButUnpurgedSnapshot(t *testing.T, ctx cont
 	return result.Event.RequestSnapshotSHA256
 }
 
+// assertOrphanTombstoneRefused confirms D70's reverse pass still SEES
+// the orphan tombstone -- ADR-0007 Addendum 12 D110 changes what
+// happens next once it is seen, by declared tenancy. chain.policy is
+// testPolicy's TenancyShared default (the d70Chain scaffolding clones
+// the shared primary database, which genuinely carries other ledgers'
+// rows by the time this suite reaches this test -- exactly R43's own
+// measured premise -- so it cannot honestly declare exclusive), so the
+// orphan tombstone is REPORTED (named and counted in
+// SharedTenancyUnattestedTombstones) rather than failing verification --
+// D110's own "a verification control that fails on correct behaviour is
+// a control that gets disabled" is what this reporting mode exists to
+// avoid one layer up. D110's own dedicated test file
+// (d110_tenancy_pgx_test.go) proves the EXCLUSIVE-mode hard failure
+// against a genuinely single-tenant database, which this scaffolding's
+// polluted clone cannot honestly provide.
 func assertOrphanTombstoneRefused(t *testing.T, ctx context.Context, chain d70Chain) {
 	t.Helper()
 	result, err := chain.store.VerifyAnchored(ctx, AnchorOptions{
 		VerifyOptions: VerifyOptions{Policy: chain.policy, Purges: chain.sink},
 		Anchors:       chain.sink, Provisioning: chain.sink, KAnchor: chain.kAnchor, PolicySHA256: chain.policySHA256,
 	})
-	if err == nil {
-		t.Fatalf("ADR-0007 Addendum 8 D70: verify succeeded (status=%q) despite an orphan tombstone row with no local purge claim and no audit attestation", result.AnchorStatus)
+	if err != nil {
+		t.Fatalf("ADR-0007 Addendum 12 D110: expected shared-tenancy verification to SUCCEED (reporting, not failing, an in-scope unattested tombstone), got err=%v", err)
 	}
-	if !strings.Contains(err.Error(), "D70") {
-		t.Fatalf("expected the error to cite ADR-0007 Addendum 8 D70, got: %v", err)
+	if result.AnchorStatus != AnchorStatusVerified {
+		t.Fatalf("expected AnchorStatusVerified under shared tenancy, got %v", result.AnchorStatus)
 	}
-	if !strings.Contains(err.Error(), "no audit entry attests") {
-		t.Fatalf("expected the error to name the missing attestation, got: %v", err)
+	found := false
+	for _, rec := range result.SharedTenancyUnattestedTombstones {
+		if rec.Operator == "attacker" || rec.Operator == "attacker-direct" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("ADR-0007 Addendum 8/12 D70/D110: expected the orphan tombstone to be named in SharedTenancyUnattestedTombstones, got %+v", result.SharedTenancyUnattestedTombstones)
 	}
 }
 

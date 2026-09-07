@@ -53,8 +53,8 @@ func preD62RecordProtectedObjectRegistry(t *testing.T, ctx context.Context, supe
 		  ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_retention_tombstone_no_truncate' AND tgrelid='screening_ledger_retention_tombstone'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_retention_tombstone_no_truncate'),
 		  ('screening_ledger_reject_mutation()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_reject_mutation'),
 		  ('owl_reject_truncate()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: owl_reject_truncate'),
-		  ('screening_ledger_purge_snapshots(timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(timestamptz,text,text)'),
-		  ('screening_ledger_purge_snapshots(text[],timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],timestamptz,text,text)'),
+		  ('screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)'),
+		  ('screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'),
 		  ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object'),
 		  ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation'),
 		  ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding')

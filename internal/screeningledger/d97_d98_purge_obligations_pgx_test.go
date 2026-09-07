@@ -441,6 +441,23 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 
 	sha := liveResult.Event.RequestSnapshotSHA256
 
+	// ADR-0007 Addendum 12 D107: RecordPurge now needs the chain-
+	// authenticated (count, MAX) obligation this ledger's own local
+	// chain computes -- recomputed fresh before each call below, since
+	// this test appends more events to the SAME store as it goes.
+	obligationsNow := func(t *testing.T) map[string]snapshotObligation {
+		t.Helper()
+		events, err := store.ListEvents()
+		if err != nil {
+			t.Fatal(err)
+		}
+		obligations, err := computeSnapshotObligations(events)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return obligations
+	}
+
 	goCount, err := store.PurgeExpired(ctx, time.Now(), "operator", "reason", sink)
 	if err != nil {
 		t.Fatal(err)
@@ -449,7 +466,7 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 		t.Fatalf("Store.PurgeExpired should refuse: a live obligation exists on this shared snapshot, got purged=%d", goCount)
 	}
 
-	recorded, err := sink.RecordPurge(ctx, []string{sha}, time.Now(), "operator", "reason")
+	recorded, err := sink.RecordPurge(ctx, []string{sha}, obligationsNow(t), store.ledgerID, "operator", "reason")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +495,7 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 		mirror(result)
 		bothExpiredSHA = result.Event.RequestSnapshotSHA256
 	}
-	recordedBothExpired, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, time.Now(), "operator", "reason")
+	recordedBothExpired, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, obligationsNow(t), store.ledgerID, "operator", "reason")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,14 +505,14 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 
 	// Idempotency (D87): three consecutive legitimate purges of the
 	// same fully-expired snapshot record 1, then 0, then 0.
-	second, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, time.Now(), "operator", "reason")
+	second, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, obligationsNow(t), store.ledgerID, "operator", "reason")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(second) != 0 {
 		t.Fatalf("expected the second RecordPurge to be a no-op, recorded=%v", second)
 	}
-	third, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, time.Now(), "operator", "reason")
+	third, err := sink.RecordPurge(ctx, []string{bothExpiredSHA}, obligationsNow(t), store.ledgerID, "operator", "reason")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,9 +522,11 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 
 	// Positive control (b): a snapshot sha referenced by NO event at all
 	// must not be made newly eligible by the NOT EXISTS rewrite (the
-	// vacuous-truth case D98's own text names as load-bearing).
+	// vacuous-truth case D98's own text names as load-bearing). No
+	// chain obligation exists for it either -- an absent map entry
+	// correctly corroborates against the mirror's own (count=0, max=NULL).
 	phantomSHA := "0000000000000000000000000000000000000000000000000000000000000"
-	phantomRecorded, err := sink.RecordPurge(ctx, []string{phantomSHA}, time.Now(), "operator", "reason")
+	phantomRecorded, err := sink.RecordPurge(ctx, []string{phantomSHA}, obligationsNow(t), store.ledgerID, "operator", "reason")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,54 +535,15 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 	}
 }
 
-// TestPurgedAtBoundTruncationIsAppliedOnce is D103 test 10 (D102): a
-// nanosecond-precision OccurredAt through the real Append produces an
-// Event.ExpiresAt the mirror's timestamptz truncates to microseconds;
-// the bound purgeLowerBoundSource.forSnapshot returns must equal the
-// value actually compared, not the untruncated one.
-func TestPurgedAtBoundTruncationIsAppliedOnce(t *testing.T) {
-	ctx := context.Background()
-	chain := newSharedSnapshotChain(t, ctx) // reuse scaffolding for the DB/store wiring; only longEvent matters here
-
-	nsInput := testAppendInput()
-	nsInput.CorrelationID = uniqueID("corr-ns")
-	nsInput.IdempotencyKey = uniqueID("idem-ns")
-	nsInput.RequestBytes = []byte(`{"unique":"` + uniqueID("ns-req") + `"}`)
-	nsInput.ResponseBytes = []byte(`{"unique":"` + uniqueID("ns-resp") + `"}`)
-	nsInput.OccurredAt = "2000-01-01T00:00:00.000000500Z"
-	nsInput.Retention.RetentionDays = 1
-	nsResult, err := chain.store.Append(nsInput)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request, err := chain.store.LoadSnapshot(nsResult.Event.RequestSnapshotSHA256)
-	if err != nil {
-		t.Fatal(err)
-	}
-	response, err := chain.store.LoadSnapshot(nsResult.Event.ResponseSnapshotSHA256)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := chain.sink.Persist(ctx, nsResult.Event, request, response, ReplicationVerification{}); err != nil {
-		t.Fatal(err)
-	}
-
-	chainExpiresAt, err := time.Parse(time.RFC3339Nano, nsResult.Event.ExpiresAt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if chainExpiresAt.Nanosecond()%1000 == 0 {
-		t.Fatalf("test construction error: expected a sub-microsecond ExpiresAt, got %s", chainExpiresAt.Format(time.RFC3339Nano))
-	}
-
-	mirrorCount, mirrorMax, found, err := chain.sink.EventExpiresAggregateForSnapshot(ctx, nsResult.Event.RequestSnapshotSHA256, chain.store.ledgerID)
-	if err != nil || !found || mirrorCount != 1 {
-		t.Fatalf("EventExpiresAggregateForSnapshot: count=%d found=%v err=%v", mirrorCount, found, err)
-	}
-	if !mirrorMax.Equal(chainExpiresAt.Truncate(time.Microsecond)) {
-		t.Fatalf("ADR-0007 Addendum 11 D102: expected the mirror's truncated value to equal the chain's truncated ExpiresAt")
-	}
-}
+// TestPurgedAtBoundTruncationIsAppliedOnce (D103 test 10 / D102) is
+// WITHDRAWN by ADR-0007 Addendum 12 D106: its single constant (500ns)
+// agreed only because the microsecond it truncates into is zero, and
+// zero is even -- a coincidence of the tie's parity, not a property of
+// the value 500 (0007 Addendum 12 drift note 1). D105(a) also makes the
+// premise this test's name describes unreachable: Event.ExpiresAt is
+// now microsecond-precision at the point Append creates it, so there is
+// no sub-microsecond value left for Persist's write path to truncate.
+// See d105_d106_reduction_pgx_test.go for D112 item 1's replacement.
 
 // TestFloorPopulationIsScopedToThisLedger is D103 test 5 (D97(b)'s
 // population half): two DIFFERENT ledgers in one shared Postgres schema

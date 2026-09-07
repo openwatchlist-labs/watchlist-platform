@@ -154,14 +154,23 @@ func declaredFunctions() []declaredFunction {
 			acceptedSchemaSQL: screeningLedgerRejectMutationBodySHA256,
 		},
 		{
-			label:             "screening_ledger_purge_snapshots(timestamptz,...)",
+			// ADR-0007 Addendum 12 D107: signature moved from
+			// (p_before timestamptz,...) to (p_ledger_id text,
+			// p_expected_count bigint, p_expected_max timestamptz,...).
+			// "p_ledger_id text" alone (no comma) is the shortest prefix
+			// that distinguishes this overload from the array form, and
+			// -- unlike the pre-D108 gate -- staying short and
+			// comma-free here is now belt-and-suspenders, not load-
+			// bearing: D108(a)'s canonicalization make the match
+			// spelling-insensitive regardless.
+			label:             "screening_ledger_purge_snapshots(ledger scalar corroboration,...)",
 			funcName:          "screening_ledger_purge_snapshots",
-			signatureContains: "p_before timestamptz",
+			signatureContains: "p_ledger_id text",
 			acceptedMigration: purgeSnapshotsTimeFloorBodySHA256Migration,
 			acceptedSchemaSQL: purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot,
 		},
 		{
-			label:             "screening_ledger_purge_snapshots(text[],...)",
+			label:             "screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)",
 			funcName:          "screening_ledger_purge_snapshots",
 			signatureContains: "p_snapshot_sha256 text[]",
 			acceptedMigration: purgeSnapshotsArrayFormBodySHA256Migration,
@@ -188,6 +197,45 @@ func migrationFilePaths(t *testing.T, dir string) []string {
 	return paths
 }
 
+// typeSpellingAliases is ADR-0007 Addendum 12 D108(a): a declared,
+// closed map from every type spelling PostgreSQL accepts for a type
+// this repository's declared functions actually use, to one canonical
+// spelling -- measured over db/migrations/*.sql's declared-function
+// signatures rather than guessed. Four types are in use there:
+// timestamptz, text[], int (PostgreSQL's own alias for int4/integer,
+// used for p_expected_count in 022), and bigint. Each gains its
+// documented PostgreSQL alias -- the exact "timestamptz" <-> "timestamp
+// with time zone" respelling P-C demonstrated pg_dump/psql \df emit
+// routinely, plus the same equivalence for the other three types a
+// future migration or pg_dump run could just as easily spell
+// differently. This is D72's shape exactly: an explicit, declared
+// allowlist whose membership is enumerated from the tree, not a pattern
+// and not a range -- and it is normalisation ONLY, never a substitute
+// for D108(b)'s no-body-dropped assertion below, which is the half that
+// survives an alias this map does not yet know about.
+var typeSpellingAliases = []struct{ from, to string }{
+	{"timestamp with time zone", "timestamptz"},
+	{"text ARRAY", "text[]"},
+	{"integer", "int"},
+	{"int4", "int"},
+	{"int8", "bigint"},
+}
+
+// canonicalizeArgs applies typeSpellingAliases to a raw parameter-list
+// text, so two signatures that differ only in which PostgreSQL-
+// recognized spelling they use for the same type compare equal. Applied
+// to BOTH sides of every prefix comparison below -- the gate's own
+// selection rule, D108's fix -- so an unmapped spelling still fails
+// safe (falls through unchanged and simply fails to match, which
+// derivedPopulationForFunction's no-drop assertion then catches and
+// names, rather than the pre-D108 gate's silent population drop).
+func canonicalizeArgs(args string) string {
+	for _, a := range typeSpellingAliases {
+		args = strings.ReplaceAll(args, a.from, a.to)
+	}
+	return args
+}
+
 // derivedPopulation returns every body extracted for this
 // declaredFunction across migrationDir's *.sql files (in apply order)
 // and SchemaSQL, each tagged with its source.
@@ -196,19 +244,90 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (
 	for _, path := range migrationFilePaths(t, migrationDir) {
 		content := mustReadFile(t, path)
 		for _, found := range extractFunctionBodies(t, content, path, d.funcName) {
-			if d.signatureContains != "" && !strings.HasPrefix(found.args, d.signatureContains) {
+			if d.signatureContains != "" && !strings.HasPrefix(canonicalizeArgs(found.args), canonicalizeArgs(d.signatureContains)) {
 				continue
 			}
 			migration = append(migration, found)
 		}
 	}
 	for _, found := range extractFunctionBodies(t, SchemaSQL, "SchemaSQL", d.funcName) {
-		if d.signatureContains != "" && !strings.HasPrefix(found.args, d.signatureContains) {
+		if d.signatureContains != "" && !strings.HasPrefix(canonicalizeArgs(found.args), canonicalizeArgs(d.signatureContains)) {
 			continue
 		}
 		schemaSQL = append(schemaSQL, found)
 	}
 	return migration, schemaSQL
+}
+
+// retiredFunctionSignaturePrefixes is ADR-0007 Addendum 12 D107's own
+// DROP FUNCTION targets (022_screening_ledger_purge_chain_corroboration
+// .sql): signatures that were once live and are now deliberately,
+// entirely retired -- not respelled, not superseded-but-still-the-
+// same-shape (that is D99(b)'s own, separate concern), but DROPPED, so
+// no current declaredFunctions() entry describes them at all and none
+// ever should again. Declared here as a closed set (D31's "a closed set
+// of objects, not a name pattern") specifically so assertNoBodyDropped
+// below can tell "this body belongs to a signature that no longer
+// exists at all" apart from "this body is an unplaceable respelling of
+// one that does" -- the two are opposite findings and must not share a
+// code path.
+var retiredFunctionSignaturePrefixes = []struct{ funcName, prefix string }{
+	{"screening_ledger_purge_snapshots", "p_before timestamptz"},
+}
+
+func isRetiredSignature(funcName, canonicalArgs string) bool {
+	for _, r := range retiredFunctionSignaturePrefixes {
+		if r.funcName == funcName && strings.HasPrefix(canonicalArgs, canonicalizeArgs(r.prefix)) {
+			return true
+		}
+	}
+	return false
+}
+
+// assertNoBodyDropped is ADR-0007 Addendum 12 D108(b): the half that
+// survives an alias typeSpellingAliases does not yet know about. For
+// every *.sql file under migrationDir, and for every declared function
+// NAME appearing in declaredFunctions() (grouped, since
+// screening_ledger_purge_snapshots has two): every extracted body that
+// is not a known-retired signature (retiredFunctionSignaturePrefixes)
+// must match EXACTLY ONE declared overload's canonicalized prefix. A
+// body matching NONE is named as a failure -- an unplaceable body,
+// exactly what a differently-spelled signature produced under the
+// pre-D108 gate: the population silently one smaller, the gate
+// reporting PASS. A body matching MORE THAN ONE overload is also named
+// as a failure -- two declared overloads whose canonicalized prefixes
+// are not mutually exclusive is a defect in the declaration, not a
+// body to silently prefer one reading of.
+func assertNoBodyDropped(t *testing.T, migrationDir string) error {
+	t.Helper()
+	byName := map[string][]declaredFunction{}
+	for _, d := range declaredFunctions() {
+		byName[d.funcName] = append(byName[d.funcName], d)
+	}
+	for _, path := range migrationFilePaths(t, migrationDir) {
+		content := mustReadFile(t, path)
+		for funcName, overloads := range byName {
+			for _, f := range extractFunctionBodies(t, content, path, funcName) {
+				canonicalFound := canonicalizeArgs(f.args)
+				if isRetiredSignature(funcName, canonicalFound) {
+					continue
+				}
+				var matched []string
+				for _, d := range overloads {
+					if d.signatureContains == "" || strings.HasPrefix(canonicalFound, canonicalizeArgs(d.signatureContains)) {
+						matched = append(matched, d.label)
+					}
+				}
+				if len(matched) == 0 {
+					return fmt.Errorf("ADR-0007 Addendum 12 D108(b): %s defines %s(%s), which does not match any declared overload's signature (checked against typeSpellingAliases) and is not a declared-retired signature either -- an unplaceable body, dropped from every declared overload's population rather than silently discarded", path, funcName, f.args)
+				}
+				if len(matched) > 1 {
+					return fmt.Errorf("ADR-0007 Addendum 12 D108(b): %s defines %s(%s), which matches MORE THAN ONE declared overload (%v) -- their signatureContains prefixes are not mutually exclusive", path, funcName, f.args, matched)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // checkLiveDigestMatchesAccepted asserts the LAST literal in migration
@@ -293,9 +412,15 @@ func TestSupersededPurgeSnapshotsLiteralsAreNotAccepted(t *testing.T) {
 	// measured digests, not merely asserted absent from the accepted
 	// set -- the same "measured, not guessed" standard this file's other
 	// constants already meet.
+	// ADR-0007 Addendum 12 D108: the time-floor overload's OLD (p_before
+	// timestamptz,...) signature is a shape D107 DROPs outright, not
+	// merely respells -- it no longer matches the current declaration's
+	// signatureContains ("p_ledger_id text") at all, so there is no
+	// historical/live pair to assert for it here. The array form's
+	// prefix ("p_snapshot_sha256 text[]") still matches its own
+	// pre-D107 history, so that check is unchanged.
 	knownSuperseded020 := map[string]string{
-		"screening_ledger_purge_snapshots(timestamptz,...)": purgeSnapshotsTimeFloorBodySHA256Superseded020,
-		"screening_ledger_purge_snapshots(text[],...)":      purgeSnapshotsArrayFormBodySHA256Superseded020,
+		"screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)": purgeSnapshotsArrayFormBodySHA256Superseded020,
 	}
 	for _, d := range declaredFunctions() {
 		t.Run(d.label, func(t *testing.T) {
@@ -397,13 +522,13 @@ func TestDigestGateCoversANewMigrationFileWithNoEdit(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	rogueBody := "CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_before timestamptz, p_operator text, p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN 0; END; $$;\n"
+	rogueBody := "CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_ledger_id text, p_expected_count bigint, p_expected_max timestamptz, p_operator text, p_reason text) RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN 0; END; $$;\n"
 	if err := os.WriteFile(filepath.Join(tempDir, "999_rogue_purge_snapshots.sql"), []byte(rogueBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	d := declaredFunctions()[2] // screening_ledger_purge_snapshots(timestamptz,...)
-	if d.label != "screening_ledger_purge_snapshots(timestamptz,...)" {
+	d := declaredFunctions()[2] // screening_ledger_purge_snapshots(ledger scalar corroboration,...)
+	if d.label != "screening_ledger_purge_snapshots(ledger scalar corroboration,...)" {
 		t.Fatalf("test construction error: wrong declaredFunctions() index")
 	}
 	err := checkLiveDigestMatchesAccepted(t, d, tempDir)
@@ -427,5 +552,111 @@ func TestDigestGateCoversANewMigrationFileWithNoEdit(t *testing.T) {
 	}
 	if err := checkLiveDigestMatchesAccepted(t, d, tempDirClean); err != nil {
 		t.Fatalf("positive control: an unmodified copy of the real migrations directory must still pass the gate, got: %v", err)
+	}
+}
+
+// TestAssertNoBodyDroppedPassesOnRealTree is ADR-0007 Addendum 12
+// D112 item 5's baseline: the real, unmodified db/migrations/ tree has
+// no body assertNoBodyDropped cannot place. Runs with no DSN.
+func TestAssertNoBodyDroppedPassesOnRealTree(t *testing.T) {
+	if err := assertNoBodyDropped(t, "../../db/migrations"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAssertNoBodyDroppedCatchesRespelledSignature is ADR-0007 Addendum
+// 12 D112 item 5: the gate must FAIL against a db/migrations/*.sql file
+// that defines a declared function under an equivalent but differently-
+// spelled signature -- D99's stated property ("a file added later is
+// covered without an edit") is false for a spelling pg_dump and psql
+// \df both emit routinely (P-C's own measurement). Respells the
+// array-form overload's OWN leading parameter ("text[]" -> "text
+// ARRAY") -- inside the exact substring its signatureContains prefix
+// matches against, the same way P-C's "timestamptz" ->
+// "timestamp with time zone" landed inside the retired time-floor
+// overload's own prefix. First confirms the raw, uncanonicalized prefix
+// rule misses it entirely (D108(a)'s own reason to exist); then shows
+// derivedPopulation's canonicalization (D108(a)) alone already makes it
+// the LIVE (last) body under this rogue file's name, so
+// checkLiveDigestMatchesAccepted correctly FAILS on the digest
+// mismatch rather than silently passing.
+func TestAssertNoBodyDroppedCatchesRespelledSignature(t *testing.T) {
+	tempDir := t.TempDir()
+	for _, path := range migrationFilePaths(t, "../../db/migrations") {
+		content := mustReadFile(t, path)
+		if err := os.WriteFile(filepath.Join(tempDir, filepath.Base(path)), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	respelledBody := "CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text ARRAY, p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN ARRAY[]::text[]; END; $$;\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "zzz999_respelled.sql"), []byte(respelledBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := declaredFunctions()[3]
+	if d.label != "screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)" {
+		t.Fatalf("test construction error: wrong declaredFunctions() index")
+	}
+
+	// Without canonicalization, the raw prefix rule never even
+	// recognises the respelled body as belonging to this overload.
+	preD108Population := 0
+	for _, found := range extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_respelled.sql")), "zzz999_respelled.sql", d.funcName) {
+		if strings.HasPrefix(found.args, d.signatureContains) { // no canonicalization
+			preD108Population++
+		}
+	}
+	if preD108Population != 0 {
+		t.Fatalf("test construction error: expected the raw, uncanonicalized prefix rule to miss the respelled body entirely, matched %d", preD108Population)
+	}
+
+	// D108(a): canonicalization recognises it as THIS overload's new
+	// live body, and its digest does not match the declared accepted
+	// one, so the gate correctly fails rather than silently passing.
+	err := checkLiveDigestMatchesAccepted(t, d, tempDir)
+	if err == nil {
+		t.Fatal("ADR-0007 Addendum 12 D108(a): expected checkLiveDigestMatchesAccepted to FAIL once canonicalization recognises the respelled body as this overload's new live literal (wrong digest) -- it passed instead")
+	}
+	if !strings.Contains(err.Error(), "zzz999_respelled.sql") {
+		t.Fatalf("expected the failure to name the respelled file as the new LIVE literal's source, got: %v", err)
+	}
+
+	// D108(b) still holds: no body is left unplaced.
+	if err := assertNoBodyDropped(t, tempDir); err != nil {
+		t.Fatalf("ADR-0007 Addendum 12 D108(b): expected the respelled body to be correctly placed (it maps to the array-form overload once canonicalized), got: %v", err)
+	}
+}
+
+// TestAssertNoBodyDroppedCatchesUnmappedSynonym is ADR-0007 Addendum 12
+// D112 item 5's own required proof: part (b) must work even when part
+// (a)'s alias map is INCOMPLETE. Uses a schema-qualified spelling
+// ("pg_catalog.text[]" for "text[]") that typeSpellingAliases does NOT
+// declare -- deliberately, so this test fails if a future edit adds it
+// to the map without noticing it defeats this test's own purpose.
+func TestAssertNoBodyDroppedCatchesUnmappedSynonym(t *testing.T) {
+	for _, a := range typeSpellingAliases {
+		if a.from == "pg_catalog.text[]" || a.to == "pg_catalog.text[]" {
+			t.Fatal("test construction error: typeSpellingAliases now maps pg_catalog.text[] -- this test no longer exercises an UNMAPPED synonym; pick a different one")
+		}
+	}
+
+	tempDir := t.TempDir()
+	for _, path := range migrationFilePaths(t, "../../db/migrations") {
+		content := mustReadFile(t, path)
+		if err := os.WriteFile(filepath.Join(tempDir, filepath.Base(path)), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unmappedBody := "CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 pg_catalog.text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN ARRAY[]::text[]; END; $$;\n"
+	if err := os.WriteFile(filepath.Join(tempDir, "zzz999_unmapped_synonym.sql"), []byte(unmappedBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := assertNoBodyDropped(t, tempDir)
+	if err == nil {
+		t.Fatal("ADR-0007 Addendum 12 D108(b): expected assertNoBodyDropped to FAIL against a synonym typeSpellingAliases does not map -- it passed instead, meaning an unplaceable body was silently discarded")
+	}
+	if !strings.Contains(err.Error(), "zzz999_unmapped_synonym.sql") {
+		t.Fatalf("expected the failure to name the file carrying the unmapped-synonym body, got: %v", err)
 	}
 }

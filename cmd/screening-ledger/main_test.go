@@ -110,13 +110,14 @@ func policyFixture(t *testing.T, allowUnanchored bool) (policyPath, pubKeyPath s
 		t.Fatal(err)
 	}
 	policy := screeningledger.VerificationPolicy{
-		SchemaVersion:        screeningledger.VerificationPolicySchemaV3,
+		SchemaVersion:        screeningledger.VerificationPolicySchemaV4,
 		LedgerID:             fixtureLedgerID,
 		MinEventSchema:       screeningledger.EventSchemaV2,
 		MinAuditSchema:       screeningledger.AuditSchemaV2,
 		GenesisEventSequence: 1,
 		GenesisAuditSequence: 1,
 		AllowUnanchored:      allowUnanchored,
+		Tenancy:              screeningledger.TenancyExclusive,
 	}
 	signed, err := screeningledger.SignVerificationPolicy(policy, priv)
 	if err != nil {
