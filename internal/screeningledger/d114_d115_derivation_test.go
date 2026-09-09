@@ -187,12 +187,31 @@ func TestMustExpiresUTCFirstEquivalence(t *testing.T) {
 		}
 	}
 
-	// The negative: AddDate WITHOUT .UTC() first disagrees on the
+	// The negative: AddDate WITHOUT .UTC() first disagrees on a
 	// DST-bound input, which is why the .UTC() is not redundant.
-	naive := p.AddDate(0, 0, 1).UTC()
-	utcFirstOne := p.UTC().AddDate(0, 0, 1)
+	//
+	// This must not depend on time.Parse's undocumented time.Local
+	// binding (the shape the production hazard actually takes: a
+	// parsed literal binds to time.Local only when its numeric offset
+	// happens to match time.Local's offset at that instant), because
+	// that makes the test's own outcome depend on the machine's
+	// configured system time zone -- true of a developer's laptop set
+	// to US Eastern, false of a CI runner whose system zone is UTC
+	// (UTC has no DST transitions at all, so nothing would disagree
+	// there regardless of what this function does). Loading a named,
+	// DST-observing zone explicitly reproduces the same class of hazard
+	// -- calendar arithmetic in a DST-aware location before normalizing
+	// to UTC -- deterministically, in any environment with IANA tzdata
+	// (every CI runner and development machine this repository targets).
+	nyLoc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skipf("America/New_York zone data unavailable, cannot exercise the DST-hazard negative: %v", err)
+	}
+	dstBoundNY := time.Date(2024, 3, 10, 1, 30, 0, 0, nyLoc)
+	naive := dstBoundNY.AddDate(0, 0, 1).UTC()
+	utcFirstOne := dstBoundNY.UTC().AddDate(0, 0, 1)
 	if naive.Equal(utcFirstOne) {
-		t.Fatalf("expected naive AddDate (no .UTC() first) to DISAGREE with UTC-first on the DST-bound input %s at days=1 -- if this now agrees, the .UTC() may look redundant and must not be removed on that basis (ADR-0007 Addendum 13 D114(a)'s own withdrawal condition)", dstBound)
+		t.Fatalf("expected naive AddDate (no .UTC() first) to DISAGREE with UTC-first on a DST-bound America/New_York input %s at days=1 -- if this now agrees, the .UTC() may look redundant and must not be removed on that basis (ADR-0007 Addendum 13 D114(a)'s own withdrawal condition)", dstBoundNY)
 	}
 }
 
