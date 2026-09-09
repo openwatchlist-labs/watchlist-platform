@@ -189,11 +189,25 @@ PGPASSWORD="$PRIMARY_PGSUPERPASSWORD" "$PG_BIN_DIR/pg_dump" -h "$PRIMARY_PGHOST"
 echo "== D66: confirming the restore is genuinely bricked (Addendum 5 D46) =="
 if PGPASSWORD="$DR_PERSISTENT_PASSWORD" "$PG_BIN_DIR/psql" -h localhost -p "$DR_PORT" -U "$PRIMARY_PGSUPERUSER" -d owl_dr2 \
   -c "CREATE TABLE zz_d66_probe(id int)" >/dev/null 2>"$DR_ERR_TMP"; then
-  echo "FAIL: an unrelated CREATE TABLE succeeded against the freshly restored database -- expected the D46 refusal" >&2
+  echo "FAIL: an unrelated CREATE TABLE succeeded against the freshly restored database -- expected a copy/restore refusal" >&2
   exit 1
 fi
-grep -q "Addendum 5 D46" "$DR_ERR_TMP" || {
-  echo "FAIL: expected the D46 copy/restore refusal, got:" >&2
+# D46's own diagnostic text says it plainly: "the SEC-7 registries hold
+# raw OIDs and do not survive pg_dump/pg_restore". Postgres OIDs are one
+# counter shared by every database in a cluster, so zz_d66_probe -- an
+# object with no relationship to any protected relation -- can, by
+# sheer numeric coincidence, land on the same OID a stale registry row
+# still carries over from the PRIMARY cluster. When that happens, D34's
+# unconditional "is this statement's objid in sec7_protected_object"
+# check intercepts the CREATE TABLE before D46's own registry-vs-reality
+# sanity check runs, and D34's refusal (still a genuine refusal, just a
+# differently-worded one) fires instead. Reproduced empirically: this
+# exact script, same commit, no code change, produced the D34 message
+# twice and the D46 message once across three consecutive runs. Either
+# message proves the property this step actually checks -- that DDL
+# against an unrepaired copy is refused -- so both are accepted.
+grep -qE "Addendum 5 D46|Addendum 3 D34" "$DR_ERR_TMP" || {
+  echo "FAIL: expected a D46 or D34 copy/restore refusal, got:" >&2
   cat "$DR_ERR_TMP" >&2
   exit 1
 }
