@@ -235,8 +235,23 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	if input.Retention.Class == "" {
 		input.Retention.Class = "screening-standard"
 	}
-	if input.Retention.RetentionDays <= 0 {
+	// ADR-0007 Addendum 13 D114(b): RetentionDays gains a declared
+	// domain. 0 is "unset" and keeps the documented default; a negative
+	// value is a distinct fact (invalid, not unset) and is refused by
+	// name rather than silently folded into the same default; a value
+	// above 36,525 days (100 years -- roughly ten times the longest real
+	// FATF/AMLD-class retention obligation, and three times below the
+	// shipped arithmetic's own 106,751-day wrap cliff) is refused by
+	// name rather than computed, because a retention that long is a
+	// caller error, not a policy, and computing it correctly would still
+	// commit an unreviewable obligation to an immutable chain.
+	switch {
+	case input.Retention.RetentionDays == 0:
 		input.Retention.RetentionDays = 2555
+	case input.Retention.RetentionDays < 0:
+		return AppendResult{}, fmt.Errorf("retention_days %d is negative (ADR-0007 Addendum 13 D114(b)): 0 means \"use the documented default\", a negative value is refused rather than defaulted", input.Retention.RetentionDays)
+	case input.Retention.RetentionDays > 36525:
+		return AppendResult{}, fmt.Errorf("retention_days %d exceeds the declared maximum of 36525 (100 years, ADR-0007 Addendum 13 D114(b)): refused rather than computed", input.Retention.RetentionDays)
 	}
 	if input.Retention.MaxSnapshotBytes <= 0 {
 		input.Retention.MaxSnapshotBytes = 2 * 1024 * 1024
@@ -252,7 +267,10 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	if len(requestCanonical) > input.Retention.MaxSnapshotBytes || len(responseCanonical) > input.Retention.MaxSnapshotBytes {
 		return AppendResult{}, errors.New("decision snapshot exceeds configured maximum")
 	}
-	expires := mustExpires(input.OccurredAt, input.Retention.RetentionDays)
+	expires, err := mustExpires(input.OccurredAt, input.Retention.RetentionDays)
+	if err != nil {
+		return AppendResult{}, err
+	}
 	reqEnvelope, err := encryptSnapshot(s.keys.snap, "request", requestCanonical, input.OccurredAt, expires, input.Retention.Class)
 	if err != nil {
 		return AppendResult{}, err
@@ -931,12 +949,43 @@ func hashEvent(event Event, chainKey []byte) (string, error) {
 // no fractional part left to round, rather than a second, independent
 // reduction that disagrees with the read path's truncation (anchor.go)
 // on 4,995 of every 9,999 nanosecond values.
-func mustExpires(occurred string, days int) string {
+//
+// ADR-0007 Addendum 13 D114(a): the arithmetic constructs no
+// intermediate int64-nanosecond time.Duration -- that intermediate
+// silently wraps above 106,751 days, and above it produces an
+// ExpiresAt that is not reliably distinguishable from a correct one by
+// inspection (math.MaxInt32 days yields a plausible 2165-11-23). Fixed
+// by calendar arithmetic (AddDate) rather than duration arithmetic, and
+// D114(b)'s declared RetentionDays bound (enforced by the caller,
+// Store.Append) keeps every value this function ever computes below
+// every cliff AddDate itself has.
+//
+// The .UTC() before .AddDate is not tidiness; it is the whole of this
+// function's correctness. time.Parse(time.RFC3339Nano, ...) does not
+// always return a fixed-offset value: when the literal's numeric offset
+// matches the offset time.Local had at that instant, it returns a value
+// IN time.Local, which is DST-aware, and AddDate is calendar arithmetic
+// in the value's own location. Applying AddDate before normalising to
+// UTC would make Event.ExpiresAt -- a value inside hashEvent's MAC under
+// K_chain -- depend on the time zone of the machine that computed it:
+// measured at 28 disagreements over 198 in-domain (input, days) pairs.
+// UTC-first is exact (0 disagreements over 216 pairs and over an
+// exhaustive 106,752-value sweep on a DST-bound input). Do not remove
+// the .UTC() as apparently redundant -- see the addendum's own
+// withdrawal condition.
+//
+// ADR-0007 Addendum 13 D115: the out-of-domain outcome of an unparseable
+// OccurredAt is now a named error, not a different, plausible value
+// substituted from wall-clock now and committed under K_chain
+// indistinguishably from a real one -- the general form of the rule
+// D105(b) already applies at the mirror write path, applied here at the
+// creation point so the two ends of one value fail the same way.
+func mustExpires(occurred string, days int) (string, error) {
 	parsed, err := time.Parse(time.RFC3339Nano, occurred)
 	if err != nil {
-		parsed = time.Now().UTC()
+		return "", fmt.Errorf("parsing OccurredAt %q (ADR-0007 Addendum 13 D115): %w", occurred, err)
 	}
-	return parsed.Add(time.Duration(days) * 24 * time.Hour).UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
+	return parsed.UTC().AddDate(0, 0, days).Truncate(time.Microsecond).Format(time.RFC3339Nano), nil
 }
 func marshalAndWrite(path string, v any, mode os.FileMode) error {
 	raw, err := json.Marshal(v)
