@@ -408,32 +408,56 @@ grant-ddl-ownership)
     echo "FAIL: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text) owner is '$func2_owner', expected owl_ledger_ddl" >&2
     exit 1
   }
-  # ADR-0007 Addendum 12 D111(a): the installer proves the property it
+  # ADR-0007 Addendum 12 D111(a), corrected by Addendum 13 D117 in this
+  # decision's own words (AR7): the installer proves the property it
   # installs, the same G-A shape D62(a) closed inverted (there the
-  # installer checked and the verifier did not; here -- before this
-  # decision -- the verifier (CheckProvisioningState, postgres.go)
-  # checked prosrc and the installer checked only prosecdef/proowner).
-  # Both screening_ledger_purge_snapshots overloads join the same
+  # installer checked and the verifier did not; here -- before D111(a)
+  # -- the verifier (CheckProvisioningState, postgres.go) checked prosrc
+  # and the installer checked only prosecdef/proowner). Both
+  # screening_ledger_purge_snapshots overloads join the same
   # sha256(prosrc) digest comparison the trigger loop above already
-  # performs for the two guard functions -- measured against
-  # postgres.go's purgeSnapshotsTimeFloorBodySHA256Migration /
-  # purgeSnapshotsArrayFormBodySHA256Migration (R23/R35's cross-language
-  # duplication cost, same reason the trigger loop above duplicates its
-  # own digests rather than importing the Go literal). Only the
-  # MIGRATION-path digest applies: grant-ddl-ownership never runs
-  # against a SchemaSQL-only database (that fixture stays deliberately
-  # unprovisioned), unlike owl_reject_truncate's trigger-bound two-path
-  # digest set above.
+  # performs for the two guard functions -- measured against postgres.go's
+  # purgeSnapshotsTimeFloorBodySHA256Migration/SchemaSQLBoot and
+  # purgeSnapshotsArrayFormBodySHA256Migration/SchemaSQLBoot (R23/R35's
+  # cross-language duplication cost, same reason the trigger loop above
+  # duplicates its own digests rather than importing the Go literal).
+  #
+  # D111(a)'s original comment argued only the MIGRATION-path digest
+  # applies because "grant-ddl-ownership never runs against a
+  # SchemaSQL-only database (that fixture stays deliberately
+  # unprovisioned)". That is a deployment assumption about how this
+  # script is invoked, not a fact about the tree: docs/operations/
+  # sec7-database-copies.md names `provision_test_roles.sh
+  # grant-ddl-ownership` as one of two commands that "must now report
+  # clean before the recovery is considered complete", with no carve-out
+  # for a SchemaSQL-bootstrapped database, and D112 item 8 pre-declared
+  # exactly this proof obligation. Measured directly against a clean
+  # `create-schemasql-only-database` bootstrapped through the real
+  # SchemaSQL const (internal/screeningledger/postgres.go): both bodies
+  # differ from the migration path by comment-only lines, whitespace and
+  # a trailing ';' -- semantically identical, D77's own precedent for
+  # owl_reject_truncate applied to the one object over it was not yet
+  # applied to. A single declared digest false-failed that clean,
+  # correctly bootstrapped database, aborted before the event triggers
+  # were installed, and left the entire Addendum-3-onward protection
+  # stack permanently unreachable on that path. Each overload now
+  # carries a two-member accepted-digest set (Migration, SchemaSQLBoot),
+  # the same multi-member pattern owl_reject_truncate's trigger loop
+  # already uses above -- and D85's condition is untouched: prosrc is
+  # still never normalised, trimmed or whitespace-folded in the
+  # comparison itself; the normalisation that justified this set's
+  # membership was an audit measurement, not the mechanism.
   for decl_purge_fn in \
-    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
-    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
+    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be,047ea55d4968a9af112c2e61a779ec23360883fa39ffb7d2c530e167f2ae5d47:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
+    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d,196dd178de6996f976ab647e13585436df427869b38e6676109fd93d3c0373f9:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
   do
     purge_args="${decl_purge_fn%%:*}"
     purge_rest="${decl_purge_fn#*:}"
-    purge_digest="${purge_rest%%:*}"
+    purge_digests="${purge_rest%%:*}"
     purge_label="${purge_rest#*:}"
+    purge_digests_sql="'$(echo "$purge_digests" | sed "s/,/','/g")'"
     purge_body_ok="$(psql_super -tAc "
-      SELECT encode(sha256(convert_to(prosrc, 'UTF8')), 'hex') = '${purge_digest}'
+      SELECT encode(sha256(convert_to(prosrc, 'UTF8')), 'hex') IN (${purge_digests_sql})
       FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='${purge_args}'
     ")"
     [[ "$purge_body_ok" == "t" ]] || {
@@ -441,7 +465,8 @@ grant-ddl-ownership)
         SELECT encode(sha256(convert_to(prosrc, 'UTF8')), 'hex')
         FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='${purge_args}'
       ")"
-      echo "FAIL: ${purge_label}'s body (prosrc) digest is '${live_purge_digest}', expected '${purge_digest}' (ADR-0007 Addendum 12 D111): possible CREATE OR REPLACE FUNCTION substitution of a definer function that writes purged_at -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
+      purge_digests_display="{$(echo "$purge_digests" | sed 's/,/, /g')}"
+      echo "FAIL: ${purge_label}'s body (prosrc) digest is '${live_purge_digest}', which is not in its declared accepted set ${purge_digests_display} (ADR-0007 Addendum 13 D117): possible CREATE OR REPLACE FUNCTION substitution of a definer function that writes purged_at -- investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)" >&2
       exit 1
     }
   done
