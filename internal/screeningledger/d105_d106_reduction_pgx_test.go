@@ -220,7 +220,7 @@ func TestHonestNanosecondLedgerVerifiesClean(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+		purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 		if err != nil {
 			t.Fatalf("PurgeExpired: %v", err)
 		}
@@ -324,7 +324,7 @@ func TestHonestMultiSubMicrosecondObligationVerifiesClean(t *testing.T) {
 		t.Fatalf("test construction error: expected the two truncated ExpiresAt values to differ, got %s for both", r1.Event.ExpiresAt)
 	}
 
-	purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+	purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}

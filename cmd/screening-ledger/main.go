@@ -241,15 +241,21 @@ func main() {
 		// anywhere, permanently unverifiable in anchored mode with no
 		// remediation. That path ceases to exist rather than being
 		// documented around.
+		//
+		// ADR-0007 Addendum 13 D116: a signed policy is now also
+		// required, so that Tenancy -- an Ed25519-signed fact this CLI
+		// cannot fabricate -- reaches PurgeExpired before it ever calls
+		// the server's now-global corroboration.
 		store := mustStore(opts)
 		sink := mustSink(ctx, opts)
 		defer closeSink(ctx, sink)
+		policy, _, _ := mustLoadPolicy(opts)
 		before := opts.value("--before", time.Now().UTC().Format(time.RFC3339Nano))
 		parsed, err := time.Parse(time.RFC3339Nano, before)
 		must(err)
 		operator := opts.value("--operator", "screening-ledger-cli")
 		reason := opts.value("--reason", "retention expiration")
-		count, err := store.PurgeExpired(ctx, parsed, operator, reason, sink)
+		count, err := store.PurgeExpired(ctx, parsed, operator, reason, policy.Tenancy, sink)
 		must(err)
 		output(map[string]any{"status": "ok", "local_snapshot_count": count})
 	case "import-audit":

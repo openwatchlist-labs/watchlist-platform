@@ -44,7 +44,7 @@ func (s *Store) Sync(ctx context.Context, sink *PostgresSink, opts AnchorOptions
 		explained := false
 		if errors.As(err, &divergence) {
 			var checkErr error
-			explained, checkErr = s.ShortfallExplainedByUnreplicatedEvents(divergence)
+			explained, checkErr = s.ShortfallExplainedByUnreplicatedEvents(ctx, sink, divergence)
 			if checkErr != nil {
 				return SyncResult{}, checkErr
 			}
@@ -102,7 +102,15 @@ func (s *Store) Sync(ctx context.Context, sink *PostgresSink, opts AnchorOptions
 	if deferredReason != "" {
 		verifyResult, err = s.VerifyAnchored(ctx, opts)
 		if err != nil {
-			return SyncResult{VerifyResult: verifyResult, DeferredReason: deferredReason}, err
+			// ADR-0007 Addendum 13 D120: SyncedEventCount must survive
+			// this path. The mirroring loop above already ran and wrote
+			// rows into tables whose immutability triggers make them
+			// permanent -- dropping the count here (the shipped
+			// behavior, defaulting to the zero value) would report that
+			// nothing happened when synced rows genuinely exist,
+			// exactly the deferred-then-failed path D109 requires the
+			// caller be able to see.
+			return SyncResult{VerifyResult: verifyResult, SyncedEventCount: synced, DeferredReason: deferredReason}, err
 		}
 	}
 

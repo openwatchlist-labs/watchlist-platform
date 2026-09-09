@@ -176,9 +176,31 @@ func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPoli
 // and returns exactly which it actually recorded (D28's "floors") -- only
 // those may be marked purged in the local envelope, regardless of what
 // this side believed was eligible.
-func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reason string, recorder PurgeRecorder) (int, error) {
+//
+// tenancy is ADR-0007 Addendum 13 D116: the server's corroboration
+// (RecordPurge) now ranges over the GLOBAL mirror population, honest
+// only when this ledger's own chain genuinely IS that population --
+// exactly the fact a signed VerificationPolicy's Tenancy field already
+// states. This function has no way to verify tenancy itself (it reads
+// only its own local chain), so the caller supplies the SIGNED value
+// and PurgeExpired refuses outright under TenancyShared, rather than
+// attempting a purge whose corroboration a single ledger structurally
+// cannot supply and either failing opaquely or -- worse -- reverting to
+// a weaker floor no one asked for. R49's own honest limit, stated here
+// at purge time instead of discovered later at verification time.
+func (s *Store) PurgeExpired(ctx context.Context, now time.Time, operator, reason, tenancy string, recorder PurgeRecorder) (int, error) {
 	if recorder == nil {
 		return 0, errors.New("purge requires a PurgeRecorder (ADR-0007 Addendum 2 D28): a purge whose independence cannot be recorded must not happen")
+	}
+	switch tenancy {
+	case TenancyExclusive:
+		// The global population the server's corroboration now ranges
+		// over IS this ledger's, so an honest purge proceeds exactly as
+		// before.
+	case TenancyShared:
+		return 0, fmt.Errorf("purge refused under a shared-tenancy policy (ADR-0007 Addendum 13 D116): the server's corroboration ranges over the GLOBAL mirror population, and a single ledger's own chain structurally cannot prove another tenant's obligations are discharged too -- this ledger cannot purge on a shared schema")
+	default:
+		return 0, fmt.Errorf("purge requires a declared tenancy (ADR-0007 Addendum 13 D116): %q is neither %q nor %q", tenancy, TenancyExclusive, TenancyShared)
 	}
 	events, err := s.ListEvents()
 	if err != nil {

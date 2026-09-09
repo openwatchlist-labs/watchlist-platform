@@ -166,7 +166,7 @@ func TestPurgedAtGenesisFallbackUsesChainAuthenticatedExpiresAt(t *testing.T) {
 	// The purge happens BEFORE any anchor ever exists for this ledger --
 	// the genesis anchor, written below, is the ONLY anchor and is
 	// therefore the one attesting to this purge, with no predecessor.
-	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}

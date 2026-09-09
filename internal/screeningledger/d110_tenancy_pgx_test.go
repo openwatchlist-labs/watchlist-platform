@@ -16,15 +16,22 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// makeGenuinelySingleTenant deletes every screening_ledger_event row
-// NOT belonging to ledgerID from clone's own database, as the bootstrap
-// superuser -- a d50CloneFixture inherits the ENTIRE state of the
-// shared primary database at clone time (CREATE DATABASE ... TEMPLATE),
-// which by the time this suite reaches these tests genuinely carries
-// many other ledgers' rows (R43's own measured premise, re-confirmed by
-// TestR43PremiseFailsAgainstCurrentDatabase below). Destructive, but
-// scoped to this disposable, already-cloned, t.Cleanup-dropped database
-// only -- never the shared primary.
+// makeGenuinelySingleTenant deletes every row NOT belonging to ledgerID,
+// from clone's own database, as the bootstrap superuser, across all
+// THREE relations that carry a ledger_id column (ADR-0007 Addendum 13
+// D119: screening_ledger_event, screening_ledger_audit and
+// screening_ledger_anchor -- not screening_ledger_event alone, which is
+// D110's own original, under-broad text). A d50CloneFixture inherits the
+// ENTIRE state of the shared primary database at clone time (CREATE
+// DATABASE ... TEMPLATE), which by the time this suite reaches these
+// tests genuinely carries many other ledgers' rows in all three
+// relations (R43's own measured premise, re-confirmed by
+// TestR43PremiseFailsAgainstCurrentDatabase below, and by D119's own
+// over-broad-half finding that ForeignLedgerIDs is non-empty against
+// this shared database even before screening_ledger_event is
+// considered). Destructive, but scoped to this disposable,
+// already-cloned, t.Cleanup-dropped database only -- never the shared
+// primary.
 func makeGenuinelySingleTenant(t *testing.T, ctx context.Context, clone d50CloneFixture, ledgerID string) {
 	t.Helper()
 	superuser, err := pgx.Connect(ctx, clone.superuserDSN)
@@ -37,16 +44,23 @@ func makeGenuinelySingleTenant(t *testing.T, ctx context.Context, clone d50Clone
 		t.Fatal(err)
 	}
 	defer tx.Rollback(context.Background())
-	// screening_ledger_event's row-immutability trigger fires regardless
-	// of role, superuser included -- session_replication_role=replica
-	// disables triggers for this session only, a GUC set rather than a
-	// DDL statement, so it does not touch D34's protections at all.
-	// Scoped to this one transaction on this disposable clone.
+	// Every one of these three tables' row-immutability trigger fires
+	// regardless of role, superuser included --
+	// session_replication_role=replica disables triggers for this
+	// session only, a GUC set rather than a DDL statement, so it does
+	// not touch D34's protections at all. Scoped to this one transaction
+	// on this disposable clone.
 	if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM screening_ledger_event WHERE ledger_id<>$1`, ledgerID); err != nil {
-		t.Fatalf("isolate clone to a single tenant: %v", err)
+		t.Fatalf("isolate clone to a single tenant (screening_ledger_event): %v", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM screening_ledger_audit WHERE ledger_id<>$1`, ledgerID); err != nil {
+		t.Fatalf("isolate clone to a single tenant (screening_ledger_audit): %v", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM screening_ledger_anchor WHERE ledger_id<>$1`, ledgerID); err != nil {
+		t.Fatalf("isolate clone to a single tenant (screening_ledger_anchor): %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
@@ -210,7 +224,7 @@ func TestExclusiveTenancyStillAdjudicatesAttestedTombstoneDivergence(t *testing.
 	// Legitimately purge, so an attesting audit entry DOES exist --
 	// then forge the tombstone's operator/reason so it diverges from
 	// what the audit entry attests (D70's own forward comparison).
-	purged, err := f.store.PurgeExpired(ctx, time.Now().AddDate(1000, 0, 0), "legit-operator", "legit-reason", f.sink)
+	purged, err := f.store.PurgeExpired(ctx, time.Now().AddDate(1000, 0, 0), "legit-operator", "legit-reason", f.policy.Tenancy, f.sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}

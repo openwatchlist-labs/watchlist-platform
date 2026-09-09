@@ -124,15 +124,15 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		if err == nil {
 			t.Fatalf("ADR-0007 Addendum 12 D107: expected RecordPurge to REFUSE the P-E case (unmirrored live obligation), got recorded=%v", recorded2)
 		}
-		if !strings.Contains(err.Error(), "D107") {
-			t.Fatalf("expected the refusal to cite ADR-0007 Addendum 12 D107, got: %v", err)
+		if !strings.Contains(err.Error(), "D116") {
+			t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D116, got: %v", err)
 		}
 
 		// Store.PurgeExpired (the Go orchestration) refuses too -- the
 		// chain-side ALL-expired-over-the-chain check itself already
 		// finds the live obligation and never even calls RecordPurge for
 		// sha2, so nothing is recorded for it either way.
-		purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+		purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 		if err != nil {
 			t.Fatalf("Store.PurgeExpired: %v", err)
 		}
@@ -216,8 +216,8 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 				if err == nil {
 					t.Fatalf("ADR-0007 Addendum 12 D107: expected a lying %s to be REFUSED, got recorded=%v", c.name, recorded)
 				}
-				if !strings.Contains(err.Error(), "D107") {
-					t.Fatalf("expected the refusal to cite ADR-0007 Addendum 12 D107, got: %v", err)
+				if !strings.Contains(err.Error(), "D116") {
+					t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D116, got: %v", err)
 				}
 				t.Logf("A12PROBE lying caller: %s -> REFUSED: %v", c.name, err)
 			})
@@ -249,7 +249,7 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+		purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 		if err != nil {
 			t.Fatalf("Store.PurgeExpired on a fresh, empty ledger: %v", err)
 		}
@@ -279,7 +279,7 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 			t.Fatal(err)
 		}
-		purgedCount, err = store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+		purgedCount, err = store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 		if err != nil {
 			t.Fatalf("Store.PurgeExpired: %v", err)
 		}
@@ -324,7 +324,7 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		}
 		counts := make([]int, 3)
 		for i := range counts {
-			n, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+			n, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 			if err != nil {
 				t.Fatalf("run %d: %v", i, err)
 			}
@@ -343,8 +343,23 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 			t.Fatalf("NewPostgresSink: %v", err)
 		}
 		defer sink.Close(context.Background())
+		// ADR-0007 Addendum 13 D116: p_ledger_id is now a checked claim --
+		// it must resolve to a ledger with rows, refused by name
+		// otherwise. A wholly phantom ledger_id (never written) would
+		// now be refused at that check before ever reaching the sha
+		// corroboration this sub-test means to exercise, so a REAL
+		// ledger with one unrelated event is seeded first; phantomSHA
+		// itself is still referenced by nothing.
+		realLedgerID := uniqueID("d107-vacuous-real-ledger")
+		if _, err := sink.conn.Exec(ctx,
+			`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
+			 VALUES ($1,$2,1,$3,'',now(),'/screen',200,'req-sha','resp-sha',$4,$4,'screening-standard',now()+interval '1 day','{}'::jsonb)`,
+			uniqueID("d107-vacuous-real-event"), realLedgerID, uniqueID("d107-vacuous-real-event-sha"), uniqueID("d107-vacuous-real-sha"),
+		); err != nil {
+			t.Fatalf("seed a real, unrelated event so realLedgerID has rows: %v", err)
+		}
 		phantomSHA := "0000000000000000000000000000000000000000000000000000000000001"
-		recorded, err := sink.RecordPurge(ctx, []string{phantomSHA}, map[string]snapshotObligation{}, uniqueID("phantom-ledger"), "operator", "reason")
+		recorded, err := sink.RecordPurge(ctx, []string{phantomSHA}, map[string]snapshotObligation{}, realLedgerID, "operator", "reason")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -354,7 +369,15 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 	})
 
 	// --- Both overloads: the time-floor overload's own corroboration. ---
-	t.Run("time_floor_overload_refuses_lying_total", func(t *testing.T) {
+	// ADR-0007 Addendum 13 D116 row (b) (F-B's own time-floor shape): a
+	// ledger_id with zero mirror rows is now refused by name regardless
+	// of what it claims -- including the vacuous (0, NULL) claim this
+	// test used to require ACCEPTED, which is exactly the shape F-B rode
+	// (a foreign, never-written ledger_id truthfully claiming "nothing",
+	// satisfying the leading refusal for a sha it never asked about).
+	// D122 item 6's own row (b): "time-floor, absent ledger_id + (0,NULL)
+	// -> records today and refuses after."
+	t.Run("time_floor_overload_refuses_a_rowless_ledger_any_claim", func(t *testing.T) {
 		dsn := requireMigratorDSN(t)
 		sink, err := NewPostgresSink(ctx, dsn, 10*time.Second)
 		if err != nil {
@@ -362,16 +385,63 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		}
 		defer sink.Close(context.Background())
 		ledgerID := uniqueID("d107-timefloor-ledger")
+		// Lying: this ledger has 0 mirror rows, not 1.
 		err = sink.PurgeExpired(ctx, ledgerID, 1, time.Now(), "operator", "reason")
 		if err == nil {
-			t.Fatal("ADR-0007 Addendum 12 D107: expected the time-floor overload to refuse a lying total (this ledger has 0 mirror rows, not 1)")
+			t.Fatal("ADR-0007 Addendum 13 D116: expected the time-floor overload to refuse a lying total (this ledger has 0 mirror rows, not 1)")
 		}
-		if !strings.Contains(err.Error(), "D107") {
-			t.Fatalf("expected the refusal to cite ADR-0007 Addendum 12 D107, got: %v", err)
+		if !strings.Contains(err.Error(), "D116") {
+			t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D116, got: %v", err)
 		}
-		// Honest: 0 rows, 0 claimed, nil max.
-		if err := sink.PurgeExpired(ctx, ledgerID, 0, time.Time{}, "operator", "reason"); err != nil {
-			t.Fatalf("expected the honest (0, NULL) claim to be accepted, got: %v", err)
+		// The formerly-honest (0, NULL) claim -- F-B's own bypass shape --
+		// is refused too, because ledgerID itself has never written a row.
+		err = sink.PurgeExpired(ctx, ledgerID, 0, time.Time{}, "operator", "reason")
+		if err == nil {
+			t.Fatal("ADR-0007 Addendum 13 D116: expected a (0, NULL) claim against a ledger with zero mirror rows to be refused (F-B's own bypass shape), got success")
+		}
+		if !strings.Contains(err.Error(), "D116") {
+			t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D116, got: %v", err)
+		}
+	})
+
+	// --- Positive: a genuinely honest total against a REAL, populated
+	// ledger still succeeds -- the non-vacuity check must not refuse a
+	// legitimate purge, only a claim from a ledger that never wrote
+	// anything. ---
+	t.Run("time_floor_overload_accepts_an_honest_total_against_a_real_ledger", func(t *testing.T) {
+		dsn := requireMigratorDSN(t)
+		sink, err := NewPostgresSink(ctx, dsn, 10*time.Second)
+		if err != nil {
+			t.Fatalf("NewPostgresSink: %v", err)
+		}
+		defer sink.Close(context.Background())
+		realLedgerID := uniqueID("d107-timefloor-real-ledger")
+		expired := time.Now().Add(-time.Hour).UTC().Truncate(time.Second)
+		sha := uniqueID("d107-timefloor-real-sha")
+		if _, err := sink.conn.Exec(ctx,
+			`INSERT INTO screening_ledger_snapshot(snapshot_sha256,kind,created_at,expires_at,retention_class,envelope_json) VALUES ($1,'request',$2::timestamptz,$2::timestamptz,'screening-standard','{}'::jsonb)`,
+			sha, expired,
+		); err != nil {
+			t.Fatalf("seed snapshot: %v", err)
+		}
+		if _, err := sink.conn.Exec(ctx,
+			`INSERT INTO screening_ledger_event(event_id,ledger_id,sequence,event_sha256,previous_event_sha256,occurred_at,route,http_status,request_sha256,response_sha256,request_snapshot_sha256,response_snapshot_sha256,retention_class,expires_at,event_json)
+			 VALUES ($1,$2,1,$3,'',$4::timestamptz,'/screen',200,'req-sha','resp-sha',$5,$5,'screening-standard',$4::timestamptz,'{}'::jsonb)`,
+			uniqueID("d107-timefloor-real-event"), realLedgerID, uniqueID("d107-timefloor-real-event-sha"), expired, sha,
+		); err != nil {
+			t.Fatalf("seed event: %v", err)
+		}
+		// The true GLOBAL total (this test's own one row, plus whatever
+		// else the shared database carries) is queried live rather than
+		// assumed to be exactly 1, matching the same live-query fix
+		// postgres_pgx_test.go's own direct time-floor tests use.
+		var trueCount int64
+		var trueMax time.Time
+		if err := sink.conn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event`).Scan(&trueCount, &trueMax); err != nil {
+			t.Fatalf("query the true global aggregate: %v", err)
+		}
+		if err := sink.PurgeExpired(ctx, realLedgerID, int(trueCount), trueMax, "operator", "reason"); err != nil {
+			t.Fatalf("expected an honest total against a real, populated ledger to be accepted, got: %v", err)
 		}
 	})
 }

@@ -203,7 +203,7 @@ func newD70Chain(t *testing.T, ctx context.Context) d70Chain {
 	// write), AppendAudit -- exactly Store.PurgeExpired's own sequence
 	// (replay.go). Purges both snapshots of event 1 (retention_days=1,
 	// occurred 2000-01-01, both expired); event 2 is untouched.
-	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}

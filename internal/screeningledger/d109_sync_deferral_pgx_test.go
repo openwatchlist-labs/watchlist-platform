@@ -110,7 +110,7 @@ func newD109Fixture(t *testing.T, ctx context.Context, tag string) d109Fixture {
 
 	sha := r1.Event.RequestSnapshotSHA256
 
-	purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+	purged, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatalf("legitimate PurgeExpired: %v", err)
 	}

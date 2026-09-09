@@ -127,7 +127,7 @@ func newA10Chain(t *testing.T, ctx context.Context) a10Chain {
 
 	appendEvent(false, "e3") // deliberately unanchored -- the gap
 
-	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", sink)
+	purgedCount, err := store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}

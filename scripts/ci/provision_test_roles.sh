@@ -448,8 +448,8 @@ grant-ddl-ownership)
   # comparison itself; the normalisation that justified this set's
   # membership was an audit measurement, not the mechanism.
   for decl_purge_fn in \
-    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be,047ea55d4968a9af112c2e61a779ec23360883fa39ffb7d2c530e167f2ae5d47:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
-    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d,196dd178de6996f976ab647e13585436df427869b38e6676109fd93d3c0373f9:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
+    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:d44b2cab4d905fafd5754df890b5f95e286cf3877e80cabe4f120bdeb41eea91,156cfb60ba5b78c856eb9d893bd65dbee0db3b344ae2c7aba6feb91d39c19534:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
+    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd,cdea5cf78b92646b7e4d548ace2edc92fd60c8949ceab0db807fdd66a5d56f91:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
   do
     purge_args="${decl_purge_fn%%:*}"
     purge_rest="${decl_purge_fn#*:}"

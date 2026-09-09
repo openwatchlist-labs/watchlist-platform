@@ -207,7 +207,7 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 		t.Fatalf("expected drift report: %#v", report)
 	}
 
-	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", fakePurgeRecorder{})
+	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", TenancyExclusive, fakePurgeRecorder{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestLegalHoldAndInterruptedRecovery(t *testing.T) {
 	if err := os.WriteFile(holdPath, []byte("legal hold\n"), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", fakePurgeRecorder{})
+	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "retention-test", "expired", TenancyExclusive, fakePurgeRecorder{})
 	if err != nil {
 		t.Fatal(err)
 	}

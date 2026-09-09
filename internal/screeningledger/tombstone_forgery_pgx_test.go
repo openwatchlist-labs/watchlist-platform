@@ -179,7 +179,7 @@ func TestPurgeExpiredRequiresRecorder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "operator", "reason", nil); err == nil {
+	if _, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "operator", "reason", TenancyExclusive, nil); err == nil {
 		t.Fatal("expected PurgeExpired to refuse with a nil PurgeRecorder (ADR-0007 Addendum 2 D28)")
 	}
 
@@ -214,7 +214,7 @@ func TestPurgeExpiredHonorsLegalHolds(t *testing.T) {
 	}
 
 	recorder := &fakeHoldingRecorder{}
-	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "operator", "reason", recorder)
+	count, err := store.PurgeExpired(context.Background(), time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), "operator", "reason", TenancyExclusive, recorder)
 	if err != nil {
 		t.Fatal(err)
 	}

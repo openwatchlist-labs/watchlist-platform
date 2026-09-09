@@ -43,15 +43,15 @@ func TestPurgePreemptionSurfacesRatherThanBeingSwallowed(t *testing.T) {
 			t.Fatalf("connect as owl_migrator: %v", err)
 		}
 		defer migratorConn.Close(context.Background())
-		// ADR-0007 Addendum 12 D107: the time-floor overload's leading
-		// refusal now needs an honest (count, max) for this ledger's
-		// TOTAL mirror population -- computed from the mirror itself, so
-		// this specific call is not refused for the WRONG reason (a
-		// corroboration mismatch) before it ever reaches the D87
-		// pre-emption check this test is actually about.
+		// ADR-0007 Addendum 13 D116: the time-floor overload's leading
+		// refusal now needs an honest (count, max) for the GLOBAL mirror
+		// population (every ledger_id, not just this one) -- computed
+		// from the mirror itself, so this specific call is not refused
+		// for the WRONG reason (a corroboration mismatch) before it ever
+		// reaches the D87 pre-emption check this test is actually about.
 		var mirrorCount int64
 		var mirrorMax time.Time
-		if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE ledger_id=$1`, chain.store.ledgerID).Scan(&mirrorCount, &mirrorMax); err != nil {
+		if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event`).Scan(&mirrorCount, &mirrorMax); err != nil {
 			t.Fatal(err)
 		}
 		_, err = migratorConn.Exec(ctx, `SELECT screening_ledger_purge_snapshots($1,$2,$3,'legit-op','legit-reason')`, chain.store.ledgerID, mirrorCount, mirrorMax)
@@ -113,15 +113,17 @@ func TestPurgePreemptionSurfacesRatherThanBeingSwallowed(t *testing.T) {
 		// CAP #9's own transcript ("run 1 returned: 1"). What idempotency
 		// actually requires is runs 2 and 3 finding nothing left. The
 		// mirror aggregate is re-read before each run (ADR-0007
-		// Addendum 12 D107): a purge changes no screening_ledger_event
-		// row, so it is stable across all three, but re-reading rather
-		// than caching keeps this honest about what the leading refusal
+		// Addendum 13 D116: GLOBAL, every ledger_id, matching the
+		// eligibility predicate this overload's UPDATE already ranges
+		// over unscoped): a purge changes no screening_ledger_event row,
+		// so it is stable across all three, but re-reading rather than
+		// caching keeps this honest about what the leading refusal
 		// actually compares against.
 		var counts []int64
 		for i := 0; i < 3; i++ {
 			var mirrorCount int64
 			var mirrorMax time.Time
-			if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event WHERE ledger_id=$1`, chain.store.ledgerID).Scan(&mirrorCount, &mirrorMax); err != nil {
+			if err := migratorConn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event`).Scan(&mirrorCount, &mirrorMax); err != nil {
 				t.Fatal(err)
 			}
 			var n int64
