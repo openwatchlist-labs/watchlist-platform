@@ -90,11 +90,20 @@ The public repository has progressed beyond its clean-restart baseline:
   identity is extracted from token claims and validated against request data.
 - **ADR-0004 (DOM-3):** Candidate scoring is wired into the live screening
   HTTP path and returns scored, ranked candidates.
-- **ADR-0007 (SEC-7):** The audit chain is now HMAC-keyed (PRs #106–#107–#109,
-  three stages) and anchored to a separate, role-isolated `screening_ledger_anchor`
-  table. External anchor enforcement is currently undergoing security
-  requalification. The previously stated anchored-integrity guarantee should not
-  be relied on until requalification completes.
+- **ADR-0007 (SEC-7):** The audit chain is HMAC-keyed and anchored to a
+  separate, role-isolated `screening_ledger_anchor` table. **SEC-7 remains
+  open, not closed.** Since the original three-stage close (PRs #106–#107–#109),
+  twelve rounds of adversarial chain-integrity audit have run (CAP #1–CAP #12),
+  every one returning QUALIFIED rather than PASS; three of them demonstrated
+  an actual forgery (named L-B, M-A, N-A in ADR-0007), each in a mechanism the
+  immediately preceding round had shipped to close the prior one. The three
+  most recent rounds found no forgery within the audited surface, but CAP #12
+  still returned a CRITICAL finding — a retention-expiry value that can
+  silently pass every check while wrong — and its designed fix (ADR-0007
+  Addendum 13) has not yet been implemented or re-audited. The critical path
+  to closing SEC-7 is: implement Addendum 13, then pass a thirteenth CAP
+  round. The previously stated anchored-integrity guarantee should not be
+  relied on until requalification completes.
 
 The R2.4 result is a controlled homelab qualification, not a production,
 customer, regulatory, or compliance certification. The catalog runtime was
