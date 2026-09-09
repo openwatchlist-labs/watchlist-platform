@@ -79,8 +79,16 @@ func TestGrantDdlOwnershipDetectsASubstitutedDefinerBody(t *testing.T) {
 	if !strings.Contains(string(output), "screening_ledger_purge_snapshots") {
 		t.Fatalf("expected the refusal to name screening_ledger_purge_snapshots, got:\n%s", output)
 	}
-	if !strings.Contains(string(output), "D111") {
-		t.Fatalf("expected the refusal to cite ADR-0007 Addendum 12 D111, got:\n%s", output)
+	// ADR-0007 Addendum 13 D117 corrects the refusal's own citation (AR7):
+	// D111(a) introduced this check against a single accepted digest;
+	// D117 replaced it with the two-member {Migration, SchemaSQLBoot} set
+	// this same assertion below no longer would have found (D111(a)'s
+	// original comment argued only the migration-path digest could ever
+	// apply, which D117 found false of the tree), so the shipped message
+	// now cites D117, and this test's own assertion is updated to match
+	// rather than reading a citation that no longer appears.
+	if !strings.Contains(string(output), "D117") {
+		t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D117, got:\n%s", output)
 	}
 
 	// D90 unregressed: the refusal must not disarm what is already
