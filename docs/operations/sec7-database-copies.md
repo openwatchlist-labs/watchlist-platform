@@ -248,6 +248,21 @@ this document describes: D89 withdrew `created_at` as a referent of any control,
 guards no longer undermine a purge's `purged_at` floor either way) -- do not assume the drop is
 refused the way the anchor and tombstone tables' own triggers are.
 
+**The same note applies to `screening_ledger_event` (ADR-0007 Addendum 13 D121, carried forward
+from D111's own text, which named this obligation and did not discharge it until now).** Its guard
+triggers (`screening_ledger_event_immutable`, `screening_ledger_event_no_truncate`) are, on exactly
+the same terms as `screening_ledger_snapshot`'s above, **not** protected objects -- confirmed
+directly (`DROP TRIGGER screening_ledger_event_immutable ON screening_ledger_event` succeeds as
+`owl_migrator` with no event-trigger refusal, and neither the table, the guard function, nor either
+trigger appears in `sec7_protected_object`). Unlike `screening_ledger_snapshot`, this gap is **not**
+merely a scoped-out concern: `screening_ledger_event.expires_at` is the referent of D97's aggregate,
+D98's eligibility predicate, D89's floor, and D107/D116's corroboration -- and, after Addendum 13
+D116, of a corroboration that ranges over the WHOLE relation, not one ledger's own scoped slice of
+it. A caller whose "corroboration" is adjudicated against a table they can themselves rewrite is not
+being corroborated against anything independent. Do not assume this table's rows are protected from
+direct mutation the way the anchor and tombstone tables' own rows are -- they are not, and this
+document does not claim otherwise.
+
 ## A drifted, non-copied database
 
 **Step 0: run `screening-ledger status` first (ADR-0007 Addendum 7 D62(b)).** If it reports anything
