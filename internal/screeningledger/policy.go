@@ -146,6 +146,19 @@ func (p VerificationPolicy) Validate() error {
 	if err := validateGenesisPinShape(p.GenesisAuditSequence, p.GenesisAuditSHA256, "genesis_audit_sequence", "genesis_audit_sha256"); err != nil {
 		return err
 	}
+	// ADR-0007 Addendum 13 D114(c): MinAnchorSequence is uint64 in this
+	// Ed25519-signed artifact, but anchor.go's floor check converts it
+	// with int64(...) before comparing. At or above 2^63 that conversion
+	// goes negative and the floor silently stops firing -- a policy
+	// declaring an astronomically high anchor floor imposes no floor at
+	// all, at the exact moment it is signed. D25 put this floor in the
+	// signed artifact precisely so it could not be weakened; bounded here
+	// on D36's own terms, the one function already called from both the
+	// producing end (SignVerificationPolicy) and the consuming end
+	// (LoadSignedVerificationPolicy).
+	if p.MinAnchorSequence >= 1<<63 {
+		return fmt.Errorf("verification policy min_anchor_sequence %d is at or above 2^63 (ADR-0007 Addendum 13 D114(c)): int64(min_anchor_sequence) would go negative and silently disable the floor", p.MinAnchorSequence)
+	}
 	return nil
 }
 

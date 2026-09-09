@@ -108,7 +108,7 @@ func TestServerFloorRefusesWhenTheChainAndMirrorDisagree(t *testing.T) {
 		live.RequestBytes = sharedRequest2
 		live.ResponseBytes = sharedResponse2
 		live.OccurredAt = time.Now().UTC().Format(time.RFC3339Nano)
-		live.Retention.RetentionDays = 90000 // ~2046, matching P-E's own transcript
+		live.Retention.RetentionDays = 3650 // ADR-0007 Addendum 13 D114(b): RetentionDays is now refused above 36525; any in-domain value that stays live (unexpired) through this test's run is sufficient for P-E's own construction
 		liveResult, err := store.Append(live)
 		if err != nil {
 			t.Fatal(err)
