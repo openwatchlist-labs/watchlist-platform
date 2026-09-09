@@ -270,9 +270,18 @@ func TestPostgresSinkPurgeExpiredRoundTrip(t *testing.T) {
 
 	operator := "pgx-test-operator"
 	reason := "retention expiration"
-	// ADR-0007 Addendum 12 D107: PurgeExpired's leading refusal compares
-	// against this ledger's TOTAL mirror aggregate -- the one seeded row.
-	if err := sink.PurgeExpired(ctx, ledgerID, 1, pastTime, operator, reason); err != nil {
+	// ADR-0007 Addendum 13 D116: PurgeExpired's leading refusal now
+	// compares against the GLOBAL mirror aggregate (every ledger_id, not
+	// just this one) -- the shared OWL_MIGRATOR_DATABASE_URL this whole
+	// suite runs against genuinely carries many other tests' rows
+	// (R43's own measured premise), so the true total is queried live
+	// rather than assumed to be the one row this test itself seeded.
+	var trueCount int
+	var trueMax time.Time
+	if err := verify.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event`).Scan(&trueCount, &trueMax); err != nil {
+		t.Fatalf("query the true global aggregate: %v", err)
+	}
+	if err := sink.PurgeExpired(ctx, ledgerID, trueCount, trueMax, operator, reason); err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}
 
@@ -377,14 +386,17 @@ func TestPostgresSinkNoProcessSpawn(t *testing.T) {
 	if err := sink.Persist(ctx, result.Event, request, response, ReplicationVerification{}); err != nil {
 		t.Fatalf("Persist with empty PATH: %v", err)
 	}
-	expiresAt, err := time.Parse(time.RFC3339Nano, result.Event.ExpiresAt)
-	if err != nil {
-		t.Fatal(err)
+	// ADR-0007 Addendum 13 D116: the leading refusal now compares
+	// against the GLOBAL mirror aggregate, not this ledger's own -- the
+	// shared database this suite runs against carries many other tests'
+	// rows, so the true total is queried live rather than assumed to be
+	// the one event this test itself persisted.
+	var trueCount int
+	var trueMax time.Time
+	if err := sink.conn.QueryRow(ctx, `SELECT count(*), max(expires_at) FROM screening_ledger_event`).Scan(&trueCount, &trueMax); err != nil {
+		t.Fatalf("query the true global aggregate: %v", err)
 	}
-	// ADR-0007 Addendum 12 D107: the one persisted event above is this
-	// ledger's entire mirror population, so (count=1, max=its ExpiresAt)
-	// is the true total obligation the leading refusal must agree with.
-	if err := sink.PurgeExpired(ctx, result.Event.LedgerID, 1, expiresAt, "no-spawn-operator", "expired"); err != nil {
+	if err := sink.PurgeExpired(ctx, result.Event.LedgerID, trueCount, trueMax, "no-spawn-operator", "expired"); err != nil {
 		t.Fatalf("PurgeExpired with empty PATH: %v", err)
 	}
 }

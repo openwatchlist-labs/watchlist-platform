@@ -178,7 +178,7 @@ func TestHonestMultiRetentionLedgerVerifiesClean(t *testing.T) {
 	// purge's own attesting anchor is the ledger's first.
 	t.Run("at_genesis", func(t *testing.T) {
 		chain := newSharedSnapshotChain(t, ctx)
-		purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", chain.sink)
+		purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, chain.sink)
 		if err != nil {
 			t.Fatalf("PurgeExpired: %v", err)
 		}
@@ -230,7 +230,7 @@ func TestHonestMultiRetentionLedgerVerifiesClean(t *testing.T) {
 			t.Fatalf("WriteAnchor (preceding): %v", err)
 		}
 
-		purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", chain.sink)
+		purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, chain.sink)
 		if err != nil {
 			t.Fatalf("PurgeExpired: %v", err)
 		}
@@ -297,7 +297,7 @@ func TestPurgedAtFloorIsTheMaximumObligation(t *testing.T) {
 	ctx := context.Background()
 	chain := newSharedSnapshotChain(t, ctx)
 
-	purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", chain.sink)
+	purgedCount, err := chain.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, chain.sink)
 	if err != nil {
 		t.Fatalf("PurgeExpired: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 		return obligations
 	}
 
-	goCount, err := store.PurgeExpired(ctx, time.Now(), "operator", "reason", sink)
+	goCount, err := store.PurgeExpired(ctx, time.Now(), "operator", "reason", TenancyExclusive, sink)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,10 +551,17 @@ func TestServerFloorRequiresEveryObligationExpired(t *testing.T) {
 // screening_ledger_snapshot's one shared row (it has no ledger_id
 // column) is genuinely referenced by both. Asserts the floor computed
 // for ledger A is A's own maximum (not B's, even though B's is later),
-// A's corroboration does not fail on B's rows, and the UNSCOPED query
-// (what postgres.go's mirror predicate would return without the
-// ledger_id filter) would have returned B's value -- the negative that
-// keeps D70's scope limit intact one referent over.
+// and the UNSCOPED query (what postgres.go's mirror predicate would
+// return without the ledger_id filter) would have returned B's value --
+// the negative that keeps D70's scope limit intact one referent over.
+// D97(b)'s VERIFICATION-time floor (forSnapshot/
+// EventExpiresAggregateForSnapshot) stays ledger-scoped, untouched by
+// ADR-0007 Addendum 13 D116 -- D116 changes only RecordPurge's PURGE-time
+// corroboration, which this test's own final step now shows correctly
+// REFUSES ledger A's purge on this shared sha: A's local chain cannot
+// supply the corroboration's now-global population, so it cannot prove
+// B's obligation is also discharged, even in an instance where it truly
+// is. Two different mechanisms, two different scopes, by design.
 func TestFloorPopulationIsScopedToThisLedger(t *testing.T) {
 	ctx := context.Background()
 	chainA := newSharedSnapshotChain(t, ctx)
@@ -630,15 +637,29 @@ func TestFloorPopulationIsScopedToThisLedger(t *testing.T) {
 		t.Fatalf("expected the UNSCOPED max to be ledger B's later obligation (%s), got %s -- this is the value a caller would get without D97(b)'s ledger_id predicate", bExpires.Format(time.RFC3339Nano), unscopedMax.Format(time.RFC3339Nano))
 	}
 
-	// A's own corroboration (the real forSnapshot path, through a real
-	// purge and verify) must not fail on B's rows.
-	purgedCount, err := chainA.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", chainA.sink)
-	if err != nil {
-		t.Fatalf("PurgeExpired: %v", err)
+	// ADR-0007 Addendum 13 D116: RecordPurge's corroboration (used by
+	// Store.PurgeExpired, distinct from the forSnapshot/
+	// EventExpiresAggregateForSnapshot verification-time floor asserted
+	// above, which D116 does not touch) now ranges over the GLOBAL
+	// mirror population. Ledger A's own local chain has no visibility
+	// into ledger B's obligation on this shared sha, so its own
+	// (count=2) claim now genuinely disagrees with the mirror's true
+	// global total (count=3) -- refused, where it used to silently
+	// succeed on the strength of A's own scoped view alone. This is the
+	// cost D116/D119's own text names: a single ledger structurally
+	// cannot prove another tenant's obligations are discharged, so a
+	// genuinely shared snapshot can no longer be purged by one ledger
+	// acting alone, even in an instance (like this one) where the other
+	// ledger's obligation also happens to already be expired.
+	_, err = chainA.store.PurgeExpired(ctx, time.Now(), "legit-operator", "legit-reason", TenancyExclusive, chainA.sink)
+	if err == nil {
+		t.Fatal("ADR-0007 Addendum 13 D116: expected ledger A's purge to be refused -- its own local chain cannot supply the now-global corroboration for a snapshot ledger B also references")
 	}
-	if purgedCount != 2 {
-		t.Fatalf("expected 2 snapshots purged for ledger A, got %d", purgedCount)
+	if !strings.Contains(err.Error(), "D116") {
+		t.Fatalf("expected the refusal to cite ADR-0007 Addendum 13 D116, got: %v", err)
 	}
+	// Nothing was purged, so the chain still verifies clean -- there is
+	// no purge claim for VerifyAnchored to adjudicate.
 	if _, err := chainA.store.AppendAudit("a11-population-setup", "", "", "", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -654,6 +675,6 @@ func TestFloorPopulationIsScopedToThisLedger(t *testing.T) {
 		Anchors:       chainA.sink, Provisioning: chainA.sink, KAnchor: chainA.kAnchor, PolicySHA256: testPolicySHA256(t, chainA.policy),
 	})
 	if err != nil || result.AnchorStatus != AnchorStatusVerified {
-		t.Fatalf("ADR-0007 Addendum 11 D97(b): expected ledger A's purge to verify clean despite ledger B sharing the same snapshot row, got status=%v err=%v", result.AnchorStatus, err)
+		t.Fatalf("ADR-0007 Addendum 11 D97(b): expected ledger A's chain to verify clean (no purge claims), got status=%v err=%v", result.AnchorStatus, err)
 	}
 }
