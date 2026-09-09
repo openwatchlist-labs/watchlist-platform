@@ -173,23 +173,21 @@ const (
 	purgeSnapshotsArrayFormBodySHA256Migration     = "d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd"
 	purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot = "cdea5cf78b92646b7e4d548ace2edc92fd60c8949ceab0db807fdd66a5d56f91"
 
-	// purgeSnapshotsArrayFormBodySHA256Superseded020 is 020's own
-	// ANY-expired array-form body (D87/D86 row 8's constant, unchanged
-	// by this addendum) -- D99(b)'s "every OTHER committed literal for a
-	// declared function digests to something NOT in the accepted set"
-	// needs the superseded literal's own digest to assert against, not
-	// merely its absence. The array-form's prefix ("p_snapshot_sha256
-	// text[]") still matches 019/020/021's historical bodies, so this
-	// constant stays checkable; the TIME-FLOOR overload's
-	// 019/020/021-era (p_before timestamptz,...) signature is a shape
-	// D107 DROPs outright (022_screening_ledger_purge_chain_corroboration
-	// .sql), not merely respells -- it is no longer part of the current
-	// time-floor declaration's own population at all (D108's
-	// signatureContains, "p_ledger_id text", does not match its prefix),
-	// so there is no live/superseded pair to declare for it here; its
-	// own former constant (purgeSnapshotsTimeFloorBodySHA256Superseded020)
-	// is removed rather than left unreferenced.
-	purgeSnapshotsArrayFormBodySHA256Superseded020 = "67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4"
+	// purgeSnapshotsArrayFormBodySHA256Superseded020 (D87/D86 row 8's
+	// constant, 020's own ANY-expired array-form body) is REMOVED by
+	// ADR-0007 Addendum 13 D118 rather than left unreferenced: D118's
+	// type-list-equality selection means 020's era's four-argument
+	// (p_snapshot_sha256 text[], p_before timestamptz, p_operator text,
+	// p_reason text) signature no longer matches the current array-form
+	// declaration's own type list at all -- unlike the pre-D118 prefix
+	// rule, which matched it (incorrectly: "p_snapshot_sha256 text[]" is
+	// a prefix of both the old and new signatures alike). That
+	// historical body is now correctly a member of
+	// retiredFunctionTypeLists (d92_digest_gate_derivation_test.go)
+	// instead, alongside the time-floor overload's own retired
+	// signature, whose analogous constant
+	// (purgeSnapshotsTimeFloorBodySHA256Superseded020) was already
+	// removed the same way one migration earlier.
 )
 
 // checkPurgeSnapshotsDefiner is ADR-0007 Addendum 2 D27's postcondition:
@@ -1728,6 +1726,40 @@ func (p *PostgresSink) ForeignLedgerIDs(ctx context.Context, ledgerID string) ([
 		return nil, err
 	}
 	return foreign, nil
+}
+
+// MirroredEventIDsForSnapshot implements MirrorEventReader (ADR-0007
+// Addendum 13 D120): every screening_ledger_event.event_id, scoped to
+// ledgerID, that references snapshotSHA256 as either its request or
+// response snapshot -- the mirror's own membership for a snapshot,
+// which ShortfallExplainedByUnreplicatedEvents diffs against this
+// ledger's local chain membership to compute the actual missing set,
+// rather than comparing totals. Read by owl_migrator with no new role,
+// DSN or grant -- the same SELECT on screening_ledger_event the D97/D107
+// aggregate reads and ForeignLedgerIDs above already hold.
+func (p *PostgresSink) MirroredEventIDsForSnapshot(ctx context.Context, snapshotSHA256, ledgerID string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
+	defer cancel()
+	rows, err := p.conn.Query(ctx,
+		`SELECT event_id FROM screening_ledger_event WHERE (request_snapshot_sha256=$1 OR response_snapshot_sha256=$1) AND ledger_id=$2`,
+		snapshotSHA256, ledgerID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 // PurgeRecord implements PurgeChecker (ADR-0007 D13/F8, extended by

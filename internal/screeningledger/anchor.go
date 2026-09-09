@@ -538,18 +538,40 @@ func (e *MirrorChainCountDivergence) Error() string {
 	return fmt.Sprintf("snapshot %s's mirror screening_ledger_event row count (%d, this ledger) disagrees with the chain-authenticated event count referencing it (%d) (ADR-0007 Addendum 10 D89 / Addendum 11 D97): mirror/chain divergence", e.SnapshotSHA256, e.MirrorCount, e.ChainCount)
 }
 
+// MirrorEventReader is satisfied by *PostgresSink.
+// MirroredEventIDsForSnapshot is the one new read
+// ShortfallExplainedByUnreplicatedEvents needs (ADR-0007 Addendum 13
+// D120): the role already holds SELECT on screening_ledger_event
+// (ForeignLedgerIDs's own justification, and the standard
+// D33/D41/D45/D59/D68/D76 each held to), so this is a query the sink
+// can already run, not a new grant.
+type MirrorEventReader interface {
+	MirroredEventIDsForSnapshot(ctx context.Context, snapshotSHA256, ledgerID string) ([]string, error)
+}
+
 // ShortfallExplainedByUnreplicatedEvents is ADR-0007 Addendum 12 D109's
-// narrow discriminator: true only when div's shortfall (MirrorCount
-// strictly less than ChainCount -- an overage is never this shape) is
-// EXACTLY the count of events THIS store's own IsReplicated already
-// reports as unreplicated among those referencing div.SnapshotSHA256.
-// "Exactly" is load-bearing: this is the one condition sync may defer;
-// a shortfall covering an event MarkReplicated already recorded as
-// replicated is a genuinely different anomaly and this returns false
-// for it, same as it does for an overage or a max-only disagreement
-// (which never reaches here at all -- MirrorChainCountDivergence is
-// the count branch only).
-func (s *Store) ShortfallExplainedByUnreplicatedEvents(div *MirrorChainCountDivergence) (bool, error) {
+// discriminator, corrected by ADR-0007 Addendum 13 D120 (F-F, MEDIUM):
+// the design's own text (0007:11745-11751) states the deferral applies
+// when the missing rows correspond ONE-FOR-ONE to events for which
+// IsReplicated is false. The shipped implementation instead computed
+// replicatedCount == div.MirrorCount -- an arithmetic identity between
+// two TOTALS, which a count cannot express one-for-one with: a shortfall
+// covering one crash-mid-step event (mirrored, not yet marked replicated)
+// plus one honest backlog event (neither) can produce the same totals as
+// a shortfall covering one event MarkReplicated already (wrongly) marked
+// replicated -- two different anomalies, only one of which is safe to
+// defer, indistinguishable by count alone. This computes the actual
+// MISSING SET -- this ledger's own chain event ids referencing
+// div.SnapshotSHA256, minus the mirror's own event ids for it (the one
+// new read, reader) -- and defers if and only if that set is non-empty
+// and EVERY member has IsReplicated == false. "Every member" is
+// load-bearing: this is the one condition sync may defer; a shortfall
+// covering even one event MarkReplicated already recorded as replicated
+// is a genuinely different anomaly and this returns false for it, same
+// as it does for an overage or a max-only disagreement (which never
+// reaches here at all -- MirrorChainCountDivergence is the count branch
+// only).
+func (s *Store) ShortfallExplainedByUnreplicatedEvents(ctx context.Context, reader MirrorEventReader, div *MirrorChainCountDivergence) (bool, error) {
 	if div.MirrorCount >= div.ChainCount {
 		return false, nil
 	}
@@ -557,16 +579,31 @@ func (s *Store) ShortfallExplainedByUnreplicatedEvents(div *MirrorChainCountDive
 	if err != nil {
 		return false, err
 	}
-	replicatedCount := 0
+	mirroredIDs, err := reader.MirroredEventIDsForSnapshot(ctx, div.SnapshotSHA256, s.ledgerID)
+	if err != nil {
+		return false, err
+	}
+	mirrored := make(map[string]bool, len(mirroredIDs))
+	for _, id := range mirroredIDs {
+		mirrored[id] = true
+	}
+	missing := 0
 	for _, e := range events {
 		if e.RequestSnapshotSHA256 != div.SnapshotSHA256 && e.ResponseSnapshotSHA256 != div.SnapshotSHA256 {
 			continue
 		}
+		if mirrored[e.EventID] {
+			continue
+		}
+		missing++
 		if s.IsReplicated(e.EventID) {
-			replicatedCount++
+			// A missing row this store's own chain claims IS already
+			// replicated is not the accounted-for shape D109 permits
+			// deferring -- a genuinely different anomaly.
+			return false, nil
 		}
 	}
-	return replicatedCount == div.MirrorCount, nil
+	return missing > 0, nil
 }
 
 // forSnapshot is D89's rule, generalised by D97/D96 row 16/18 to the

@@ -128,9 +128,17 @@ func mustReadFile(t *testing.T, path string) string {
 // is the live body a fully-migrated or SchemaSQL-bootstrapped database
 // actually has.
 type declaredFunction struct {
-	label             string // for failure messages
-	funcName          string
-	signatureContains string // "" if the function has only one overload; otherwise disambiguates which CREATE FUNCTION match is this overload
+	label    string // for failure messages
+	funcName string
+	// typeList is ADR-0007 Addendum 13 D118: "" if the function has only
+	// one overload; otherwise the complete canonicalized argument TYPE
+	// list (argTypeList's own output shape, e.g. "text,bigint,
+	// timestamptz,text,text") that disambiguates which CREATE FUNCTION
+	// match is this overload -- matched by EQUALITY against a candidate
+	// body's own canonicalized type list, never by a prefix of the raw
+	// parameter TEXT (D108's pre-D118 rule, which keyed on a leading
+	// parameter's NAME and was blind to everything after it).
+	typeList          string
 	acceptedMigration string
 	acceptedSchemaSQL string
 }
@@ -154,25 +162,27 @@ func declaredFunctions() []declaredFunction {
 			acceptedSchemaSQL: screeningLedgerRejectMutationBodySHA256,
 		},
 		{
-			// ADR-0007 Addendum 12 D107: signature moved from
-			// (p_before timestamptz,...) to (p_ledger_id text,
-			// p_expected_count bigint, p_expected_max timestamptz,...).
-			// "p_ledger_id text" alone (no comma) is the shortest prefix
-			// that distinguishes this overload from the array form, and
-			// -- unlike the pre-D108 gate -- staying short and
-			// comma-free here is now belt-and-suspenders, not load-
-			// bearing: D108(a)'s canonicalization make the match
-			// spelling-insensitive regardless.
+			// ADR-0007 Addendum 13 D118: selection is now by the complete
+			// canonicalized argument TYPE list, matched by equality --
+			// the identity pg_get_function_identity_arguments itself
+			// returns -- not by a prefix of the raw parameter TEXT.
+			// D34's own finding: a prefix match keys on a leading
+			// parameter's NAME, so a rogue body whose leading parameter
+			// is merely respelled ("p_before" vs "p_notbefore") is caught
+			// by name alone, while one that keeps the declared name
+			// ("p_before") is invisible regardless of what follows it --
+			// a type list is blind to names and requires every position
+			// to agree.
 			label:             "screening_ledger_purge_snapshots(ledger scalar corroboration,...)",
 			funcName:          "screening_ledger_purge_snapshots",
-			signatureContains: "p_ledger_id text",
+			typeList:          "text,bigint,timestamptz,text,text",
 			acceptedMigration: purgeSnapshotsTimeFloorBodySHA256Migration,
 			acceptedSchemaSQL: purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot,
 		},
 		{
 			label:             "screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)",
 			funcName:          "screening_ledger_purge_snapshots",
-			signatureContains: "p_snapshot_sha256 text[]",
+			typeList:          "text[],text,int[],timestamptz[],text,text",
 			acceptedMigration: purgeSnapshotsArrayFormBodySHA256Migration,
 			acceptedSchemaSQL: purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot,
 		},
@@ -224,9 +234,9 @@ var typeSpellingAliases = []struct{ from, to string }{
 // canonicalizeArgs applies typeSpellingAliases to a raw parameter-list
 // text, so two signatures that differ only in which PostgreSQL-
 // recognized spelling they use for the same type compare equal. Applied
-// to BOTH sides of every prefix comparison below -- the gate's own
-// selection rule, D108's fix -- so an unmapped spelling still fails
-// safe (falls through unchanged and simply fails to match, which
+// to BOTH sides of every comparison below -- the gate's own selection
+// rule, D108's fix -- so an unmapped spelling still fails safe (falls
+// through unchanged and simply fails to match, which
 // derivedPopulationForFunction's no-drop assertion then catches and
 // names, rather than the pre-D108 gate's silent population drop).
 func canonicalizeArgs(args string) string {
@@ -234,6 +244,63 @@ func canonicalizeArgs(args string) string {
 		args = strings.ReplaceAll(args, a.from, a.to)
 	}
 	return args
+}
+
+// argTypeList is ADR-0007 Addendum 13 D118: the complete canonicalized
+// argument TYPE list, in order, comma-joined -- e.g.
+// "text[],text,int[],timestamptz[],text,text" -- extracted from a raw
+// parameter-list text already run through canonicalizeArgs. This is the
+// identity PostgreSQL itself resolves overloads by
+// (pg_get_function_identity_arguments returns exactly this shape), used
+// in place of a HasPrefix match on the raw parameter TEXT: D34's own
+// finding is that a leading parameter's NAME (not its type) is what a
+// prefix match keys on, so a rogue body whose leading parameter is
+// merely renamed ("p_notbefore" vs the declared "p_before") is caught
+// by name alone -- while one whose leading parameter matches
+// ("p_before") is invisible regardless of what follows it, because a
+// prefix match never inspects the rest of the list. A type list, by
+// contrast, is blind to parameter names entirely and requires every
+// position to agree.
+func argTypeList(canonicalArgs string) string {
+	if strings.TrimSpace(canonicalArgs) == "" {
+		return ""
+	}
+	parts := splitTopLevelComma(canonicalArgs)
+	types := make([]string, 0, len(parts))
+	for _, p := range parts {
+		fields := strings.Fields(p)
+		if len(fields) == 0 {
+			continue
+		}
+		types = append(types, fields[len(fields)-1])
+	}
+	return strings.Join(types, ",")
+}
+
+// splitTopLevelComma splits s on "," outside of any parenthesized
+// group. None of this repository's declared parameter-list types
+// contain a literal comma (int[], text[], timestamptz, bigint, text),
+// so this is defensive rather than load-bearing today, matching the
+// same posture extractFunctionBodies already takes on ")".
+func splitTopLevelComma(s string) []string {
+	var parts []string
+	depth := 0
+	last := 0
+	for i, r := range s {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ',':
+			if depth == 0 {
+				parts = append(parts, strings.TrimSpace(s[last:i]))
+				last = i + 1
+			}
+		}
+	}
+	parts = append(parts, strings.TrimSpace(s[last:]))
+	return parts
 }
 
 // derivedPopulation returns every body extracted for this
@@ -244,14 +311,14 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (
 	for _, path := range migrationFilePaths(t, migrationDir) {
 		content := mustReadFile(t, path)
 		for _, found := range extractFunctionBodies(t, content, path, d.funcName) {
-			if d.signatureContains != "" && !strings.HasPrefix(canonicalizeArgs(found.args), canonicalizeArgs(d.signatureContains)) {
+			if d.typeList != "" && argTypeList(canonicalizeArgs(found.args)) != d.typeList {
 				continue
 			}
 			migration = append(migration, found)
 		}
 	}
 	for _, found := range extractFunctionBodies(t, SchemaSQL, "SchemaSQL", d.funcName) {
-		if d.signatureContains != "" && !strings.HasPrefix(canonicalizeArgs(found.args), canonicalizeArgs(d.signatureContains)) {
+		if d.typeList != "" && argTypeList(canonicalizeArgs(found.args)) != d.typeList {
 			continue
 		}
 		schemaSQL = append(schemaSQL, found)
@@ -259,45 +326,58 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (
 	return migration, schemaSQL
 }
 
-// retiredFunctionSignaturePrefixes is ADR-0007 Addendum 12 D107's own
-// DROP FUNCTION targets (022_screening_ledger_purge_chain_corroboration
-// .sql): signatures that were once live and are now deliberately,
-// entirely retired -- not respelled, not superseded-but-still-the-
-// same-shape (that is D99(b)'s own, separate concern), but DROPPED, so
-// no current declaredFunctions() entry describes them at all and none
-// ever should again. Declared here as a closed set (D31's "a closed set
-// of objects, not a name pattern") specifically so assertNoBodyDropped
-// below can tell "this body belongs to a signature that no longer
-// exists at all" apart from "this body is an unplaceable respelling of
-// one that does" -- the two are opposite findings and must not share a
-// code path.
-var retiredFunctionSignaturePrefixes = []struct{ funcName, prefix string }{
-	{"screening_ledger_purge_snapshots", "p_before timestamptz"},
+// retiredFunctionTypeLists is ADR-0007 Addendum 12 D107's own DROP
+// FUNCTION targets (022_screening_ledger_purge_chain_corroboration.sql),
+// re-declared by ADR-0007 Addendum 13 D118 as a closed set of complete
+// canonicalized argument TYPE lists rather than name-prefixes: two
+// signatures that were once live and are now deliberately, entirely
+// retired -- not respelled, not superseded-but-still-the-same-shape
+// (that is D99(b)'s own, separate concern), but DROPPED, so no current
+// declaredFunctions() entry describes them at all and none ever should
+// again. Declared here as a closed set (D31's "a closed set of objects,
+// not a name pattern") specifically so assertNoBodyDropped below can
+// tell "this body belongs to a signature that no longer exists at all"
+// apart from "this body is an unplaceable respelling of one that does"
+// -- the two are opposite findings and must not share a code path.
+var retiredFunctionTypeLists = []struct{ funcName, typeList string }{
+	{"screening_ledger_purge_snapshots", "timestamptz,text,text"},
+	{"screening_ledger_purge_snapshots", "text[],timestamptz,text,text"},
 }
 
 func isRetiredSignature(funcName, canonicalArgs string) bool {
-	for _, r := range retiredFunctionSignaturePrefixes {
-		if r.funcName == funcName && strings.HasPrefix(canonicalArgs, canonicalizeArgs(r.prefix)) {
+	found := argTypeList(canonicalArgs)
+	for _, r := range retiredFunctionTypeLists {
+		if r.funcName == funcName && found == r.typeList {
 			return true
 		}
 	}
 	return false
 }
 
-// assertNoBodyDropped is ADR-0007 Addendum 12 D108(b): the half that
-// survives an alias typeSpellingAliases does not yet know about. For
-// every *.sql file under migrationDir, and for every declared function
-// NAME appearing in declaredFunctions() (grouped, since
-// screening_ledger_purge_snapshots has two): every extracted body that
-// is not a known-retired signature (retiredFunctionSignaturePrefixes)
-// must match EXACTLY ONE declared overload's canonicalized prefix. A
-// body matching NONE is named as a failure -- an unplaceable body,
-// exactly what a differently-spelled signature produced under the
-// pre-D108 gate: the population silently one smaller, the gate
-// reporting PASS. A body matching MORE THAN ONE overload is also named
-// as a failure -- two declared overloads whose canonicalized prefixes
-// are not mutually exclusive is a defect in the declaration, not a
-// body to silently prefer one reading of.
+// assertNoBodyDropped is ADR-0007 Addendum 12 D108(b), corrected by
+// ADR-0007 Addendum 13 D118 (AR7): the half that survives an alias
+// typeSpellingAliases does not yet know about, now selecting and
+// retiring by the complete canonicalized argument TYPE list, matched by
+// EQUALITY, rather than a HasPrefix match on the raw parameter TEXT.
+// D118's own finding: the pre-D118 rule keyed on a leading parameter's
+// NAME (its shortest disambiguating prefix), so a rogue body whose
+// leading parameter is respelled ("p_before" -> "p_notbefore") was
+// caught, while one that keeps the declared retired name ("p_before")
+// was invisible regardless of every parameter after it -- D108(b)'s own
+// stated property ("a body that fails to map to any declared overload
+// is a failure, never a silent discard") was false for exactly that
+// class. For every *.sql file under migrationDir, and for every
+// declared function NAME appearing in declaredFunctions() (grouped,
+// since screening_ledger_purge_snapshots has two): every extracted body
+// that is not a known-retired signature (retiredFunctionTypeLists) must
+// match EXACTLY ONE declared overload's canonicalized type list. A body
+// matching NONE is named as a failure -- an unplaceable body, exactly
+// what a differently-spelled OR differently-named-but-same-shape
+// signature produced under the pre-D118 gate: the population silently
+// one smaller, the gate reporting PASS. A body matching MORE THAN ONE
+// overload is also named as a failure -- two declared overloads whose
+// canonicalized type lists are not mutually exclusive is a defect in
+// the declaration, not a body to silently prefer one reading of.
 func assertNoBodyDropped(t *testing.T, migrationDir string) error {
 	t.Helper()
 	byName := map[string][]declaredFunction{}
@@ -312,17 +392,18 @@ func assertNoBodyDropped(t *testing.T, migrationDir string) error {
 				if isRetiredSignature(funcName, canonicalFound) {
 					continue
 				}
+				foundTypeList := argTypeList(canonicalFound)
 				var matched []string
 				for _, d := range overloads {
-					if d.signatureContains == "" || strings.HasPrefix(canonicalFound, canonicalizeArgs(d.signatureContains)) {
+					if d.typeList == "" || foundTypeList == d.typeList {
 						matched = append(matched, d.label)
 					}
 				}
 				if len(matched) == 0 {
-					return fmt.Errorf("ADR-0007 Addendum 12 D108(b): %s defines %s(%s), which does not match any declared overload's signature (checked against typeSpellingAliases) and is not a declared-retired signature either -- an unplaceable body, dropped from every declared overload's population rather than silently discarded", path, funcName, f.args)
+					return fmt.Errorf("ADR-0007 Addendum 13 D118: %s defines %s(%s), which does not match any declared overload's argument type list (checked against typeSpellingAliases) and is not a declared-retired signature either -- an unplaceable body, dropped from every declared overload's population rather than silently discarded", path, funcName, f.args)
 				}
 				if len(matched) > 1 {
-					return fmt.Errorf("ADR-0007 Addendum 12 D108(b): %s defines %s(%s), which matches MORE THAN ONE declared overload (%v) -- their signatureContains prefixes are not mutually exclusive", path, funcName, f.args, matched)
+					return fmt.Errorf("ADR-0007 Addendum 13 D118: %s defines %s(%s), which matches MORE THAN ONE declared overload (%v) -- their typeList values are not mutually exclusive", path, funcName, f.args, matched)
 				}
 			}
 		}
@@ -407,35 +488,46 @@ func TestGuardAndDefinerBodyDigestsAreDerivedFromCommittedLiterals(t *testing.T)
 // exists today and is asserted here by derivation, not by naming the
 // file.
 func TestSupersededPurgeSnapshotsLiteralsAreNotAccepted(t *testing.T) {
-	// D87/D86 row 8's own two constants, renamed rather than deleted:
-	// 020's now-superseded ANY-expired bodies are pinned to their exact
-	// measured digests, not merely asserted absent from the accepted
-	// set -- the same "measured, not guessed" standard this file's other
-	// constants already meet.
-	// ADR-0007 Addendum 12 D108: the time-floor overload's OLD (p_before
-	// timestamptz,...) signature is a shape D107 DROPs outright, not
-	// merely respells -- it no longer matches the current declaration's
-	// signatureContains ("p_ledger_id text") at all, so there is no
-	// historical/live pair to assert for it here. The array form's
-	// prefix ("p_snapshot_sha256 text[]") still matches its own
-	// pre-D107 history, so that check is unchanged.
-	knownSuperseded020 := map[string]string{
-		"screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)": purgeSnapshotsArrayFormBodySHA256Superseded020,
+	// D87/D86 row 8's own measured digest for 020's now-superseded
+	// ANY-expired array-form body, confirmed directly (not through
+	// derivedPopulation, which no longer includes it -- see below) so
+	// the "measured, not guessed" standard this file's other constants
+	// meet is not lost along with the constant that used to hold it.
+	//
+	// ADR-0007 Addendum 12 D108, corrected by Addendum 13 D118 (AR7):
+	// under D118's own type-list-equality selection, NEITHER overload's
+	// pre-D107 (p_before timestamptz,...) history matches its current
+	// declaration's type list any more. The time-floor overload's OLD
+	// signature ("timestamptz,text,text") no longer equals its current
+	// type list ("text,bigint,timestamptz,text,text"); the array form's
+	// OLD signature ("text[],timestamptz,text,text") no longer equals
+	// its current type list either ("text[],text,int[],timestamptz[],
+	// text,text") -- under the pre-D118 prefix rule the array form's
+	// history was (incorrectly) still matched, because "p_snapshot_sha256
+	// text[]" is a prefix of both the old and new signatures alike. Both
+	// retired shapes are members of retiredFunctionTypeLists instead, so
+	// neither appears in derivedPopulation for any declaredFunctions()
+	// entry any more.
+	const purgeSnapshotsArrayFormBodySHA256Superseded020 = "67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4"
+	found020Retired := false
+	for _, got := range extractFunctionBodies(t, mustReadFile(t, "../../db/migrations/020_screening_ledger_purge_server_side_floor.sql"), "020", "screening_ledger_purge_snapshots") {
+		canonicalArgs := canonicalizeArgs(got.args)
+		if !isRetiredSignature("screening_ledger_purge_snapshots", canonicalArgs) {
+			continue
+		}
+		if argTypeList(canonicalArgs) != "text[],timestamptz,text,text" {
+			continue // the time-floor overload's own retired body, not this one
+		}
+		found020Retired = true
+		if digest := digestHexString(got.body); digest != purgeSnapshotsArrayFormBodySHA256Superseded020 {
+			t.Fatalf("ADR-0007 Addendum 10 D87/D86 row 8: expected 020's own retired array-form literal to digest to the known measured value %s, got %s", purgeSnapshotsArrayFormBodySHA256Superseded020, digest)
+		}
+	}
+	if !found020Retired {
+		t.Fatal("test construction error: expected 020's own retired array-form signature to be found and classified as retired")
 	}
 	for _, d := range declaredFunctions() {
 		t.Run(d.label, func(t *testing.T) {
-			if want, ok := knownSuperseded020[d.label]; ok {
-				migration, _ := d.derivedPopulation(t, "../../db/migrations")
-				found := false
-				for _, got := range migration {
-					if got.source == "../../db/migrations/020_screening_ledger_purge_server_side_floor.sql" && digestHexString(got.body) == want {
-						found = true
-					}
-				}
-				if !found {
-					t.Fatalf("ADR-0007 Addendum 10 D87/D86 row 8: expected 020's own literal for %s to digest to the known superseded value %s", d.label, want)
-				}
-			}
 			migration, schemaSQL := d.derivedPopulation(t, "../../db/migrations")
 			accepted := map[string]bool{}
 			if d.acceptedMigration != "" {
@@ -570,16 +662,12 @@ func TestAssertNoBodyDroppedPassesOnRealTree(t *testing.T) {
 // spelled signature -- D99's stated property ("a file added later is
 // covered without an edit") is false for a spelling pg_dump and psql
 // \df both emit routinely (P-C's own measurement). Respells the
-// array-form overload's OWN leading parameter ("text[]" -> "text
-// ARRAY") -- inside the exact substring its signatureContains prefix
-// matches against, the same way P-C's "timestamptz" ->
-// "timestamp with time zone" landed inside the retired time-floor
-// overload's own prefix. First confirms the raw, uncanonicalized prefix
-// rule misses it entirely (D108(a)'s own reason to exist); then shows
-// derivedPopulation's canonicalization (D108(a)) alone already makes it
-// the LIVE (last) body under this rogue file's name, so
-// checkLiveDigestMatchesAccepted correctly FAILS on the digest
-// mismatch rather than silently passing.
+// array-form overload's OWN leading parameter's type ("text[]" -> "text
+// ARRAY"). First confirms the raw, uncanonicalized type list misses it
+// entirely (D108(a)'s own reason to exist); then shows derivedPopulation's
+// canonicalization (D108(a)) alone already makes it the LIVE (last) body
+// under this rogue file's name, so checkLiveDigestMatchesAccepted
+// correctly FAILS on the digest mismatch rather than silently passing.
 func TestAssertNoBodyDroppedCatchesRespelledSignature(t *testing.T) {
 	tempDir := t.TempDir()
 	for _, path := range migrationFilePaths(t, "../../db/migrations") {
@@ -598,16 +686,16 @@ func TestAssertNoBodyDroppedCatchesRespelledSignature(t *testing.T) {
 		t.Fatalf("test construction error: wrong declaredFunctions() index")
 	}
 
-	// Without canonicalization, the raw prefix rule never even
-	// recognises the respelled body as belonging to this overload.
+	// Without canonicalization, the raw type list never even recognises
+	// the respelled body as belonging to this overload.
 	preD108Population := 0
 	for _, found := range extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_respelled.sql")), "zzz999_respelled.sql", d.funcName) {
-		if strings.HasPrefix(found.args, d.signatureContains) { // no canonicalization
+		if argTypeList(found.args) == d.typeList { // no canonicalization
 			preD108Population++
 		}
 	}
 	if preD108Population != 0 {
-		t.Fatalf("test construction error: expected the raw, uncanonicalized prefix rule to miss the respelled body entirely, matched %d", preD108Population)
+		t.Fatalf("test construction error: expected the raw, uncanonicalized type list to miss the respelled body entirely, matched %d", preD108Population)
 	}
 
 	// D108(a): canonicalization recognises it as THIS overload's new
@@ -658,5 +746,145 @@ func TestAssertNoBodyDroppedCatchesUnmappedSynonym(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "zzz999_unmapped_synonym.sql") {
 		t.Fatalf("expected the failure to name the file carrying the unmapped-synonym body, got: %v", err)
+	}
+}
+
+// TestAssertNoBodyDroppedSelectsByTypeIdentityNotParameterName is
+// ADR-0007 Addendum 13 D118's own required reproduction (D122 item 8):
+// a rogue body whose leading parameter keeps the declared-retired name
+// "p_before" is INVISIBLE to the pre-D118 prefix rule -- caught here by
+// showing the shipped rule (a HasPrefix on raw parameter text) matches
+// it against nothing, then that the type-list rule catches it -- while
+// a control with a merely respelled leading parameter name
+// ("p_notbefore") was already caught by both rules, proving this test
+// exercises the actual gap rather than a rule that never worked at all.
+// D108(a)'s alias map is unregressed (exercised via canonicalizeArgs
+// same as every other test in this file); D99's
+// TestDigestGateCoversANewMigrationFileWithNoEdit and D92's whitespace/
+// both-directions assertions are unregressed by the other tests in this
+// file; the gate still runs with no DSN.
+func TestAssertNoBodyDroppedSelectsByTypeIdentityNotParameterName(t *testing.T) {
+	rogueTemplate := "CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(%s timestamptz, p_snapshot_sha256 text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text) RETURNS text[] LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN ARRAY[]::text[]; END; $$;\n"
+
+	buildTempDir := func(t *testing.T, leadingParam string) string {
+		t.Helper()
+		tempDir := t.TempDir()
+		for _, path := range migrationFilePaths(t, "../../db/migrations") {
+			content := mustReadFile(t, path)
+			if err := os.WriteFile(filepath.Join(tempDir, filepath.Base(path)), []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		rogue := fmt.Sprintf(rogueTemplate, leadingParam)
+		if err := os.WriteFile(filepath.Join(tempDir, "zzz999_rogue.sql"), []byte(rogue), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return tempDir
+	}
+
+	t.Run("p_before_invisible_under_the_shipped_prefix_rule", func(t *testing.T) {
+		tempDir := buildTempDir(t, "p_before")
+		rogueBodies := extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_rogue.sql")), "zzz999_rogue.sql", "screening_ledger_purge_snapshots")
+		if len(rogueBodies) != 1 {
+			t.Fatalf("test construction error: expected exactly 1 extracted rogue body, got %d", len(rogueBodies))
+		}
+		// The shipped (pre-D118) selection rule: HasPrefix on raw
+		// parameter text. Reconstructed here rather than reintroduced
+		// into production code, since it is exactly the defect this
+		// decision removes.
+		shippedRulePlacesIt := false
+		for _, d := range declaredFunctions() {
+			if d.funcName != "screening_ledger_purge_snapshots" {
+				continue
+			}
+			if d.typeList != "" && strings.HasPrefix(canonicalizeArgs(rogueBodies[0].args), canonicalizeArgs("p_before timestamptz")) {
+				shippedRulePlacesIt = true
+			}
+		}
+		if !shippedRulePlacesIt {
+			t.Fatal("test construction error: expected the reconstructed shipped prefix rule to match the p_before-leading rogue body (matching D118's own finding) -- if it no longer does, this test needs a different reproduction")
+		}
+		// D118's type-list rule: this rogue body's full type list
+		// ("timestamptz,text[],text,int[],timestamptz[],text,text") is
+		// NOT equal to either declared overload's type list and is NOT
+		// a member of retiredFunctionTypeLists (which requires an EXACT
+		// match, and this rogue has one extra leading timestamptz
+		// parameter) -- so assertNoBodyDropped must catch it as
+		// unplaceable.
+		err := assertNoBodyDropped(t, tempDir)
+		if err == nil {
+			t.Fatal("ADR-0007 Addendum 13 D118: expected assertNoBodyDropped to FAIL against a rogue body whose leading parameter is named p_before -- it passed instead, meaning the body was silently discarded (invisible under the pre-D118 name-prefix rule)")
+		}
+		if !strings.Contains(err.Error(), "zzz999_rogue.sql") {
+			t.Fatalf("expected the failure to name zzz999_rogue.sql as the source of the unplaceable body, got: %v", err)
+		}
+	})
+
+	t.Run("p_notbefore_control_caught_by_both_rules", func(t *testing.T) {
+		tempDir := buildTempDir(t, "p_notbefore")
+		err := assertNoBodyDropped(t, tempDir)
+		if err == nil {
+			t.Fatal("expected assertNoBodyDropped to FAIL against the p_notbefore control rogue body")
+		}
+		if !strings.Contains(err.Error(), "zzz999_rogue.sql") {
+			t.Fatalf("expected the failure to name zzz999_rogue.sql, got: %v", err)
+		}
+	})
+}
+
+// TestArgTypeListMatchesDeclaredOverloadsExactly is D118's own type-list
+// derivation, checked directly against the declared constants and
+// against a spelling variant D108(a)'s alias map already covers --
+// confirming argTypeList composes correctly with canonicalizeArgs
+// rather than merely asserting the two declaredFunctions() entries
+// happen to pass elsewhere.
+func TestArgTypeListMatchesDeclaredOverloadsExactly(t *testing.T) {
+	cases := []struct {
+		name string
+		args string
+		want string
+	}{
+		{
+			name: "array_form_canonical_spelling",
+			args: "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text",
+			want: "text[],text,int[],timestamptz[],text,text",
+		},
+		{
+			name: "array_form_pg_dump_spelling",
+			args: "p_snapshot_sha256 text ARRAY, p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text",
+			want: "text[],text,int[],timestamptz[],text,text",
+		},
+		{
+			name: "time_floor_canonical_spelling",
+			args: "p_ledger_id text, p_expected_count bigint, p_expected_max timestamptz, p_operator text, p_reason text",
+			want: "text,bigint,timestamptz,text,text",
+		},
+		{
+			name: "time_floor_pg_dump_spelling",
+			args: "p_ledger_id text, p_expected_count int8, p_expected_max timestamp with time zone, p_operator text, p_reason text",
+			want: "text,bigint,timestamptz,text,text",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := argTypeList(canonicalizeArgs(c.args))
+			if got != c.want {
+				t.Fatalf("argTypeList(canonicalizeArgs(%q)) = %q, want %q", c.args, got, c.want)
+			}
+		})
+	}
+	for _, d := range declaredFunctions() {
+		if d.typeList == "" {
+			continue
+		}
+		found := false
+		for _, c := range cases {
+			if argTypeList(canonicalizeArgs(c.args)) == d.typeList {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("declaredFunctions() entry %q has typeList %q, which no case above exercises -- add a case matching it", d.label, d.typeList)
+		}
 	}
 }
