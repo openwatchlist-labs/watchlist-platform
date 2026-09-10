@@ -13620,3 +13620,1143 @@ disabled**, and D114 through D121 are the whole of that barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #12
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 14: the element set -- which elements two expressions in one function body range over, and CAP #13's seven findings (2026-09-09)
+
+- **Status:** Proposed
+- **Trigger:** a thirteenth Composition Audit Program record produced against the implemented
+  Addendum 13 (`docs/backlog/sec-7-cap-record-e5e3be0.md`, adversarial posture, audit basis commit
+  `e5e3be03c97116ec27231683a48cfe0d8fc09a6e`) returned **QUALIFIED, not PASS** for the thirteenth
+  consecutive audit -- and, after three consecutive rounds in which no forgery was demonstrated
+  within section 2 at all, **it demonstrates one**. Seven findings, one CRITICAL, one HIGH, two
+  MEDIUM and three LOW. **SEC-7 is not closed.**
+- **What CAP #13 confirmed, and this addendum does not disturb.** D117 is the best decision in
+  Addendum 13 and is correct in full: multi-member accepted sets on both overloads, correct on both
+  bootstrap paths, refusing the `BEGIN RETURN 424242; END` substitution on both, set-rendered
+  message, D90 non-disarm intact. D114(a)'s hardest claim -- that no committed `Event.ExpiresAt`
+  changes -- survives an exhaustive re-measurement across six time zones including two with a
+  half-hour DST offset, and D122's pre-declared stop condition did not fire. D114(b)/(c) and D115
+  are correct. D119's population is complete, re-derived from the live catalog. D121's note is
+  accurate. **D116's core insight is right and this addendum does not reopen it**: the global
+  aggregate is the correct population, and its caller-side tenancy refusal is anchored on a signed
+  fact. F-A is a defect in how that aggregate's loop is *driven*, not in the decision to make it
+  global. **Addendum 3's scoping principle, Addendum 4's referent principle, Addendum 5's
+  population principle, Addendum 6's atomicity principle, Addendum 7's quantifier principle,
+  Addendum 8's naming principle, Addendum 9's composition principle, Addendum 10's whole-round
+  obligation, Addendum 11's cardinality principle, Addendum 12's reduction principle and Addendum
+  13's derivation principle are each correct**, and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75,
+  not D76-D85, not D86-D95, not D96-D103, not D104-D112, not D113-D122, not the D19 correction
+  note, not R1-R55. Decision numbering continues at **D123**; risk numbering at **R56**. Where a
+  prior decision's *text* is wrong rather than merely superseded, the new decision says so in its
+  own words -- the convention AR7 established.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `e5e3be03c97116ec27231683a48cfe0d8fc09a6e` rather than copied from the CAP record or from a prior
+  addendum.
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-13
+  held to.** A disposable PostgreSQL 17.11 cluster was built on **port 55610** (CAP #13 used 55600,
+  Addendum 13's implementation pass 55590, its design pass 55580) with
+  `initdb --auth=scram-sha-256 --pwfile`, TCP-only on `127.0.0.1`, its data directory inside this
+  session's own scratchpad, and provisioned in `.github/workflows/ci.yml`'s exact order
+  (`create-roles`, all **twenty** `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`,
+  `grant-ddl-ownership`, then the fixture databases). Baseline confirmed byte-identical to CAP #13
+  section 7.0, including all six declared function digests and OIDs:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_instance_binding   |     1
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+
+                evtname              |    evtevent     | evtenabled
+  -----------------------------------+-----------------+------------
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+
+               proname              |              args              |    body_sha16    |  oid
+  ----------------------------------+--------------------------------+------------------+-------
+   owl_reject_truncate              |                                | e8db5083c6bf20d9 | 16846
+   screening_ledger_purge_snapshots | p_ledger_id text, p_expected_c | d44b2cab4d905faf | 16928
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_le | d32a2ffaab5a8037 | 16927
+   screening_ledger_reject_mutation |                                | 5632734b5c67628b | 16462
+   screening_ledger_snapshot_guard  |                                | f9cb95289a3fdead | 16469
+   sec7_protect_ddl_objects         |                                | de174c42252877d2 | 16952
+  ```
+
+  Both live migration-path digests equal their declared constants (`postgres.go:171`, `:173`).
+  Every destructive probe ran against a `CREATE DATABASE ... TEMPLATE` clone or a purpose-built
+  database. Probes were read through two temporary files,
+  `internal/screeningledger/a14_design_probe_test.go` and `a14_probe_fc_test.go`, calling the real
+  implementations through this package's own `buildShape` / `assertNoBodyDropped` /
+  `isRetiredSignature` / `argTypeList` / `Store.Append` / `Store.MarkReplicated` /
+  `Store.ShortfallExplainedByUnreplicatedEvents` scaffolding; both were **deleted before this
+  addendum was written** and `git status --porcelain` is back to its pass-start value. **The
+  developer's own server on port 5432 was never contacted.** **The five results that shaped the
+  design:**
+  1. **`array_length(a,1)` and `= ANY(a)` disagree about which elements they range over in FIVE of
+     six array shapes measured**, and `cardinality(a)` agrees with `= ANY` in all six -- so the
+     defect is not a property of the one construction CAP #13 transcribed (D123, D124).
+  2. **`unnest()` ranges over exactly the element set `= ANY()` tests, in every shape measured**,
+     and multi-argument `unnest` pairs those elements in storage order. That is the property D124
+     needs, and it was measured rather than assumed (D124).
+  3. **A fourth attack construction exists that CAP #13 does not transcribe, and it defeats
+     migration `023`'s own LENGTH PRECHECK rather than only its loop** -- a two-element
+     multidimensional array destroys **two** snapshots in one call while `array_length(...,1)`
+     reports `1` on both sides (D124).
+  4. **The measurement did NOT discriminate between the two candidate fixes.** Both the
+     `unnest`-driven form and the normalise-at-entry form refuse all four constructions and preserve
+     the positive control. The decision is made on structural grounds the measurement informs but
+     does not settle, and this addendum says so rather than claiming an execution chose (D124).
+  5. **The remedy F-D's fix must name was run before it was named.** `screening-ledger anchor
+     --allow-genesis true` does clear the state and the subsequent `status` returns
+     `"anchor_status":"verified"` -- and its DSN flag is `--anchor-dsn-env`, which the operator
+     document names nowhere (D128).
+
+---
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554`, `0007:6660-6700`, `0007:7591-7630`, `0007:8742-8768`, `0007:10021-10047`,
+`0007:11194-11235` and `0007:12429-12467` set.
+
+1. **The remediation brief's own account of F-D attributes the instruction to the wrong artifact,
+   and correcting it moves the fix.** The brief states that
+   `docs/operations/sec7-database-copies.md` "tells the operator to pass `--allow-genesis`."
+   Measured at this commit:
+
+   ```
+   $ grep -n 'allow-genesis' docs/operations/sec7-database-copies.md
+   $ (no output, rc=1)
+   ```
+
+   The document names the flag nowhere. Its "Then confirm it took" step (`:83-93`) is a
+   fully-specified `status` invocation carrying no such flag. What names `--allow-genesis` is
+   `anchor.go:921`'s message, printed **to** the operator when they run the document's own step.
+   **The finding is undiminished** -- the dead end is real, reached exactly as CAP #13 section 7.4
+   transcribes, and reproduced independently below. What changes is where the defect lives: it is a
+   **shared diagnostic naming a remedy scoped to a different subcommand**, not a wrong instruction
+   in a document, so D128 repairs `anchor.go` and the document gains the state rather than losing a
+   line. This is the same class of correction Addendum 8's own drift note 1 made about CAP #7's L-B
+   setup.
+2. **The brief's F-G names one dead flag and there are two.** `--retention-days` (`main.go:228`)
+   and `--max-snapshot-bytes` (`main.go:231`) are built into the same `RetentionPolicy` that
+   `ExportBundle` (`replay.go:75`) hands only to `RedactJSON` (`:92`, `:96`), which reads
+   `RedactKeys` and `HashKeys`. Both are dead on that path, by one mechanism. Fixing one and
+   leaving the other is D86's whole-round obligation unapplied inside this round's own smallest
+   finding -- and the field left behind would be `MaxSnapshotBytes`, which is *also* F-F. D130
+   disposes of both.
+3. **CAP #13 section 7.5's `anchor.go` line numbers resolve against `2e9f6b3`, not against this
+   tree.** Re-derived at `e5e3be0` and confirmed: the two conversions D113 row 6 omits are
+   `anchor.go:725` (D32's forward adjudication) and `anchor.go:774` (D70's reverse pass); row 6's
+   six cited sites are `:947`, `:952`, `:953`, `:966`, `:971`, `:972`; row 5 (D114(c)) is `:942`.
+   Expected -- Addendum 13 was written before its own implementation -- and not a defect.
+4. **CAP #13's F-A transcript is correct in every particular and understates its own class.** The
+   record demonstrates a lower-bound-shifted array and notes a multidimensional variant. Measured
+   here, **four** distinct constructions reach the same outcome, one of which destroys two
+   snapshots in a single call by defeating a check the record does not identify as reachable at
+   all. Recorded because D123's whole point is that the population was never enumerated.
+
+---
+
+### Addendum 14 context: eleven principles were right, and the axis that found this round's CRITICAL is Addendum 11's
+
+Addendum 3 asked *what* is protected (`0007:2172-2173`). Addendum 4 asked *which property* is
+compared (`0007:2853-2857`). Addendum 5 asked *over what set* (`0007:3742-3746`). Addendum 6 asked
+what a *legitimate* operation rewrites (`0007:4526-4534`). Addendum 7 asked *over how many parties*
+(`0007:5574-5580`). Addendum 8 asked *by what identity* (`0007:6732-6738`). Addendum 9 asked *is any
+member of the set weaker* (`0007:7668-7674`). Addendum 10 made applying a round's principle to the
+round's whole output a numbered obligation (D86). Addendum 11 asked *how many values answer to the
+description* (`0007:10074-10080`). Addendum 12 asked *which side reduces the value*
+(`0007:11260-11267`). Addendum 13 asked *was the value ever a correct function of its input*
+(`0007:12498-12505`).
+
+CAP #13 section 0.1 states what happened, and it is right:
+
+> The axis is **cardinality**, which Addendum 11 already named, applied to a referent no round has
+> examined this way: not how many rows answer to a description, but **how many array elements two
+> expressions in the same function body range over**. `array_length(a, 1)` and `a = ANY(...)` do
+> not agree on that, and D116 put one on each side of the control.
+
+**The brief asks whether this generalises the cardinality axis or is a one-off fix. It
+generalises it, and the reasoning is stated rather than asserted.** Addendum 11's own principle is
+about *descriptions*, not about rows:
+
+> A control that finds its referent by description must state how many live values can satisfy that
+> description. Where more than one can, the selection rule is named, it is the same rule everywhere
+> the referent is read, and it is the rule the security property actually needs.
+
+`p_snapshot_sha256[i]` **is** a description -- "the element at subscript `i`" -- and
+`= ANY(p_snapshot_sha256)` is a different one -- "any element, at any subscript, in any dimension."
+Two descriptions, two element sets, one control with one on each side. Nothing about the axis was
+ever row-specific: D96 row 8 already applied it to a non-row population (function overloads, found
+by `pg_identify_object` identity *including argument types*), and D96 row 5 is credited as its
+model row for stating a selection rule in its own doc comment. What D96's column never did was ask
+the question of an **argument's own elements**, and D116 is where that omission became a CRITICAL.
+
+**So the disposition is: the cardinality axis is unchanged and correct, and its audit population
+was incomplete.** D123 widens the population rather than adding a twelfth principle, and says so in
+D86's, D96's and D104's own tables so a later round inherits the wider question rather than
+re-deriving it. This addendum therefore introduces **no new axis** -- the first round in the arc
+that does not, and that is the honest reading of CAP #13 rather than a reason to invent one.
+
+**The round's other half shares Addendum 12's and Addendum 13's own disposition sentence**, now
+carried for a fourth round: F-C leaves a `SECURITY DEFINER` body that writes tombstones invisible to
+the gate that exists to place it; F-D leaves an operator following this repository's own document
+with no next step; and F-B prints a diagnostic asserting something measurably untrue. **A
+verification control that fails on correct behaviour is a control that gets disabled**, and a
+control whose success output is not evidence of anything is the same defect wearing the other face.
+
+---
+
+### D123. The element-cardinality audit: D96's column, asked of an argument's elements
+
+**Decision: D86's composition audit, D96's cardinality audit and D104's reduction audit gain a
+population they never covered -- the ELEMENTS of an array-valued argument, asked of every pair of
+expressions in one function body that range over the same argument. This addendum runs it before
+any repair is designed, and records "checked, and it does not apply" as a result.**
+
+**Why this is a widened population and not a twelfth principle, argued rather than asserted.** D96's
+own question -- "how many live values can satisfy the description this control uses to find its
+referent, and if more than one can, is the selection deterministic and is it the one the security
+property needs?" -- is exactly the question F-A answers wrongly. Nothing in it is about rows. What
+was never asked is the same question of a *parameter's elements*, and D96's table has no row for
+one, because every referent it enumerates is found by a query rather than by a subscript. **A
+twelfth axis would be the wrong repair**: it would leave D96's own table still not asking about
+elements, and the next round would rediscover that. Widening the population is the repair that
+D86's whole-round obligation actually calls for.
+
+**The question asked of every member:**
+
+> **Do the two expressions that read this argument range over the same set of elements -- and is the
+> set the destructive expression ranges over a subset of the set the checking expression
+> ranges over?**
+
+**First, the measurement that makes the population enumerable rather than guessed.** Executed
+against the provisioned baseline:
+
+```
+          label          | arr_len_dim1 | cardinality | ndims | lower1 | subscript_1 | any_matches_s1
+-------------------------+--------------+-------------+-------+--------+-------------+----------------
+ 1-based 1-D, 1 elem     |            1 |           1 |     1 |      1 | S1          | t
+ [5:5] shifted, 1 elem   |            1 |           1 |     1 |      5 |             | t
+ [0:0] shifted, 1 elem   |            1 |           1 |     1 |      0 |             | t
+ 2-D {{S1}}, 1 elem      |            1 |           1 |     2 |      1 |             | t
+ 2-D {{S1,S2}}, 2 elems  |            1 |           2 |     2 |      1 |             | t
+ [-1:0] shifted, 2 elems |            2 |           2 |     1 |     -1 |             | t
+```
+
+**`array_length(a,1)` and `= ANY(a)` disagree in five of the six shapes, and `cardinality(a)` agrees
+with `= ANY` in all six.** Read the last two rows especially: at `{{S1,S2}}` the length function
+reports **one** element where membership ranges over **two**, and at `[-1:0]` the length is right
+and **every subscript in `1 .. array_length` is still out of bounds**. So the defect has three
+independent generators -- a shifted lower bound, a second dimension, and the two combined -- and
+naming any one of them is naming an instance.
+
+**The audit table.** Every row was executed against the provisioned baseline, not reasoned from the
+code.
+
+| # | Argument | Checking expression | Destructive expression | Same element set? | Disposition |
+|---|---|---|---|---|---|
+| 1 | `023`'s `p_snapshot_sha256` (array form) | `array_length(...,1)` + `p_snapshot_sha256[i]` (`023:76`, `:95`, `:99`, `:102`) | `= ANY(p_snapshot_sha256)` (`023:112`, `:138`) | **NO** -- five of six shapes | **F-A -- D124** |
+| 2 | `023`'s `p_expected_count` / `p_expected_max` | `array_length(...,1)` (`023:76-77`), read by `[i]` (`023:103`) | -- (never used to select rows) | **NO**, and it is the same defect: the length precheck that pairs them is defeated by row 1's shapes | **D124** |
+| 3 | `SchemaSQL`'s array-form copy (`postgres.go:2113`) | byte-equivalent to row 1 | byte-equivalent to row 1 | **NO** -- identical text, live on the SchemaSQL bootstrap path | **D125** |
+| 4 | `022`'s array form (`022:102-116`) | same shape as row 1 | same shape as row 1 | **NO**, and it is a **superseded literal** -- live on no bootstrap path this repository ships | **D125**, left as history |
+| 5 | `023`'s time-floor overload (`023:159-228`) | `p_expected_count bigint`, `p_expected_max timestamptz` -- **scalars** | global aggregate, no array | **checked, and it does not apply** -- there is no array to disagree about | none |
+| 6 | `019`/`020`/`021`'s array forms | no positional loop exists -- the corroboration loop arrives in `022` | `= ANY(p_snapshot_sha256)` | **checked, and it does not apply** -- one expression, one element set | none |
+| 7 | `postgres.go:799` `unnest($7::text[])` | already element-driven | -- | **checked, and it does not apply** | none |
+| 8 | `postgres.go:768`, `:773`, `:786`, `:865`, `:1005` `= ANY($n)` | membership only; no companion subscript | -- | **checked, and it does not apply** | none |
+| 9 | `stringSlicesEqual` (`postgres.go:1202-1211`) | `len(a) != len(b)` then `a[i] != b[i]` | -- | **checked, and it does not apply** -- a Go slice has no lower bound and no second dimension, so length and index cannot disagree | none |
+| 10 | `RecordPurge`'s three built arrays (`postgres.go:1890-1911`) | positional build over `eligibleSHA256` | the arrays it sends | **checked, and it does not apply** -- pgx encodes `[]string`/`[]int32`/`[]*time.Time` as 1-based, one-dimensional; this is what makes the honest path immune and is R56's own subject | none |
+| 11 | `provision_test_roles.sh:775-777`, `:1170-1180` and `postgres.go`'s recorded-state comparisons | `array_agg(... ORDER BY ...)` compared whole with `IS DISTINCT FROM` | -- | **checked, and it does not apply**, *and the failure direction was measured* -- see below | none |
+| 12 | `FOREACH ... IN ARRAY` at `009g:90`, `012:54`, `013:23`, `014:70`/`:349`/`:397`/`:562` | element-driven already | -- | **checked, and it does not apply** -- and this is the repository's own established idiom | none |
+
+**Row 11 deserves its measurement rather than a bare verdict, because "both sides are `array_agg`"
+is exactly the kind of by-construction claim this arc has learned to check.** Array equality in
+PostgreSQL **is** bound- and dimension-sensitive, so a shape difference on either side is a
+*refusal*, not an acceptance:
+
+```
+ eq_shifted_bounds | idf_shifted_bounds | eq_vs_2d | idf_vs_2d
+-------------------+--------------------+----------+-----------
+ f                 | t                  | f        | t
+```
+
+`ARRAY['a','b'] = '[5:6]={a,b}'` is **false** and `IS DISTINCT FROM` is **true**. So a recorded
+array whose bounds were somehow shifted would make D40's second phase raise on every DDL statement
+-- R18's blast radius, which is loud and fail-closed -- rather than silently matching. Row 11 is
+therefore "does not apply" **and** its failure direction is the safe one, and both halves are
+recorded so a later reader does not have to re-derive either.
+
+**Rows 3 and 4 are what this addendum owes to the audit rather than to the CAP**, the D86 row 8 and
+D96 rows 19/20 analogue for this round: CAP #13 names migration `023` and stops. `SchemaSQL` carries
+the same text and is live; `022` carries it and is not.
+
+---
+
+### F-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #13's transcript. Every run was rebuilt against the baseline above,
+on `CREATE DATABASE ... TEMPLATE` clones of the fully provisioned primary, through the real,
+unmodified migration `023` bodies, as **`owl_migrator`** -- section 2's own identity, which holds
+`EXECUTE` on both overloads and cannot write a tombstone any other way.
+
+**The fixture**, built as `owl_migrator` into the two relations it owns: one content-addressed
+snapshot still holding its ciphertext, and one **expired** event referencing it, mirrored. A second
+event carrying a live obligation to `2100-01-01` exists in the chain and is **not** mirrored -- F-B's
+own shape, and the reason an honest caller's chain aggregate is `(2, 2100-01-01)` while the mirror's
+is `(1, 2009-12-29)`:
+
+```
+ mirror_events_for_sha |       mirror_max
+-----------------------+------------------------
+                     1 | 2009-12-29 00:00:00-05
+
+ snapshot_sha256  | purged_at | has_ciphertext
+ 30066720e8330... |           | t
+ tombstones_before: 0
+```
+
+**The control first, because it is what proves the mechanism is genuinely present.** An honest
+1-based array, twice -- once with the true chain obligation and once with the same vacuous
+`(0, NULL)` claim the attack carries:
+
+```
+########## (a) HONEST caller, true chain obligation (2, 2100-01-01) -- expect REFUSE ##########
+ERROR:  ADR-0007 Addendum 13 D116: snapshot 30066720e83300e78eefd195c13779977d037ace39debc546d1bc855412b2502's
+GLOBAL mirror screening_ledger_event aggregate (count=1, max=2009-12-29 00:00:00-05) disagrees with the
+caller-supplied chain-authenticated obligation (count=2, max=2100-01-01 00:00:00-05, claimed ledger=cap14-lb):
+refusing rather than purging under an unverified claim
+    tombstones=0  purged_at=NULL  ciphertext_still_present=t
+
+########## (b) HONEST 1-based array, VACUOUS claim (0, NULL) -- expect REFUSE ##########
+ERROR:  ADR-0007 Addendum 13 D116: snapshot 30066720e8330...'s GLOBAL mirror screening_ledger_event aggregate
+(count=1, max=2009-12-29 00:00:00-05) disagrees with the caller-supplied chain-authenticated obligation
+(count=0, max=<NULL>, claimed ledger=cap14-lb): refusing rather than purging under an unverified claim
+    tombstones=0  purged_at=NULL  ciphertext_still_present=t
+```
+
+**D116 works exactly as designed, on both.** Now the same caller, the same snapshot, the same
+instant, one array literal different:
+
+```
+########## (c) ATTACK 1: lower-bound-shifted array '[5:5]' + (0,NULL) ##########
+  returned: {30066720e83300e78eefd195c13779977d037ace39debc546d1bc855412b2502}
+    tombstones=1  purged_at=2026-09-09 20:36:54.247512-04  ciphertext_still_present=f
+
+########## (d) ATTACK 2: MULTIDIMENSIONAL array + (0,NULL) ##########
+  returned: {30066720e83300e78eefd195c13779977d037ace39debc546d1bc855412b2502}
+    tombstones=1  purged_at=2026-09-09 20:36:54.496469-04  ciphertext_still_present=f
+
+########## (e) ATTACK 3 (no CAP transcript): lower bound 0 ##########
+  returned: {30066720e83300e78eefd195c13779977d037ace39debc546d1bc855412b2502}
+    tombstones=1  purged_at=2026-09-09 20:36:54.723841-04  ciphertext_still_present=f
+```
+
+Three constructions, three destroyed snapshots. **`ciphertext_still_present=f` is the whole finding**:
+the decision snapshot's ciphertext is gone from the envelope, under a chain-authenticated obligation
+running to `2100-01-01`, while the honest call with the identical claim is refused by name.
+
+**And a fourth construction, which CAP #13 does not transcribe and which is strictly worse, because
+it defeats migration `023`'s own LENGTH PRECHECK rather than only its loop.** A two-element
+multidimensional sha array against a one-element count array: `array_length(...,1)` reports `1` on
+both sides, so `023:76-77` agrees they are the same length, the loop runs once against a NULL
+subscript, and `= ANY` destroys **both**:
+
+```
+########## ATTACK 4: 2-D array, TWO snapshots, ONE count element ##########
+  SHIPPED   *** SUCCEEDED *** tombstones=2 (TWO snapshots destroyed in one call)
+     snapshots_still_holding_ciphertext=0 (of 2)
+```
+
+**Reachability, stated at exactly its strength, and unchanged from CAP #13's.** This needs no Go
+caller: `pgx` encodes `[]string` as a one-based, one-dimensional array, so the honest path cannot
+produce any of these shapes and refuses correctly today (transcripts (a) and (b)). It needs a
+`SELECT` issued as `owl_migrator`, which is section 2's own identity. **It is a defect in the
+control, reachable by the party the control exists to constrain.**
+
+---
+
+### D124. F-A (CRITICAL): the corroboration ranges over the element set the destructive expression ranges over
+
+**Severity, adopted rather than inherited, and the ground is the arc's own.** CAP #13 rates F-A
+CRITICAL. Every prior CRITICAL in this document (F-E, G-C, H-A, L-B, M-A, M-E, N-A, F-A of Addendum
+13) was rated on an invariant limb section 1 names being demonstrably false end to end. This one is
+false at the **lowest reachability tier the threat model has**: `owl_migrator`, no superuser, no
+event-trigger disable, no laundering, one `SELECT` -- and the evidence is **destroyed**, not merely
+misreported. It is the first demonstrated section-2 destruction of evidence in four rounds, and it
+runs through the control the previous round shipped to prevent exactly it.
+
+**The finding, restated structurally from the code.** Migration `023`'s array-form overload reads
+its arguments through **two descriptions that do not denote the same elements**:
+
+| Expression | Where | Ranges over |
+|---|---|---|
+| `array_length(p_snapshot_sha256, 1)` | `023:76`, `:77`, `:95`, `:99` | the length of dimension 1 |
+| `p_snapshot_sha256[i]`, `p_expected_count[i]`, `p_expected_max[i]` | `023:102`, `:103`, `:104` | the element at subscript `i`, `i` in `1 .. array_length` |
+| `s.snapshot_sha256 = ANY(p_snapshot_sha256)` | `023:112`, `:138` | **every** element, at any subscript, in any dimension |
+
+The first two are the control. The third is what destroys rows. D123's measurement is that they
+denote different sets in five of six shapes.
+
+**Decision: the corroboration is driven by `unnest`, which ranges over exactly the set `= ANY`
+tests, and `cardinality` replaces `array_length(...,1)` as the only length measure. The subscript is
+removed; it is not made safe.**
+
+Illustrative only -- the implementation PR owns the real text:
+
+```sql
+IF cardinality(p_snapshot_sha256) IS DISTINCT FROM cardinality(p_expected_count)
+   OR cardinality(p_snapshot_sha256) IS DISTINCT FROM cardinality(p_expected_max) THEN
+  RAISE EXCEPTION '... must carry the same number of ELEMENTS (cardinality %, %, %) ...';
+END IF;
+IF coalesce(cardinality(p_snapshot_sha256), 0) > 0 THEN
+  ...
+  FOR rec IN SELECT * FROM unnest(p_snapshot_sha256, p_expected_count, p_expected_max)
+               WITH ORDINALITY AS t(sha, expected_count, expected_max, ord) LOOP
+```
+
+**The mechanism facts this rests on were measured before the decision was written, not after.**
+`unnest()` produces exactly `cardinality(a)` rows, in storage order, and sees the same element
+`= ANY` matches, in every shape:
+
+```
+          label          | unnest_rows | cardinality | unnest_in_order | unnest_sees_s1 | any_matches_s1
+-------------------------+-------------+-------------+-----------------+----------------+----------------
+ 1-based 1-D, 1 elem     |           1 |           1 | S1              |              1 | t
+ [5:5] shifted, 1 elem   |           1 |           1 | S1              |              1 | t
+ [0:0] shifted, 1 elem   |           1 |           1 | S1              |              1 | t
+ 2-D {{S1}}, 1 elem      |           1 |           1 | S1              |              1 | t
+ 2-D {{S1,S2}}, 2 elems  |           2 |           2 | S1,S2           |              1 | t
+ [-1:0] shifted, 2 elems |           2 |           2 | X,S1            |              1 | t
+```
+
+and multi-argument `unnest` pairs those elements positionally in storage order across mixed shapes,
+padding with NULL when the cardinalities differ -- which is why the `cardinality` precheck stays
+load-bearing rather than becoming redundant:
+
+```
+                case                | sha | cnt | ord
+------------------------------------+-----+-----+-----
+ sha 2-D {{A,B}} + counts 1-D {7,9} | A   |   7 |   1
+ sha 2-D {{A,B}} + counts 1-D {7,9} | B   |   9 |   2
+ [5:5] sha + 1-based counts         | A   |   7 |   1
+ LENGTH MISMATCH: 2 shas + 1 count  | A   |   7 |   1
+ LENGTH MISMATCH: 2 shas + 1 count  | B   |     |   2
+```
+
+**`WITH ORDINALITY`'s position is carried into the `RAISE EXCEPTION` text and nowhere else.** It
+never selects, never filters and never decides. This is D46's own arrangement
+(`0007:4052-4061`): a value read only on an already-failing path can change a message and can never
+widen what passes. Measured, the message it produces names the element and its position:
+
+```
+ERROR:  PROTO-A: snapshot aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666aaaa7777bbbb8888 (element 1 of 1)
+GLOBAL mirror aggregate (count=1, max=2009-12-29 00:00:00-05) disagrees with the caller-supplied
+obligation (count=0, max=<NULL>, claimed ledger=cap14-lb)
+```
+
+#### Executed, in full: both candidate directions against all four constructions
+
+The brief names two directions and asks for whichever is chosen to be tested against both attack
+constructions. Both were **built as prototypes and run**, against all four constructions this pass
+found, plus both honest refusals and the positive control that keeps the fix from being vacuous.
+
+| Attempt | SHIPPED | PROTO-A (`unnest` + `cardinality`) | PROTO-B (normalise at entry) |
+|---|---|---|---|
+| attack 1: `'[5:5]'` shifted + `(0,NULL)` | **SUCCEEDED** | **REFUSED** | **REFUSED** |
+| attack 2: multidimensional + `(0,NULL)` | **SUCCEEDED** | **REFUSED** | **REFUSED** |
+| attack 3: `'[0:0]'` shifted + `(0,NULL)` | **SUCCEEDED** | **REFUSED** | **REFUSED** |
+| attack 4: 2-D, two snapshots, one count | **SUCCEEDED (2 destroyed)** | **REFUSED** | **REFUSED** |
+| control: honest 1-based, vacuous `(0,NULL)` | REFUSED | REFUSED | REFUSED |
+| control: honest 1-based, true `(2, 2100)` | REFUSED | REFUSED | REFUSED |
+| **POSITIVE: honest and correct `(1, 2009-12-29)`** | **SUCCEEDED** | **SUCCEEDED** | **SUCCEEDED** |
+
+The last row is the one that matters as much as the refusals, and D37's rule applies verbatim
+(`0007:2643-2645`): a suite that proves only the blocks has not proven the fix is safe to install. A
+legitimate purge still purges.
+
+**Steady-state cost, measured because D40, D46, D50 and D64 each stated theirs.** 300
+corroboration-only calls:
+
+```
+  SHIPPED   300 calls in 2 ms
+  PROTO-A   300 calls in 2 ms
+```
+
+#### The measurement did NOT choose between them, and this addendum says so
+
+**Both directions close all four constructions and both preserve the positive control.** It would be
+easy, and false, to present the execution as having selected `unnest`. It did not. What the
+execution did do is supply the facts on which the choice is made, and the choice is then a design
+judgement stated in the open:
+
+1. **Normalising rewrites NULL into empty, silently.** Measured -- `ARRAY(SELECT unnest(a))` on a
+   NULL input returns an **empty array, not NULL**:
+
+   ```
+        label      | norm_lower | norm_ndims | norm_card | norm_is_null | input_was_null
+   ----------------+------------+------------+-----------+--------------+----------------
+    NULL array     |            |            |         0 | f            | t
+    empty array    |            |            |         0 | f            | f
+   ```
+
+   Both shipped and PROTO-B return `{}` for a NULL argument today, so nothing observable breaks --
+   but PROTO-B reaches that answer by **converting one fact into a different fact** on the way in.
+   "Unset" and "empty" are not the same claim, and **D114(b) named exactly that conflation a defect
+   one round ago** (`0007:12765-12768`). A repair that reintroduces the round-before's own named
+   defect, in the function it is repairing, is the wrong repair even when its outputs agree today.
+
+2. **Normalising leaves an invariant a reader must re-verify; `unnest` leaves nothing to verify.**
+   After PROTO-B's three assignments, every later `[i]` is correct *because* of those three lines.
+   That is a whole-body invariant, and a fourth array added later -- exactly what D107 did to this
+   signature one round ago, and D116 the round after -- must be normalised too, with nothing
+   enforcing it. Under PROTO-A there is no subscript anywhere in the body, so there is no invariant
+   to hold and nothing for a later edit to forget. **This is D31's own move**: do not make the
+   dangerous construct safe, remove the construct.
+
+3. **`cardinality` is one measure, not two agreeing measures.** CAP #13's own invalidation condition
+   forbids "comparing `array_length` against `cardinality`" -- correctly, because that keeps two
+   descriptions and asserts a relationship between them, which is the shape of the finding. D124
+   keeps **one**: `array_length(...,1)` does not appear in the repaired body at all.
+
+**Recorded so a later reader finds the reason before re-deriving it:** PROTO-B is not wrong, and it
+is not adopted. It is recorded as the **withdrawal fallback** if PROTO-A cannot be implemented, and
+labelled strictly worse for reasons 1 and 2 rather than presented as equivalent.
+
+**Not adopted, and named because the brief and the CAP both rule it out.** An explicit refusal of
+any array whose `array_lower(...) <> 1` or `array_ndims(...) <> 1` is a validation patch bolted on
+top of two expressions that still range over different sets. It would close all four constructions
+measured here and would leave the next shape -- whatever it is -- to a fourteenth CAP. **It must not
+be adopted, in any form, including "as defence in depth alongside D124."** A precondition asserting
+that two element sets coincide is strictly weaker than having one element set.
+
+**Also not adopted: revoking `EXECUTE` on the array-form overload from `owl_migrator`.** That
+retires the *reachability* and leaves the *arithmetic* of the control wrong -- CAP #12's own
+distinction, restated by CAP #13 section 11, and the same reason D114 fixed F-A's arithmetic rather
+than R51's reach.
+
+---
+
+### D125. F-A's population: `SchemaSQL` moves with the migration, and `022` stays as history
+
+**The finding this addendum owes to its own audit.** CAP #13 names migration `023`. D123 row 3 found
+that `internal/screeningledger/postgres.go:2113` -- `SchemaSQL`'s own array-form copy, executed by
+`Migrate()` on every `migrate`, `sync` and `import-audit` invocation -- carries the byte-equivalent
+`array_length` / `[i]` / `= ANY` text and is **live on the SchemaSQL bootstrap path**.
+
+**Decision: the repaired body lands in a new `db/migrations/024_screening_ledger_purge_element_domain.sql`
+AND in `SchemaSQL`, in one change.** D117's finding is one round old and is exactly this shape read
+from the other side: a control declared for one bootstrap path and not the other produces a database
+that is either unprotected or unprovisionable, deterministically, depending on how it was built.
+Shipping `024` alone would leave every SchemaSQL-bootstrapped database carrying the defect while
+every observer reports clean.
+
+**`022`'s literal is left as committed history, and that is a decision rather than an omission.**
+D99(c) settled this shape for `008g`'s surviving `ON CONFLICT ... DO NOTHING`
+(`0007:10618-10645`) and the reasoning transfers without modification: `023` re-issues the same
+overload with `CREATE OR REPLACE`, so on the full migration path `023`'s body wins and `022`'s is
+live on no database this repository provisions. **What makes leaving it safe is not that reasoning
+but D99(b)'s already-shipped stronger property** -- every superseded committed literal must digest
+to something outside every declared accepted set, asserted by derivation in
+`TestSupersededPurgeSnapshotsLiteralsAreNotAccepted`. `024` adds a fourth superseded literal to that
+population and the gate covers it without an edit, which is D99(a)'s whole point.
+
+**Cost, stated because it is real and a reader will hit it.** Both definer digests move for the
+**fourth consecutive round** -- D107 moved them, then D116, now D124. All four
+`(function, bootstrap path)` constants (`postgres.go:171-174`) and `provision_test_roles.sh`'s D117
+two-member sets are **re-measured on both bootstrap paths, never hand-edited**, and D118's gate is
+what keeps them honest, which is why D127 must not lag this stage by more than one. Both overloads
+are `requiredProtectedObjects` members (`postgres.go:435-436`), so `024`'s `CREATE OR REPLACE
+FUNCTION` is refused by D34 on an already-provisioned database and this is a **re-provisioning
+event** -- D87's standing cost (`0007:9031-9049`), two migrations later, covered by the documented
+window.
+
+---
+
+### D126. F-B (HIGH): the missing set's cardinality is asserted, not only its membership
+
+**The finding, restated from the code and reproduced independently.** D120 replaced D109's arithmetic
+count identity with a **set** and did not carry the count over. `ShortfallExplainedByUnreplicatedEvents`
+(`anchor.go:574-607`) increments `missing` at `:598` and returns `missing > 0` at `:606`. **The value
+is counted and then compared to nothing.** D120's own governing text is
+`0007:11745-11751`, quoted by D120 itself: the deferral applies when "the missing rows correspond
+**one-for-one** to events for which `IsReplicated` is false." One-for-one is a statement about
+cardinality -- `|missing|` must equal `ChainCount - MirrorCount` -- and that equality is asserted
+nowhere.
+
+**Reproduced through the real, unmodified discriminator**, using this package's own `buildShape`
+scaffolding rather than CAP #13's transcript. The state is one planted mirror row whose `event_id`
+this ledger's chain does not have -- an `INSERT` `owl_migrator` holds -- against three chain events:
+
+```
+A14FB buildShape [m,n,n]: chain=3 mirror=1 mirroredIDs=1
+A14FB chainCount=3 mirrorCount=2 shortfall=1  |missing set|=2  replicatedInMissing=0
+A14FB one-for-one requires |missing| == shortfall: 2 == 1 -> false
+A14FB SHIPPED ShortfallExplainedByUnreplicatedEvents -> true   <- DEFERS
+A14FB CANDIDATE (adds |missing| == shortfall)        -> false
+A14FB deferral message sync.go would then print: "mirror/chain count shortfall for snapshot
+  af06eee4... (mirror=2, chain=3) deferred: fully accounted for by this ledger's own unreplicated
+  events (ADR-0007 Addendum 12 D109)"
+```
+
+**Three things in that state are wrong together**, and the third is the one that makes this a HIGH
+rather than a LOW: the shortfall is 1 while the missing set has 2 members, so the deferral fires on a
+state its own predicate does not describe; `Sync` then mirrors and writes rows into a table whose
+immutability triggers make them **permanent**; and the diagnostic it prints asserts the shortfall is
+"**fully accounted for**", which is measurably false. **D120 is a strict weakening on this state** --
+the count identity it replaced refused before writing anything.
+
+**Decision: the deferral requires BOTH conditions, and `missing` becomes the set its name claims.**
+
+- `missing` is collected as a slice of event ids rather than incremented as a counter -- **so the
+  diagnostic can name what it found**, which is what turns a false "fully accounted for" into a true
+  statement about a specific state.
+- The deferral holds if and only if `len(missing) == div.ChainCount - div.MirrorCount` **and** every
+  member has `IsReplicated == false` **and** `len(missing) > 0`.
+- **Neither condition may be removed on the other's strength**, and this is stated in both places
+  (the arrangement D41 part three set for D40, `0007:3447-3448`): membership without the count
+  defers on the state above; the count without membership is D109's own withdrawn identity, which
+  D120 correctly replaced and whose two failure shapes D120's own six-row table already measures.
+
+**D19/F5 is untouched.** The deferral still ends in the same full, unmodified re-verification
+(`sync.go:97-107`), every other divergence still aborts before the first `Persist`, and D109's
+second verification remains the gate. This decision narrows what may be deferred; it does not move
+where the gate sits.
+
+**D120's own text is corrected in this decision's own words rather than edited** (AR7): D120 states
+that the missing-set rule is "correct on all six shapes, where the count identity is wrong on two,
+in opposite directions." That is true of the six shapes D120 enumerates, **and the enumeration is
+incomplete** -- it contains no shape in which the mirror holds a row the chain does not, which is
+the shape a planted `INSERT` produces and the one this finding rides. The six-row table is right
+about what it covers; D126 adds the seventh row it does not.
+
+---
+
+### D127. F-C (MEDIUM): a retired type list classifies a body, it does not exempt one
+
+**The finding, restated from the code and reproduced DSN-free.** D118 correctly replaced a parameter-
+**name** prefix match with a complete canonicalized argument **type** list matched by equality.
+`isRetiredSignature` (`d92_digest_gate_derivation_test.go:347-355`) then feeds an **unconditional
+skip** at `:392`: `if isRetiredSignature(funcName, canonicalFound) { continue }`. **So a body whose
+type list equals a retired one is invisible to the gate no matter what it contains.** The same
+exclusion applies a second time in `derivedPopulation` (`:314`, `:321`), whose type-list filter
+removes those bodies from the population before any digest is compared.
+
+Executed against a real copy of `db/migrations/` plus one rogue file that sorts last, through the
+real `assertNoBodyDropped`:
+
+```
+A14FC resurrected_retired_time_floor_signature   type_list="timestamptz,text,text"                     retired=true  *** GATE PASSED -- rogue body INVISIBLE ***
+A14FC resurrected_retired_array_signature        type_list="text[],timestamptz,text,text"              retired=true  *** GATE PASSED -- rogue body INVISIBLE ***
+A14FC out_parameter_shifts_postgres_identity     type_list="text[],text,int[],timestamptz[],text,text" retired=false *** GATE PASSED -- rogue body INVISIBLE ***
+A14FC control_variadic                           type_list="text[],text,int[],timestamptz[],text,text[]" retired=false GATE FAILED (rogue caught)
+```
+
+The two "retired" rogues are `SECURITY DEFINER` bodies that insert a tombstone for **every** unpurged
+snapshot. **The third row is a different mechanism reaching the same outcome**, and it is D118's own
+finding on an axis D118 did not consider: `argTypeList` (`:264-277`) takes `fields[len(fields)-1]` of
+every parameter, so an `OUT` parameter is counted -- while **PostgreSQL excludes `OUT` parameters
+from a function's identity arguments**, and therefore resolves that body as a *different* function.
+The gate and the server disagree about which object the text declares. The `VARIADIC` control shows
+the extraction is otherwise sound.
+
+**Decision, two parts.**
+
+**(a) A retired type list is a classification, not an exemption.** A body whose type list matches a
+retired signature is still **placed**: its digest must equal the known committed literal for that
+retired signature, and a mismatch is a named failure identifying the file, the signature and the live
+digest. That converts "this signature no longer exists, so I will not look" into "this signature no
+longer exists, and this is provably the historical body that bore it" -- **D99(b)'s own move**
+(`0007:10608-10616`), applied one layer earlier, to the classification the gate performs *before* the
+population is derived. `retiredFunctionTypeLists` keeps its D118 meaning and its D31 closed-set
+shape; what changes is that membership in it stops being a reason to stop looking.
+
+**(b) The type list is derived from the parameters PostgreSQL's identity arguments actually
+contain.** `OUT` parameters are excluded; `IN`, `INOUT` and `VARIADIC` are kept, `VARIADIC`'s array
+type included, which the control row confirms is already handled correctly. This is D108's own
+"select by resolved identity" (`0007:11675-11689`) applied to a parameter *mode* rather than a type
+*spelling* -- the same defect, one attribute over.
+
+**D76 applies and is stated, because it is the reason this is fixed rather than accepted.** CAP #13
+rates F-C MEDIUM on the measured ground that the rogue definer executes as its creator
+(`owl_migrator`), which cannot write a tombstone, so the forgery does not complete. **That is
+correct and it is not a reason to leave the gate broken**: D76's composition principle
+(`0007:7688-7690`) forbids one control's gap being carried by another control's independent refusal,
+and D17/D27's role separation is doing exactly that here for the **fourth** round running (CAP #13
+section 7.3's own observation). The gate is what declares the body legitimate; it must not declare a
+body it never looked at.
+
+**D108(b)'s stated property is corrected in this decision's own words** (AR7): "A body that fails to
+map to any declared overload is a **failure**, never a silent discard" (`0007:11686-11689`) is false
+for the three classes above -- the first two never reach the mapping at all, and the third maps to
+the wrong overload. D118 narrowed the class that escapes and did not close it; D127 closes it.
+
+---
+
+### D128. F-D (MEDIUM): a refusal names a remedy valid on the command that prints it
+
+**The finding, reproduced end to end through the real CLI**, on the state the operator document's own
+confirmation step reaches -- a freshly provisioned database with no anchor row for this ledger, under
+the committed example policy (`min_anchor_sequence: 0`, `tenancy: exclusive`):
+
+```
+########## the operator document's confirmation step (:83-93), run verbatim ##########
+anchored mode requires an existing anchor row and none was found for this ledger; pass
+--allow-genesis explicitly if this is genuinely a first anchor (required every time this state is
+reached, not only 'the first time' -- ADR-0007 D12/D19)
+rc=1
+
+########## following that instruction, on the same command ##########
+--allow-genesis has no effect on this command (ADR-0007 Addendum 2 D24) -- it is meaningful only on
+`anchor`, where it acknowledges a genuine first anchor
+rc=1
+
+########## and the flag's own second trap ##########
+--allow-genesis requires a value
+rc=1
+```
+
+**Both messages are individually correct and the pair is a dead end.** The first is `anchor.go:921`,
+raised inside the shared `VerifyAnchored` path. The second is
+`cmd/screening-ledger/main.go:326-327`, which **D24 added deliberately and correctly** -- silently
+ignoring the flag on a verification path is the silent-absence shape D24 exists to remove, and that
+decision is not reopened. The third is `parseOptions` (`main.go:425-427`), which requires a value for
+every flag.
+
+**Which side is right, decided rather than split.** `--allow-genesis` genuinely has no meaning on
+`status`/`verify`/`sync`: it is an acknowledgment made when *writing* a first anchor, and D13/R13
+already restate that it is "an acknowledgment, not evidence." **D24 is right and stays. The defect is
+that `anchor.go:921` is reached from four subcommands and names a remedy valid on one of them.**
+
+**Decision: the absent-anchor outcome becomes a typed sentinel, and each subcommand renders the
+remedy that is valid where it is printed.**
+
+- `VerifyAnchored` returns a distinguishable error value for "anchored mode, no anchor row, policy
+  floor permits genesis" rather than a bare `errors.New` string. `AnchorOptions`
+  (`anchor.go:286-291`) is not given a "which command am I" field -- that would put a caller's
+  identity inside a verification input, which is the shape D8 exists to forbid. The **caller**
+  decides what to print, because the caller is the only party that knows what it is.
+- On `anchor`, the message is unchanged.
+- On `status`/`verify`/`sync`, the message states the state and names the remedy that works:
+  write the ledger's first anchor with `screening-ledger anchor --allow-genesis true`, then re-run.
+  **The flag's value-requiring shape is named in the message**, since CAP #13 found `--allow-genesis`
+  alone is a second trap.
+
+**The remedy was executed before it was named, which is the whole point of the finding.** A message
+naming an unverified remedy is the defect being repaired:
+
+```
+########## the candidate remedy ##########
+$ screening-ledger anchor --postgres-dsn-env <VAR> --anchor-dsn-env <ANCHOR_VAR> <flags> --allow-genesis true
+{"audit_sequence":1,"operation":"anchor","policy_sha256":"8b7a67c0...","sequence":2,"status":"ok"}
+
+########## the document's confirmation step, re-run ##########
+{"anchor_age_seconds":0.03099,"anchor_sequence":2,"anchor_status":"verified", ... "status":"ok",
+ "verification_mode":"anchored"}
+```
+
+**Two facts found by running it, both of which the message and the document must carry.** The
+anchor subcommand's DSN flag is **`--anchor-dsn-env`**, not `--anchor-postgres-dsn-env` -- the wrong
+spelling produces `--anchor-dsn-env is required`. And:
+
+```
+$ grep -n 'anchor-dsn-env\|screening-ledger anchor' docs/operations/sec7-database-copies.md
+  (the operator document names neither the `anchor` subcommand nor its DSN flag)
+```
+
+**So the remedy is unreachable from the document alone even once the message names it**, which is why
+D128 has a documentation half and not only a code half: `docs/operations/sec7-database-copies.md`
+gains this state, the full `anchor` invocation including `--anchor-dsn-env`, and the transcript
+above -- **executed before it is written**, D84's standard, restated by D94, D111(b) and D121 and not
+relaxed here.
+
+---
+
+### D129. F-E (LOW): D113's table population is derived, not hand-listed
+
+**The finding.** D113 row 6 disposes of the `int64(...)`/`uint64(...)` sequence conversions in
+`anchor.go` by listing line numbers. Re-derived at D113's **own** basis commit, that file contains
+**nine** such conversions and the table accounts for seven -- six in row 6 and one in row 5. The two
+omitted are D32's forward attestation-ordering comparison and D70's reverse one, at
+`anchor.go:725` and `:774` at this commit.
+
+**Their disposition is confirmed by execution rather than asserted**, which is what row 6's own
+disposition ("checked, unreachable") requires and what a hand list cannot supply:
+
+```
+A14FE int64(entry.Sequence=9223372036854775807) = 9223372036854775807  (compared with '> anchoredAuditSequence')
+A14FE int64(entry.Sequence=9223372036854775808) = -9223372036854775808 (compared with '> anchoredAuditSequence')
+A14FE int64(entry.Sequence=18446744073709551615) = -1                  (compared with '> anchoredAuditSequence')
+```
+
+Both sites read `entry.Sequence` of an `AuditEvent` drawn from this ledger's **own** audit chain,
+whose value is bounded by the number of audit entries the chain contains -- identically to row 6's
+six members. **The disposition is row 6's, and nothing is broken.**
+
+**What is wrong is the method, and that is the finding.** The round's headline new audit enumerated
+its population **by hand** and missed two of nine members of the shape it was looking for, in the
+single file it was looking in. That is CLAUDE.md's own "never enumerate targets by inference" trap,
+and it is precisely the criticism D118 makes of a name pattern, turned on D113's own table. **By
+contrast D113's out-of-package sweep is exactly right** -- fourteen lines, seventeen expressions --
+which is what makes the in-file miss a method failure rather than a capacity one.
+
+**Decision: the population is derived at test time, not listed.** A **DSN-free** check enumerates
+every integer-narrowing conversion in the swept file by pattern and asserts that each appears in
+D113's declared table with a disposition -- so a conversion added later fails the gate rather than
+being missed. This is **D99(a)'s own move** (`0007:10600-10603`), applied to the derivation table
+instead of to the digest gate's file list: a member added later is covered without an edit. D113's
+table gains the two rows, and the table stops being the authority for its own completeness.
+
+---
+
+### D130. F-F and F-G (LOW, LOW): `RetentionPolicy`'s two under-specified fields
+
+**One decision, because they are two fields of one struct reached by one mechanism**, and because
+fixing one and leaving the other is D86's whole-round obligation unapplied inside this round's own
+smallest finding.
+
+**F-F, reproduced through the real `Store.Append`.** `store.go:256`'s
+`if input.Retention.MaxSnapshotBytes <= 0` sits **two lines** below the `switch` (`store.go:248-255`)
+in which D114(b) named this exact conflation a defect and made `RetentionDays < 0` a named refusal:
+
+```
+A14FF MaxSnapshotBytes=0      -> ACCEPTED, silently became 2097152 (store.go:256)
+A14FF MaxSnapshotBytes=-1     -> ACCEPTED, silently became 2097152 (store.go:256)
+A14FF MaxSnapshotBytes=-1024  -> ACCEPTED, silently became 2097152 (store.go:256)
+```
+
+A caller asking for a **stricter** snapshot cap than zero silently gets a 2 MiB one -- the request is
+not merely ignored, it is inverted.
+
+**Decision: `MaxSnapshotBytes` gains D114(b)'s own treatment, in D114(b)'s own words.** `0` is
+"unset" and keeps the documented 2 MiB default; a negative value is a **distinct fact** (invalid, not
+unset) and is refused by name. D114(b)'s reasoning transfers verbatim and is not re-argued: "the
+first has a correct answer and the second does not." This is a behaviour change on an existing path
+and is named as one, exactly as D114(b) named its own.
+
+**F-G, and the sibling the brief does not name.** `main.go:228` and `:231` build `RetentionDays` and
+`MaxSnapshotBytes` into the `RetentionPolicy` that `export` hands to `ExportBundle` (`replay.go:75`),
+which passes `policy` only to `RedactJSON` (`:92`, `:96`) -- and `RedactJSON` reads `RedactKeys` and
+`HashKeys`. Re-derived at this commit, the complete set of non-test readers of any `RetentionPolicy`
+field is `redact.go:18` and `Store.Append`'s own block (`store.go:249-270`). **Both flags are dead on
+the export path, by one mechanism.**
+
+**Decision: both flags are removed rather than wired, and the reasoning is stated because the brief
+offers both options.** `ExportBundle` has no legitimate use for either: an export's redaction policy
+is `RedactKeys`/`HashKeys`, and a bundle does not create a retention obligation -- the obligation
+lives on the `Event` the chain already MACed. **Wiring a dead flag to a newly-invented meaning is
+inventing a contract in the implementing pass**, which CLAUDE.md rule 7 forbids and which D85's
+second withdrawal condition forbids for exactly the same reason one object over. Removing them is the
+smaller and more honest change.
+
+**One consequence that must ship with the removal, or the removal is itself a silent absence.** This
+CLI **silently accepts unknown flags** -- re-confirmed by CAP #13 at this commit, and recorded in the
+operator document at `:99-102`. So after removal, an operator passing `--retention-days` gets exactly
+the silence they get today, and nothing tells them the flag stopped meaning anything it never meant.
+**The removal is therefore paired with `export`'s usage text stating which flags it reads**, so the
+absence is visible where an operator looks. Fixing the CLI's unknown-flag acceptance in general is a
+larger change with its own blast radius across every subcommand and is **named as out of scope
+rather than silently left** -- R58 records it.
+
+---
+
+### D131. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95,
+D103, D112 and D122 set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a transcript exists
+above, the test reproduces that transcript, not a paraphrase. Several are stated as "must pass today
+and fail after" -- deliberately, per D42's note (`0007:3461-3465`): for these findings the current
+behaviour is *acceptance*, so a test asserting only the post-fix refusal cannot distinguish a working
+fix from a test that never exercised the path.
+
+1. **D124 -- the CRITICAL.** `TestPurgeCorroborationRangesOverTheElementSetAnyTests` (pgx),
+   table-driven over **all four** constructions measured above -- `'[5:5]'`, multidimensional,
+   `'[0:0]'`, and the two-element multidimensional array against a one-element count array -- each
+   asserting the purge **succeeds today** (tombstone written, `purged_at` set, and
+   **`ciphertext_base64` absent from the envelope**, which is the assertion that proves evidence
+   destruction rather than a bookkeeping change) and is refused after, naming the element. **Plus the
+   two honest refusals**, which must refuse before and after: the true chain obligation
+   `(2, 2100-01-01)`, and the same vacuous `(0, NULL)` claim in a 1-based array -- the control that
+   proves the array domain and not the claim is the defect. **Plus the positive control, which is a
+   shipping requirement and not a nicety**: an honest, correct `(1, <the true max>)` call still
+   purges, before and after. A suite that proves only the refusals has not proven D124 is safe to
+   install (D37's rule, verbatim).
+2. **D124's mechanism facts, pinned so a later reader does not re-derive them.** A DSN-gated unit
+   assertion that `unnest()` yields exactly `cardinality(a)` rows in storage order and sees the same
+   element `= ANY(a)` matches, across all six shapes in D123's table; and that multi-argument
+   `unnest` pairs in storage order and pads with NULL on a cardinality mismatch. **These are the
+   facts D124 rests on**, and D122 item 7's precedent is that a fact which decides a design is
+   pinned by a test rather than only by this document's prose.
+3. **D125 -- both bootstrap paths.** The same four constructions against a **`create-schemasql-only-database`**
+   bootstrapped through the real `Migrate()`, asserting each is refused there too. **This is the test
+   that catches a fix applied to `024` and not to `SchemaSQL`**; without it, a one-path repair passes
+   its own suite. Plus: `grant-ddl-ownership` accepts a clean migration-bootstrapped database **and**
+   a clean SchemaSQL-bootstrapped database after the digests move (D117's own requirement, restated
+   because D124 moves them again), and **D90 unregressed** -- both event triggers `evtenabled='A'`
+   and all three registries at 13/2/1 after every refusal.
+4. **D126.** `TestShortfallDefersOnlyWhenTheMissingSetExplainsTheShortfall` (DSN-free, through
+   `buildShape`): the planted-row state above, asserting the shipped discriminator returns **`true`
+   today** with `|missing|=2` against a shortfall of 1, and `false` after. **Plus D120's own six
+   shapes unregressed**, each keeping its current verdict -- this decision adds a seventh row and must
+   change none of the six. **Plus the four negatives that keep the gate intact** (D112 item 6,
+   restated): a mirror row the chain does not have; a `max` disagreement on a mirrored row; a
+   shortfall covering an event `MarkReplicated` already recorded; and a mirror ahead of the chain --
+   each still aborting before the first `Persist`. **Plus the diagnostic assertion**: the deferral
+   message no longer claims "fully accounted for" on a state where it is false.
+5. **D127.** The gate **fails** against each of the three classes measured above -- a resurrected
+   time-floor retired signature, a resurrected array-form retired signature, and an `OUT`-parameter
+   body whose extracted list collides with a live overload -- and names the file and signature.
+   **Plus the `VARIADIC` control unregressed.** **Plus the positive that keeps the rule from being
+   absent from both sides**: `assertNoBodyDropped` against the **unmodified** `db/migrations` reports
+   zero unplaceable bodies, and D118's, D108(a)'s, D99's and D92's existing assertions all still
+   pass. **Plus the assertion that it still runs with no DSN**, which is D92's own property
+   (`0007:9484-9486`) and the reason this is a gate rather than something that self-skips.
+6. **D128.** `TestAbsentAnchorNamesARemedyValidOnThisCommand`: `status`, `verify` and `sync` against a
+   provisioned database with no anchor row each exit non-zero **today** naming `--allow-genesis`, and
+   after the change name the `anchor` invocation instead; `anchor`'s own message is **unchanged**;
+   and `status --allow-genesis true` still exits non-zero with D24's refusal, which must not
+   regress. **Plus the end-to-end positive**: the named remedy, run, clears the state and the
+   subsequent `status` returns `"anchor_status":"verified"` -- the assertion that would fail if the
+   message named something that does not work.
+7. **D129.** The derivation-population check runs with **no DSN** and fails against a deliberately
+   added integer-narrowing conversion that D113's table does not account for.
+8. **D130.** `MaxSnapshotBytes` at `0` still defaults to 2 MiB; at `-1` and `-1024` it is a named
+   refusal. `export` no longer accepts `--retention-days` or `--max-snapshot-bytes`, and its usage
+   text names the flags it reads.
+9. **D124/D128's documentation half.** Every command written into
+   `docs/operations/sec7-database-copies.md` is executed and its output pasted in the stage PR --
+   D84's standard, restated by D94, D111(b) and D121, and not relaxed here. Not automatable, and
+   stated as a review obligation rather than pretended into a test.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D124 must not be discharged by validating the array inside or before the loop** -- not by
+  `array_lower(...) = 1`, not by `array_ndims(...) = 1`, not by comparing `array_length` against
+  `cardinality`, and **not by any of these "as defence in depth" alongside the `unnest` form**. The
+  defect is two expressions ranging over different element sets; a precondition asserting they
+  coincide is strictly weaker than having one set, and adopting it alongside the real fix would leave
+  a second declaration nothing re-checks -- H-E's exact shape. CAP #13's own invalidation condition,
+  restated.
+- **D124 must not be discharged by revoking `EXECUTE` on the array-form overload from
+  `owl_migrator`.** That retires the reachability and leaves the control's arithmetic wrong -- CAP
+  #12's distinction, restated by CAP #13 section 11, and the same reason D114 fixed F-A's arithmetic
+  rather than R51's reach.
+- **D124 and D125 ship together.** A repair present on one bootstrap path and absent from the other
+  is D117's own finding, one round old, read from the other side.
+- **If PROTO-A cannot be implemented** without changing either overload's signature or
+  `RecordPurge`'s contract beyond what this addendum describes, the implementation **stops and this
+  addendum is amended**; the recorded fallback is PROTO-B (normalise at entry), which is **strictly
+  worse for the two measured reasons in D124 and must be recorded as such, not presented as
+  equivalent**.
+- **D126's count and membership conditions ship together**, neither removable on the other's
+  strength, and **D120's six shapes must all keep their current verdicts**.
+- **D127 must not be discharged by removing `retiredFunctionTypeLists`.** A retired signature is a
+  real, correct classification -- D118's own closed-set decision -- and deleting it would make every
+  historical body an unplaceable failure, which is a false refusal on a clean tree. The fix is that
+  the classification must place the body, not skip it.
+- **D130's flags must not be wired to a newly-invented meaning.** Removing a dead flag is the smaller
+  change; giving it a contract it never had is inventing one in the implementing pass.
+- **No tolerance, anywhere.** If any comparison in this addendum cannot be made exact, the
+  implementation stops and this addendum is amended rather than shipping an equivalence relation
+  invented in the implementing pass. D85's second condition, D103's fourth, D112's last and D122's
+  last; the **fifth** round to restate it.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #13's confirmation. D114(a) and
+D114(b) remain shipped together and neither is reopened -- D124 changes how an argument's elements
+are *reached*, not any value's derivation. D116's global corroboration population is **untouched**:
+D124 changes which elements the loop visits, never which rows the aggregate ranges over, and the
+`ledger_id` scoping D116 removed stays removed. D116's caller-side `TenancyShared` refusal
+(`replay.go:196-204`) is untouched. D117's two-member accepted sets are untouched in shape; their
+*values* move, which is the mechanism D117 exists to support and not a change to it. D118's type-list
+equality is kept and extended, never replaced by a prefix rule. D107's four lying directions and
+D116's own conjunction table are re-run as part of D131 item 1. D97 and D98 remain shipped together;
+a MINIMUM-based floor is not adopted; the eligibility population is not scoped to one `ledger_id`.
+D99's gate is strengthened in classification only, never weakened in derivation, and is not
+discharged by a hand list. `screening_ledger_event` is not registered as a protected object or
+relation. D101's marker is untouched and is still not a number. `SnapshotCreatedAt` is not
+reinstated. `prosrc` is not normalised, trimmed or whitespace-folded in any control. D88(a) and
+D88(b) remain shipped together and `anchorMAC`'s input is untouched. D77 and D80 remain shipped
+together. D79's hoist is untouched. D65's validity branch and D50's `index_defs` are untouched, so
+Addendum 6's and Addendum 7's stated fallbacks are both **not** required and **must not** be adopted.
+The withdrawn D74 reaper is not reintroduced. The instance binding is still not a gate. D46 is not
+split from D45. D40's collateral-damage cases pass. D38(a) and D38(b) remain shipped together. D69's
+rejection of `pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R56 -- the honest path's immunity is a property of the driver, and it is now a checked precondition
+rather than a coincidence.** `pgx` encodes `[]string`, `[]int32` and `[]*time.Time` as one-based,
+one-dimensional arrays, which is the only reason `RecordPurge` (`postgres.go:1890-1911`) cannot
+produce any of D124's four constructions and why the honest path refuses correctly today. **That is a
+fact about a dependency, not about this repository's code**, and D124 removes the dependence on it
+rather than documenting it -- after D124 the server no longer cares what shape arrives. The residual
+recorded here is narrower and real: **D123 row 10's verdict is "does not apply" *because of* that
+encoding**, so a future change to how the Go side builds these arrays -- a different driver, a
+hand-built `text[]` literal, a `pgtype` construction with explicit dimensions -- re-opens row 10 and
+must re-run D131 item 1. The re-entry condition is any change to how `RecordPurge` encodes its three
+arrays.
+
+**R57 -- D127 closes the gate's own blindness and does not close the class of an undeclared live
+overload.** After D127 a rogue body in `db/migrations/*.sql` is placed or named. What no control
+enumerates is the **live catalog's** set of overloads of a protected function name: CAP #13 section
+7.3 measured a third `screening_ledger_purge_snapshots` overload created by `owl_migrator` on a
+provisioned database, with `grant-ddl-ownership` printing three `PASS` lines and never mentioning it,
+because D34's event triggers do not fire on creating a *new* function. **Its exploitation is bounded
+by ownership and not by any gate** -- the rogue definer executes as its creator, which cannot write a
+tombstone -- which is D17/D27 carrying a gap for the fourth consecutive round, and D76 says that is
+not a control. Closing it is D62(a)'s shape applied to functions rather than to relations
+(enumerate the live overloads of a declared name and refuse an undeclared one) and it is **not
+adopted here**: it is a new provisioning-time assertion over a population this addendum has not
+measured, and folding it into a stage that is repairing an element domain is how a round ships a
+mechanism it did not audit. **The register should carry it**, and the re-entry condition is the first
+change that gives any role other than `owl_migrator` `CREATE` on a schema holding a protected
+function, or the first deployment that screens real traffic.
+
+**R58 -- the CLI's silent acceptance of unknown flags is untouched, and D130 works around it rather
+than closing it.** `parseOptions` (`main.go:419-432`) accepts any `--flag value` pair and stores it;
+nothing rejects a name no subcommand reads. D84 recorded this by execution
+(`--totally-bogus-flag xyz` returning `rc=0` with no diagnostic) and the operator document states it
+at `:99-102`. After D130 removes two dead flags, an operator still passing one gets silence.
+**Closing it means deciding a rejection contract for eight subcommands with different flag sets,
+which is its own decision with its own reproduction** -- and it is the kind of change that turns
+every operator's existing script into a hard failure on upgrade, so it must not be smuggled into a
+LOW's remediation. Recorded rather than designed, with D130's usage-text half as the bounded
+mitigation.
+
+**R59 -- the coordinated-edit surface grew again, along the axis R23, R29, R33, R42, R46, R50 and R55
+already track.** D124 changes both definer bodies, so all four `(function, bootstrap path)` declared
+digests move for the **fourth** consecutive round, and `provision_test_roles.sh`'s D117 two-member
+sets move with them; D125 adds a fourth superseded literal to D99(b)'s derived population, which the
+gate covers **without an edit**, which is the one place the surface did not grow; D127 adds a digest
+comparison to the retired-signature classification; D129 adds a derived population to D113's table;
+D130 removes two CLI flags and adds usage text. **No new *kind* of literal is introduced** -- every
+one is a property of an object this document already declares -- but the count grew again and this
+addendum does not pretend otherwise. The mitigating property is unchanged and is why the arrangement
+survives: **every one of those assertions fails closed**, and D129 and D125 each replace a hand list
+with a derivation, which narrows R46's own stated fragility. The aggravating property section 10.3
+names -- that these controls have no single owner -- is unchanged and is not addressed here.
+
+### Staging
+
+Same shape and reason as section 8 and the thirteen prior addenda: each stage independently reviewable
+and independently provable. Ordered by dependency rather than severity, following CAP #13 section 11's
+own recommendation.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage R1 -- the element set.** D123's audit obligation, D124 and D125 together (D131's third
+   withdrawal condition). **The CRITICAL, and first and alone**, exactly as CAP #13 section 11
+   requires: it changes both definer bodies, so all four declared digests move, and it must land
+   before anything that asserts them. Its positive control -- an honest, correct purge still purging,
+   on **both** bootstrap paths -- is a shipping requirement, and its withdrawal conditions are
+   discharged or invoked here.
+3. **Stage R2 -- the deferral.** D126. Independent and Go-only; it touches neither the definer bodies
+   nor the gate, so it can land in parallel with R3 if that is convenient.
+4. **Stage R3 -- the gate.** D127. **Must not lag R1 by more than one stage**: R1 moves both definer
+   digests and D127 is what keeps the gate that declares them honest -- the relationship Addendum
+   10's M3 had to its M2, Addendum 11's N3 to its N2, Addendum 12's P3 to its P2 and Addendum 13's Q4
+   to its Q3.
+5. **Stage R4 -- the operator's next step and the three LOWs.** D128, D129 and D130. Blocks nothing,
+   and is therefore sequenced last and explicitly **not** droppable -- D23 was sequenced last on the
+   same "blocks nothing" reasoning and CAP #2 rated the resulting gap HIGH, a lesson Addenda 5
+   through 13 each repeated and which D93(b) is the standing proof of. Per CLAUDE.md Boundaries any
+   `.github/workflows/*.yml` wiring is named explicitly in the stage PR description, following D30's
+   precedent; a local `run-ci.sh` pass does not prove workflow wiring and this document does not
+   pretend otherwise.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes.
+   CAP #13 re-confirmed nothing has re-asserted the guarantee; that must remain true through this
+   addendum as well.
+
+**SEC-7 does not close on this addendum, and for the first time in four rounds the reason is a
+forgery.** Section 8's closing condition -- "a deliberately forged chain fails a CI run that nobody
+chose to invoke" -- remains met for the **chain**: CAP #13 confirms the cryptographic layer is
+unbroken across all thirteen rounds and no forgery of the chain was demonstrated in this round
+either. It is **not** met for the **retention claim**, and this round it fails for the strongest
+reason the arc has produced: **a section-2 role destroys a decision snapshot under a live,
+chain-authenticated retention obligation with a single SQL statement, through the control the
+previous round shipped to prevent exactly that, while the honest path refuses the same operation.**
+D124 and D125 are the whole of that barrier.
+
+### Addendum 14 summary
+
+- **CAP #13's verdict is QUALIFIED, not PASS, for the thirteenth consecutive audit, and after three
+  clean rounds it demonstrates a forgery.** Seven findings -- one CRITICAL, one HIGH, two MEDIUM,
+  three LOW. Every principle from Addenda 3 through 13 held; this addendum reopens none of them, and
+  **D116's decision to make the corroboration's population global is explicitly not reopened** -- F-A
+  is a defect in how that aggregate's loop is driven, not in the decision to make it global.
+- **This addendum introduces no new axis, and that is the finding rather than a gap.** The axis is
+  Addendum 11's cardinality, whose own principle is about *descriptions*, not rows. `a[i]` and
+  `= ANY(a)` are two descriptions of two element sets, and D96's audit never asked the question of an
+  argument's elements because every referent it enumerates is found by a query rather than a
+  subscript. **D123 widens D86's, D96's and D104's population rather than adding a twelfth
+  principle**, so a later round inherits the wider question.
+- **The design is D123-D131.** The element-cardinality audit with its twelve-row table (D123); the
+  corroboration driven by `unnest` over the set `= ANY` tests, with `cardinality` replacing
+  `array_length(...,1)` as the only length measure and the subscript removed rather than made safe
+  (D124); `SchemaSQL`'s copy moving with the migration and `022`'s literal left as history on
+  D99(c)'s precedent (D125); the missing set's cardinality asserted alongside its membership (D126);
+  a retired type list that classifies a body instead of exempting it, and a type list derived from
+  the parameters PostgreSQL's identity arguments actually contain (D127); a refusal that names a
+  remedy valid on the command that prints it (D128); D113's table population derived rather than
+  hand-listed (D129); `RetentionPolicy`'s two under-specified fields (D130); and the proof
+  obligations with pre-declared withdrawal conditions (D131).
+- **This design pass executed its mechanism assumptions, and the measurement widened the finding
+  twice and refused to settle the fix.** `array_length(a,1)` and `= ANY(a)` disagree about which
+  elements they range over in **five of six** shapes, and `cardinality(a)` agrees with `= ANY` in all
+  six -- so CAP #13's two constructions are two members of a class with three independent generators.
+  **A fourth construction, transcribed by no CAP, destroys two snapshots in one call by defeating
+  migration `023`'s own LENGTH PRECHECK** rather than only its loop. `unnest()` ranges over exactly
+  the element set `= ANY()` tests, in every shape, in storage order, and multi-argument `unnest`
+  pairs across mixed shapes -- the property D124 needs, measured rather than assumed. Array equality
+  **is** bound- and dimension-sensitive, so D40's recorded-state comparisons are "does not apply"
+  *and* fail closed. And `ARRAY(SELECT unnest(a))` silently rewrites a **NULL** array into an
+  **empty** one -- the unset/invalid conflation D114(b) named a defect one round ago, reintroduced by
+  the candidate repair.
+- **The execution did NOT choose between the two candidate fixes, and this addendum says so rather
+  than claiming it did.** Both close all four constructions and both preserve the positive control,
+  at identical cost. `unnest` is adopted on two stated grounds the measurement informs but does not
+  settle: normalising rewrites NULL into empty, and normalising leaves a whole-body invariant that a
+  fourth array argument -- exactly what D107 and D116 each added in the last two rounds -- would
+  silently break. **D31's own move: do not make the dangerous construct safe, remove it.**
+- **Two of the brief's own premises did not survive verification**, and both moved the fix.
+  `docs/operations/sec7-database-copies.md` names `--allow-genesis` **nowhere** -- `anchor.go:921`'s
+  shared message does, so D128 repairs the message rather than the document. And `--retention-days`
+  has a sibling: `--max-snapshot-bytes` is dead on the same path by the same mechanism, and the field
+  it would have left behind is F-F's own.
+- **Three findings are owed to this addendum's own audit rather than to the CAP.** `SchemaSQL`'s
+  array-form copy carries the identical defect and is live on the SchemaSQL bootstrap path (D123 row
+  3, D125); the two-element multidimensional construction defeats the length precheck (D124); and
+  D120's own six-shape table contains no shape in which the mirror holds a row the chain does not,
+  which is the shape F-B rides (D126).
+- **Four risks are recorded** rather than designed away: the honest path's immunity is a property of
+  `pgx`'s encoding and D123 row 10's verdict depends on it (R56); an undeclared **live** overload of
+  a protected function name is still enumerated by nothing, bounded by ownership for the fourth round
+  running (R57); the CLI's silent acceptance of unknown flags is untouched and D130 works around it
+  (R58); and the coordinated-edit surface grew again (R59).
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42,
+  D43-D49, D50-D58, D59-D67, D68-D75, D76-D85, D86-D95, D96-D103, D104-D112 and D113-D122 stand.
+  R1-R55 stand. **D116's substantive decision -- that the corroboration's population must be the
+  population the predicate it guards ranges over -- is correct and is kept in full**; what D124 adds
+  is that the *elements* the corroboration visits must be the elements the destructive expression
+  visits, which is the same sentence one level down. Three prior *texts* are corrected in the new
+  decisions' own words, the AR7 convention: migration `023`'s own header claim that non-vacuity is
+  now "a property of the function rather than of its comment" (`023:22-25`), and D116(c)'s "a
+  snapshot with zero mirror rows, or a ledger with zero rows, is refused by name" -- both true of the
+  *values* and bypassed by the *shape of the container* they arrive in, corrected by **D124**;
+  D120's "correct on all six shapes", true of the six it enumerates and incomplete, corrected by
+  **D126**; and D108(b)'s "a body that fails to map to any declared overload is a failure, never a
+  silent discard", still false for three classes, corrected by **D127**.
+
+**Audit basis commit:** `e5e3be03c97116ec27231683a48cfe0d8fc09a6e`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #13
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
