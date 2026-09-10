@@ -14760,3 +14760,1086 @@ D124 and D125 are the whole of that barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #13
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 15: placement -- whether a control looked at a body, or only declined to accept it, and CAP #14's three findings (2026-09-10)
+
+- **Status:** Proposed
+- **Trigger:** a fourteenth Composition Audit Program record produced against the implemented
+  Addendum 14 (`docs/backlog/sec-7-cap-record-4975664.md`, adversarial posture, audit basis commit
+  `4975664753b7918bbd9e20bf67e45832c9fbd3e9`) returned **QUALIFIED, not PASS** for the fourteenth
+  consecutive audit. Three findings, **one MEDIUM and two LOW -- no CRITICAL and no HIGH, the first
+  round in this arc with neither.** **SEC-7 is not closed.**
+- **What CAP #14 confirmed, and this addendum does not disturb.** **D124 is the best decision in
+  Addendum 14 and is correct in full.** It survived nineteen array shapes -- 3-D arrays, shifted and
+  negative and near-`int4`-maximum lower bounds, interspersed and all-NULL elements, `array_fill`,
+  duplicates, empty and NULL -- on **both** bootstrap paths, with `unnest()` and `= ANY()` ranging
+  over the same element set in all nineteen and the positive control still purging. No fifth attack
+  construction was found. **D125's parity is genuine**: the two bodies differ by exactly one
+  character in 3,640 (an optional trailing semicolon), and all four attack constructions are refused
+  on the SchemaSQL copy too. D126 held on ten states beyond its own planted-row test; D128's message
+  and its documentation half are correct end to end; D129 fires against an injected conversion; D130
+  fixes F-F's inversion. D90 is unregressed at 13/2/1 with both event triggers `ENABLE ALWAYS` after
+  every refusal. **Addendum 3's scoping principle, Addendum 4's referent principle, Addendum 5's
+  population principle, Addendum 6's atomicity principle, Addendum 7's quantifier principle,
+  Addendum 8's naming principle, Addendum 9's composition principle, Addendum 10's whole-round
+  obligation, Addendum 11's cardinality principle, Addendum 12's reduction principle, Addendum 13's
+  derivation principle and Addendum 14's element-set widening are each correct**, and this addendum
+  reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not
+  AR7, not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75,
+  not D76-D85, not D86-D95, not D96-D103, not D104-D112, not D113-D122, not D123-D131, not the D19
+  correction note, not R1-R59. Decision numbering continues at **D132**; risk numbering at **R60**.
+  Where a prior decision's *text* is wrong rather than merely superseded, the new decision says so
+  in its own words -- the convention AR7 established.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `4975664753b7918bbd9e20bf67e45832c9fbd3e9` rather than copied from the CAP record or from a prior
+  addendum. Measured as the first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  4975664753b7918bbd9e20bf67e45832c9fbd3e9
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-15-cap14-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-14
+  held to.** A disposable PostgreSQL **17.11** cluster on **port 55640** (55580/55590/55600/55610/
+  55620/55630 were taken by prior passes) with `initdb --auth=scram-sha-256 --pwfile`, TCP-only on
+  `127.0.0.1`, `unix_socket_directories = ''` (the scratchpad path is 147 bytes against PostgreSQL's
+  103-byte socket limit -- CAP #14's own recorded deviation, which applies here for the same reason),
+  data directory inside this session's own scratchpad, provisioned in `.github/workflows/ci.yml`'s
+  exact order. **The developer's own server on port 5432 was never contacted.**
+
+  **The orphaned cluster CAP #14 flagged and correctly left for authorization was stopped as this
+  pass's first act**, on explicit instruction, and its death confirmed before anything else ran:
+
+  ```
+  $ pg_ctl -D .../a7238f20-.../scratchpad/a14-pgdata -m immediate stop
+  waiting for server to shut down.... done
+  server stopped
+  rc=0
+  $ lsof -i :55620
+  rc=1
+  $ ps -p 8596
+    PID TTY           TIME CMD
+  rc=1
+  $ ps -p 95804 -o pid,ppid,stat,lstart,command
+    PID  PPID STAT STARTED                      COMMAND
+  95804     1 S    Wed Aug 26 10:01:08 2026     /opt/homebrew/opt/postgresql@17/bin/postgres -D /opt/homebrew/var/postgresql@17
+  ```
+
+  The developer's own server retains its original start time and was not restarted, reloaded or
+  connected to.
+
+  Baseline confirmed identical to CAP #14 section 0.1, including all six declared function digests:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_instance_binding   |     1
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+
+                evtname              |    evtevent     | evtenabled
+  -----------------------------------+-----------------+------------
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+
+               proname              |              args              |    body_sha16
+  ----------------------------------+--------------------------------+------------------
+   owl_reject_truncate              |                                | e8db5083c6bf20d9
+   screening_ledger_purge_snapshots | p_ledger_id text, p_expected_c | d44b2cab4d905faf
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_le | 763f63090c9af4be
+   screening_ledger_reject_mutation |                                | 5632734b5c67628b
+   screening_ledger_snapshot_guard  |                                | f9cb95289a3fdead
+   sec7_protect_ddl_objects         |                                | de174c42252877d2
+  ```
+
+  Probes lived in five temporary `_test.go` files inside `internal/screeningledger/`, calling the
+  real `declaredFunctions` / `derivedPopulation` / `assertNoBodyDropped` /
+  `checkLiveDigestMatchesAccepted` / `extractFunctionBodies` / `argTypeList` / `isRetiredSignature` /
+  `mustExpires` scaffolding rather than reimplementations. Two probes required temporarily placing a
+  rogue file in the **real** `db/migrations/` and temporarily inserting a rogue body into the **real**
+  `SchemaSQL` -- because several gate members hardcode `../../db/migrations` and read the package
+  `SchemaSQL` const, so a temp-directory copy would have exercised a *partial* gate, which is exactly
+  the discipline failure this addendum's own finding is about. **All five probe files were deleted and
+  both files restored byte-for-byte before this addendum was written:**
+
+  ```
+  $ diff -q /tmp/a15_postgres_go.bak internal/screeningledger/postgres.go
+  postgres.go: byte-identical to pass-start
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  $ git diff --stat
+  (empty -- no tracked modification)
+  ```
+
+  **The five results that shaped the design:**
+  1. **G-A reproduces against the FULL composed gate, and the composed gate is larger than the three
+     directions CAP #14 measured.** Thirteen DSN-free tests read `db/migrations`; the rogue that does
+     not sort last passes **all thirteen** (D132).
+  2. **G-A is not confined to the overload CAP #14 demonstrates.** The time-floor overload has a
+     two-member derived population whose superseded member is equally undigested, and no CAP has
+     enumerated it (D132).
+  3. **The same defect exists one source over, and there it does not depend on sort order at all.**
+     `assertNoBodyDropped` never runs over `SchemaSQL`. A rogue `SECURITY DEFINER` body inside
+     `SchemaSQL` passes the entire source gate, is live on a SchemaSQL-bootstrapped database, and
+     destroys evidence under a live obligation (D133).
+  4. **D132 does not close D133, and this addendum says so rather than claiming one fix covers both.**
+     Measured: the D132 prototype passes on a SchemaSQL carrying the rogue, because
+     `derivedPopulation` filters `SchemaSQL` by type list *before* any digest is compared. The two
+     decisions are separate mechanisms and both must ship.
+  5. **Neither of D114(b)'s two stated reasons for an upper bound transfers to `MaxSnapshotBytes`.**
+     Measured: it is read only in a comparison, so there is no arithmetic and no wrap cliff even at
+     `MaxInt64`, and it never reaches the `Event`. **The omission is correct; the claim is what is
+     wrong** (D134).
+
+---
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554`, `0007:6660-6700`, `0007:7591-7630`, `0007:8742-8768`, `0007:10021-10047`,
+`0007:11194-11235`, `0007:12429-12467` and `0007:13719-13762` set.
+
+1. **CAP #14's G-A transcript is correct in every particular and understates its own population.**
+   The record's D127D transcript derives the **array-form** overload's four literals and stops.
+   Re-derived here through the real `derivedPopulation` across all four `declaredFunctions()`
+   entries, the **time-floor** overload has a two-member population whose first member is a
+   superseded literal digesting to `8771275cef309f91`, subject to the identical defect and named by
+   no CAP:
+
+   ```
+   A15POP === screening_ledger_purge_snapshots(ledger scalar corroboration,...) (typeList="text,bigint,timestamptz,text,text")
+   A15POP     acceptedMigration=d44b2cab4d905faf
+   A15POP     mig[0] ../../db/migrations/022_screening_ledger_purge_chain_corroboration.sql digest=8771275cef309f91
+   A15POP     mig[1] ../../db/migrations/023_screening_ledger_purge_global_corroboration.sql digest=d44b2cab4d905faf   <-- LIVE (last in apply order)
+   A15POP === screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) (typeList="text[],text,int[],timestamptz[],text,text")
+   A15POP     acceptedMigration=763f63090c9af4be
+   A15POP     mig[0] ../../db/migrations/022_screening_ledger_purge_chain_corroboration.sql digest=925f0969e063833e
+   A15POP     mig[1] ../../db/migrations/023_screening_ledger_purge_global_corroboration.sql digest=d32a2ffaab5a8037
+   A15POP     mig[2] ../../db/migrations/024_screening_ledger_purge_element_domain.sql digest=763f63090c9af4be   <-- LIVE (last in apply order)
+   ```
+
+   **The finding is undiminished; its population is one overload larger than the record states.**
+   This is D86's whole-round obligation applied to the CAP's own enumeration, and it is the third
+   consecutive round in which re-deriving a population by query rather than trusting a transcript
+   widened the finding (D123 did it for array shapes, D129 for `anchor.go`'s conversions).
+2. **CAP #14 records the sorts-last rogue as "CAUGHT" and that is true, but only one of the three
+   failures it produces actually names the rogue.** Measured against the composed gate, the other
+   two are collateral: `TestSupersededPurgeSnapshotsLiteralsAreNotAccepted` fails naming **`024`**
+   (the honest body, displaced out of the live slot and therefore reported as "a superseded literal
+   which IS a declared accepted digest"), and `TestAssertNoBodyDroppedCatchesRespelledSignature`
+   fails because its own temp-directory fixture inherits the rogue. The gate fails closed, which is
+   what matters, but a reader following the message to `024` is being pointed at the wrong file.
+   Recorded because D132's own message must not inherit that property.
+3. **CAP #14 measured three directions; the composed source gate has thirteen members.** Derived by
+   scan rather than listed: nine in `d92_digest_gate_derivation_test.go` and four in
+   `d127_retired_signature_classification_test.go`. The record's three-direction measurement reached
+   the right verdict, and its own invalidation condition asks for a fourth direction to settle it.
+   **All thirteen were run.** This is D129's method point turned on the audit rather than on a
+   design table.
+
+---
+
+### Addendum 15 context: this is Addendum 5's population question, asked of the gate's own inputs
+
+Addendum 3 asked *what* is protected (`0007:2172-2173`). Addendum 4 asked *which property* is
+compared (`0007:2853-2857`). Addendum 5 asked *over what set* (`0007:3742-3746`). Addendum 6 asked
+what a *legitimate* operation rewrites (`0007:4526-4534`). Addendum 7 asked *over how many parties*
+(`0007:5574-5580`). Addendum 8 asked *by what identity* (`0007:6732-6738`). Addendum 9 asked *is any
+member of the set weaker* (`0007:7668-7674`). Addendum 10 made applying a round's principle to the
+round's whole output a numbered obligation (D86). Addendum 11 asked *how many values answer to the
+description* (`0007:10074-10080`). Addendum 12 asked *which side reduces the value*
+(`0007:11260-11267`). Addendum 13 asked *was the value ever a correct function of its input*
+(`0007:12498-12505`). Addendum 14 widened the cardinality population to an argument's **elements**
+(D123).
+
+**CAP #14 section 10's own recommendation is that this round introduces no twelfth axis, and it is
+right.** Its words: *"G-A is D127(a)'s own decision applied to the population it did not cover -- the
+same widening move D123 made for D96, one round ago -- and should be argued that way rather than as a
+twelfth principle."* This addendum adopts that reading and states the reasoning rather than asserting
+it.
+
+**The question both findings answer wrongly is Addendum 5's.** A gate is a control, and a control has
+a population: *the set of objects it actually looks at*. D99(a) declares that population -- "it reads
+`db/migrations/*.sql` by directory scan ... plus `SchemaSQL`" (`0007:10600-10603`) -- and the shipped
+gate's two halves have **two different populations**, neither of which is the declared one:
+
+| Gate half | Where | Population it actually ranges over |
+|---|---|---|
+| `assertNoBodyDropped` | `d92_digest_gate_derivation_test.go:436-486`, iterating `migrationFilePaths` at `:442` | every body in **`db/migrations/*.sql`** -- and **not** `SchemaSQL` |
+| `checkLiveDigestMatchesAccepted` | `:495-535`, reading `migration[len(migration)-1]` at `:504` | **one** body per overload per path: the last in apply order |
+
+**Neither half's population is "every committed literal", and the gap between them is where a body
+sits.** D99(b)'s stronger property (`0007:10608-10616`) does range over the whole population, but it
+asserts something *negative* -- a non-live literal must digest to something **not** in the accepted
+set -- which a body this repository never shipped satisfies for free.
+
+**So the sentence this addendum adds is one level down from D127(a)'s, and in D127(a)'s own words.**
+D127(a) says a retired type list *"is a classification, not an exemption. A body whose type list
+matches a retired signature is still **placed**"* (`0007:14269-14276`). The same is true of a
+superseded literal of a live signature, and of any literal on any bootstrap path: **not being
+accepted is not the same as having been looked at.** D132 and D133 are that sentence applied to the
+two populations that did not have it.
+
+**Why this is a widened population and not a twelfth principle, argued rather than asserted.** A
+twelfth axis would name "placement" as a new question. It is not new: it is Addendum 5's *"over what
+set is this control meaningful"* asked of a control whose set is a set of **source texts** rather than
+a set of database rows. Addendum 5's own population table has no row for a gate's input corpus,
+because every population it enumerates is a population of live objects. **Widening is the repair D86's
+whole-round obligation calls for**, and D123 made exactly this move one round ago for D96's table.
+
+---
+### G-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #14's transcript. Every run was rebuilt against the baseline above.
+**Two rogue files, byte-identical bodies, differing only in filename.** The body is a
+`SECURITY DEFINER` function carrying the **current, live** array-form type list
+(`text[],text,int[],timestamptz[],text,text`) that ignores every argument except `p_operator` and
+`p_reason`, tombstones every unpurged snapshot and strips its ciphertext -- no `= ANY`, no expiry
+test, no corroboration:
+
+```
+$ grep -c 'ANY(p_snapshot_sha256)\|expires_at' rogue.sql
+0
+```
+
+**Where the two names sort, under the gate's own `sort.Strings` order (`d92_digest_gate_derivation_test.go:203`):**
+
+```
+db/migrations/022_screening_ledger_purge_chain_corroboration.sql
+db/migrations/023_screening_ledger_purge_global_corroboration.sql
+db/migrations/023a_rogue.sql
+db/migrations/024_screening_ledger_purge_element_domain.sql
+db/migrations/zzz999_rogue.sql
+```
+
+#### The composed gate, and what "composed" means here
+
+CAP #14 measured three directions and its own invalidation condition asks for a fourth. **The
+composed source gate has thirteen DSN-free members**, derived by scan rather than listed: nine in
+`d92_digest_gate_derivation_test.go` and four in `d127_retired_signature_classification_test.go`.
+**All thirteen were run against the real `db/migrations/` tree carrying each rogue** -- not against a
+temp-directory copy, because `TestAssertNoBodyDroppedPassesOnRealTree` (`:727-731`),
+`TestGuardAndDefinerBodyDigestsAreDerivedFromCommittedLiterals` (`:543-551`) and
+`TestSupersededPurgeSnapshotsLiteralsAreNotAccepted` (`:564-634`) each hardcode `../../db/migrations`
+and a copy would have exercised a **partial** gate, which is the discipline failure this finding is
+about.
+
+**Rogue placed as `023a_rogue.sql` (does not sort last) -- all thirteen PASS:**
+
+```
+--- PASS: TestAssertNoBodyDroppedCatchesResurrectedRetiredTimeFloorSignature (0.02s)
+--- PASS: TestAssertNoBodyDroppedCatchesResurrectedRetiredArraySignature (0.01s)
+--- PASS: TestAssertNoBodyDroppedCatchesOutParameterIdentityShift (0.01s)
+--- PASS: TestAssertNoBodyDroppedVariadicControlUnregressed (0.01s)
+--- PASS: TestGuardAndDefinerBodyDigestsAreDerivedFromCommittedLiterals (0.00s)
+--- PASS: TestSupersededPurgeSnapshotsLiteralsAreNotAccepted (0.00s)
+--- PASS: TestDigestGateCatchesWhitespaceAlteredCopy (0.00s)
+--- PASS: TestDigestGateCoversANewMigrationFileWithNoEdit (0.01s)
+--- PASS: TestAssertNoBodyDroppedPassesOnRealTree (0.00s)
+--- PASS: TestAssertNoBodyDroppedCatchesRespelledSignature (0.01s)
+--- PASS: TestAssertNoBodyDroppedCatchesUnmappedSynonym (0.00s)
+--- PASS: TestAssertNoBodyDroppedSelectsByTypeIdentityNotParameterName (0.01s)
+--- PASS: TestArgTypeListMatchesDeclaredOverloadsExactly (0.00s)
+PASS
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.392s
+```
+
+**Rogue placed as `zzz999_rogue.sql` (sorts last) -- three FAIL:**
+
+```
+--- FAIL: TestGuardAndDefinerBodyDigestsAreDerivedFromCommittedLiterals (0.01s)
+    d92_digest_gate_derivation_test.go:547: ADR-0007 Addendum 11 D99: ...'s LIVE migration-path
+    literal (last applied, in ../../db/migrations/zzz999_rogue.sql) digests to ed625a540c622d0e...,
+    which is not the declared accepted digest 763f63090c9af4be...
+--- FAIL: TestSupersededPurgeSnapshotsLiteralsAreNotAccepted (0.00s)
+    d92_digest_gate_derivation_test.go:623: ADR-0007 Addendum 11 D99: a superseded literal for ...
+    in ../../db/migrations/024_screening_ledger_purge_element_domain.sql digests to
+    763f63090c9af4be..., which IS a declared accepted digest
+--- FAIL: TestAssertNoBodyDroppedCatchesRespelledSignature (0.01s)
+    d92_digest_gate_derivation_test.go:783: expected the failure to name the respelled file ...
+```
+
+**The only thing separating the two runs is where the file sorts**, and drift note 2 above records
+that only the first of the three failures actually names the rogue.
+
+**Why it survives, structurally, from the code.** With the rogue at `023a`, the derived population
+is four and the rogue sits at index 2:
+
+```
+A15POP     mig[0] ../../db/migrations/022_screening_ledger_purge_chain_corroboration.sql digest=925f0969e063833e
+A15POP     mig[1] ../../db/migrations/023_screening_ledger_purge_global_corroboration.sql digest=d32a2ffaab5a8037
+A15POP     mig[2] ../../db/migrations/023a_rogue.sql                             digest=ed625a540c622d0e
+A15POP     mig[3] ../../db/migrations/024_screening_ledger_purge_element_domain.sql digest=763f63090c9af4be   <-- LIVE (last in apply order)
+```
+
+- `assertNoBodyDropped` **places** it correctly at `:469-481` -- its type list genuinely equals the
+  live overload's -- and that branch **never computes a digest at all**. The retired branch
+  (`:447-468`) does; the live-signature branch does not.
+- `checkLiveDigestMatchesAccepted` reads only `migration[len(migration)-1]` (`:504`), which is `024`.
+- `TestSupersededPurgeSnapshotsLiteralsAreNotAccepted` (`:617-625`) asserts each non-live digest is
+  **not** in the accepted set, which `ed625a54...` trivially is not.
+
+**Three directions, three misses, and the miss is the same one:** a placed body's digest is compared
+against nothing.
+
+#### Reachability, stated at exactly its strength
+
+On a fully-applied migration path, `024`'s `CREATE OR REPLACE` runs after the rogue and the live
+catalog is clean -- D99(c)'s reasoning, and it is genuine. The rogue becomes live on a
+**partially-applied** database, the D21/D22 shape this repository maintains `owl_ci_sec7_stale` as a
+permanent CI fixture to represent. Built here by applying migrations in order with the rogue
+interleaved and stopping before `024`:
+
+```
+  applying 023a_rogue.sql (sorts between 023 and 024)
+  -- STOP: 024 NOT applied (partially-migrated schema, the D21/D22 shape)
+
+             proname              |                     ident_args (abbreviated)                      |    body_sha16
+----------------------------------+-------------------------------------------------------------------+------------------
+ screening_ledger_purge_snapshots | p_ledger_id text, p_expected_count bigint, ...                    | d44b2cab4d905faf
+ screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_ledger_id text, ...                   | ed625a540c622d0e
+```
+
+**And that body destroys evidence under a live obligation, ignoring its arguments entirely** -- the
+call passes an empty array and names no snapshot at all:
+
+```
+--- the snapshot, and its LIVE retention obligation ---
+      sha       |       expires_at       | has_ct
+----------------+------------------------+--------
+ cafe00011111.. | 2100-01-01 00:00:00-05 | t
+
+--- call the purge with a COMPLETELY EMPTY array (no snapshot named at all) ---
+                  screening_ledger_purge_snapshots
+--------------------------------------------------------------------
+ {cafe00011111aaaa2222bbbb3333cccc4444dddd5555eeee6666ffff77778888}
+
+--- after ---
+      sha       | purged | has_ct | tombstones
+----------------+--------+--------+------------
+ cafe00011111.. | t      | f      |          1
+```
+
+**`has_ct` going `t` -> `f` is the whole finding.** The control, on a `CREATE DATABASE ... TEMPLATE`
+clone of the fully provisioned primary carrying the **real** `024` body, refuses the identical call:
+
+```
+--- CONTROL: the REAL 024 body, same empty-array call, same live obligation ---
+ screening_ledger_purge_snapshots
+----------------------------------
+ {}
+
+      sha       | purged | has_ct | tombstones
+----------------+--------+--------+------------
+ cafe00011111.. | f      | t      |          0
+```
+
+#### What catches it, and why that is the finding rather than the mitigation
+
+```
+FAIL: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'s body (prosrc)
+digest is 'ed625a540c622d0e5ccff6bf98fe9f13ba774548bfcdfdefcb834e64866dcd5b', which is not in its
+declared accepted set {763f63090c9af4be..., bd7365a49b728621...} (ADR-0007 Addendum 13 D117):
+possible CREATE OR REPLACE FUNCTION substitution of a definer function that writes purged_at --
+investigate before re-running grant-ddl-ownership (docs/operations/sec7-database-copies.md)
+```
+
+That is **D117 working, and it is a different control**. D76's composition principle
+(`0007:7688-7690`) forbids one control's gap being carried by another control's independent
+refusal -- and **D127's own text invokes exactly that principle** to justify fixing F-C rather than
+accepting it, on the ground that D17/D27's role separation had been carrying it for a fourth round
+(`0007:14284-14291`). The same sentence applies here, one object over. The gate is what declares a
+body legitimate; it must not declare a body it never looked at.
+
+---
+
+### D132. G-A (MEDIUM): a superseded literal of a live signature must be PLACED, not merely not-accepted
+
+**The finding, restated structurally.** D99(b) (`0007:10608-10616`) asserts that every non-live
+committed literal digests to something **outside** every accepted set. That is a *negative*
+assertion, and it is satisfied for free by a body this repository never shipped. D127(a) upgraded the
+*retired* branch from negative to positive one round later -- *"a retired type list is a
+classification, not an exemption ... its digest must equal the known committed literal for that
+retired signature"* (`0007:14269-14276`). **The live-signature branch was never given the same
+upgrade, and that is the whole of G-A.**
+
+**Decision, two parts.**
+
+**(a) Every literal in a declared overload's derived population must digest to a member of a declared
+closed set, and the rule never asks where the body sits.** `declaredFunction`
+(`d92_digest_gate_derivation_test.go:130-144`) gains a `historicalBodySHA256 []string` field,
+structurally identical to `retiredFunctionTypeLists[].acceptedBodySHA256` (`:363-387`) -- the object
+it is modelled on, which is why it is declared beside it in the gate file rather than in
+`postgres.go`. The gate then asserts three things, of which only the second is order-sensitive, and
+it is order-sensitive **correctly**, because `CREATE OR REPLACE`'s "last wins" is PostgreSQL's own
+semantics:
+
+- **Membership (new, order-independent):** for **every** body in the derived population,
+  `digest ∈ accepted(d) ∪ historical(d)`, else a named failure identifying the file, the overload
+  and the digest.
+- **Liveness (D99, unchanged):** `digest(migration[len-1]) == acceptedMigration`.
+- **Non-readoption (D99(b), unchanged):** every non-live digest is outside `accepted(d)`.
+
+Illustrative only -- the implementation PR owns the real text:
+
+```go
+for _, b := range append(migration, schemaSQL...) {
+    if dg := digestHexString(b.body); !declared[dg] {
+        return fmt.Errorf("ADR-0007 Addendum 15 D132: %s defines a literal for %s whose body "+
+            "digests to %s, which is not a member of that overload's declared set "+
+            "(accepted + historical) -- every committed literal must be a body this repository "+
+            "provably shipped, wherever it sits in apply order", b.source, d.label, dg)
+    }
+}
+```
+
+**(b) The rule applies to every `declaredFunctions()` entry, not only the overload G-A demonstrates.**
+Two reasons, both measured. First, drift note 1: the **time-floor** overload has a two-member
+population whose superseded member (`022`, `8771275cef309f91`) is equally undigested, and no CAP has
+named it. Second, `owl_reject_truncate` and `screening_ledger_reject_mutation` are placed at `:471-475`
+by `d.typeList == ""` matching **unconditionally**, so any body under those names is placed and never
+digested; their populations happen to be one today, and D99(a)'s whole point is that a file added
+later changes that without an edit. **This is D86's whole-round obligation**, and it is the obligation
+three consecutive addenda have failed (D86's own record) by applying a round's principle only to the
+decision that motivated it.
+
+#### Executed: the prototype against the clean tree and both placements
+
+**The positive control first, because D37's rule (`0007:2643-2645`) applies verbatim** -- a gate that
+only refuses has not been shown safe to install:
+
+```
+=== POSITIVE CONTROL: D132 prototype against the CLEAN, unmodified tree ===
+A15PROTO  result: PASS (no unplaced literal)
+```
+
+**And both placements, which is the property the finding asks for:**
+
+```
+### D132 prototype vs rogue placed as 023a_rogue.sql:
+    A15PROTO  result: FAIL -- ADR-0007 Addendum 15 D132: ../../db/migrations/023a_rogue.sql defines
+    a literal for screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) whose body digests
+    to ed625a540c622d0e5ccff6bf98fe9f13ba774548bfcdfdefcb834e64866dcd5b, which is not a member of
+    that overload's declared set (accepted + historical) {763f63090c9af4be, 925f0969e063833e,
+    bd7365a49b728621, d32a2ffaab5a8037} -- every committed literal must be a body this repository
+    provably shipped, wherever it sits in apply order
+
+### D132 prototype vs rogue placed as zzz999_rogue.sql:
+    A15PROTO  result: FAIL -- ADR-0007 Addendum 15 D132: ../../db/migrations/zzz999_rogue.sql defines
+    a literal for screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) whose body digests
+    to ed625a540c622d0e5ccff6bf98fe9f13ba774548bfcdfdefcb834e64866dcd5b, which is not a member of
+    that overload's declared set (accepted + historical) {763f63090c9af4be, 925f0969e063833e,
+    bd7365a49b728621, d32a2ffaab5a8037} -- every committed literal must be a body this repository
+    provably shipped, wherever it sits in apply order
+```
+
+**The two messages are identical apart from the filename each names.** Detection is now a property of
+what is declared and what is live; sort order does not appear in the rule.
+
+#### The cost, named rather than glossed
+
+**D99(a)'s stated property is that "a file added later is covered without an edit"**
+(`0007:10600-10603`). Under D132 a legitimate new migration requires **one** edit -- the outgoing live
+digest joins `historicalBodySHA256` -- in the same PR that already must move the accepted constant in
+`postgres.go:167-183`. **This addendum states that trade rather than letting a later round discover
+it**, and accepts it on three grounds: D127(a) already accepted exactly this cost for retired
+signatures one round ago; D31's "a closed set of objects, not a name pattern" is the precedent for
+the shape; and the assertion **fails closed**, so the failure mode of forgetting the edit is a red
+gate, not a silent gap. R60 records it against R59's coordinated-edit surface.
+
+**Not adopted, and named because CAP #14's own invalidation condition rules it out.** G-A must not be
+"fixed" by refusing extra migration files by name or by count. *"The defect is that a placed body's
+digest is never compared; a filename rule is a different assertion that a rogue can satisfy."* No
+part of D132 counts files or matches names.
+
+**Also not adopted: deriving the historical set from git history.** The gate is DSN-free and offline
+by D92's own property (`0007:9484-9486`); a git-dependent derivation replaces one declared literal
+with a dependency on repository metadata an adversary editing the tree is already inside. A declared
+closed set is the only construction that terminates on evidence, which is D76's own requirement.
+
+---
+### D133. The sweep's own finding: `SchemaSQL` is a live bootstrap path the placement rule never covered
+
+**This is what this addendum owes to its own audit rather than to the CAP**, the D123 rows 3/4 and
+D96 rows 19/20 analogue for this round. CAP #14 names the source gate's blindness in
+`db/migrations/*.sql` and stops.
+
+**The finding, from the code.** `assertNoBodyDropped` (`:436-486`) iterates
+`migrationFilePaths(t, migrationDir)` at `:442` and **nothing else**. Every one of its call sites
+passes a directory -- `:728`, `:787`, `:817`, `:888`, `:899`, and
+`d127_retired_signature_classification_test.go:43`, `:56`, `:75`, `:93`. **`SchemaSQL` is never passed
+through the placement rule at all**, while `derivedPopulation` (`:332-337`) *filters* SchemaSQL bodies
+by type list before any digest is compared -- so a SchemaSQL body whose type list matches no declared
+overload is removed from the population and reaches no assertion anywhere. And `SchemaSQL` is a
+**live bootstrap path**: D125's entire decision one round ago is that a repair present on one path and
+absent from the other is D117's own finding read from the other side.
+
+**Measured. Two rogue bodies inserted into the real `SchemaSQL`, each run against the same thirteen
+composed-gate members:**
+
+```
+### ROGUE INSIDE SchemaSQL: RETIRED type list (timestamptz,text,text) -- a resurrected retired signature
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.417s
+
+### ROGUE INSIDE SchemaSQL: UNPLACEABLE type list (pg_catalog.text[] -- the unmapped synonym
+### TestAssertNoBodyDroppedCatchesUnmappedSynonym itself uses)
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.379s
+```
+
+**Both pass the entire gate.** The identical constructions in `db/migrations/*.sql` are caught -- that
+is precisely what `TestAssertNoBodyDroppedCatchesResurrectedRetiredTimeFloorSignature` and
+`TestAssertNoBodyDroppedCatchesUnmappedSynonym` exist to prove. **Same body, same signature, caught
+in one source and invisible in the other**, and unlike G-A this does not depend on sort order at all.
+
+**It is live, and it is reachable.** A database bootstrapped from the rogue-bearing `SchemaSQL` with
+**no migration ever applied** carries a third, undeclared `SECURITY DEFINER` overload:
+
+```
+                                    ident_args                                     | security_definer
+-----------------------------------------------------------------------------------+------------------
+ p_before timestamp with time zone, p_operator text, p_reason text                 | t
+ p_ledger_id text, p_expected_count bigint, p_expected_max timestamp ...           | t
+ p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], ...       | t
+```
+
+**And on a SchemaSQL-only database -- the `create-schemasql-only-database` fixture's own shape -- it
+destroys evidence under a live obligation:**
+
+```
+--- before ---
+      sha       |       expires_at       | has_ct
+----------------+------------------------+--------
+ beefbeef1111.. | 2100-01-01 00:00:00-05 | t
+
+--- call the RESURRECTED RETIRED overload (the one the gate never looked at) ---
+ screening_ledger_purge_snapshots
+----------------------------------
+                                1
+
+--- after ---
+      sha       | purged | has_ct | tombstones
+----------------+--------+--------+------------
+ beefbeef1111.. | t      | f      |          1
+```
+
+**Two boundaries, both measured and both stated at exactly their strength.** First, on a
+**fully provisioned** database the same call is refused -- not by any gate, but by ownership:
+
+```
+ERROR:  permission denied for table screening_ledger_retention_tombstone
+CONTEXT:  SQL statement "INSERT INTO screening_ledger_retention_tombstone(...)"
+PL/pgSQL function screening_ledger_purge_snapshots(timestamp with time zone,text,text) line 1
+```
+
+Second, and worse than G-A: **no provisioning control mentions the undeclared overload at all.**
+
+```
+PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner...
+PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned...
+PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS...
+```
+
+**Three `PASS` lines against a database carrying three overloads where two are declared.** That is
+**exactly R57's stated boundary**, re-confirmed here on a new path: *"What no control enumerates is the
+live catalog's set of overloads of a protected function name ... Its exploitation is bounded by
+ownership and not by any gate -- which is D17/D27 carrying a gap for the fourth consecutive round, and
+D76 says that is not a control."* R57 is unchanged and correct; what is new is that the **source**
+gate lets such an overload be *committed*, which R57 explicitly does not cover.
+
+**Decision: the placement rule's population is "every bootstrap path", not "every file".**
+`assertNoBodyDropped`'s body becomes source-agnostic and is applied to `SchemaSQL` as a source
+alongside each migration file, with the identical retired-classification and
+matches-exactly-one-overload branches. **Nothing about the rule changes; only its population does** --
+which is Addendum 5's own move, and D125's ("`SchemaSQL` moves with the migration") applied to the
+gate rather than to the body.
+
+**D132 does NOT close this, and this addendum says so rather than claiming one fix covers both.**
+Measured: the D132 prototype **passes** on a `SchemaSQL` carrying the retired-signature rogue, because
+`derivedPopulation` filters by type list at `:333` before any digest is compared, so the rogue is in
+no declared overload's population to be a member of:
+
+```
+### D132/D133 prototype vs the rogue INSIDE SchemaSQL (retired type list):
+    A15PROTO  result: PASS (no unplaced literal)
+```
+
+**Two decisions, two mechanisms, and both must ship.** D132 supplies the missing *digest* comparison
+on a placed body; D133 supplies the missing *placement* on a whole source. Presenting either as
+covering the other would be the H-E shape -- a second declaration nothing re-checks.
+
+#### Executed: the D133 prototype
+
+```
+=== POSITIVE CONTROL: D133 prototype vs the CLEAN, unmodified SchemaSQL ===
+A15PROTO133 result: PASS (no unplaceable body in SchemaSQL)
+
+### D133 prototype vs SchemaSQL rogue: resurrected RETIRED signature (timestamptz,text,text)
+    A15PROTO133 result: FAIL -- ADR-0007 Addendum 15 D133: SchemaSQL defines
+    screening_ledger_purge_snapshots(p_before timestamptz,p_operator text,p_reason text), a retired
+    signature (type list timestamptz,text,text) whose body digests to f50e00b4d1675cd6... -- not a
+    member of the known historical committed set: a retired type list classifies a body, it does not
+    exempt one, and SchemaSQL is a live bootstrap path
+
+### D133 prototype vs SchemaSQL rogue: UNPLACEABLE synonym (pg_catalog.text[])
+    A15PROTO133 result: FAIL -- ADR-0007 Addendum 15 D133: SchemaSQL defines
+    screening_ledger_purge_snapshots(p_snapshot_sha256 pg_catalog.text[],p_ledger_id text,...), which
+    matches no declared overload's argument type list and is not a declared-retired signature -- an
+    unplaceable body on a LIVE bootstrap path
+```
+
+**Severity: MEDIUM**, the same rating and the same reasoning CAP #14 gave G-A and CAP #13 gave F-C --
+the forgery does not complete on a correctly-provisioned database, and it is bounded by a control that
+is not the gate.
+
+---
+
+### The rest of the sweep: three shapes checked, and what each returned
+
+**The question asked of each:** *is this control's coverage a property of what is declared and what is
+live, or of where something happens to sit?* "Checked, and it does not apply" is a result and is
+recorded as one, per D123's own convention.
+
+| # | Candidate | Result |
+|---|---|---|
+| 1 | `assertNoBodyDropped`'s source population excludes `SchemaSQL` (`:442`) | **D133** -- confirmed, reachable, evidence destroyed |
+| 2 | `extractFunctionBodies`' parsing assumptions (`:62-70`) | **Assumption is false; failure direction is safe** -- see below |
+| 3 | `TestSupersededPurgeSnapshotsLiteralsAreNotAccepted:626`'s unguarded slice | **Fails closed, but by panic rather than by name** -- LOW note, R61 |
+| 4 | Gate order (`sort.Strings`, `:203`) vs runner order (`.github/workflows/ci.yml:156` shell glob) | **Checked; the two orders agreed on both locales measured** |
+| 5 | `isRetiredSignature` / `retiredSignatureAcceptedDigests` (`:392-410`) | **Checked, and it does not apply** -- keyed by `(funcName, typeList)`, no positional input |
+
+**Row 2, measured.** The extractor's own comment states that no parameter list "contains a literal
+`)` before the argument list's own close". **That is measurably false** for two shapes PostgreSQL
+accepts:
+
+```
+A15EXT plain 6-arg (control)             n=1 typeList="text[],text,int[],timestamptz[],text,text"
+A15EXT DEFAULT with a ')' inside         n=1 typeList="text[],(upper('x'"
+A15EXT numeric precision type '(10,2)'   n=1 typeList="text[],text,int[],timestamptz[],text,numeric(10,2"
+A15EXT body containing the literal 'AS'  n=1 typeList="text[],text,int[],timestamptz[],text,text"
+```
+
+**But the failure direction is the safe one**, and that was verified rather than assumed: a mangled
+type list matches no declared overload and no retired signature, so the placement rule names it:
+
+```
+--- FAIL: TestAssertNoBodyDroppedPassesOnRealTree (0.01s)
+    d92_digest_gate_derivation_test.go:729: ADR-0007 Addendum 13 D118:
+    ../../db/migrations/023b_paren.sql defines screening_ledger_purge_snapshots(...)
+```
+
+Recorded, not repaired: the correct fix is a paren-depth-aware scan of the argument list, which is a
+change to the extractor every declared digest depends on, and folding it into a round that is
+repairing a placement rule is how a round ships a mechanism it did not audit. **R61 carries it.**
+
+**Row 3, measured.** With a declared function absent from `SchemaSQL`, `schemaSQL[:len(schemaSQL)-1]`
+at `:626` is evaluated with `len == 0`:
+
+```
+panic: runtime error: slice bounds out of range [:-1] [recovered, repanicked]
+	.../internal/screeningledger/d92_digest_gate_derivation_test.go:626 +0x3a4
+```
+
+A panic is a test failure, so this **fails closed** -- but it is the only failure in this file that is
+a crash rather than a named refusal, and D133 makes "a declared function missing from a bootstrap
+path" a state the gate should describe rather than trip over. Folded into D133's implementation as a
+length guard producing a named error; recorded here so it is not mistaken for scope creep.
+
+**Row 4, measured on both locales rather than reasoned from documentation:**
+
+```
+--- shell glob under LC_ALL=C ---            --- shell glob under LC_ALL=en_US.UTF-8 ---
+022_..._chain_corroboration.sql              022_..._chain_corroboration.sql
+023_..._global_corroboration.sql             023_..._global_corroboration.sql
+023a_rogue.sql                               023a_rogue.sql
+024_..._element_domain.sql                   024_..._element_domain.sql
+```
+
+Both agree with the gate's byte-lexical order. **This is one measurement on two locales, not a proof
+over all collations**, and it is stated at that strength rather than promoted into a guarantee.
+
+---
+
+### D134. G-B (LOW): D130 ships two of D114(b)'s three branches, and the CLAIM is what is wrong
+
+**The finding.** D130 states that *"`MaxSnapshotBytes` gains D114(b)'s own treatment, in D114(b)'s own
+words"* and that *"D114(b)'s reasoning transfers verbatim and is not re-argued"* (`0007:14435-14439`).
+D114(b) has **three** branches, all three live in `store.go:249-255`: `0` -> documented default
+(`:249`); negative -> named refusal (`:251`); above a declared maximum -> named refusal (`:253`).
+`MaxSnapshotBytes` has **two** (`:264`, `:266`). The same claim appears a second time in the code, at
+`store.go:256-263`'s own comment, so both must move together.
+
+**Decision: keep two branches, and correct the claim to describe what is implemented. No upper bound
+is invented.** The brief leaves the choice open; this is decided on measurement rather than taste.
+
+**D114(b)'s upper bound exists for two stated reasons, and NEITHER transfers -- executed, not
+argued.**
+
+*Reason 1, an arithmetic wrap cliff.* `RetentionDays` feeds `mustExpires`, which performs date
+arithmetic and has the 106,751-day cliff D114(b) names. `MaxSnapshotBytes` is read in exactly one
+place that is not its own validation -- `store.go:277` -- and that is a **comparison**:
+
+```
+A15GB   len(payload)=4096 > MaxSnapshotBytes=0                    -> true   (comparison, no arithmetic performed)
+A15GB   len(payload)=4096 > MaxSnapshotBytes=1                    -> true   (comparison, no arithmetic performed)
+A15GB   len(payload)=4096 > MaxSnapshotBytes=2097152              -> false  (comparison, no arithmetic performed)
+A15GB   len(payload)=4096 > MaxSnapshotBytes=9223372036854775807  -> false  (comparison, no arithmetic performed)
+
+A15GB   mustExpires(2026-09-10,   2555) -> "2033-09-08T00:00:00Z" err=<nil>
+A15GB   mustExpires(2026-09-10,  36525) -> "2126-09-11T00:00:00Z" err=<nil>
+A15GB   mustExpires(2026-09-10,  36526) -> "2126-09-12T00:00:00Z" err=<nil>
+```
+
+**No arithmetic is performed on `MaxSnapshotBytes` anywhere, so there is no value at which it wraps**,
+`MaxInt64` included.
+
+*Reason 2, committing an unreviewable obligation to an immutable chain.* The complete set of
+non-validation readers, re-derived at this commit, is `store.go:277` and the struct field
+`types.go:27`. The `Event` constructed at `store.go:325` carries `RetentionClass` and `ExpiresAt` and
+**no byte cap**:
+
+```
+A15GB   Event has a MaxSnapshotBytes field: false
+```
+
+**`MaxSnapshotBytes` never reaches the chain**, so no obligation is committed and nothing is
+unreviewable later.
+
+**Therefore the omission is correct and the text is the defect.** D130's sentence and
+`store.go:256-263`'s comment both change to state that D114(b)'s **first two** branches transfer, that
+the third is **deliberately** not adopted, and **why** -- neither reason 1 nor reason 2 is present.
+This is D86's whole-round obligation applied to a decision's own internal completeness, and it is the
+same disposition D124 reached about PROTO-B: record the reason where a later reader finds it before
+re-deriving it.
+
+**Not adopted, and named because the brief offers it.** Inventing a declared byte maximum in an
+implementing pass is inventing a contract, which CLAUDE.md rule 7 forbids and which **D130's own
+withdrawal condition forbids one field over**: *"D130's flags must not be wired to a newly-invented
+meaning."* A bound with no stated reason is a number a later round cannot audit. **F-F's own defect is
+and stays fixed** -- `MaxSnapshotBytes=1` is honoured as a strict cap rather than inverted into 2 MiB,
+which is the whole point of the finding.
+
+---
+
+### D135. G-C (LOW): the `coalesce(..., 0)` conflation, measured inert and documented as such
+
+**The finding.** D124 rejects PROTO-B on the ground that it *"converts one fact into a different fact
+on the way in"*, citing D114(b)'s naming of the unset/empty conflation as a defect
+(`0007:14097-14111`). The shipped precheck at `024:98-99` then uses
+`coalesce(cardinality(...), 0)`, which folds NULL ("unset") and `{}` ("empty") into one fact before
+comparing -- the construct the round's own text argues against.
+
+**CAP #14 rates it LOW and not exploitable. Confirmed here independently, by measurement rather than
+by citation**, which is what the brief asks for.
+
+*It is not a regression.* The shipped predicate agrees with `023`'s on every NULL/empty case, and a
+strict `cardinality` comparison would differ on two:
+
+```
+        label         | shipped_024_refuses | old_023_refuses | strict_card_refuses
+----------------------+---------------------+-----------------+---------------------
+ NULL sha vs NULL cnt | f                   | f               | f
+ {} sha   vs NULL cnt | f                   | f               | t
+ NULL sha vs {} cnt   | f                   | f               | t
+ {} sha   vs {} cnt   | f                   | f               | f
+```
+
+*It is not exploitable, because the destructive expression matches nothing on every path the
+conflation can reach:*
+
+```
+ any_null | any_empty | rows_matched_null | rows_matched_empty
+----------+-----------+-------------------+--------------------
+          | f         |                 0 |                  0
+```
+
+`= ANY(NULL)` is NULL and `= ANY('{}')` is false; both select **zero rows** from
+`screening_ledger_snapshot`. End to end against the shipped function, including the mixed
+`('{}', NULL, NULL)` case CAP #14 flagged, on a live snapshot with a `2100-01-01` obligation:
+
+```
+ returned      tombstones | ciphertext_still_present
+ {}                     0 | t                          <- ('{}', NULL, NULL)
+ {}                     0 | t                          <- (NULL, NULL, NULL)
+ {}                     0 | t                          <- ('{}', '{}', '{}')
+```
+
+**Decision: the construct is kept and its inertness is documented in this addendum and at `024:96-97`,
+rather than carried forward unexamined or changed on aesthetics.** Three reasons, stated so a later
+round inherits them:
+
+1. **The property that makes it inert is a real invariant, not a coincidence, and it is now written
+   down**: the leading precheck is the *only* consumer of the conflated value, and every path on
+   which the two facts differ reaches a destructive expression that ranges over an empty element
+   set. That is D124's own element-set sentence, and it holds in the direction that matters.
+2. **Removing the `coalesce` is a behaviour change on an existing path**, and a live one: it would
+   make `('{}', NULL, NULL)` a **refusal** where it is a no-op today, which is a new refusal invented
+   in a remediation pass for a LOW. D114(b) named its own behaviour change as one; this addendum
+   declines to make an unnamed one.
+3. **Changing `024`'s body moves both definer digests for a fifth consecutive round**, forcing a
+   re-provisioning event (D87's standing cost, `0007:9031-9049`) and a full re-qualification of both
+   bootstrap paths -- for a change with no measured effect. **That trade is not worth making for a
+   LOW**, and saying so explicitly is the disposition CAP #14 asks for.
+
+**The re-entry condition is declared now rather than decided later**: if any future edit gives
+`p_snapshot_sha256` a second consumer -- a destructive expression, a selector, or a diagnostic that
+decides -- on which NULL and `{}` differ, the `coalesce` becomes load-bearing and must be replaced by
+a strict `cardinality` comparison with its refusal named. **R62 records it.**
+
+---
+### D136. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95,
+D103, D112, D122 and D131 set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a transcript exists
+above, the test reproduces that transcript, not a paraphrase.
+
+1. **D132 -- the MEDIUM, and the property the finding is about.**
+   `TestEveryCommittedLiteralIsADeclaredBody` (DSN-free), table-driven over **both** rogue placements
+   -- a file sorting between `023` and `024`, and one sorting last -- asserting the gate **passes
+   today** on the first (which is the finding) and fails after, and that **the two failure messages
+   differ only in the filename each names**. A test asserting only the post-fix refusal cannot
+   distinguish a working fix from one that still keys on sort order, which is D42's own note
+   (`0007:3461-3465`).
+2. **D132(b) -- the whole-round half, which is a separate assertion and not a corollary.** The same
+   rogue-in-a-non-last-file construction against the **time-floor** overload (whose superseded `022`
+   literal drift note 1 found), and against `owl_reject_truncate`, whose `typeList == ""` places any
+   body under that name unconditionally at `:471-475`. **Both must fail after.** Without these,
+   D132 is applied to the one overload CAP #14 demonstrated -- the exact failure D86 exists to
+   punish.
+3. **D132's positive control, a shipping requirement and not a nicety.** The unmodified
+   `db/migrations/` tree passes, and all thirteen existing composed-gate members still pass. D37's
+   rule verbatim: a suite that proves only the refusals has not proven the gate is safe to install.
+4. **D133 -- both rogue classes, in `SchemaSQL`.** A resurrected retired signature and an unplaceable
+   synonym, each asserting the gate **passes today** and fails after, naming `SchemaSQL` as the
+   source. **Plus the positive control**: the unmodified `SchemaSQL` places every body.
+5. **D133's independence from D132, pinned so a later round cannot collapse them.** An assertion that
+   D132's membership rule **alone** does not catch the `SchemaSQL` retired-signature rogue -- the
+   measurement in D133 above -- so the two mechanisms cannot be merged on the false claim that either
+   covers the other. This is D122 item 7's precedent: a fact that decides a design is pinned by a
+   test, not only by this document's prose.
+6. **D133's length guard.** A declared function absent from a bootstrap path produces a **named**
+   error identifying the function and the path, not the `slice bounds out of range [:-1]` panic
+   measured at `:626`.
+7. **D134.** `RetentionDays`' three branches and `MaxSnapshotBytes`' two are unregressed -- `0`
+   defaults to 2 MiB, `-1`/`-1024`/`MinInt64` are named refusals, `1` is honoured as a strict cap,
+   `MaxInt64` is accepted. The **text** change is a review obligation and is stated as one rather
+   than pretended into a test: D130's sentence and `store.go:256-263`'s comment must both name the
+   dropped branch and its reason.
+8. **D135.** A DSN-gated assertion pinning the four-case NULL/empty truth table above against the
+   shipped `024` body **and** the `SchemaSQL` copy, plus the zero-rows-matched property of
+   `= ANY(NULL)` and `= ANY('{}')` -- the two facts D135's "inert" verdict rests on, so a later edit
+   that makes either false fails the gate rather than being noticed by a reader.
+9. **D90 unregressed** on both bootstrap paths: all three registries at 13/2/1 and both event
+   triggers `evtenabled='A'` after every refusal above.
+10. **The gate still runs with no DSN**, which is D92's own property (`0007:9484-9486`) and the
+    reason this is a gate rather than something that self-skips.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D132 must not be discharged by refusing extra migration files by name or by count.** CAP #14's own
+  invalidation condition, restated: *"a filename rule is a different assertion that a rogue can
+  satisfy."* The defect is that a placed body's digest is never compared.
+- **D132 must not be discharged by deriving the historical set from git history or from any source
+  outside the declared constants.** The gate is DSN-free and offline; a derivation from repository
+  metadata terminates on something an adversary editing the tree is already inside, which is D76's
+  own requirement unmet.
+- **D132 must not be discharged by making the accepted set multi-member.** Adding historical digests
+  to `acceptedMigration`/`acceptedSchemaSQL` would make the observer accept a superseded body on a
+  fully-migrated database -- **D99(b)'s own explicitly rejected answer** (`0007:10608-10616`),
+  strictly worse, and it would silently delete the non-readoption assertion.
+- **D133 must not be discharged by D132**, and this is measured rather than asserted: the D132
+  prototype passes on a `SchemaSQL` carrying the retired-signature rogue. They are two mechanisms.
+- **D133 must not be discharged by removing the purge bodies from `SchemaSQL`.** `SchemaSQL` is a live
+  bootstrap path by D125's own decision one round old; deleting the bodies would make every
+  SchemaSQL-bootstrapped database unprovisionable, which is a false refusal on a clean tree -- the
+  same shape D131 forbids for `retiredFunctionTypeLists`.
+- **D132 and D133 ship together or in adjacent stages**, never with more than one stage between them:
+  each closes half of one sentence ("every committed literal, on every bootstrap path, is a body this
+  repository provably shipped") and either alone leaves a source the other does not cover.
+- **D134 must not invent an upper bound on `MaxSnapshotBytes`.** Neither of D114(b)'s two reasons is
+  present, measured; a bound with no stated reason is a number a later round cannot audit, and it is
+  D130's own withdrawal condition one field over.
+- **D135 must not remove the `coalesce(..., 0)`.** Doing so is an unnamed behaviour change on a live
+  path for a finding measured to have no effect, and it moves both definer digests for a fifth
+  consecutive round. If it is removed anyway, the refusal must be named and the behaviour change
+  declared, as D114(b) and D130 each declared theirs.
+- **No tolerance, anywhere.** If any comparison in this addendum cannot be made exact, the
+  implementation stops and this addendum is amended rather than shipping an equivalence relation
+  invented in the implementing pass. D85's second condition, D103's fourth, D112's last, D122's last
+  and D131's last; the **sixth** round to restate it.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #14's confirmation. **D124 is not
+reopened in any respect** -- this addendum changes no function body, moves no declared digest, and
+touches neither `024` nor `SchemaSQL`'s purge bodies; D135 explicitly declines to. D125's parity is
+untouched and D133 strengthens the gate that protects it. D126's count and membership conditions
+remain shipped together. **D127(a) and D127(b) are kept in full and extended, never replaced** --
+`retiredFunctionTypeLists` keeps its D118 meaning and its D31 closed-set shape, and D132 is D127(a)'s
+own sentence applied to the population D127(a) did not cover. D128's message and its documentation
+half are untouched. D129's derivation stands. D130's F-F fix is untouched; only its **claim** moves.
+D118's type-list equality is kept and extended, never replaced by a prefix rule. D117's two-member
+accepted sets are untouched in shape and in value. D116's global corroboration population is
+untouched. D107's four lying directions stand. D99's gate is strengthened in classification only,
+never weakened in derivation, and is **not** discharged by a hand list -- the historical set is a
+*declared* set compared against a *derived* population, which is D99(a)'s own arrangement, not a
+return to the hand-listed file set D99 replaced. `screening_ledger_event` is not registered as a
+protected object or relation. D101's marker is untouched and is still not a number. `SnapshotCreatedAt`
+is not reinstated. `prosrc` is not normalised, trimmed or whitespace-folded in any control. D88(a) and
+D88(b) remain shipped together and `anchorMAC`'s input is untouched. D77 and D80 remain shipped
+together. D79's hoist is untouched. D65's validity branch and D50's `index_defs` are untouched, so
+Addendum 6's and Addendum 7's stated fallbacks are both **not** required and **must not** be adopted.
+The withdrawn D74 reaper is not reintroduced. The instance binding is still not a gate. D46 is not
+split from D45. D40's collateral-damage cases pass. D38(a) and D38(b) remain shipped together. D69's
+rejection of `pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R60 -- D132 narrows D99(a)'s "covered without an edit" property by exactly one line per body
+change, and the surface grows along the axis R23, R29, R33, R42, R46, R50, R55 and R59 already
+track.** A legitimate new migration must add the outgoing live digest to `historicalBodySHA256` in the
+same PR that moves the accepted constant. **This is a real narrowing of D99(a) and is named rather
+than glossed**: D99(a)'s property survives for *file discovery* (a new file is still found by scan,
+never by list) and is narrowed for *body acceptance*. The mitigating properties are that D127(a)
+already accepted this exact cost for retired signatures one round ago, that the assertion **fails
+closed** so a forgotten edit is a red gate rather than a silent gap, and that the failure message
+names the file, the overload and the digest to add. The aggravating property section 10.3 names --
+that these controls have no single owner -- is unchanged and is not addressed here.
+
+**R61 -- `extractFunctionBodies`' parenthesis assumption is false and its repair is deliberately not
+in this round.** Measured above: a `DEFAULT` whose value contains `)` and a parameterised type such
+as `numeric(10,2)` both truncate the extracted argument list. **The failure direction is safe** -- the
+mangled type list matches nothing, so the placement rule names the body -- and no such spelling exists
+in `db/migrations/*.sql` or `SchemaSQL` today. The correct repair is a paren-depth-aware argument
+scan, which changes the extractor **every declared digest in this document depends on**, and folding
+it into a round repairing a placement rule is how a round ships a mechanism it did not audit -- D124's
+own reasoning about the array-lower-bound patch, one object over. **The re-entry condition is the
+first declared-function signature that uses a parameterised type or a non-trivial `DEFAULT`.**
+
+**R62 -- D135's inertness is a property of the current call graph, not of the expression.**
+`coalesce(cardinality(...), 0)` at `024:98-99` is harmless only because the leading precheck is the
+sole consumer of the conflated value and every path on which NULL and `{}` differ reaches an
+expression ranging over an empty element set. **The re-entry condition is any edit giving
+`p_snapshot_sha256` a second consumer that distinguishes them** -- a destructive expression, a
+selector, or a diagnostic that decides -- at which point the `coalesce` becomes load-bearing and must
+be replaced by a strict `cardinality` comparison with its refusal named.
+
+**R63 -- a green DSN gate does not prove the suite was pointed at the intended cluster, and this pass
+demonstrated it by accident.** `check_db_gates.sh` verifies that ten `OWL_*_DATABASE_URL` variables
+are set and prints `PASS` for each. **One member of the suite does not use them**:
+`scripts/ci/tests/test_provisioning_no_dangling_membership.sh` connects with
+`PGHOST`/`PGPORT`/`PGDATABASE`/`PGSUPERUSER`/`PGSUPERPASSWORD`, which `run-ci.sh:36-38` documents
+deliberately -- *"the test itself connects with PGHOST/PGPORT/... not a DSN"*. On this pass those five
+were exported for the fixture build but not into the `run-ci.sh` shell, so the test defaulted to
+`localhost:5432` while all ten DSN checks reported `PASS`. **This is recorded as a residual, not
+designed away**: fixing it means deciding a connection contract for a script that is deliberately
+DSN-free, and CLAUDE.md's Boundaries make a CI gate change its own reviewed PR. The bounded mitigation
+available today is that a SEC-7 pass must export the five libpq variables alongside the ten DSNs and
+say so, which this addendum's verification section does. **It sits beside the residual
+`run-ci-fails-closed-without-DSNs` behaviour that Addendum 14's own CAP recorded**: both are cases
+where the gate's output is not, by itself, evidence about what the gate ran against.
+
+### Staging
+
+Same shape and reason as section 8 and the fourteen prior addenda: each stage independently reviewable
+and independently provable. Ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage S1 -- the digest comparison.** D132(a) and D132(b) together. **First**, because it is the
+   MEDIUM CAP #14 raised and because D132(b)'s whole-round half must not become a follow-up: three
+   consecutive addenda have shipped a round's principle applied only to the decision that motivated
+   it, and D86 is the standing proof.
+3. **Stage S2 -- the placement population.** D133, plus the `:626` length guard. **Must not lag S1 by
+   more than one stage** -- D132 and D133 are two halves of one sentence, and either alone leaves a
+   bootstrap path the other does not cover. Independent of S1's code, so it can land in parallel if
+   that is convenient.
+4. **Stage S3 -- the two LOWs.** D134 and D135. Blocks nothing, and is therefore sequenced last and
+   explicitly **not** droppable -- D23 was sequenced last on the same "blocks nothing" reasoning and
+   CAP #2 rated the resulting gap HIGH, a lesson Addenda 5 through 14 each repeated and which D93(b)
+   is the standing proof of. Both are text-and-comment changes plus a pinned test; neither moves a
+   function body or a declared digest, which is what makes this the cheapest stage in the arc.
+5. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until every stage above has landed and its reproduction passes. CAP
+   #14 re-confirmed nothing has re-asserted the guarantee; that must remain true through this
+   addendum as well.
+
+Per CLAUDE.md Boundaries, any `.github/workflows/*.yml` wiring is named explicitly in the stage PR
+description, following D30's precedent. **No stage in this addendum needs a new DSN or a new fixture
+database**, so no workflow wiring is expected -- and a local `run-ci.sh` pass does not prove workflow
+wiring, which this document does not pretend otherwise.
+
+**SEC-7 does not close on this addendum.** Section 8's closing condition -- *"a deliberately forged
+chain fails a CI run that nobody chose to invoke"* -- remains met for the **chain**: CAP #14 confirms
+the cryptographic layer is unbroken across all fourteen rounds, and for the first time the previous
+round's flagship fix survived every attempt against it. It is **not** met for the **retention claim's
+declaration surface**: a `SECURITY DEFINER` body that destroys evidence under a live obligation can be
+committed to `db/migrations/` **or to `SchemaSQL`** and pass every source gate this repository runs,
+caught only by controls D127's own text says must not be relied on for this purpose -- a
+provisioning-time digest check in one case, and nothing but table ownership in the other.
+
+### Addendum 15 summary
+
+- **CAP #14's verdict is QUALIFIED, not PASS, for the fourteenth consecutive audit -- and it is the
+  first round in the arc with no CRITICAL and no HIGH.** Three findings: one MEDIUM, two LOW. **D124
+  and D125 survived exhaustive pressure-testing** across nineteen array shapes on both bootstrap
+  paths, and this addendum reopens neither, changes no function body and moves no declared digest.
+- **This addendum introduces no new axis, adopting CAP #14 section 10's own recommendation and
+  stating the reasoning.** The question both findings answer wrongly is **Addendum 5's**: over what
+  set is this control meaningful? A gate's population is the set of objects it looks at, and the
+  shipped gate's two halves have two different populations, neither of which is the one D99(a)
+  declares. **D132 and D133 widen those populations**; the sentence they add is D127(a)'s own, one
+  level down: **not being accepted is not the same as having been looked at.**
+- **The design is D132-D136.** Every literal in a declared overload's derived population must digest
+  to a member of a declared closed set, order-independently, for **every** declared function and not
+  only the one CAP #14 demonstrated (D132); the placement rule's population becomes "every bootstrap
+  path" rather than "every file", because `SchemaSQL` was never passed through it (D133); D130's
+  "transfers verbatim" claim is corrected to describe the two branches that ship and to name why the
+  third is deliberately absent (D134); D124's `coalesce` conflation is measured inert, kept, and
+  documented with its re-entry condition rather than carried forward unexamined (D135); and the proof
+  obligations with pre-declared withdrawal conditions (D136).
+- **This design pass executed its mechanism assumptions, and the measurement widened the finding
+  twice and refused to let one fix claim the other.** G-A reproduces against the **full thirteen-member
+  composed gate**, not the three directions CAP #14 measured -- the rogue that does not sort last
+  passes all thirteen. Its population is **one overload larger** than the record states: the
+  time-floor overload's superseded `022` literal is equally undigested and no CAP has named it. **The
+  same defect exists one source over and there it does not depend on sort order at all** -- two rogue
+  `SECURITY DEFINER` bodies inside `SchemaSQL` pass the entire gate, are live on a
+  SchemaSQL-bootstrapped database, and destroy evidence under a `2100-01-01` obligation. And **D132
+  measurably does not close D133**, because `derivedPopulation` filters `SchemaSQL` by type list
+  before any digest is compared.
+- **Both fixes were prototyped and executed before they were written, including their positive
+  controls.** The D132 prototype passes on the clean tree and fails on **both** rogue placements with
+  messages differing only in the filename each names -- which is the property the brief asked for. The
+  D133 prototype passes on the clean `SchemaSQL` and fails on both rogue classes.
+- **One of the two LOWs is a claim, not a defect, and this addendum decides that rather than
+  splitting it.** Neither of D114(b)'s two stated reasons for an upper bound transfers to
+  `MaxSnapshotBytes`, measured: it is read only in a comparison, so no value wraps including
+  `MaxInt64`, and it never reaches the `Event`, so no obligation is committed. **The omission is
+  correct and the text is wrong**, so the text moves and no bound is invented.
+- **Four risks are recorded** rather than designed away: D132 narrows D99(a)'s no-edit property by one
+  line per body change (R60); `extractFunctionBodies`' parenthesis assumption is measurably false and
+  fails safe, with its repair deliberately deferred (R61); D135's inertness is a property of the
+  current call graph with a declared re-entry condition (R62); and **a green DSN gate does not prove
+  the suite was pointed at the intended cluster** (R63), which this pass demonstrated by accident.
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42,
+  D43-D49, D50-D58, D59-D67, D68-D75, D76-D85, D86-D95, D96-D103, D104-D112, D113-D122 and D123-D131
+  stand. R1-R59 stand. Two prior *texts* are corrected in the new decisions' own words, the AR7
+  convention: **D99(b)'s** stated property -- that a superseded literal digesting outside every
+  accepted set is sufficient -- is true as far as it goes and does not establish that the body was
+  ever one this repository shipped, corrected by **D132**; and **D130's** "D114(b)'s reasoning
+  transfers verbatim", true of two branches of three and silent about the third, corrected by
+  **D134**. **D127(a)'s own sentence is not corrected but extended** -- it was right, and it was
+  applied to one of the three populations that needed it.
+
+**Audit basis commit:** `4975664753b7918bbd9e20bf67e45832c9fbd3e9`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #14
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
