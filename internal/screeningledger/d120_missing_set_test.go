@@ -118,7 +118,7 @@ func TestShortfallExplainedByUnreplicatedEventsMissingSetDiscriminator(t *testin
 			if div.ChainCount != c.wantChain || div.MirrorCount != c.wantMirror {
 				t.Fatalf("test construction error: chain=%d mirror=%d, want chain=%d mirror=%d", div.ChainCount, div.MirrorCount, c.wantChain, c.wantMirror)
 			}
-			got, err := store.ShortfallExplainedByUnreplicatedEvents(context.Background(), mirrored, div)
+			got, _, err := store.ShortfallExplainedByUnreplicatedEvents(context.Background(), mirrored, div)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -170,7 +170,7 @@ func TestShortfallExplainedByUnreplicatedEventsShippedRuleWouldHaveDiffered(t *t
 				t.Fatalf("test construction error: reconstructed shipped rule = %v, want %v", shipped, c.wantShipped)
 			}
 
-			candidate, err := store.ShortfallExplainedByUnreplicatedEvents(context.Background(), mirrored, div)
+			candidate, _, err := store.ShortfallExplainedByUnreplicatedEvents(context.Background(), mirrored, div)
 			if err != nil {
 				t.Fatal(err)
 			}

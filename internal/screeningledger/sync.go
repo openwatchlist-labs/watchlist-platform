@@ -42,9 +42,10 @@ func (s *Store) Sync(ctx context.Context, sink *PostgresSink, opts AnchorOptions
 	if err != nil {
 		var divergence *MirrorChainCountDivergence
 		explained := false
+		var missing []string
 		if errors.As(err, &divergence) {
 			var checkErr error
-			explained, checkErr = s.ShortfallExplainedByUnreplicatedEvents(ctx, sink, divergence)
+			explained, missing, checkErr = s.ShortfallExplainedByUnreplicatedEvents(ctx, sink, divergence)
 			if checkErr != nil {
 				return SyncResult{}, checkErr
 			}
@@ -52,7 +53,10 @@ func (s *Store) Sync(ctx context.Context, sink *PostgresSink, opts AnchorOptions
 		if !explained {
 			return SyncResult{VerifyResult: verifyResult}, err
 		}
-		deferredReason = fmt.Sprintf("mirror/chain count shortfall for snapshot %s (mirror=%d, chain=%d) deferred: fully accounted for by this ledger's own unreplicated events (ADR-0007 Addendum 12 D109)", divergence.SnapshotSHA256, divergence.MirrorCount, divergence.ChainCount)
+		// ADR-0007 Addendum 14 D126: the missing event ids are named, not
+		// just counted, so "fully accounted for" is a true statement
+		// about a specific state rather than a bare, unverifiable claim.
+		deferredReason = fmt.Sprintf("mirror/chain count shortfall for snapshot %s (mirror=%d, chain=%d) deferred: fully accounted for by this ledger's own unreplicated events %v (ADR-0007 Addendum 12 D109, Addendum 14 D126)", divergence.SnapshotSHA256, divergence.MirrorCount, divergence.ChainCount, missing)
 	}
 
 	events, err := s.ListEvents()
