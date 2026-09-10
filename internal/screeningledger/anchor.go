@@ -829,6 +829,23 @@ func (s *Store) reportOutOfScopePurgeRecords(ctx context.Context, knownSnapshotS
 	return reported, nil
 }
 
+// ErrAnchorGenesisRequired is ADR-0007 Addendum 14 D128 (F-D, MEDIUM):
+// anchored mode with no existing anchor row for this ledger, under a
+// policy floor that permits genesis. A distinguishable sentinel rather
+// than a bare errors.New string, because the remedy this state calls
+// for -- `screening-ledger anchor --allow-genesis true` -- is valid on
+// exactly ONE of the four subcommands that can reach this branch
+// (status, verify, sync, anchor), and this VerifyAnchored/VerifyPolicy
+// call has no "which command am I" field to decide that itself (adding
+// one would put a caller's identity inside a verification input, the
+// shape D8 exists to forbid). The CALLER renders the remedy that is
+// valid where it prints, because the caller is the only party that
+// knows what it is (cmd/screening-ledger/main.go). This error's own
+// Error() text is unchanged from before this addendum -- it is exactly
+// what `anchor` still prints, verbatim, when this sentinel reaches it
+// unhandled.
+var ErrAnchorGenesisRequired = errors.New("anchored mode requires an existing anchor row and none was found for this ledger; pass --allow-genesis explicitly if this is genuinely a first anchor (required every time this state is reached, not only 'the first time' -- ADR-0007 D12/D19)")
+
 // VerifyAnchored is VerifyPolicy (the full file-chain check: event and
 // audit, EA1-EA3, D4 frozen-prefix/genesis-boundary rules, D13 purge
 // handling) plus D3's anchor cross-check, extended by D11 (policy
@@ -930,7 +947,7 @@ func (s *Store) VerifyAnchored(ctx context.Context, opts AnchorOptions) (AnchorV
 			base.AnchorStatus = AnchorStatusAbsent
 			return base, nil
 		}
-		return AnchorVerifyResult{}, errors.New("anchored mode requires an existing anchor row and none was found for this ledger; pass --allow-genesis explicitly if this is genuinely a first anchor (required every time this state is reached, not only 'the first time' -- ADR-0007 D12/D19)")
+		return AnchorVerifyResult{}, ErrAnchorGenesisRequired
 	}
 
 	if len(opts.KAnchor) != 32 {

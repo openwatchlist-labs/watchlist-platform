@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,9 +15,29 @@ import (
 
 type options map[string]string
 
+// usageMessage is ADR-0007 Addendum 14 D130's own required half of
+// removing --retention-days/--max-snapshot-bytes from `export`: this CLI
+// silently accepts unknown flags (R58, unfixed by this addendum), so an
+// operator who keeps passing either after this change gets exactly the
+// silence they got before -- the absence is visible only where an
+// operator looks, which is here.
+const usageMessage = `usage: screening-ledger <command> [options]
+
+commands:
+  migrate      --postgres-dsn-env <var> [--timeout <duration>]
+  status       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> [--postgres-dsn-env <var>] [--anchor-key-file|--anchor-key-env <key>] [--verification-mode anchored|historical-unanchored]
+  verify       (same flags as status)
+  sync         --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> --anchor-key-file|--anchor-key-env <key> [--verification-mode anchored|historical-unanchored] [--operator <name>]
+  anchor       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> --anchor-key-file|--anchor-key-env <key> --anchor-dsn-env <var> [--allow-genesis true] [--verification-mode anchored|historical-unanchored]
+  replay       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --event-id <id> --backend-url <url> [--timeout <duration>]
+  export       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --event-id <id> --output <path> [--mode redacted|internal] [--redact-keys <csv>] [--hash-keys <csv>]
+  purge        --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> [--before <RFC3339>] [--operator <name>] [--reason <text>]
+  import-audit --postgres-dsn-env <var> [--source <name>] --audit-directory <dir>
+`
+
 func main() {
 	if len(os.Args) < 2 {
-		fatal("usage: screening-ledger <migrate|status|verify|sync|anchor|replay|export|purge|import-audit> [options]")
+		fatal(usageMessage)
 	}
 	command := os.Args[1]
 	opts, err := parseOptions(os.Args[2:])
@@ -76,13 +96,13 @@ func main() {
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
 				Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 			})
-			must(err)
+			mustVerifiedAnchor(err)
 		} else {
 			report, err = store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode},
 				Anchors:       nil,
 			})
-			must(err)
+			mustVerifiedAnchor(err)
 		}
 		events, err := store.ListEvents()
 		must(err)
@@ -156,7 +176,7 @@ func main() {
 			Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
 		}
 		syncResult, err := store.Sync(ctx, sink, verifyOpts, opts.value("--operator", "screening-ledger-cli"))
-		must(err)
+		mustVerifiedAnchor(err)
 		verifyResult := syncResult.VerifyResult
 		output(map[string]any{
 			"status": "ok", "synced_event_count": syncResult.SyncedEventCount,
@@ -222,13 +242,21 @@ func main() {
 		must(err)
 		output(report)
 	case "export":
+		// ADR-0007 Addendum 14 D130 (F-G, LOW): --retention-days and
+		// --max-snapshot-bytes are removed rather than wired -- the
+		// complete set of non-test readers of any RetentionPolicy field
+		// is redact.go (RedactKeys, HashKeys) and Store.Append's own
+		// retention block; ExportBundle hands this policy only to
+		// RedactJSON, which reads neither. Both flags were dead on this
+		// path by one mechanism (F-F's own field is one of the two), and
+		// wiring a dead flag to a newly-invented meaning here is
+		// inventing a contract in the implementing pass (CLAUDE.md rule
+		// 7) -- removing them is the smaller, more honest change.
 		store := mustStore(opts)
 		policy := screeningledger.RetentionPolicy{
-			Class:            "screening-standard",
-			RetentionDays:    opts.integer("--retention-days", 2555),
-			RedactKeys:       splitCSV(opts.value("--redact-keys", "account_number,iban,bic,passport_number,tax_id")),
-			HashKeys:         splitCSV(opts.value("--hash-keys", "name,address,original_value")),
-			MaxSnapshotBytes: opts.integer("--max-snapshot-bytes", 2*1024*1024),
+			Class:      "screening-standard",
+			RedactKeys: splitCSV(opts.value("--redact-keys", "account_number,iban,bic,passport_number,tax_id")),
+			HashKeys:   splitCSV(opts.value("--hash-keys", "name,address,original_value")),
 		}
 		manifest, err := store.ExportBundle(opts.required("--event-id"), opts.required("--output"), opts.value("--mode", "redacted"), policy)
 		must(err)
@@ -443,14 +471,6 @@ func (o options) value(name, fallback string) string {
 	}
 	return o[name]
 }
-func (o options) integer(name string, fallback int) int {
-	if o[name] == "" {
-		return fallback
-	}
-	value, err := strconv.Atoi(o[name])
-	must(err)
-	return value
-}
 func (o options) duration(name string, fallback time.Duration) time.Duration {
 	if o[name] == "" {
 		return fallback
@@ -477,6 +497,26 @@ func must(err error) {
 	if err != nil {
 		fatal(err.Error())
 	}
+}
+
+// mustVerifiedAnchor is ADR-0007 Addendum 14 D128 (F-D, MEDIUM): status,
+// verify and sync all reach screeningledger.ErrAnchorGenesisRequired
+// through VerifyAnchored/Sync, and that error's own text names
+// --allow-genesis -- a flag valid on exactly one subcommand, `anchor`
+// (D24 already refuses it on these three by name, separately, before
+// this ever runs). The caller is the only party that knows which
+// subcommand it is, so it renders the remedy here rather than printing
+// VerifyAnchored's own message verbatim; `anchor`'s own call site still
+// uses plain must(err), so this sentinel's Error() text -- unchanged
+// from before this addendum -- is exactly what `anchor` prints.
+func mustVerifiedAnchor(err error) {
+	if err == nil {
+		return
+	}
+	if errors.Is(err, screeningledger.ErrAnchorGenesisRequired) {
+		fatal("anchored mode requires an existing anchor row and none was found for this ledger; this command has no --allow-genesis flag -- write the ledger's first anchor with `screening-ledger anchor --anchor-dsn-env <VAR> --allow-genesis true` (the flag requires an explicit value, e.g. \"true\" -- a bare --allow-genesis is refused separately) and re-run this command (ADR-0007 Addendum 14 D128)")
+	}
+	fatal(err.Error())
 }
 func fatal(message string) {
 	fmt.Fprintln(os.Stderr, message)
