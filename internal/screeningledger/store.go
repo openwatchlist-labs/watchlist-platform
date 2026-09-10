@@ -253,8 +253,18 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	case input.Retention.RetentionDays > 36525:
 		return AppendResult{}, fmt.Errorf("retention_days %d exceeds the declared maximum of 36525 (100 years, ADR-0007 Addendum 13 D114(b)): refused rather than computed", input.Retention.RetentionDays)
 	}
-	if input.Retention.MaxSnapshotBytes <= 0 {
+	// ADR-0007 Addendum 14 D130 (F-F, LOW): the same conflation D114(b)
+	// named a defect two lines above, one field over. `<= 0` treated
+	// "unset" (0) and "invalid" (negative) as the same fact -- a caller
+	// asking for a STRICTER cap than zero got the 2 MiB default instead,
+	// inverting the request rather than refusing it. 0 is "unset" and
+	// keeps the documented default; a negative value is a distinct fact
+	// and is refused by name, D114(b)'s reasoning transferred verbatim.
+	switch {
+	case input.Retention.MaxSnapshotBytes == 0:
 		input.Retention.MaxSnapshotBytes = 2 * 1024 * 1024
+	case input.Retention.MaxSnapshotBytes < 0:
+		return AppendResult{}, fmt.Errorf("max_snapshot_bytes %d is negative (ADR-0007 Addendum 14 D130): 0 means \"use the documented default\", a negative value is refused rather than silently inverted into a larger one", input.Retention.MaxSnapshotBytes)
 	}
 	requestCanonical, err := canonicalJSON(input.RequestBytes)
 	if err != nil {

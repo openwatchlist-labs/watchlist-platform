@@ -96,6 +96,32 @@ screening-ledger status --postgres-dsn-env <VAR> \
 `--key-env`/`--anchor-key-env` (an environment variable name, rather than a file path) work the same
 way if that is how these keys are provisioned in your environment.
 
+**If the confirmation step above reports "anchored mode requires an existing anchor row and none was
+found for this ledger," this clone genuinely has no anchor row yet for this ledger -- confirmed by
+running the remedy the message names, not assumed.** ADR-0007 Addendum 14 D128: this state is reached
+by `status`, `verify` and `sync` alike, and the message now names the command that actually clears
+it -- `screening-ledger anchor`, which needs one flag none of the three commands above take,
+`--anchor-dsn-env` (an environment variable name holding the DSN for the `owl_ledger_anchor` role,
+ADR-0007 D3 -- distinct from `--postgres-dsn-env`'s `owl_migrator` identity above). `--allow-genesis`
+requires an explicit value (`true`), not a bare flag:
+
+```sh
+# ADR-0007 Addendum 14 D128: executed before it was written -- the remedy
+# this document names is the remedy that was run.
+screening-ledger anchor --postgres-dsn-env <VAR> --anchor-dsn-env <ANCHOR_VAR> \
+  --policy-file <policy> --policy-public-key-file <key> \
+  --key-file <K_snap key file> --anchor-key-file <K_anchor key file> \
+  --ledger-dir <ledger directory> --ledger-id <ledger id> \
+  --allow-genesis true
+```
+
+Then re-run the confirmation step above; `"anchor_status":"verified"` replaces the earlier failure.
+**This is a genuine first anchor for this specific ledger on this specific database** -- the same
+acknowledgment ADR-0007 D12/D19 require every time this state is reached, not only "the first time"
+-- and is not something to pass routinely; if this clone is expected to already carry anchors (a
+restore of a previously anchored ledger, rather than a genuine genesis), stop and investigate before
+running it, per D25's own caution.
+
 **This CLI silently accepts unknown flags.** `--totally-bogus-flag xyz` returns `rc=0` with no
 diagnostic (confirmed by execution) -- an operator who mistypes a flag in this procedure gets no
 signal at all. Recorded as an observation rather than fixed here: it makes getting the flag list

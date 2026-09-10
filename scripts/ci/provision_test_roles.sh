@@ -449,7 +449,7 @@ grant-ddl-ownership)
   # membership was an audit measurement, not the mechanism.
   for decl_purge_fn in \
     "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:d44b2cab4d905fafd5754df890b5f95e286cf3877e80cabe4f120bdeb41eea91,156cfb60ba5b78c856eb9d893bd65dbee0db3b344ae2c7aba6feb91d39c19534:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
-    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd,cdea5cf78b92646b7e4d548ace2edc92fd60c8949ceab0db807fdd66a5d56f91:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
+    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:763f63090c9af4be219176d31dd1d7d304d548062533506b85fff9d439a2d0da,bd7365a49b728621f38d875d345b6fe395f85f09ddd3e31a18c24d5955ba3948:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
   do
     purge_args="${decl_purge_fn%%:*}"
     purge_rest="${decl_purge_fn#*:}"

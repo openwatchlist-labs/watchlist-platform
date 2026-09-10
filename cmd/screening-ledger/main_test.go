@@ -266,6 +266,49 @@ func TestNoArgsFailsWithUsageMessage(t *testing.T) {
 	}
 }
 
+// TestUsageMessageNamesExportsRealFlagsOnly is ADR-0007 Addendum 14 D130
+// (F-G, LOW): --retention-days and --max-snapshot-bytes are dead on
+// export's path (ExportBundle hands its RetentionPolicy only to
+// RedactJSON, which reads neither) and were removed rather than wired.
+// This CLI silently accepts unknown flags (R58, unfixed), so the
+// absence must be visible where an operator looks -- the usage text.
+func TestUsageMessageNamesExportsRealFlagsOnly(t *testing.T) {
+	_, stderr, code := run()
+	if code != 1 {
+		t.Fatalf("expected exit code 1 with no args, got %d (stderr: %q)", code, stderr)
+	}
+	for _, want := range []string{"--event-id", "--output", "--mode", "--redact-keys", "--hash-keys"} {
+		if !bytes.Contains([]byte(stderr), []byte(want)) {
+			t.Fatalf("expected the usage message to name %q as an export flag, got %q", want, stderr)
+		}
+	}
+	for _, mustNotAppear := range []string{"--retention-days", "--max-snapshot-bytes"} {
+		if bytes.Contains([]byte(stderr), []byte(mustNotAppear)) {
+			t.Fatalf("ADR-0007 Addendum 14 D130: expected the usage message to NOT name %q (removed, not wired), got %q", mustNotAppear, stderr)
+		}
+	}
+}
+
+// TestExportNoLongerAcceptsRetentionDaysOrMaxSnapshotBytes is D131 item
+// 8's CLI half: passing either removed flag to `export` has no effect
+// on the produced bundle (the flags are simply unread, same silence
+// R58 already documents for any unknown flag) and the export itself
+// still succeeds -- confirming removal, not a new refusal.
+func TestExportNoLongerAcceptsRetentionDaysOrMaxSnapshotBytes(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	outputPath := filepath.Join(t.TempDir(), "export.json")
+	stdout, stderr, code := run("export",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--event-id", fixtureEventID, "--output", outputPath,
+		"--retention-days", "99999999", "--max-snapshot-bytes", "-1")
+	if code != 0 {
+		t.Fatalf("expected exit code 0 (both flags silently unread, not refused), got %d (stderr: %q)", code, stderr)
+	}
+	if !bytes.Contains([]byte(stdout), []byte(`"event_id":"`+fixtureEventID+`"`)) {
+		t.Fatalf("expected the export manifest to reference the fixture event, got: %s", stdout)
+	}
+}
+
 func TestUnknownCommandFailsCleanly(t *testing.T) {
 	_, stderr, code := run("bogus-command")
 	if code != 1 {
