@@ -272,6 +272,18 @@ func argTypeList(canonicalArgs string) string {
 		if len(fields) == 0 {
 			continue
 		}
+		// ADR-0007 Addendum 14 D127(b): PostgreSQL excludes OUT
+		// parameters from a function's IDENTITY arguments (IN, INOUT and
+		// VARIADIC are all included -- pg_get_function_identity_arguments
+		// itself omits only OUT). Counting an OUT parameter here shifts
+		// the computed type list away from what Postgres itself would
+		// resolve -- the gate and the server disagreeing about which
+		// object a body declares -- and (measured) can make the shifted
+		// list collide with a shorter DECLARED or RETIRED signature that
+		// the true identity does not match at all.
+		if len(fields) >= 2 && strings.EqualFold(fields[0], "OUT") {
+			continue
+		}
 		types = append(types, fields[len(fields)-1])
 	}
 	return strings.Join(types, ",")
@@ -339,9 +351,52 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (
 // tell "this body belongs to a signature that no longer exists at all"
 // apart from "this body is an unplaceable respelling of one that does"
 // -- the two are opposite findings and must not share a code path.
-var retiredFunctionTypeLists = []struct{ funcName, typeList string }{
-	{"screening_ledger_purge_snapshots", "timestamptz,text,text"},
-	{"screening_ledger_purge_snapshots", "text[],timestamptz,text,text"},
+// acceptedBodySHA256 is ADR-0007 Addendum 14 D127(a): a retired type
+// list classifies a body, it does not exempt one. Every historical
+// committed literal that ever bore this signature, measured (not
+// guessed) as sha256(prosrc) directly from db/migrations/008g, 019, 020
+// and 021 -- so a resurrected retired signature (a rogue file that
+// redeclares this exact type list) must digest to a body this repository
+// actually, provably shipped under that signature, or it is a named
+// failure identifying the file, the signature and the live digest,
+// exactly as an unplaceable body already is.
+var retiredFunctionTypeLists = []struct {
+	funcName           string
+	typeList           string
+	acceptedBodySHA256 []string
+}{
+	{
+		funcName: "screening_ledger_purge_snapshots",
+		typeList: "timestamptz,text,text",
+		acceptedBodySHA256: []string{
+			"8c79260649f6cdb70371fa480c9c47fe59ab414f513c01aaa497a9d5fd3ef218", // 008g
+			"e80813611e57d750ca54ecb04898bc22bbf3ee63ac5ef7c0a52c825b2e082aea", // 019
+			"eed7e96d9d341a3f2e9b53a64e8367e9bbeaeae4747fbb1eda28552ec2b079c5", // 020
+			"5e919d8e7e9fb4716e2f081e73e370d1411785944f7015460771e5b4376a5482", // 021 (last, before 022 dropped it)
+		},
+	},
+	{
+		funcName: "screening_ledger_purge_snapshots",
+		typeList: "text[],timestamptz,text,text",
+		acceptedBodySHA256: []string{
+			"e679f4a157c743fa375da26b3625ad1e08a31cd0a430ab786c78fe4769ee065a", // 019
+			"67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4", // 020 (D87/D86 row 8's own constant)
+			"ccb592a2abaff65e144b79be5be4a0bea5449f7bc3394e7fd496b3e4efb75d8c", // 021 (last, before 022 dropped it)
+		},
+	},
+}
+
+// retiredSignatureAcceptedDigests returns the known historical accepted
+// digest set for a retired signature, or nil if canonicalArgs does not
+// match one (callers check isRetiredSignature first).
+func retiredSignatureAcceptedDigests(funcName, canonicalArgs string) []string {
+	found := argTypeList(canonicalArgs)
+	for _, r := range retiredFunctionTypeLists {
+		if r.funcName == funcName && found == r.typeList {
+			return r.acceptedBodySHA256
+		}
+	}
+	return nil
 }
 
 func isRetiredSignature(funcName, canonicalArgs string) bool {
@@ -390,6 +445,25 @@ func assertNoBodyDropped(t *testing.T, migrationDir string) error {
 			for _, f := range extractFunctionBodies(t, content, path, funcName) {
 				canonicalFound := canonicalizeArgs(f.args)
 				if isRetiredSignature(funcName, canonicalFound) {
+					// ADR-0007 Addendum 14 D127(a): a retired type list
+					// classifies a body, it does NOT exempt one -- the
+					// body must still digest to a known historical
+					// committed literal for that signature, or this is a
+					// named failure (a resurrected retired signature
+					// carrying a body this repository never shipped
+					// under it), not a silent skip.
+					digest := digestHexString(f.body)
+					accepted := retiredSignatureAcceptedDigests(funcName, canonicalFound)
+					placed := false
+					for _, a := range accepted {
+						if a == digest {
+							placed = true
+							break
+						}
+					}
+					if !placed {
+						return fmt.Errorf("ADR-0007 Addendum 14 D127: %s defines %s(%s), a retired signature (type list %s) whose body digests to %s -- not a member of the known historical committed set %v: a retired type list classifies a body, it does not exempt one", path, funcName, f.args, argTypeList(canonicalFound), digest, accepted)
+					}
 					continue
 				}
 				foundTypeList := argTypeList(canonicalFound)
