@@ -15857,3 +15857,554 @@ provisioning-time digest check in one case, and nothing but table ownership in t
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #14
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 16: the identity a name resolves to -- how a body is found, and CAP #15's H-A (2026-09-11)
+
+- **Status:** Proposed
+- **Trigger:** a fifteenth Composition Audit Program record produced against the implemented
+  Addendum 15 (`docs/backlog/sec-7-cap-record-caff94a.md`, adversarial posture, audit basis commit
+  `caff94aa2f67d07ff997e4c5c6d5fd3d1d3dd29f`) returned **QUALIFIED, not PASS** for the fifteenth
+  consecutive audit -- **one MEDIUM (H-A), no CRITICAL and no HIGH, the second consecutive round with
+  neither.** **SEC-7 is not closed.**
+- **What CAP #15 confirmed, and this addendum does not disturb.** D132's membership rule and D133's
+  SchemaSQL-widened placement rule are each correct **within the population they range over**, and
+  this addendum reopens neither -- it repairs the one **shared** dependency they both route through,
+  so it strengthens both rather than changing either. D134 (`MaxSnapshotBytes` two-branch domain,
+  incl. `MinInt64`/`MaxInt64`) and D135 (`coalesce(cardinality(...),0)` inert on both paths) are
+  correct and unregressed. Area 2 (`historicalBodySHA256` membership scales to >=3, order-independent),
+  Area 3 (R61 paren-unaware extractor still fails **closed** on both paths), Area 6 (no member
+  "excludes SchemaSQL" any longer) and Area 7 (operator doc accurate; D90 non-disarm 13/2/1 with both
+  event triggers `A` after every refusal) are each clean. **Addendum 3's scoping principle, Addendum
+  4's referent principle, Addendum 5's population principle, Addendum 6's atomicity principle,
+  Addendum 7's quantifier principle, Addendum 8's naming principle, Addendum 9's composition
+  principle, Addendum 10's whole-round obligation, Addendum 11's cardinality principle, Addendum 12's
+  reduction principle, Addendum 13's derivation principle, Addendum 14's element-set widening and
+  Addendum 15's placement principle are each correct**, and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not AR7,
+  not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75, not
+  D76-D85, not D86-D95, not D96-D103, not D104-D112, not D113-D122, not D123-D131, not D132-D136, not
+  the D19 correction note, not R1-R63. Decision numbering continues at **D137**; risk numbering at
+  **R64**. Where a prior decision's *text* is narrower than what the code does, the new decision says
+  so in its own words -- the convention AR7 established.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `caff94aa2f67d07ff997e4c5c6d5fd3d1d3dd29f` rather than copied from the CAP record or a prior
+  addendum. Measured as the first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  caff94aa2f67d07ff997e4c5c6d5fd3d1d3dd29f
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-16-cap15-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-15
+  held to -- and the execution refuted, twice, the shape of the fix this section was expected to
+  reach.** The DSN-free reproduction and the prototype ran under `go test`; the live destructive
+  demonstration ran on a disposable PostgreSQL **17.11** cluster on **port 55660**,
+  `initdb --auth=scram-sha-256 --pwfile`, TCP-only on `127.0.0.1`, `unix_socket_directories = ''`
+  (the scratchpad socket path exceeds PostgreSQL's 103-byte limit), data directory inside this
+  session's own scratchpad. **The developer's own server on port 5432 was never contacted** --
+  confirmed at pass start and pass end that the only other PostgreSQL process is the developer's own
+  server, PID 95804, started `Wed Aug 26 10:01:08 2026`, its start time unchanged throughout, and
+  that it remained the only listener on 5432:
+
+  ```
+  $ ps -p 95804 -o pid,lstart,command   # (pass start AND pass end -- identical)
+  95804 Wed Aug 26 10:01:08 2026 /opt/homebrew/opt/postgresql@17/bin/postgres -D /opt/homebrew/var/postgresql@17
+  $ lsof -nP -iTCP -sTCP:LISTEN | grep -i postgres
+  postgres  95804 piyushdaiya  7u IPv6 ...  TCP [::1]:5432 (LISTEN)
+  postgres  95804 piyushdaiya  8u IPv4 ...  TCP 127.0.0.1:5432 (LISTEN)
+  ```
+
+  Probes lived in one temporary `_test.go` file inside `internal/screeningledger/`, calling the real
+  `extractFunctionBodies` / `dollarTagRe` / `extractedBody` scaffolding rather than reimplementations,
+  plus one rogue `.sql` file temporarily placed in the **real** `db/migrations/` and one temporary
+  in-place swap of `extractFunctionBodies`'s body (so the full eighteen-function gate exercised the
+  fix rather than a temp-directory partial). **All temporary edits were reverted byte-for-byte and the
+  probe and rogue deleted before this addendum was written:**
+
+  ```
+  $ diff -q /tmp/a16_d92.bak internal/screeningledger/d92_digest_gate_derivation_test.go
+  (identical)
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+  The two results that changed the design, each with its transcript in the section that relies on it:
+  1. **A naive "enumerate every `CREATE [OR REPLACE] FUNCTION`" scan matches the keyword inside a
+     COMMENT.** `db/migrations/020_screening_ledger_purge_server_side_floor.sql:165` contains
+     `-- point and CREATE OR REPLACE FUNCTION succeeds without a preceding`. The shipped extractor
+     dodged this by requiring the exact bare name **and** a `(`; a broader enumeration re-exposes it.
+     The fix keeps the `(`-shaped discriminator, so a prose mention is skipped rather than mistaken
+     for a declaration (D137).
+  2. **SchemaSQL's own declarations live INSIDE dollar-quoting**, not at the top level:
+     `internal/screeningledger/postgres.go:2010`, `:2047`, `:2121`, `:2122` create the guard and
+     definer functions with `EXECUTE $exec$CREATE ... FUNCTION ...$func$ $exec$` inside `DO $$ ... $$`
+     blocks. A "top-level-only, skip comments and dollar-quoted regions" tokenizer -- the obvious way
+     to fix result 1 -- **measurably misses every SchemaSQL declaration**, which is a live bootstrap
+     path (D133's own subject). The fix therefore keeps the shipped **flat** scan and does not skip
+     dollar-quoted regions; the `(`-shaped discriminator alone separates declaration from prose
+     (D137).
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1, `0007:717-720`,
+`0007:1474-1490`, `0007:2141-2160`, `0007:2804-2826`, `0007:3689-3712`, `0007:4476-4498`,
+`0007:5500-5554`, `0007:6660-6700`, `0007:7591-7630`, `0007:8742-8768`, `0007:10021-10047`,
+`0007:11194-11235`, `0007:12429-12467` and `0007:13719-13762` set.
+
+1. **CAP #15's own account of H-A is correct in every particular measured here.** Its transcript --
+   `extractFunctionBodies` finds 0 bodies for a `public.`-qualified name and all eighteen DSN-free
+   gate functions pass with the qualified rogue in the real tree -- reproduced exactly (below). What
+   this pass adds is that the same blindness holds for **`PUBLIC.`-qualified, a quoted schema
+   `"public".`, a quoted bare name, an all-uppercase bare name, and whitespace around the dot** --
+   the record names the `public.` case and the *class* is wider, which is the whole reason the fix
+   resolves an identity rather than adding any fixed prefix.
+2. **CAP #15 states the extractor is at `d92_digest_gate_derivation_test.go:74`.** Re-derived at this
+   commit, the `nameRe` regex is `d92_digest_gate_derivation_test.go:74` and the function spans
+   `:71-109`. Accurate.
+
+### Addendum 16 context: the name is an address; the fix is at how a body is found
+
+Addendum 3 asked *what* is protected (`0007:2172-2173`). Addendum 4 asked *which property* is
+compared (`0007:2853-2857`). Addendum 5 asked *over what set* (`0007:3742-3746`). Addendum 8 said
+**the name is an address and never evidence** (`0007:6732-6738`), and required three assertions of a
+declared object: it exists, it has the declared properties, and no undeclared object is present.
+Addendum 15's D133 widened the placement rule's population to **every bootstrap path**, and its D132
+made membership a positive assertion over that population.
+
+**This addendum introduces no new axis, and CAP #15's own recommendation is that it should not.** Its
+words: *"H-A is D133's own 'every bootstrap path' applied to how a body on that path is found (resolve
+the function's identity, do not match its name), and should be argued as the referent-resolution
+correction it is, not as a new principle."* This addendum adopts that reading exactly.
+
+The defect is one level earlier than every prior source-gate finding. D108(b) and D127 established
+that a body which **fails to map to any declared overload is a failure, never a silent discard** --
+but that rule runs *after* a body has been found. H-A is that same sentence applied to **finding** a
+body rather than **placing** one: `extractFunctionBodies` (`d92_digest_gate_derivation_test.go:71-109`)
+locates a declared function's bodies with a **bare-name** regex,
+
+```go
+nameRe := regexp.MustCompile(`CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+` + regexp.QuoteMeta(funcName) + `\s*\(`)
+```
+
+where `funcName` is always the **bare** name (`screening_ledger_purge_snapshots`, and every other
+`declaredFunctions()` entry at `:203/:213/:230/:244` and `retiredFunctionTypeLists` at `:449/:459`).
+A schema-qualified declaration -- `CREATE OR REPLACE FUNCTION public.screening_ledger_purge_snapshots(...)`,
+valid SQL producing the identical function -- places `public.` between `FUNCTION ` and the name, so
+the pattern never matches, **zero bodies are found**, the body enters no population, and no membership
+or placement assertion is ever asked of it. **Every source-gate member routes through this one
+extractor** -- D132's `assertEveryCommittedLiteralIsADeclaredBody`, D133's `assertNoBodyDropped`, and
+`checkLiveDigestMatchesAccepted` -- so the extractor's blindness is a **fail-open** hole shared by all
+of them: a body it does not recognize is *silently absent* rather than *surfaced*. The sentence this
+addendum adds, one level below D108(b)'s:
+
+> **A control that finds a referent by name must resolve that name to the referent's own identity,
+> and a name it cannot resolve to an identity is a surfaced failure, never an invisible one. Where a
+> declaration is located by matching text, the located set is only as complete as the spellings the
+> match anticipated -- and the failure direction of a miss must be closed, not open.**
+
+That is Addendum 8's naming principle (the name is an address) composed with D108(b)'s no-silent-
+discard, applied to the act of finding rather than the act of placing.
+
+### H-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #15's transcript; every run was rebuilt against the baseline above,
+calling the real `extractFunctionBodies`.
+
+**The shipped extractor is blind to every spelling but the bare one.** One rogue statement per
+spelling, the array-form overload's own type list, asked of the real `extractFunctionBodies`:
+
+```
+A16BLIND  bare (control)                    shipped extractFunctionBodies -> 1 body(ies)
+A16BLIND  public.-qualified                 shipped extractFunctionBodies -> 0 body(ies)
+A16BLIND  PUBLIC.-qualified (case-folded)   shipped extractFunctionBodies -> 0 body(ies)
+A16BLIND  quoted schema "public".           shipped extractFunctionBodies -> 0 body(ies)
+A16BLIND  quoted bare name                  shipped extractFunctionBodies -> 0 body(ies)
+A16BLIND  uppercase bare (folds to same fn) shipped extractFunctionBodies -> 0 body(ies)
+A16BLIND  whitespace around dot             shipped extractFunctionBodies -> 0 body(ies)
+```
+
+**The full eighteen-function DSN-free gate passes with the qualified rogue in the REAL
+`db/migrations/` tree.** A `public.`-qualified `SECURITY DEFINER` array-form body that strips
+ciphertext from every unpurged snapshot, placed as `db/migrations/023a_a16_qualrogue.sql` (sorts
+between `023` and `024`). All eighteen gate functions -- the nine in `d92_digest_gate_derivation_test.go`,
+the four in `d127_retired_signature_classification_test.go`, and the five in
+`d132_d133_placement_test.go` -- pass:
+
+```
+$ go test -run '^(<the eighteen>)$' ./internal/screeningledger/
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.438s
+```
+
+**It is live and destroys evidence under a live obligation.** On a disposable cluster carrying the
+`screening_ledger_snapshot` relation (DDL verbatim from `SchemaSQL`, `postgres.go:1976`) and the
+`public.`-qualified rogue as the live `screening_ledger_purge_snapshots(text[],...)` body, an
+empty-array call -- naming no snapshot and no obligation -- strips the ciphertext of a snapshot whose
+retention obligation runs to `2100-01-01`:
+
+```
+--- BEFORE: snapshot under a 2100 obligation, ciphertext present ---
+ snapshot_sha256 |       expires_at       | has_ct | purged
+-----------------+------------------------+--------+--------
+ a16demo00001111 | 2099-12-31 19:00:00-05 | t      | f
+--- the empty-array call: names NO snapshot and NO obligation ---
+ screening_ledger_purge_snapshots -> {}
+--- AFTER: ciphertext stripped under the live 2100 obligation ---
+ a16demo00001111 | 2099-12-31 19:00:00-05 | f      | t
+```
+
+`has_ct` went `t` -> `f` under a live `2100-01-01` obligation, via a body the entire source gate never
+looked at. **This is the same body class D133 catches in a migration file and D132 catches once
+placed -- made invisible to both by a name neither the extractor, nor any assertion downstream of it,
+resolves.**
+
+### D137. H-A (MEDIUM): the extractor resolves a declaration's identity, and a name it cannot resolve is surfaced
+
+**The finding, restated from the code.** `extractFunctionBodies` (`d92_digest_gate_derivation_test.go:71-109`)
+matches `FUNCTION\s+<bare funcName>\s*\(`. The comment at `:62-70` states two parsing assumptions (no
+literal `)` before the argument close; no `AS` substring before the tag) and **says nothing about
+schema qualification, case folding, or quoting of the name** -- the three axes over which PostgreSQL
+accepts a different spelling of the same function. The match is by textual name; the referent is the
+function's identity; the two diverge exactly where H-A lives.
+
+**Decision: the extractor locates every `CREATE [OR REPLACE] FUNCTION` keyword occurrence, resolves
+the name production that follows it to a PostgreSQL identity `(schema, name)` offline, and returns the
+body iff that identity is the declared function in schema {absent, public}. A `CREATE FUNCTION` whose
+name it cannot resolve to an identity is a NAMED, SURFACED failure -- never a silently skipped body.
+The referent becomes the resolved identity; the textual name is only an address to it.**
+
+Three parts, and the shape of each was decided by execution rather than by taste.
+
+**(a) A deliberately narrow, hand-written parser for exactly the `CREATE FUNCTION` name production,
+and nothing more.** The name production is `[ schema_ident . ] func_ident`, where each identifier is
+lexed as PostgreSQL lexes it -- **unquoted** (folded to lowercase), or **quoted** `"..."` (case
+preserved, `""` unescaped) -- with optional whitespace and `--` / `/* */` comments around the dot.
+The parser normalises each part to PostgreSQL's own identity terms and matches iff the normalised
+function name equals the declared name **and** the normalised schema is absent (search-path-relative,
+which resolves to `public` in this repository) or `public`. Illustrative only -- the implementation PR
+owns the real text:
+
+```go
+// resolve the name after the CREATE [OR REPLACE] FUNCTION keyword to (schema, name);
+// unquoted -> lower(...); quoted -> preserved; ok=false on a form this narrow parser
+// does not model (e.g. U&"..."), which the caller turns into a surfaced failure.
+schema, name, openIdx, ok := resolveCreateFunctionName(source, afterKeyword)
+if !ok {
+    return nil, fmt.Errorf("%s: a CREATE FUNCTION whose name this gate cannot resolve to an "+
+        "identity -- refusing to treat it as invisible", sourceLabel)
+}
+if openIdx < len(source) && source[openIdx] == '(' &&
+    name == funcName && (schema == "" || schema == "public") {
+    // ... existing args / AS / dollar-quoted body extraction from '(' ...
+}
+```
+
+**Why by construction and not by enumeration -- the exhaustiveness argument the finding requires.**
+Parsing the *grammar production* covers every spelling PostgreSQL accepts **and resolves to the same
+function**, rather than a list of the spellings that occurred to the author -- the same move D124 made
+(`unnest` over the element set rather than array shapes) and D118 made (resolved type identity rather
+than name prefixes). CAP #15's own prohibition is honoured: **no fixed literal is prepended.**
+`public.`, `PUBLIC.`, `Public.` all fold to `public`; `"public".` is preserved as `public`; a
+mixed-case quoted name denotes a **different** proname and is correctly excluded; a different schema
+denotes a different function and is correctly excluded; and any spelling the narrow parser does not
+model **fails closed** rather than passing invisibly, so **there is no spelling with a silent-pass
+outcome**, which is the property H-A violates.
+
+**(b) The flat scan is kept, and the name-then-`(` shape is the declaration-vs-prose discriminator --
+both decided by measurement, against the two obvious alternatives that fail.** The obvious fix to (a)
+is a top-level tokenizer that skips comments and quoted regions before looking for the keyword. It was
+built and **refuted by execution**: SchemaSQL's guard and definer functions are created inside
+`EXECUTE $exec$CREATE ... FUNCTION ...$func$ $exec$` (`postgres.go:2010/2047/2121/2122`), so a
+tokenizer that skips dollar-quoted regions **misses every SchemaSQL declaration** -- a live bootstrap
+path, D133's own subject, reported by the gate as "a declared function absent from a bootstrap path"
+on all four functions. The shipped extractor's flat scan finds them *because* it ignores dollar-quote
+structure, and this fix keeps that. The comment false-positive the flat scan then exposes
+(`020:165`, `-- ... CREATE OR REPLACE FUNCTION succeeds without ...`) is closed not by skipping
+comments but by the shipped regex's own discriminator, made explicit: a real declaration is
+`name (`; a prose mention (`succeeds without`) is a resolvable name **not** followed by `(`, and is
+**skipped, not failed**. Confirmed that no comment in `db/migrations/*.sql` contains `FUNCTION` and a
+following `(` on one line, so the discriminator has no false positive to make on the real tree.
+
+**(c) The failure direction is inverted: a `CREATE FUNCTION` whose name cannot be resolved is a
+surfaced error.** Today an unrecognised name is invisible (fail-open) -- the whole of H-A. Under
+D137 the only outcomes are: a resolved declaration (matched by identity), a resolved prose mention
+(skipped), or a name the narrow parser cannot resolve (**surfaced failure**). The last is the
+fail-closed default that makes an exotic-but-real declaration a red gate rather than an invisible one,
+and it is D108(b)'s "never a silent discard" moved one step earlier, to the act of finding.
+
+#### Executed: the reproduction, the prototype across the exhaustive spelling matrix, and both controls
+
+The prototype (illustrative, in a temporary probe file) implements (a)-(c). Run against every
+identifier spelling PostgreSQL accepts for this function name -- **bare; `public.`, `PUBLIC.`,
+`Public.`; `"public".`; a quoted bare name; a quoted-schema-plus-quoted-name pair; an all-uppercase
+bare name; whitespace around the dot; a block comment and a line comment between tokens** -- plus the
+two genuinely-different functions that must be excluded, plus the two exotic forms that must fail
+closed:
+
+```
+A16PROTO  bare                                     -> found=1 err=false   (want 1, false)
+A16PROTO  public.-qualified                        -> found=1 err=false   (want 1, false)
+A16PROTO  PUBLIC.-qualified (folds)                -> found=1 err=false   (want 1, false)
+A16PROTO  Public.-qualified (folds)                -> found=1 err=false   (want 1, false)
+A16PROTO  quoted schema "public".                  -> found=1 err=false   (want 1, false)
+A16PROTO  quoted bare name                         -> found=1 err=false   (want 1, false)
+A16PROTO  quoted schema + quoted name              -> found=1 err=false   (want 1, false)
+A16PROTO  uppercase bare (folds)                   -> found=1 err=false   (want 1, false)
+A16PROTO  whitespace around dot                    -> found=1 err=false   (want 1, false)
+A16PROTO  block comment between tokens             -> found=1 err=false   (want 1, false)
+A16PROTO  line comment before name                 -> found=1 err=false   (want 1, false)
+A16PROTO  other schema (myschema.)                 -> found=0 err=false   (want 0, false)  <- correctly excluded
+A16PROTO  quoted mixed-case (different proname)     -> found=0 err=false   (want 0, false)  <- correctly excluded
+A16PROTO  U&-escaped name                          -> found=0 err=true    (want 0, true)   <- FAIL CLOSED
+A16PROTO  U&-escaped schema                        -> found=0 err=true    (want 0, true)   <- FAIL CLOSED
+```
+
+**Why this list is exhaustive over what PostgreSQL accepts for this name.** The population is
+`{schema-part} x {name-part} x {inter-token whitespace/comments}`, over spellings that resolve to the
+public `screening_ledger_purge_snapshots`: the name-part is a bare identifier of any case (folds), a
+quoted exact-lowercase identifier, or an exotic (`U&`) form; the schema-part is absent, `public` in
+any case (folds), `"public"` quoted, or an exotic form; and inter-token separation is arbitrary
+whitespace or comments. The parser implements that production, so it covers each by construction, and
+anything outside it fails closed rather than passing -- which is why exhaustiveness is a property of
+the grammar coverage plus the fail-closed default, not of the fifteen rows above.
+
+**The full eighteen-function gate, with the extractor swapped to the prototype, now fails closed on
+the qualified rogue in the real tree, for the right reason** -- D132 sees it and names it:
+
+```
+--- FAIL: TestEveryCommittedLiteralIsADeclaredBody
+    ADR-0007 Addendum 15 D132: ../../db/migrations/023a_a16_qualrogue.sql defines a literal for
+    screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) whose body digests to 774150cd...,
+    which is not a member of that overload's declared set (accepted + historical)
+```
+
+**The positive control, which D37's rule (`0007:2643-2645`) makes a shipping requirement.** With the
+prototype extractor and the rogue removed, the unmodified `db/migrations/` and `SchemaSQL` tree passes
+**all eighteen** gate functions -- every legitimate declaration, on **both** bootstrap paths (the
+SchemaSQL ones inside `$exec$`), is found correctly, for every `declaredFunctions()` entry:
+
+```
+$ go test -run '^(<the eighteen>)$' ./internal/screeningledger/
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.531s   (45 PASS lines)
+```
+
+A gate that only refused the rogue would not have been shown safe to install; the clean tree passing
+is what proves the identity resolver finds every real body and excludes none.
+
+#### The dependency question, confirmed explicitly because the finding invites a parser dependency
+
+**An offline SQL-parser dependency (`pg_query_go` / libpg_query) is forbidden and is not used.**
+CLAUDE.md rule 1 restricts new dependencies to `jackc/pgx/v5` plus `crypto/ed25519` (stdlib); a grep
+over `go.mod`, `go.sum` and all `*.go` at this commit finds no `pg_query`, `libpg_query` or
+`pganalyze`, and `pg_query_go` is both a new module and a cgo binding of C. It is rejected before it
+is weighed. The fix is stdlib-only.
+
+**A live-connection resolve is also not available and not used.** D92's own property
+(`0007:9484-9486`) is that the gate is DSN-free -- it runs on every `go test ./...` with no database,
+which is what makes it a gate rather than something that self-skips. The identity resolution is
+therefore performed offline, by parsing the declaration text, never by asking a server.
+
+#### Rule 6 does not apply, stated so a later reader does not misread the change's blast radius
+
+`extractFunctionBodies` is a **test-file helper** in `internal/screeningledger/`. It is not the Rust
+catalog's `normalize_ascii` (`runtime/catalog-mmap/src/format.rs`) and not a compiled package layout,
+so CLAUDE.md rule 6's `PACKAGE_SCHEMA_VERSION` bump / catalog recompile / binding re-qualification is
+**not** triggered. No declared digest changes, no function body changes, and no on-disk format
+changes; only the gate's own body-finding logic does.
+
+#### Rejected alternatives, recorded so a later reader does not re-derive them
+
+- **Prepend `public\.?` (or any fixed literal) to the regex.** CAP #15's own explicit prohibition,
+  and refuted by the matrix above: a `PUBLIC.`-qualified, `"public".`-quoted, or all-uppercase name
+  still escapes a fixed prefix, and the referent must be the resolved identity, not a wider textual
+  match.
+- **`pg_query_go` / an offline SQL parser dependency.** CLAUDE.md rule 1; confirmed against
+  `go.mod`/`go.sum` above.
+- **A live-connection resolve.** D92's DSN-free property; the gate must run with no database.
+- **A top-level tokenizer that skips comments and dollar-quoted regions.** Built and refuted:
+  SchemaSQL's declarations live inside `EXECUTE $exec$...$exec$`, so skipping dollar-quotes misses
+  every one of them. The flat scan is kept, and the `(`-shaped discriminator handles the one comment
+  false-positive the flat scan exposes.
+
+### D138. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95,
+D103, D112, D122 and D131 set.
+
+**Every test below must fail before its change, per CLAUDE.md rule 5.** Where a transcript exists
+above, the test reproduces that transcript, not a paraphrase.
+
+1. **The H-A reproduction, and the property the finding is about.** A DSN-free test asserting the
+   **shipped** extractor returns 0 bodies for a `public.`-qualified declaration (1 for the bare
+   control), and that after the fix it returns 1 -- so the test distinguishes a working fix from one
+   that still keys on a textual name. It fails today by construction (the shipped extractor is what
+   is under test) and must be written against the pre-fix behaviour first.
+2. **The exhaustive spelling matrix**, table-driven over every row above -- bare; `public.`,
+   `PUBLIC.`, `Public.`; `"public".`; quoted bare; quoted-schema-plus-quoted-name; uppercase bare;
+   whitespace-around-dot; block-comment-between-tokens; line-comment-before-name -- each asserting the
+   fixed extractor finds exactly one body; **plus** the two genuinely-different functions (a different
+   schema, a mixed-case quoted name) asserting **zero** (correct exclusion, not a gap); **plus** the
+   two exotic forms (`U&"..."` name and schema) asserting a **surfaced failure**, never an invisible
+   pass. A matrix missing the exclusion or the fail-closed rows cannot distinguish the identity
+   resolver from a wider textual match.
+3. **The end-to-end gate, both bootstrap paths, both placements.** A `public.`-qualified rogue placed
+   in the real `db/migrations/` (a file that sorts between two migrations, and one that sorts last)
+   and in `SchemaSQL` via the `schemaSQLOverride` hook, asserting the composed gate **passes today**
+   (H-A) and **fails closed after**, naming the rogue -- D132, D133 and `checkLiveDigestMatchesAccepted`
+   each refuse. This is the property CAP #15 measured and the fix must invert.
+4. **The positive control, a shipping requirement and not a nicety** (D37 verbatim). The unmodified
+   `db/migrations/` and `SchemaSQL` tree passes **all eighteen** gate functions with the fixed
+   extractor, for **every** `declaredFunctions()` entry -- proving the identity resolver finds every
+   legitimate declaration, including the SchemaSQL ones inside `EXECUTE $exec$...$exec$`, and excludes
+   none. Without it, a fix that finds the rogue but drops a real body passes its own suite.
+5. **The comment discriminator, pinned.** A test asserting the fixed extractor **skips** a prose
+   mention shaped like `CREATE OR REPLACE FUNCTION <name> <not-a-paren>` (the `020:165` shape) rather
+   than failing on it -- so a later "simplification" that fails-closed on every keyword occurrence,
+   or that skips comments and thereby misses SchemaSQL, breaks a test that explains why neither is
+   correct.
+6. **The gate still runs with no DSN**, which is D92's own property (`0007:9484-9486`) and the reason
+   the identity resolution is offline rather than a live-catalog lookup.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D137 must not be discharged by prepending `public\.?` or any fixed literal to the regex.** CAP
+  #15's own invalidation condition, restated and measured: a differently-cased, quoted, or
+  search-path-relative name still escapes a fixed prefix. The referent is the resolved identity.
+- **D137 must not be discharged by adding a SQL-parser dependency.** CLAUDE.md rule 1; the resolver
+  is a stdlib hand-written parser of exactly the name production.
+- **D137 must not be discharged by a live-connection resolve.** The gate is DSN-free; the resolution
+  is offline.
+- **D137 must not skip comments and quoted/dollar-quoted regions.** Measured: SchemaSQL's declarations
+  live inside `EXECUTE $exec$...$exec$`, so a region-skipping scan misses every one of them. The flat
+  scan is kept and the `(`-shaped discriminator separates declaration from prose.
+- **The fail-closed default on an unresolvable name must not be softened into a skip.** A skipped
+  unresolvable name reintroduces H-A's fail-open direction for exotic spellings.
+- **No tolerance, anywhere.** If any comparison in this addendum cannot be made exact, the
+  implementation stops and this addendum is amended rather than shipping an equivalence relation
+  invented in the implementing pass. D85's second condition, D103's fourth, D112's last, D122's last
+  and D131's last; the **sixth** round to restate it.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what *this* addendum designs rather than inherited from CAP #15's confirmation. D132's
+membership rule and D133's placement rule are **not reopened** -- their assertions are unchanged; only
+the extractor they share is strengthened, and D132's and D133's own tests are the positive control
+above. D134's two-branch `MaxSnapshotBytes` domain and D135's `coalesce` inertness are untouched.
+D124's element-set corroboration and D125's SchemaSQL parity are untouched. D117's two-member accepted
+sets are untouched in shape and value. D118's type-list equality is kept and extended, never replaced
+by a prefix rule. D99's gate is strengthened in body-finding only, never weakened in derivation, and
+is not discharged by a hand list. `screening_ledger_event` is not registered as a protected object or
+relation. D101's marker is untouched and is still not a number. `SnapshotCreatedAt` is not reinstated.
+`prosrc` is not normalised, trimmed or whitespace-folded in any control -- the name normalisation D137
+performs is on the **identifier** in a `CREATE FUNCTION` header (Postgres's own folding of an
+unquoted name), never on a function **body**, so D85's condition is untouched. D88(a)/(b) remain
+shipped together and `anchorMAC`'s input is untouched. D77 and D80 remain shipped together. D79's
+hoist is untouched. D65's validity branch and D50's `index_defs` are untouched, so Addendum 6's and
+Addendum 7's stated fallbacks are both **not** required and **must not** be adopted. The withdrawn D74
+reaper is not reintroduced. The instance binding is still not a gate. D46 is not split from D45.
+D40's collateral-damage cases pass. D38(a) and D38(b) remain shipped together. D69's rejection of
+`pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R64 -- the fail-closed default may false-fail a future declaration that uses an identifier form the
+narrow parser does not model, and that is the safe direction.** The resolver models unquoted and
+quoted identifiers; a `U&"..."` unicode-escaped name (or any construct outside the modelled
+production) is a surfaced failure rather than a silent skip. No declaration in `db/migrations/*.sql`
+or `SchemaSQL` uses such a form today -- the positive control passes -- so this false-failure risk is
+latent, not present. It is the fail-closed direction (D45's shape: a false failure on a clean tree is
+loud and fixable; H-A's fail-open pass is neither), and the re-entry condition is the first
+legitimate declaration that uses an exotic identifier form, at which point the parser's modelled
+production is widened to cover it (still by construction, never by a fixed literal).
+
+**R65 -- the coordinated-edit surface does NOT grow, and that is stated because every recent addendum
+grew it.** R23, R29, R33, R42, R46, R50, R55 and R59 track a declaration surface that has grown every
+round. D137 adds **no declared literal, no digest, no accepted set, and no function-body change** --
+it changes only how the gate's shared extractor locates a body. The one axis on which the surface
+does not grow this round is worth recording so a later reader does not assume it did.
+
+**R57's undeclared-live-overload class is explicitly still out of scope, and this addendum does not
+close it.** R57 (`0007:14621-14635`) records that no control enumerates the **live catalog's** set of
+overloads of a protected function name; D137 repairs the **source** gate's blindness to a
+schema-qualified *committed literal*, which is a different population (source text, not the live
+catalog) and the one H-A is about. The live-overload class remains bounded by ownership and by the
+provisioning-time D117 digest check, exactly as R57 states, and its re-entry condition is unchanged.
+
+### Staging
+
+Same shape and reason as section 8 and the fifteen prior addenda: each stage independently reviewable
+and independently provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage S1 -- the identity-resolving extractor.** D137 in full: the name-production parser, the
+   flat scan with the `(`-shaped discriminator, and the fail-closed default, plus D138's tests. It is
+   the whole of the fix and the whole of the round; the positive control across both bootstrap paths
+   is a shipping requirement, and the withdrawal conditions are discharged or invoked here. No new
+   DSN, no new fixture database, and no `.github/workflows/*.yml` wiring is expected -- the gate is
+   DSN-free -- and this document does not pretend a local `go test` pass proves workflow wiring.
+3. **`SECURITY.md` and `README.md` language.** R3's rule unchanged. `README.md:93-97`'s
+   requalification notice stays until the stage above has landed and its reproduction passes. CAP #15
+   re-confirmed nothing has re-asserted the guarantee; that must remain true through this addendum as
+   well.
+
+**SEC-7 does not close on this addendum, and for the third consecutive round the reason is not a
+forgery on a correctly-provisioned database.** Section 8's closing condition -- "a deliberately forged
+chain fails a CI run that nobody chose to invoke" -- remains met for the **chain**: CAP #15 confirms
+the cryptographic layer is unbroken across all fifteen rounds. It is **not** met for the **retention
+claim's declaration surface**: a `SECURITY DEFINER` body that destroys evidence under a live
+obligation can be committed to `db/migrations/` or to `SchemaSQL` under a schema-qualified name and
+pass every member of the source gate, because the extractor they all share finds a body by its bare
+name and a qualified name is invisible to it. D137 is the whole of that barrier.
+
+### Addendum 16 summary
+
+- **CAP #15's verdict is QUALIFIED, not PASS, for the fifteenth consecutive audit -- one MEDIUM, no
+  CRITICAL and no HIGH, the second consecutive round with neither.** D132/D133/D134/D135 are each
+  correct within their populations; this addendum reopens none of them and repairs the one dependency
+  they share.
+- **This addendum introduces no new axis, adopting CAP #15's own recommendation.** H-A is D133's
+  "every bootstrap path" applied to *how a body on that path is found*, and D108(b)/D127's "no silent
+  discard" moved one step earlier -- to finding a body rather than placing one. The sentence it adds:
+  a control that finds a referent by name must resolve that name to the referent's identity, and a
+  name it cannot resolve is a surfaced failure, never an invisible one.
+- **The design is D137-D138.** The extractor resolves each `CREATE FUNCTION` declaration's identity
+  offline through a deliberately narrow, stdlib-only parser of exactly the name production -- unquoted
+  folded, quoted preserved, schema resolved -- and matches by identity, not by textual name; the flat
+  scan is kept and the name-then-`(` shape discriminates a declaration from a prose mention; a name
+  the parser cannot resolve is fail-closed (D137); and the proof obligations with pre-declared
+  withdrawal conditions (D138).
+- **This design pass executed its mechanism assumptions, and the execution refuted the obvious fix
+  twice.** A naive enumerate-all matches `CREATE OR REPLACE FUNCTION` inside a comment
+  (`020:165`), and a top-level tokenizer that skips comments and dollar-quoted regions **misses every
+  SchemaSQL declaration**, because SchemaSQL creates its functions inside `EXECUTE $exec$...$exec$`.
+  The flat scan plus the `(`-shaped discriminator is what handles both, and it was chosen by
+  measurement. Also confirmed by execution: the shipped extractor returns **0 bodies** for
+  `public.`/`PUBLIC.`/`"public".`/uppercase/whitespace spellings and 1 for the bare control; the
+  identity resolver finds all eleven same-function spellings, excludes the two genuinely-different
+  functions, and fails closed on the two exotic forms; the full eighteen-function gate passes with
+  the qualified rogue today and fails closed after; the clean tree passes all eighteen with the fix;
+  and the qualified rogue strips ciphertext (`has_ct t->f`) under a `2100-01-01` obligation on a
+  disposable cluster.
+- **The dependency and offline constraints are confirmed against the tree, not asserted.** No
+  `pg_query`/`libpg_query`/`pganalyze` in `go.mod`/`go.sum`/`*.go`; rule 1 forbids a SQL-parser
+  dependency; D92's DSN-free property forbids a live resolve; and rule 6 does not apply because the
+  change is a test-file helper, not the Rust catalog.
+- **Two risks are recorded** rather than designed away: the fail-closed default may false-fail a
+  future exotic-identifier declaration, which is the safe direction with a stated re-entry condition
+  (R64); and the coordinated-edit surface does **not** grow this round, which is worth stating because
+  every recent addendum grew it (R65). R57's undeclared-live-overload class is explicitly still out of
+  scope.
+- **This addendum revises no prior decision.** D1-D7, D8-D20, AR7, D21-D30, D31-D37, D38-D42,
+  D43-D49, D50-D58, D59-D67, D68-D75, D76-D85, D86-D95, D96-D103, D104-D112, D113-D122, D123-D131 and
+  D132-D136 stand. R1-R63 stand. D132's and D133's own texts are not corrected but **extended** -- the
+  extractor they route through is made to resolve identity, which is the referent their own
+  assertions already assume they range over.
+
+**Audit basis commit:** `caff94aa2f67d07ff997e4c5c6d5fd3d1d3dd29f`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #15
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
