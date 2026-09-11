@@ -7,6 +7,7 @@
 package screeningledger
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -48,6 +49,29 @@ func TestMaxSnapshotBytesDeclaredDomain(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "D130") {
 			t.Fatalf("expected the refusal to cite D130, got: %v", err)
+		}
+	})
+	t.Run("MinInt64_refused", func(t *testing.T) {
+		_, err := appendWith(t, math.MinInt64)
+		if err == nil {
+			t.Fatal("ADR-0007 Addendum 14 D130: expected MaxSnapshotBytes=MinInt64 to be refused rather than silently inverted into the 2 MiB default")
+		}
+		if !strings.Contains(err.Error(), "D130") {
+			t.Fatalf("expected the refusal to cite D130, got: %v", err)
+		}
+	})
+	t.Run("MaxInt64_accepted", func(t *testing.T) {
+		// ADR-0007 Addendum 15 D134: neither of D114(b)'s two reasons for
+		// an upper bound transfers to MaxSnapshotBytes -- it is read only
+		// in a comparison (no arithmetic, no wrap cliff even at MaxInt64)
+		// and never reaches the Event (no unreviewable obligation is
+		// committed). No third branch is invented; MaxInt64 is accepted.
+		res, err := appendWith(t, math.MaxInt64)
+		if err != nil {
+			t.Fatalf("expected MaxSnapshotBytes=MaxInt64 to be accepted (no upper bound is declared), got: %v", err)
+		}
+		if res.Event.EventID == "" {
+			t.Fatal("expected a successful append")
 		}
 	})
 	t.Run("positive_cap_still_enforced", func(t *testing.T) {

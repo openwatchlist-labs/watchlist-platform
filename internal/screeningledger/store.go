@@ -253,13 +253,26 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	case input.Retention.RetentionDays > 36525:
 		return AppendResult{}, fmt.Errorf("retention_days %d exceeds the declared maximum of 36525 (100 years, ADR-0007 Addendum 13 D114(b)): refused rather than computed", input.Retention.RetentionDays)
 	}
-	// ADR-0007 Addendum 14 D130 (F-F, LOW): the same conflation D114(b)
-	// named a defect two lines above, one field over. `<= 0` treated
-	// "unset" (0) and "invalid" (negative) as the same fact -- a caller
-	// asking for a STRICTER cap than zero got the 2 MiB default instead,
-	// inverting the request rather than refusing it. 0 is "unset" and
-	// keeps the documented default; a negative value is a distinct fact
-	// and is refused by name, D114(b)'s reasoning transferred verbatim.
+	// ADR-0007 Addendum 14 D130 (F-F, LOW), corrected by ADR-0007
+	// Addendum 15 D134 (G-B): the same conflation D114(b) named a defect
+	// two lines above, one field over. `<= 0` treated "unset" (0) and
+	// "invalid" (negative) as the same fact -- a caller asking for a
+	// STRICTER cap than zero got the 2 MiB default instead, inverting the
+	// request rather than refusing it. 0 is "unset" and keeps the
+	// documented default; a negative value is a distinct fact and is
+	// refused by name. Only the FIRST TWO of D114(b)'s three branches
+	// transfer here -- 0 defaults, negative refuses -- not "D114(b)'s
+	// reasoning transferred verbatim" as Addendum 14 originally claimed:
+	// D114(b)'s third branch, an upper bound, exists for two reasons
+	// (an arithmetic wrap cliff, and not committing an unreviewable
+	// obligation to an immutable chain) that were measured, not argued,
+	// to be ABSENT here. MaxSnapshotBytes is read only in the comparison
+	// at :277 below (no arithmetic is ever performed on it, so there is
+	// no value -- MaxInt64 included -- at which it wraps) and never
+	// reaches the Event this function builds (no obligation is ever
+	// committed, so nothing becomes unreviewable later). The omission of
+	// a third branch is therefore correct and is not itself a defect;
+	// D130's original text was.
 	switch {
 	case input.Retention.MaxSnapshotBytes == 0:
 		input.Retention.MaxSnapshotBytes = 2 * 1024 * 1024

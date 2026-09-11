@@ -81,6 +81,35 @@ END $$;
 -- anywhere in this body. Every other property (the GLOBAL, unscoped
 -- mirror aggregate; the p_ledger_id non-vacuity check; the eligible/
 -- updated CTE; the unique_violation handler) is UNCHANGED from 023.
+--
+-- ADR-0007 Addendum 15 D135 (G-C, LOW): the body's leading precheck
+-- ("BEGIN IF coalesce(cardinality(p_snapshot_sha256),0) IS DISTINCT
+-- FROM ...") folds NULL ("unset") and '{}' ("empty") into one fact
+-- before comparing -- the exact conflation D124's own text names as a
+-- defect when PROTO-B did it (0007:14097-14111). Documented HERE, in
+-- this surrounding comment rather than inside the dollar-quoted body,
+-- because changing the body's own text -- even by adding a comment
+-- inside AS $$...$$ -- moves both purgeSnapshotsArrayFormBodySHA256
+-- definer digests for a fifth consecutive round, a re-provisioning cost
+-- this addendum declines to pay for a LOW with no measured effect
+-- (D135's own decision; the body is byte-identical to before this
+-- addendum).
+--
+-- Measured, not assumed, to be INERT: the leading precheck is the ONLY
+-- consumer of the conflated value, and on every path where NULL and
+-- '{}' differ, the destructive expression below (`s.snapshot_sha256 =
+-- ANY(p_snapshot_sha256)`) ranges over an EMPTY element set --
+-- `= ANY(NULL)` is NULL and `= ANY('{}')` is false, and both select
+-- ZERO rows from screening_ledger_snapshot. This is a property of the
+-- CURRENT call graph, not of the expression: if any future edit gives
+-- p_snapshot_sha256 a second consumer -- a destructive expression, a
+-- selector, or a diagnostic that DECIDES -- on which NULL and '{}'
+-- differ, the coalesce() becomes load-bearing and must be replaced by a
+-- strict cardinality(...) comparison with its own refusal named (R62).
+-- Do NOT remove the coalesce() as a standalone cleanup: doing so makes
+-- ('{}', NULL, NULL) a NEW refusal where it is a no-op today, an
+-- unnamed behaviour change D114(b) and D130 each named explicitly for
+-- their own, analogous changes.
 CREATE OR REPLACE FUNCTION screening_ledger_purge_snapshots(p_snapshot_sha256 text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text)
 RETURNS text[]
 LANGUAGE plpgsql

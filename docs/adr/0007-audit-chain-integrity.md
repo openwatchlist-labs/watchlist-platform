@@ -14438,6 +14438,20 @@ unset) and is refused by name. D114(b)'s reasoning transfers verbatim and is not
 first has a correct answer and the second does not." This is a behaviour change on an existing path
 and is named as one, exactly as D114(b) named its own.
 
+> **Correction (ADR-0007 Addendum 15 D134, G-B):** the sentence above claims D114(b)'s reasoning
+> "transfers verbatim," and that claim is imprecise in a way this addendum's own convention (AR7)
+> requires stating rather than silently editing. D114(b) has **three** branches (`0` -> default;
+> negative -> refusal; above a declared maximum -> refusal); this decision ships only the **first
+> two**. What transfers verbatim is D114(b)'s reasoning for those two branches ("the first has a
+> correct answer and the second does not"); D114(b)'s upper-bound branch does **not** transfer, and
+> was never argued to, but this section never says so, which reads as full parity to anyone checking
+> `store.go` against this text. Measured, not argued, in Addendum 15: neither of D114(b)'s two stated
+> reasons for an upper bound is present for `MaxSnapshotBytes` -- it is read only in a comparison
+> (`store.go:277`), so there is no arithmetic and no wrap cliff even at `MaxInt64`; and it never
+> reaches the `Event` this function builds, so no obligation is committed and nothing becomes
+> unreviewable later. The omission is correct; this section's claim was what was wrong. See
+> ADR-0007 Addendum 15 D134 for the full measurement.
+
 **F-G, and the sibling the brief does not name.** `main.go:228` and `:231` build `RetentionDays` and
 `MaxSnapshotBytes` into the `RetentionPolicy` that `export` hands to `ExportBundle` (`replay.go:75`),
 which passes `policy` only to `RedactJSON` (`:92`, `:96`) -- and `RedactJSON` reads `RedactKeys` and

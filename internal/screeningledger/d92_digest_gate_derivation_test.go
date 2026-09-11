@@ -141,7 +141,60 @@ type declaredFunction struct {
 	typeList          string
 	acceptedMigration string
 	acceptedSchemaSQL string
+	// historicalBodySHA256 is ADR-0007 Addendum 15 D132(a): every OTHER
+	// committed literal this repository has ever legitimately shipped for
+	// this overload -- a superseded body left behind by a later
+	// CREATE OR REPLACE, structurally identical in role to
+	// retiredFunctionTypeLists[].acceptedBodySHA256 (which plays the same
+	// role for a signature that no longer exists at all). Declared here,
+	// beside acceptedMigration/acceptedSchemaSQL, rather than in
+	// postgres.go, because it is this gate's own closed set, not a value
+	// any production code path reads.
+	historicalBodySHA256 []string
 }
+
+// declaredAcceptedSet is ADR-0007 Addendum 15 D132(a)'s closed set for
+// one declaredFunction: every digest this repository has provably
+// shipped for it, on either bootstrap path, at any point in its history
+// -- accepted (the LIVE digest for each path) union historical
+// (superseded digests). owl_reject_truncate (D77/D79) is the one
+// declaredFunctions() entry with acceptedMigration/acceptedSchemaSQL
+// both blank -- its two legitimate digests differ by bootstrap PATH, not
+// by history, and are declared in owlRejectTruncateAcceptedBodySHA256
+// instead; historicalBodySHA256 still unions in on top of that set,
+// exactly as it does for every other entry.
+func (d declaredFunction) declaredAcceptedSet() map[string]bool {
+	set := map[string]bool{}
+	if d.acceptedMigration == "" && d.acceptedSchemaSQL == "" {
+		for _, a := range owlRejectTruncateAcceptedBodySHA256 {
+			set[a] = true
+		}
+	} else {
+		if d.acceptedMigration != "" {
+			set[d.acceptedMigration] = true
+		}
+		if d.acceptedSchemaSQL != "" {
+			set[d.acceptedSchemaSQL] = true
+		}
+	}
+	for _, h := range d.historicalBodySHA256 {
+		set[h] = true
+	}
+	return set
+}
+
+// ADR-0007 Addendum 15 D132: measured (not guessed) as sha256(prosrc) of
+// each named migration's own literal body, declared beside
+// declaredFunctions() itself (D132(a)'s own reasoning: this is the
+// gate's closed set, not a value any production code path reads,
+// unlike purgeSnapshotsTimeFloorBodySHA256Migration and its siblings in
+// postgres.go, which grant-ddl-ownership's live provisioning checks also
+// read).
+const (
+	purgeSnapshotsTimeFloorBodySHA256Superseded022 = "8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be"
+	purgeSnapshotsArrayFormBodySHA256Superseded022 = "925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d"
+	purgeSnapshotsArrayFormBodySHA256Superseded023 = "d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd"
+)
 
 func declaredFunctions() []declaredFunction {
 	return []declaredFunction{
@@ -178,6 +231,13 @@ func declaredFunctions() []declaredFunction {
 			typeList:          "text,bigint,timestamptz,text,text",
 			acceptedMigration: purgeSnapshotsTimeFloorBodySHA256Migration,
 			acceptedSchemaSQL: purgeSnapshotsTimeFloorBodySHA256SchemaSQLBoot,
+			// ADR-0007 Addendum 15 D132(b) drift note 1: this overload's
+			// own two-member migration population has a superseded first
+			// member -- 022's body, displaced by 023's CREATE OR REPLACE
+			// -- that no CAP has enumerated and no prior addendum digested.
+			// Measured directly (not guessed) as sha256(prosrc) of
+			// db/migrations/022's literal time-floor body.
+			historicalBodySHA256: []string{purgeSnapshotsTimeFloorBodySHA256Superseded022},
 		},
 		{
 			label:             "screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)",
@@ -185,6 +245,15 @@ func declaredFunctions() []declaredFunction {
 			typeList:          "text[],text,int[],timestamptz[],text,text",
 			acceptedMigration: purgeSnapshotsArrayFormBodySHA256Migration,
 			acceptedSchemaSQL: purgeSnapshotsArrayFormBodySHA256SchemaSQLBoot,
+			// ADR-0007 Addendum 15 D132(a): this overload's three-member
+			// migration population (022, 023, 024) has two superseded
+			// members -- 022's and 023's own bodies, each displaced by the
+			// next migration's CREATE OR REPLACE. Measured directly as
+			// sha256(prosrc) of each literal body.
+			historicalBodySHA256: []string{
+				purgeSnapshotsArrayFormBodySHA256Superseded022,
+				purgeSnapshotsArrayFormBodySHA256Superseded023,
+			},
 		},
 	}
 }
@@ -317,8 +386,15 @@ func splitTopLevelComma(s string) []string {
 
 // derivedPopulation returns every body extracted for this
 // declaredFunction across migrationDir's *.sql files (in apply order)
-// and SchemaSQL, each tagged with its source.
-func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (migration []extractedBody, schemaSQL []extractedBody) {
+// and SchemaSQL, each tagged with its source. schemaSQLOverride is a
+// test-only hook (ADR-0007 Addendum 15 D136 item 5): when given, its
+// first element replaces the real package SchemaSQL constant for this
+// call only, so a test can prove what THIS overload's population would
+// be against SchemaSQL-shaped content carrying a rogue -- without ever
+// mutating the real, live SchemaSQL constant other tests and production
+// code depend on. Every real call site passes none, so production
+// behaviour and every other test are unaffected.
+func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string, schemaSQLOverride ...string) (migration []extractedBody, schemaSQL []extractedBody) {
 	t.Helper()
 	for _, path := range migrationFilePaths(t, migrationDir) {
 		content := mustReadFile(t, path)
@@ -329,7 +405,11 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string) (
 			migration = append(migration, found)
 		}
 	}
-	for _, found := range extractFunctionBodies(t, SchemaSQL, "SchemaSQL", d.funcName) {
+	schemaSQLContent := SchemaSQL
+	if len(schemaSQLOverride) > 0 {
+		schemaSQLContent = schemaSQLOverride[0]
+	}
+	for _, found := range extractFunctionBodies(t, schemaSQLContent, "SchemaSQL", d.funcName) {
 		if d.typeList != "" && argTypeList(canonicalizeArgs(found.args)) != d.typeList {
 			continue
 		}
@@ -421,28 +501,48 @@ func isRetiredSignature(funcName, canonicalArgs string) bool {
 // was invisible regardless of every parameter after it -- D108(b)'s own
 // stated property ("a body that fails to map to any declared overload
 // is a failure, never a silent discard") was false for exactly that
-// class. For every *.sql file under migrationDir, and for every
-// declared function NAME appearing in declaredFunctions() (grouped,
-// since screening_ledger_purge_snapshots has two): every extracted body
-// that is not a known-retired signature (retiredFunctionTypeLists) must
-// match EXACTLY ONE declared overload's canonicalized type list. A body
-// matching NONE is named as a failure -- an unplaceable body, exactly
-// what a differently-spelled OR differently-named-but-same-shape
-// signature produced under the pre-D118 gate: the population silently
-// one smaller, the gate reporting PASS. A body matching MORE THAN ONE
-// overload is also named as a failure -- two declared overloads whose
-// canonicalized type lists are not mutually exclusive is a defect in
-// the declaration, not a body to silently prefer one reading of.
-func assertNoBodyDropped(t *testing.T, migrationDir string) error {
+// class. For every bootstrap-path source -- every *.sql file under
+// migrationDir, AND SchemaSQL (ADR-0007 Addendum 15 D133: the placement
+// rule's population is "every bootstrap path", not "every file";
+// SchemaSQL is a live bootstrap path, D125's own decision one round
+// earlier, and was never scanned by this function at all before this
+// addendum) -- and for every declared function NAME appearing in
+// declaredFunctions() (grouped, since screening_ledger_purge_snapshots
+// has two): every extracted body that is not a known-retired signature
+// (retiredFunctionTypeLists) must match EXACTLY ONE declared overload's
+// canonicalized type list. A body matching NONE is named as a failure --
+// an unplaceable body, exactly what a differently-spelled OR
+// differently-named-but-same-shape signature produced under the pre-D118
+// gate: the population silently one smaller, the gate reporting PASS. A
+// body matching MORE THAN ONE overload is also named as a failure -- two
+// declared overloads whose canonicalized type lists are not mutually
+// exclusive is a defect in the declaration, not a body to silently
+// prefer one reading of.
+func assertNoBodyDropped(t *testing.T, migrationDir string, schemaSQLOverride ...string) error {
 	t.Helper()
 	byName := map[string][]declaredFunction{}
 	for _, d := range declaredFunctions() {
 		byName[d.funcName] = append(byName[d.funcName], d)
 	}
+	type namedSource struct {
+		label   string
+		content string
+	}
+	var sources []namedSource
 	for _, path := range migrationFilePaths(t, migrationDir) {
-		content := mustReadFile(t, path)
+		sources = append(sources, namedSource{label: path, content: mustReadFile(t, path)})
+	}
+	// schemaSQLOverride is the same test-only hook derivedPopulation
+	// takes (ADR-0007 Addendum 15 D136 item 5): every real call site
+	// passes none, so this always scans the real, live SchemaSQL.
+	schemaSQLContent := SchemaSQL
+	if len(schemaSQLOverride) > 0 {
+		schemaSQLContent = schemaSQLOverride[0]
+	}
+	sources = append(sources, namedSource{label: "SchemaSQL", content: schemaSQLContent})
+	for _, src := range sources {
 		for funcName, overloads := range byName {
-			for _, f := range extractFunctionBodies(t, content, path, funcName) {
+			for _, f := range extractFunctionBodies(t, src.content, src.label, funcName) {
 				canonicalFound := canonicalizeArgs(f.args)
 				if isRetiredSignature(funcName, canonicalFound) {
 					// ADR-0007 Addendum 14 D127(a): a retired type list
@@ -462,7 +562,7 @@ func assertNoBodyDropped(t *testing.T, migrationDir string) error {
 						}
 					}
 					if !placed {
-						return fmt.Errorf("ADR-0007 Addendum 14 D127: %s defines %s(%s), a retired signature (type list %s) whose body digests to %s -- not a member of the known historical committed set %v: a retired type list classifies a body, it does not exempt one", path, funcName, f.args, argTypeList(canonicalFound), digest, accepted)
+						return fmt.Errorf("ADR-0007 Addendum 15 D133: %s defines %s(%s), a retired signature (type list %s) whose body digests to %s -- not a member of the known historical committed set %v: a retired type list classifies a body, it does not exempt one, and %s is a live bootstrap path", src.label, funcName, f.args, argTypeList(canonicalFound), digest, accepted, src.label)
 					}
 					continue
 				}
@@ -474,12 +574,97 @@ func assertNoBodyDropped(t *testing.T, migrationDir string) error {
 					}
 				}
 				if len(matched) == 0 {
-					return fmt.Errorf("ADR-0007 Addendum 13 D118: %s defines %s(%s), which does not match any declared overload's argument type list (checked against typeSpellingAliases) and is not a declared-retired signature either -- an unplaceable body, dropped from every declared overload's population rather than silently discarded", path, funcName, f.args)
+					return fmt.Errorf("ADR-0007 Addendum 15 D133: %s defines %s(%s), which matches no declared overload's argument type list (checked against typeSpellingAliases) and is not a declared-retired signature either -- an unplaceable body on a LIVE bootstrap path, dropped from every declared overload's population rather than silently discarded", src.label, funcName, f.args)
 				}
 				if len(matched) > 1 {
-					return fmt.Errorf("ADR-0007 Addendum 13 D118: %s defines %s(%s), which matches MORE THAN ONE declared overload (%v) -- their typeList values are not mutually exclusive", path, funcName, f.args, matched)
+					return fmt.Errorf("ADR-0007 Addendum 13 D118: %s defines %s(%s), which matches MORE THAN ONE declared overload (%v) -- their typeList values are not mutually exclusive", src.label, funcName, f.args, matched)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// assertEveryCommittedLiteralIsADeclaredBody is ADR-0007 Addendum 15
+// D132: D99(b)'s assertion is negative -- every non-live committed
+// literal must digest to something OUTSIDE every declared accepted set
+// -- which a body this repository never shipped satisfies for free.
+// D127(a) upgraded the RETIRED branch from negative to positive
+// ("a retired type list classifies a body, it does not exempt one");
+// this is the same upgrade for the LIVE-signature branch, which D127(a)
+// never covered. For every declaredFunctions() entry (D132(b): every
+// entry, not only the overload that motivated this, including the two
+// unconditionally-placed functions whose typeList is "" and whose
+// populations happen to be one member today), every body in that
+// overload's derived population -- migration and SchemaSQL together,
+// wherever each sits in apply order -- must digest to a member of the
+// declared closed set (accepted, on either bootstrap path, union
+// historical). A body that fails this is a named failure identifying
+// the source, the overload and the digest -- never a filename rule and
+// never a derivation from git history (both explicitly withdrawn by
+// this addendum: a filename rule is a different assertion a rogue can
+// satisfy, and a git-dependent derivation replaces a declared literal
+// with a dependency on repository metadata an adversary editing the
+// tree is already inside).
+func assertEveryCommittedLiteralIsADeclaredBody(t *testing.T, migrationDir string, schemaSQLOverride ...string) error {
+	t.Helper()
+	for _, d := range declaredFunctions() {
+		declared := d.declaredAcceptedSet()
+		migration, schemaSQL := d.derivedPopulation(t, migrationDir, schemaSQLOverride...)
+		all := append(append([]extractedBody{}, migration...), schemaSQL...)
+		for _, b := range all {
+			dg := digestHexString(b.body)
+			if !declared[dg] {
+				return fmt.Errorf("ADR-0007 Addendum 15 D132: %s defines a literal for %s whose body digests to %s, which is not a member of that overload's declared set (accepted + historical) -- every committed literal must be a body this repository provably shipped, wherever it sits in apply order", b.source, d.label, dg)
+			}
+		}
+	}
+	return nil
+}
+
+// checkSupersededLiteralsNotAccepted is D99(b)'s stronger property,
+// factored out of TestSupersededPurgeSnapshotsLiteralsAreNotAccepted so
+// the ADR-0007 Addendum 15 D133 (row 3) length guard below is directly
+// testable rather than only reachable by accident: every committed
+// literal for d which is NOT the live one must digest to something
+// OUTSIDE every declared accepted digest for d (both bootstrap paths).
+// Returns a descriptive error rather than calling t.Fatal directly, the
+// same shape checkLiveDigestMatchesAccepted already uses.
+func checkSupersededLiteralsNotAccepted(t *testing.T, d declaredFunction, migrationDir string) error {
+	t.Helper()
+	migration, schemaSQL := d.derivedPopulation(t, migrationDir)
+	accepted := map[string]bool{}
+	if d.acceptedMigration != "" {
+		accepted[d.acceptedMigration] = true
+	}
+	if d.acceptedSchemaSQL != "" {
+		accepted[d.acceptedSchemaSQL] = true
+	}
+	for _, a := range owlRejectTruncateAcceptedBodySHA256 {
+		accepted[a] = true // covers the owl_reject_truncate two-member case
+	}
+	liveMigrationIdx := len(migration) - 1
+	for i, got := range migration {
+		if i == liveMigrationIdx {
+			continue // the live body -- expected to be accepted
+		}
+		digest := digestHexString(got.body)
+		if accepted[digest] {
+			return fmt.Errorf("ADR-0007 Addendum 11 D99: a superseded literal for %s in %s digests to %s, which IS a declared accepted digest -- a superseded body must not silently agree with the live one", d.label, got.source, digest)
+		}
+	}
+	// ADR-0007 Addendum 15 D133 (row 3 of the sweep): a declared function
+	// absent from a bootstrap path is a state this gate must describe,
+	// not trip over -- schemaSQL[:len(schemaSQL)-1] on an empty schemaSQL
+	// previously panicked ("slice bounds out of range [:-1]") rather than
+	// failing with a named error identifying the function and the path.
+	if len(schemaSQL) == 0 {
+		return fmt.Errorf("ADR-0007 Addendum 15 D133: %s has no committed literal in SchemaSQL -- a declared function absent from a bootstrap path, not a superseded-literal comparison with nothing to compare it against", d.label)
+	}
+	for _, got := range schemaSQL[:len(schemaSQL)-1] {
+		digest := digestHexString(got.body)
+		if accepted[digest] {
+			return fmt.Errorf("ADR-0007 Addendum 11 D99: a superseded SchemaSQL literal for %s in %s digests to %s, which IS a declared accepted digest", d.label, got.source, digest)
 		}
 	}
 	return nil
@@ -602,32 +787,8 @@ func TestSupersededPurgeSnapshotsLiteralsAreNotAccepted(t *testing.T) {
 	}
 	for _, d := range declaredFunctions() {
 		t.Run(d.label, func(t *testing.T) {
-			migration, schemaSQL := d.derivedPopulation(t, "../../db/migrations")
-			accepted := map[string]bool{}
-			if d.acceptedMigration != "" {
-				accepted[d.acceptedMigration] = true
-			}
-			if d.acceptedSchemaSQL != "" {
-				accepted[d.acceptedSchemaSQL] = true
-			}
-			for _, a := range owlRejectTruncateAcceptedBodySHA256 {
-				accepted[a] = true // covers the owl_reject_truncate two-member case
-			}
-			liveMigrationIdx := len(migration) - 1
-			for i, got := range migration {
-				if i == liveMigrationIdx {
-					continue // the live body -- expected to be accepted
-				}
-				digest := digestHexString(got.body)
-				if accepted[digest] {
-					t.Fatalf("ADR-0007 Addendum 11 D99: a superseded literal for %s in %s digests to %s, which IS a declared accepted digest -- a superseded body must not silently agree with the live one", d.label, got.source, digest)
-				}
-			}
-			for _, got := range schemaSQL[:len(schemaSQL)-1] {
-				digest := digestHexString(got.body)
-				if accepted[digest] {
-					t.Fatalf("ADR-0007 Addendum 11 D99: a superseded SchemaSQL literal for %s in %s digests to %s, which IS a declared accepted digest", d.label, got.source, digest)
-				}
+			if err := checkSupersededLiteralsNotAccepted(t, d, "../../db/migrations"); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}
