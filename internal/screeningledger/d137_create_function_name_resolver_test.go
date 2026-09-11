@@ -40,18 +40,128 @@
 package screeningledger
 
 import (
-	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-// createFunctionKeywordRe finds every occurrence of the CREATE [OR
-// REPLACE] FUNCTION keyword sequence, independent of what follows it --
-// the flat scan D137(b) requires, so a declaration inside a dollar-quoted
-// EXECUTE string (SchemaSQL's own shape) is still found. \b anchors both
-// ends so "FUNCTIONAL" or similar cannot false-match.
-var createFunctionKeywordRe = regexp.MustCompile(`\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b`)
+// ADR-0007 Addendum 17 D139 (CAP #16's K-A, MEDIUM): stage-1 keyword
+// detection was a regexp, `\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b`,
+// whose `\s+` matches whitespace but NOT a SQL comment. PostgreSQL treats
+// a comment between the CREATE/OR/REPLACE/FUNCTION keyword tokens as
+// whitespace and creates/replaces the identical function (measured on PG
+// 17: `CREATE OR/**/REPLACE FUNCTION ...` is accepted), so a
+// comment-mid-keyword rogue was invisible to the regex -- the flat scan
+// found nothing and extractFunctionBodies returned 0 bodies with a nil
+// error (a silent fail-open, one token earlier than D137's H-A). D137 had
+// already made the *name* production (stage 2, resolveCreateFunctionName)
+// comment/whitespace-tolerant via skipWSAndComments; K-A is that same
+// tolerance un-applied to the keyword sequence that precedes it.
+//
+// The fix closes the WHOLE CREATE FUNCTION header's tokenization as one
+// mechanism rather than a second regex spelling: the same skipWSAndComments
+// D137 wrote for the name production is now applied between EVERY adjacent
+// header token -- the keyword sequence AND the name -- so any run of
+// whitespace and comments is a uniform separator throughout, by
+// construction. scanCreateFunctionKeyword replaces the regex, matching the
+// keyword tokens with lexPgIdentifier (whose maximal-run lexing gives the
+// `\b` word-boundary property more tightly than `\b` did: procreate /
+// FUNCTIONAL cannot false-match) and skipWSAndComments between them.
+//
+// Two subtleties measured against live PG 17 and handled by construction:
+//   - PG block comments NEST (SQL-standard): `/* a /* b */ c */` is one
+//     comment; `/* a /* b */` alone is "unterminated". skipWSAndComments
+//     is depth-tracked so its balance rule matches PG's exactly (balanced
+//     <=> PG accepts <=> the skip completes) -- a first-"*/" scan would
+//     stop early and mis-parse a nested comment into a fail-open miss.
+//   - The START boundary is `\b` (ASCII letter/digit/_), which must EXCLUDE
+//     '$' from the boundary set, because SchemaSQL's declarations are
+//     $exec$CREATE FUNCTION... -- the flat scan must reach a CREATE that
+//     immediately follows a dollar-quote '$'. isAsciiWordChar is that set.
+
+// isAsciiWordChar is the `\b` word-character set the removed
+// createFunctionKeywordRe relied on: ASCII letter, digit, or underscore.
+// It deliberately EXCLUDES '$' so a CREATE immediately following a
+// dollar-quote delimiter ($exec$CREATE FUNCTION..., SchemaSQL's own shape,
+// postgres.go:2010/2047/2121/2122) is still a keyword-scan candidate.
+func isAsciiWordChar(b byte) bool {
+	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+// matchCreateFunctionKeyword verifies the token sequence
+// CREATE [OR REPLACE] FUNCTION beginning at idx (the start of a "create"
+// token), applying skipWSAndComments -- the SAME whitespace/comment skipper
+// stage 2 uses for the name production -- between every adjacent keyword
+// token. Each keyword is matched by lexing one identifier token
+// (lexPgIdentifier folds unquoted identifiers to lowercase, so case is
+// handled) and comparing the folded value. Returns the byte offset
+// immediately after FUNCTION and true on a full match; false otherwise (a
+// different CREATE ..., or an unterminated comment PG itself rejects, in
+// which case the caller simply keeps scanning -- PG created nothing, so
+// there is no body to miss).
+func matchCreateFunctionKeyword(source string, idx int) (afterKeyword int, ok bool) {
+	expect := func(word string, at int) (int, bool) {
+		tok, next, lok := lexPgIdentifier(source, at)
+		if !lok || tok != word {
+			return at, false
+		}
+		return next, true
+	}
+	at, ok := expect("create", idx)
+	if !ok {
+		return idx, false
+	}
+	at = skipWSAndComments(source, at)
+	if tok, next, lok := lexPgIdentifier(source, at); lok && tok == "or" {
+		at = skipWSAndComments(source, next)
+		if at, ok = expect("replace", at); !ok {
+			return idx, false
+		}
+		at = skipWSAndComments(source, at)
+	}
+	if at, ok = expect("function", at); !ok {
+		return idx, false
+	}
+	return at, true
+}
+
+// scanCreateFunctionKeyword finds the next CREATE [OR REPLACE] FUNCTION
+// keyword header at or after `from`, returning the header's start, the
+// offset immediately after FUNCTION, and ok=true; ok=false when none
+// remains. This is the flat-scan replacement for createFunctionKeywordRe
+// (D139): it keeps the shipped flat scan (it does NOT skip comments or
+// dollar-quoted regions at the scan level, so SchemaSQL's $exec$-embedded
+// declarations are still found) and defers comment tolerance entirely to
+// skipWSAndComments inside matchCreateFunctionKeyword.
+func scanCreateFunctionKeyword(source string, from int) (kwStart, afterKeyword int, ok bool) {
+	for pos := from; pos < len(source); {
+		cand := indexFoldC(source, pos)
+		if cand < 0 {
+			return 0, 0, false
+		}
+		if cand > 0 && isAsciiWordChar(source[cand-1]) {
+			// not a token start (procreate, a_create, $-excluded handled by
+			// isAsciiWordChar): advance past this 'c'/'C' and keep scanning.
+			pos = cand + 1
+			continue
+		}
+		if after, matched := matchCreateFunctionKeyword(source, cand); matched {
+			return cand, after, true
+		}
+		pos = cand + 1
+	}
+	return 0, 0, false
+}
+
+// indexFoldC returns the next index >= from whose byte is 'c' or 'C', or -1.
+func indexFoldC(source string, from int) int {
+	for i := from; i < len(source); i++ {
+		if source[i] == 'c' || source[i] == 'C' {
+			return i
+		}
+	}
+	return -1
+}
 
 // resolveCreateFunctionName parses the PostgreSQL grammar production
 // "[ schema_ident . ] func_ident" starting at byte offset idx in source
@@ -155,10 +265,21 @@ func lexQuotedIdentifier(source string, idx int) (normalized string, next int, o
 
 // skipWSAndComments advances idx past any run of whitespace, "--" line
 // comments, and "/* */" block comments -- the "optional whitespace and
-// -- / /* */ comments around the dot" D137(a) names explicitly. Returns
-// idx unchanged (rather than failing) on an unterminated block comment;
-// the caller's own subsequent parse (identifier lex, or the final "("
-// check) fails closed on the resulting malformed text.
+// -- / /* */ comments" separating tokens throughout the CREATE FUNCTION
+// header (ADR-0007 Addendum 17 D139: applied between the keyword tokens
+// too, not only around the name's dot D137(a) named). Returns the start of
+// an unterminated block comment (rather than failing) so the caller's own
+// subsequent parse (identifier lex, or the final "(" check) fails closed
+// on the resulting malformed text -- which PG itself also rejects, so no
+// function is created.
+//
+// ADR-0007 Addendum 17 D139: block comments NEST in PostgreSQL (measured on
+// PG 17: "/* a /* b */ c */" is ONE comment; "/* a /* b */" alone is
+// "unterminated"). depth is tracked so the whole balanced run is consumed
+// as a single separator; a first-"*/" scan (the pre-D139 code) stops after
+// the inner close and, applied to the keyword header, mis-parses a nested
+// comment into a fail-open miss. The nested balance rule matches PG's lexer
+// exactly: balanced <=> PG accepts <=> this skip completes.
 func skipWSAndComments(source string, idx int) int {
 	for idx < len(source) {
 		switch {
@@ -170,11 +291,24 @@ func skipWSAndComments(source string, idx int) int {
 				idx++
 			}
 		case idx+1 < len(source) && source[idx] == '/' && source[idx+1] == '*':
-			end := strings.Index(source[idx+2:], "*/")
-			if end < 0 {
-				return idx
+			start := idx
+			depth := 1
+			idx += 2
+			for idx < len(source) && depth > 0 {
+				switch {
+				case idx+1 < len(source) && source[idx] == '/' && source[idx+1] == '*':
+					depth++
+					idx += 2
+				case idx+1 < len(source) && source[idx] == '*' && source[idx+1] == '/':
+					depth--
+					idx += 2
+				default:
+					idx++
+				}
 			}
-			idx += 2 + end + 2
+			if depth > 0 {
+				return start // unterminated -- PG rejects; caller fails closed
+			}
 		default:
 			return idx
 		}

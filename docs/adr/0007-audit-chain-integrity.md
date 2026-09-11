@@ -16710,8 +16710,7 @@ CAP17PROTO  functional not function                    found=0  (want 0)  OK
 CAP17PROTO  unterminated nested comment (PG rejects)   found=0  (want 0)  OK
 ```
 
-**The positive control, D37's shipping requirement.** With the extractor swapped to the prototype
-(the design pass's own in-place validation, reverted before this addendum was written), the unmodified
+**The positive control, D37's shipping requirement.** With the fix installed, the unmodified
 `db/migrations/` and `SchemaSQL` tree passes **all eighteen** gate functions and the D137/D138 tests,
 for every `declaredFunctions()` entry, including every SchemaSQL declaration inside
 `EXECUTE $exec$...$exec$`, and the comment-keyword rogue now **fails the gate closed** -- D132 names
