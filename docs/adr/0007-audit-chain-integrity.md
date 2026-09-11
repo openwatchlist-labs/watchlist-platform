@@ -16408,3 +16408,461 @@ name and a qualified name is invisible to it. D137 is the whole of that barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #15
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 17: the spelling axis closed by construction -- one header tokenizer, and CAP #16's K-A (2026-09-11)
+
+- **Status:** Proposed
+- **Trigger:** a sixteenth Composition Audit Program record produced against the implemented
+  Addendum 16 (`docs/backlog/sec-7-cap-record-236d211.md`, adversarial posture, audit basis commit
+  `236d21154bf1abe36f1016a3715014aaf06bc78f`) returned **QUALIFIED, not PASS** for the sixteenth
+  consecutive audit -- **one MEDIUM (K-A), no CRITICAL and no HIGH, the third consecutive round with
+  neither.** **SEC-7 is not closed.** CAP #16 recommended **against** treating the third
+  no-CRITICAL/HIGH round as the stopping point, because K-A is CAP #15's H-A one token earlier in the
+  same pipeline -- two consecutive rounds defeating the *entire* source gate through *a valid
+  PostgreSQL spelling the extractor did not anticipate* is evidence the spelling axis has not
+  converged. This addendum closes that axis by construction rather than by one more spelling-specific
+  patch.
+- **What CAP #16 confirmed, and this addendum does not disturb.** D137's stage-2 name resolver is
+  sound over its input on every axis measured (Area 1: twelve spellings beyond Addendum 16's matrix,
+  all matched / correctly excluded / fail-closed). D132's membership rule and D133's placement rule
+  are each correct within their populations; this addendum reopens neither -- it repairs the one
+  **shared** dependency's remaining gap (stage-1 keyword detection), so it strengthens both. Area 2
+  (prose/string discriminator fail-closed), Area 4 (R57 unchanged), Area 3 (positive control,
+  D132/D133 unregressed) and Area 5 (D90 non-disarm 13/2/1) are each clean. **Every prior addendum's
+  principle stands** -- Addendum 3's scoping, 4's referent, 5's population, 6's atomicity, 7's
+  quantifier, 8's naming, 9's composition, 10's whole-round obligation, 11's cardinality, 12's
+  reduction, 13's derivation, 14's element-set, 15's placement and 16's identity resolution -- and
+  this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not AR7,
+  not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75, not
+  D76-D85, not D86-D95, not D96-D103, not D104-D112, not D113-D122, not D123-D131, not D132-D136, not
+  D137-D138, not R1-R65. Decision numbering continues at **D139**; risk numbering at **R66**. Where a
+  prior decision's *text* is narrower than what the code does, the new decision says so in its own
+  words -- the convention AR7 established.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `236d21154bf1abe36f1016a3715014aaf06bc78f` rather than copied from the CAP record. Measured as the
+  first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  236d21154bf1abe36f1016a3715014aaf06bc78f
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-17-cap16-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-16
+  held to -- and the execution refuted one of the brief's own premises and surfaced two further
+  by-construction subtleties the fix must handle.** The DSN-free reproduction and prototype ran under
+  `go test`; the live measurements and the destructive demonstration ran on a disposable PostgreSQL
+  **17.11** cluster on **port 55672**, `initdb --auth=scram-sha-256 --pwfile`, TCP-only on
+  `127.0.0.1`, `unix_socket_directories = ''` (the scratchpad socket path is 169 bytes, over
+  PostgreSQL's 103-byte limit), data directory inside this session's own scratchpad. **The developer's
+  own server on port 5432 (PID 95804, started `Wed Aug 26 10:01:08 2026`) was never contacted** -- its
+  start time was identical at pass start and pass end and it remained the only listener on 5432. A
+  pre-existing orphaned sibling-session cluster (PID 69994, port 55661, PPID=1) from session
+  `121edd0c` was present throughout and left untouched (the withdrawn-D74-reaper lesson).
+
+  The three results that shaped the design, each with its transcript in the section that relies on it:
+  1. **The brief's premise "block comments are not actually nestable" is false for PostgreSQL.**
+     Measured on PG 17: `CREATE /* a /* b */ c */ FUNCTION f()...` is accepted (one balanced,
+     nested comment), while `CREATE /* a /* b */ FUNCTION f()...` errors `unterminated /* comment`
+     (the inner `*/` does **not** close the outer). PostgreSQL nests block comments per the SQL
+     standard. The shipped `skipWSAndComments` (`d137_..._test.go:172-177` at the audit basis)
+     terminated at the **first** `*/`, so naively reusing it over the keyword sequence would
+     mis-parse a nested comment into a fail-open miss -- the fix therefore depth-tracks the skip.
+  2. **The start boundary must be `\b` (ASCII word chars), not the full PG identifier rule.**
+     SchemaSQL's declarations are `$exec$CREATE FUNCTION ...` (`postgres.go:2010/2047/2121/2122`) --
+     the flat scan must reach a `CREATE` that immediately follows a dollar-quote `$`. PostgreSQL's
+     identifier-continuation set includes `$`, so a strict-PG start-boundary check would treat
+     `$exec$CREATE` as mid-identifier and miss every SchemaSQL declaration (measured: the prototype
+     regressed all four until the boundary excluded `$`). The removed regex got this right via `\b`
+     (which excludes `$`); the fix keeps `\b`-semantics.
+  3. **An unterminated comment is a safe `found=0`, not a surfaced failure.** PostgreSQL rejects such
+     input and creates nothing, so the tokenizer's found-set still equals PG's created-set; a
+     surfaced error there would only risk false-fails on prose. This is the keyword region failing to
+     complete (like `CREATE TABLE`), distinct from D137(c)'s surfaced failure on an unresolvable
+     *name* after a confirmed CREATE FUNCTION keyword, which is preserved.
+
+  Probes lived in one temporary `_test.go` file inside `internal/screeningledger/`, calling the real
+  `createFunctionKeywordRe` / `extractFunctionBodies` / `skipWSAndComments` / `lexPgIdentifier` /
+  `dollarTagRe` scaffolding (never reimplementations), plus a prototype of the unified tokenizer, plus
+  one rogue `.sql` temporarily placed in the **real** `db/migrations/`. All temporary files were
+  deleted before this addendum was written; `git status --porcelain` is back to its pass-start value
+  and `go vet ./internal/screeningledger/` is clean.
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1 and every prior
+addendum's own drift block set.
+
+1. **The brief's "nested-looking (but not actually nestable) block comments" premise is false**, and
+   is corrected here rather than followed: PostgreSQL nests block comments (measured, above). The fix
+   the brief asks for -- one uniform tokenizer -- is unchanged by the correction, but the tokenizer's
+   comment skip must depth-track nesting to be exhaustive by construction, which a fix built on the
+   false premise would have omitted. Two consecutive addenda (this and Addendum 14) have found a
+   brief premise false on measurement; the standing instruction to verify a brief's own premises
+   holds.
+2. **CAP #16's account of K-A is correct in every particular measured here.** Its transcript --
+   `createFunctionKeywordRe` misses a comment-mid-keyword declaration, `extractFunctionBodies`
+   returns 0 bodies / nil error, and all eighteen DSN-free gate functions pass with the rogue in the
+   real tree on both bootstrap paths -- reproduced exactly (below). What this pass adds is the nested
+   and multi-comment spellings, and the `$exec$CREATE` boundary constraint, neither of which the CAP
+   record needed to name.
+
+### Addendum 17 context: the keyword sequence is part of the same header the name is
+
+Addendum 16 (D137) split body-finding into two stages: **stage 1**, a regex that finds the
+`CREATE [OR REPLACE] FUNCTION` keyword occurrence (`createFunctionKeywordRe`,
+`d137_..._test.go:54` at the audit basis: `\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b`), and **stage
+2**, `resolveCreateFunctionName` (`d137_..._test.go:74`), which resolves the `[schema.]name`
+production that follows it. D137 made **stage 2** comment- and whitespace-tolerant via
+`skipWSAndComments` -- a comment around the schema dot or before the name resolves correctly. It left
+**stage 1** a regex whose `\s+` between the keyword tokens matches whitespace but **not** a SQL
+comment.
+
+K-A is that same tolerance un-applied to the keyword sequence one token earlier. PostgreSQL treats a
+comment between `CREATE`/`OR`/`REPLACE`/`FUNCTION` as whitespace and creates/replaces the identical
+function, so a comment-mid-keyword rogue -- `CREATE OR/**/REPLACE FUNCTION public.screening_ledger_purge_snapshots(...)`,
+valid SQL producing the identical protected function -- breaks the regex match, **zero bodies are
+found**, the body enters no population, and no membership or placement assertion is ever asked of it.
+Every source-gate member routes through this one extractor, so the blindness is a **fail-open** hole
+shared by all of them, on **both** bootstrap paths, regardless of sort order.
+
+The sentence this addendum adds is not a new axis but the completion of D137's own: **the CREATE
+FUNCTION header is one lexical unit, and its tokenization -- the keyword sequence and the name
+production alike -- must treat whitespace and comments uniformly as separators by ONE mechanism, so
+that "another spelling of the separators" is closed by construction rather than one regex at a time.**
+That is Addendum 8's naming principle and D137's identity resolution, applied to *detecting the
+keyword* rather than only to *resolving the name*. CAP #16's own recommendation is that the fix must
+close the whole header, not widen the keyword regex to also swallow `/* */` -- which would be the
+same incremental, spelling-by-spelling patch one level up, with no guarantee a third token boundary
+does not exist. Two adjacent stages failing the same way (H-A, K-A) is the evidence that piecemeal
+token fixes do not converge.
+
+### K-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #16's transcript; every run was rebuilt against the baseline above,
+calling the real `createFunctionKeywordRe` and `extractFunctionBodies`.
+
+**PostgreSQL accepts a comment between the keyword tokens and creates the identical function**
+(throwaway `cap17_kw` on the disposable cluster):
+
+```
+=== block comment between OR and REPLACE ===         -> CREATE FUNCTION (kw_a created)
+=== block comment between CREATE and FUNCTION ===    -> CREATE FUNCTION (kw_b created)
+=== line comment between REPLACE and FUNCTION ===    -> CREATE FUNCTION (kw_c created)
+=== NESTED /* a /* b */ c */ between CREATE/FUNCTION ===  -> CREATE FUNCTION (kw_nested created)
+=== /* a /* b */ alone (inner closes, outer open) ===    -> ERROR: unterminated /* comment
+=== plain form vs CREATE OR/**/REPLACE of the SAME name -> exactly one function, one prosrc md5 ===
+ kw_plain | cb2f14b83e2300df2ed70cff22917bd5
+```
+
+The comment forms create/replace the **identical** function (the `kw_plain` row: a
+`CREATE OR/**/REPLACE` of a plain `kw_plain` left exactly one row, one body digest), and PostgreSQL
+**nests** block comments (the `unterminated` error is the proof the inner `*/` does not close the
+outer).
+
+**The shipped extractor is blind to the comment-keyword rogue** -- the real `createFunctionKeywordRe`
+and `extractFunctionBodies`:
+
+```
+CAP17BLIND  plain-keyword control             kwMatch=true  bodies=1 err=<nil>
+CAP17BLIND  comment-keyword rogue (K-A)       kwMatch=false bodies=0 err=<nil>
+```
+
+`bodies=0 err=<nil>` is the finding: a silent zero, not D137(c)'s surfaced failure -- the declaration
+is never a candidate at all. And the shipped `skipWSAndComments`, applied to the nested case, stops
+early:
+
+```
+CAP17SKIP  shipped skipWSAndComments on "CREATE /* a /* b */ c */ FUNCTION" stops at idx=20,
+           leaving "c */ FUNCTION"  (PG nests: a correct skip must reach "FUNCTION")
+```
+
+**The full eighteen-function DSN-free gate passes with the comment-keyword rogue in the REAL
+`db/migrations/` tree.** A `CREATE OR/**/REPLACE FUNCTION public.screening_ledger_purge_snapshots(...)`
+`SECURITY DEFINER` body, placed as `db/migrations/023a_cap17_kwrogue.sql` (sorts between 023 and 024):
+
+```
+$ go test -run '^(<the eighteen>)$' ./internal/screeningledger/
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.551s
+$ go test -run '^TestD137|^TestExtractFunctionBodies' ./internal/screeningledger/   # A16's own tests too
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.376s
+```
+
+**It is live and destroys evidence under a live obligation** (throwaway `cap17_live`, all 21
+migrations applied). The comment-keyword rogue is applied as the function owner (the committed source
+literal, as a bootstrapper would apply it); PostgreSQL resolves it to the SAME array-form
+regprocedure (new body digest, `prosecdef=t`), and an empty-array call -- naming no snapshot and no
+obligation -- strips the ciphertext of a snapshot whose obligation runs to `2100-01-01`:
+
+```
+=== apply CREATE OR/**/REPLACE ... -> ACCEPTED (legit md5 3e51b7df -> rogue md5 204cddc3, prosecdef=t)
+=== BEFORE ===
+ snapshot_sha256 |       expires_at       | has_ct | purged
+-----------------+------------------------+--------+--------
+ cap17live0002   | 2100-01-01 00:00:00-05 | t      | f
+=== empty-array call (names NO snapshot, NO obligation) -> {cap17live0001,cap17live0002}
+=== AFTER ===
+ cap17live0002   | 2100-01-01 00:00:00-05 | f      | t
+```
+
+`has_ct` went `t` -> `f` and `purged` `f` -> `t` under a live `2100-01-01` obligation, via a body the
+entire source gate never looked at. It is bounded only by `grant-ddl-ownership`'s D117 provisioning
+digest check (which queries `pg_proc` by identity, no text parsing) -- **a different control, D76's
+forbidden shape**, exactly the argument Addendum 15's G-A and Addendum 16's H-A each used for their
+own fixes. **Severity: MEDIUM**, identical to how CAP #16 rated it and CAP #15 rated H-A: the forgery
+does not complete on a correctly-provisioned database (D117 refuses), and the window is the
+SchemaSQL-only-bootstrapped or partially-migrated (D21/D22) state where `grant-ddl-ownership` has not
+yet run.
+
+### D139. K-A (MEDIUM): one header tokenizer, whitespace and comments uniform across the whole header
+
+**The finding, restated from the code.** `createFunctionKeywordRe` (`d137_..._test.go:54`) joins the
+keyword tokens with `\s+`, which matches whitespace only. A comment between any adjacent pair breaks
+the match; the flat scan finds no occurrence; stage 2's `resolveCreateFunctionName` -- which D137
+*did* make comment-tolerant -- is never invoked. The name resolver is comment-tolerant; the keyword
+detector one token before it is not.
+
+**Decision: replace `createFunctionKeywordRe` with a lexer over the whole `CREATE [OR REPLACE]
+FUNCTION` header that applies the SAME `skipWSAndComments` D137 wrote for the name production between
+EVERY adjacent header token -- the keyword sequence and the name alike. Whitespace and comments become
+one uniform separator across the entire header, handled by one mechanism, so any interspersal of
+comments is covered by construction. D137's stage-2 machinery is extended backward over the keyword
+sequence; no second, parallel comment-tolerance mechanism is built (reuse over duplication, matching
+D116's and D124's own preference).**
+
+Four parts, each decided by execution:
+
+**(a) The keyword sequence is matched by lexing, not by regex.** `scanCreateFunctionKeyword`
+(`d137_..._test.go`) finds a candidate `CREATE` token, then verifies `create` -> (optionally `or` ->
+`replace`) -> `function` with `lexPgIdentifier` (D137's own identifier lexer, which folds unquoted
+identifiers to lowercase -- so any case is handled) and `skipWSAndComments` between every pair.
+Because each keyword is a **maximal** identifier token, `procreate` folds to `procreate` (not
+`create`) and `FUNCTIONAL` to `functional` (not `function`): the `\b` word-boundary property the
+regex provided is now a property of maximal-run lexing, more tightly than `\b` gave it. Illustrative
+only -- the implementation PR owns the text:
+
+```go
+at, ok := expect("create", idx)          // lexPgIdentifier + fold + equality
+at = skipWSAndComments(source, at)        // the SAME skip stage 2 uses
+if tok,_,_ := lexPgIdentifier(source, at); tok == "or" { /* require REPLACE, skip between */ }
+if at, ok = expect("function", at); !ok { return idx, false }
+```
+
+**(b) The comment skip is depth-tracked, because PostgreSQL nests block comments.** Measured above:
+`/* a /* b */ c */` is one comment; `/* a /* b */` alone is unterminated. `skipWSAndComments`
+(`d137_..._test.go`) now tracks `depth` so a balanced nested run is consumed as one separator and its
+balance rule matches PostgreSQL's exactly (balanced <=> PG accepts <=> the skip completes). A
+first-`*/` scan -- the pre-D139 code, and the naive way to reuse it -- would stop after the inner
+close and mis-parse a nested comment into a fail-open miss. Because this skip is now shared by stage
+2, the same nested-comment tolerance strengthens the name production too, which D137 had not covered.
+
+**(c) The start boundary is `\b` (ASCII word chars), which must exclude `$`.** SchemaSQL's
+declarations are `$exec$CREATE FUNCTION ...`; the flat scan must reach a `CREATE` immediately
+following a dollar-quote `$`. PostgreSQL's identifier-continuation set includes `$`, so a strict-PG
+start check would treat `$exec$CREATE` as mid-identifier and miss every SchemaSQL declaration. The
+scanner's `isAsciiWordChar` boundary excludes `$`, matching the removed regex's `\b` and preserving
+the flat scan (which is **kept**: it does not skip comments or dollar-quoted regions at the scan
+level -- the refuted-alternative Addendum 16 measured, since SchemaSQL's declarations live inside
+`EXECUTE $exec$...$exec$`).
+
+**(d) The failure directions are preserved from D137.** A resolved declaration is matched by
+identity (D137); a prose mention (name not followed by `(`) is skipped (the discriminator is
+unchanged, so the `020:165` prose is still skipped, not matched -- the second refuted alternative,
+"treat every `CREATE...FUNCTION...(` as a declaration", is not reintroduced); a name the resolver
+cannot resolve to an identity is a **surfaced failure** (D137(c), unchanged). An **unterminated**
+comment in the keyword region is not a surfaced failure but a `found=0` skip -- PostgreSQL rejects
+such input and creates nothing, so the tokenizer's found-set still equals PG's created-set, and
+surfacing there would only risk false-fails on prose. This is the keyword region failing to complete
+(like `CREATE TABLE`), a different event from D137(c)'s unresolvable *name* after a confirmed keyword.
+
+**Why this closes the axis by construction and not by enumeration.** PostgreSQL permits, between two
+adjacent keyword tokens, **only** whitespace and comments -- keywords are reserved (not quotable
+here), ASCII, and no other separator exists. `skipWSAndComments` consumes any run of whitespace, `--`
+line comments, and (now) nested `/* */` block comments -- the complete separator grammar. Applying
+that one skip between every adjacent token means any interspersal, any number of comments, either
+style, any nesting depth, is handled by the same code. Exhaustiveness is a property of the grammar
+coverage plus the fail-closed/skip defaults, not of a list of spellings -- the D124/D118 move.
+
+**Executed: the prototype across the exhaustive comment matrix, both controls.** The prototype
+implements (a)-(d). Run against every way PostgreSQL allows whitespace/comments in the header, plus
+the word-boundary and prose exclusions, plus the unterminated case:
+
+```
+CAP17PROTO  plain control                              found=1  (want 1)  OK
+CAP17PROTO  block between OR/REPLACE (K-A)             found=1  (want 1)  OK
+CAP17PROTO  block between CREATE/FUNCTION (no or repl) found=1  (want 1)  OK
+CAP17PROTO  block between CREATE/OR                    found=1  (want 1)  OK
+CAP17PROTO  block between REPLACE/FUNCTION             found=1  (want 1)  OK
+CAP17PROTO  line comment before FUNCTION               found=1  (want 1)  OK
+CAP17PROTO  multiple comments in sequence              found=1  (want 1)  OK
+CAP17PROTO  mixed -- and /* */                         found=1  (want 1)  OK
+CAP17PROTO  NESTED block between CREATE/FUNCTION       found=1  (want 1)  OK
+CAP17PROTO  NESTED 3-level between OR/REPLACE          found=1  (want 1)  OK
+CAP17PROTO  comment before NAME (stage-2)              found=1  (want 1)  OK
+CAP17PROTO  comment around the DOT                     found=1  (want 1)  OK
+CAP17PROTO  prose mention (no paren)                   found=0  (want 0)  OK
+CAP17PROTO  procreate not create                       found=0  (want 0)  OK
+CAP17PROTO  functional not function                    found=0  (want 0)  OK
+CAP17PROTO  unterminated nested comment (PG rejects)   found=0  (want 0)  OK
+```
+
+**The positive control, D37's shipping requirement.** With the extractor swapped to the prototype
+(the design pass's own in-place validation, reverted before this addendum was written), the unmodified
+`db/migrations/` and `SchemaSQL` tree passes **all eighteen** gate functions and the D137/D138 tests,
+for every `declaredFunctions()` entry, including every SchemaSQL declaration inside
+`EXECUTE $exec$...$exec$`, and the comment-keyword rogue now **fails the gate closed** -- D132 names
+the file and the digest (`297997d5...`). A gate that only refused the rogue would not have been shown
+safe to install; the clean tree passing is what proves the tokenizer finds every real body and
+excludes none. `go test -race` over the full SEC-7 pgx suite plus these gates is green on the
+provisioned cluster.
+
+#### The dependency question, confirmed because a lexer invites a parser dependency
+
+**An offline SQL-parser dependency (`pg_query_go` / libpg_query) is forbidden and is not used.**
+CLAUDE.md rule 1; a grep over `go.mod`, `go.sum` and all `*.go` at this commit finds no `pg_query`,
+`libpg_query` or `pganalyze`. The fix is stdlib-only; it in fact **removes** a dependency (the
+`regexp` import in `d137_..._test.go`, no longer used once `createFunctionKeywordRe` is gone). The
+resolution is offline (D92's DSN-free property), never a live-catalog lookup. Rule 6 does not apply:
+the tokenizer is a **test-file helper** in `internal/screeningledger/`, not the Rust catalog's
+`normalize_ascii` or a compiled package layout; no declared digest, function body, or on-disk format
+changes.
+
+#### Rejected alternatives, recorded so a later reader does not re-derive them
+
+- **Widen `createFunctionKeywordRe` to also swallow `/* */` between tokens.** CAP #16's own explicit
+  prohibition, and the reason this addendum exists: an alternation still misses a `--` line comment
+  with an unanticipated newline shape, a nested comment, or the next token boundary the author did not
+  enumerate. The referent is the lexed header, not a wider regex.
+- **A top-level tokenizer that skips comments and dollar-quoted regions.** Built and refuted in
+  Addendum 16: SchemaSQL's declarations live inside `EXECUTE $exec$...$exec$`, so skipping
+  dollar-quotes misses every one. The flat scan is kept.
+- **`pg_query_go` / an offline SQL parser dependency.** CLAUDE.md rule 1.
+- **A live-connection resolve.** D92's DSN-free property.
+- **Surface an error on an unterminated comment.** Refuted by measurement: PostgreSQL rejects such
+  input and creates nothing, so a skip (found=0) keeps the found-set equal to PG's created-set;
+  surfacing risks false-fails on prose.
+
+### D140. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy -- the standard D20, D37, D42, D138 et al. set.
+**Every test below fails before its change (CLAUDE.md rule 5), confirmed by running the tests against
+the stashed pre-D139 extractor: the comment-keyword rogue returns 0 bodies, the whole interspersal
+matrix returns 0, and the end-to-end gate passes in all placements.**
+
+1. **The K-A reproduction:** a DSN-free test asserting the fixed extractor finds the comment-keyword
+   declaration (the shipped one returned 0 -- measured), with the plain-keyword control at 1.
+2. **The exhaustive comment-interspersal matrix**, table-driven over every row above -- a comment
+   between every adjacent keyword pair, multiple comments, both styles, nested (2- and 3-level), and a
+   comment before the name -- each finding exactly one body; plus the word-boundary rows (`procreate`,
+   `FUNCTIONAL`) and the prose row finding zero; plus the unterminated case finding zero without an
+   error.
+3. **The end-to-end gate, both bootstrap paths, both placements.** A comment-keyword rogue in the
+   real `db/migrations/` (sorting mid-tree and last) and in SchemaSQL via the `schemaSQLOverride`
+   hook, asserting the composed gate fails closed and names the rogue, and the plain-keyword control
+   is still caught.
+4. **The positive control** (D37 verbatim): the unmodified tree passes all eighteen gate functions
+   plus D137/D138 with the fix, including the SchemaSQL `$exec$` declarations.
+5. **The mechanism units:** `skipWSAndComments` consumes a balanced nested comment and returns the
+   start on an unterminated one; the start boundary finds `$exec$CREATE` and excludes `procreate`.
+6. **The gate still runs with no DSN** (D92's property).
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D139 must not be discharged by widening the keyword regex with a `/* */` alternation.** The
+  referent is the lexed header; a spelling-specific patch is the shape this addendum replaces.
+- **D139 must not skip comments or dollar-quoted regions at the scan level.** The flat scan is kept;
+  SchemaSQL's `$exec$CREATE` must remain found (the `\b`-not-`$` boundary), and the name-then-`(`
+  discriminator, not region-skipping, separates declaration from prose.
+- **The nested-comment skip must match PostgreSQL's balance rule exactly.** A first-`*/` scan is a
+  fail-open on a nested comment; the depth-track is not optional.
+- **The fail-closed default on an unresolvable *name* (D137(c)) must not be softened**, and the
+  unterminated-comment *skip* must not be turned into a surfaced failure (which false-fails prose) --
+  the two are distinct events and must stay distinct.
+- **No new dependency**, and no SQL-parser dependency (CLAUDE.md rule 1).
+- **No tolerance, anywhere.** If any comparison cannot be made exact, the implementation stops and
+  this addendum is amended rather than shipping an invented equivalence. The seventh round to restate
+  D85's condition.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered.** D132's
+membership rule and D133's placement rule are not reopened -- only the extractor they share is
+strengthened, and their own tests are the positive control. D137's stage-2 resolver is unchanged in
+contract (its identity resolution, quoted/unquoted folding, and D137(c) surfaced-failure default all
+stand); it gains nested-comment tolerance for free through the shared skip. `prosrc` is not
+normalised in any control -- the tokenization D139 performs is on the `CREATE FUNCTION` header, never
+on a function body. D134/D135 untouched; D117's accepted sets untouched; D118's type-list equality
+untouched; D124's element-set corroboration untouched; `screening_ledger_event` still not a protected
+object; the withdrawn D74 reaper not reintroduced.
+
+### New accepted risks
+
+**R66 -- the coordinated-edit surface does NOT grow this round, stated because prior addenda grew it.**
+R23, R29, R33, R42, R46, R50, R55, R59 and R65 track a declaration surface that grew nearly every
+round. D139 adds **no declared literal, no digest, no accepted set, and no function-body change** --
+it changes only how the gate's shared extractor detects a keyword header, and it removes one import.
+R64 (Addendum 16's fail-closed-default false-failure risk on an exotic *name*) is unchanged and its
+re-entry condition stands; R57's undeclared-live-overload class remains out of scope and bounded by
+ownership and D117, exactly as before.
+
+### Staging
+
+Same shape as the sixteen prior addenda: each stage independently reviewable and provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage S1 -- the unified header tokenizer.** D139 in full: `scanCreateFunctionKeyword` and
+   `matchCreateFunctionKeyword` replacing `createFunctionKeywordRe`, the depth-tracked
+   `skipWSAndComments`, the `\b`-not-`$` start boundary, plus D140's tests. It is the whole of the fix
+   and the whole of the round; the positive control across both bootstrap paths is a shipping
+   requirement. No new DSN, no new fixture database, and no `.github/workflows/*.yml` wiring -- the
+   gate is DSN-free.
+3. **`SECURITY.md` and `README.md` language.** R3's rule unchanged; the requalification notice stays
+   until the stage above lands and its reproduction passes.
+
+**SEC-7 does not close on this addendum, and for the fourth consecutive round the reason is not a
+forgery on a correctly-provisioned database.** The chain layer is unbroken across all sixteen rounds.
+It is not met for the retention-claim declaration surface until this barrier lands: a `SECURITY
+DEFINER` body that destroys evidence under a live obligation can be committed under a comment-keyword
+spelling and pass every member of the source gate. D139 is the whole of that barrier, and it closes
+the spelling axis by construction -- after it, "another spelling of the header separators" is not a
+new class but the same lexer, so the axis that produced H-A and K-A on consecutive rounds is closed
+rather than patched.
+
+### Addendum 17 summary
+
+- **CAP #16's verdict is QUALIFIED, not PASS, for the sixteenth consecutive audit -- one MEDIUM
+  (K-A), no CRITICAL and no HIGH, the third consecutive round with neither.** CAP #16 recommended
+  against stopping on the letter of the three-round criterion, because K-A is H-A's class one token
+  earlier; this addendum closes the axis rather than the single spelling.
+- **This addendum introduces no new axis.** K-A is D137's own comment/whitespace tolerance applied to
+  the keyword sequence that precedes the name production. The sentence it adds: the CREATE FUNCTION
+  header is one lexical unit whose separators are tokenized by one mechanism, so "another spelling of
+  the separators" closes by construction.
+- **The design is D139-D140.** `createFunctionKeywordRe` is replaced by a lexer over the whole header
+  (`scanCreateFunctionKeyword` + `matchCreateFunctionKeyword`) that applies the same
+  `skipWSAndComments` D137 wrote for the name between every keyword token too; the skip is
+  depth-tracked because PostgreSQL nests block comments; the start boundary is `\b`-not-`$` so
+  `$exec$CREATE` is still found; the flat scan and the name-then-`(` discriminator are kept; an
+  unterminated comment is a safe skip and an unresolvable name a surfaced failure (D139); and the
+  proof obligations with pre-declared withdrawal conditions (D140).
+- **This design pass executed its mechanism assumptions, and the execution corrected the brief and
+  surfaced two further subtleties.** PostgreSQL nests block comments (the brief's "not nestable"
+  premise is false); the start boundary must exclude `$` or SchemaSQL's `$exec$CREATE` regresses; an
+  unterminated comment is a safe found=0 rather than a surfaced error. The shipped extractor returns
+  0 bodies for the comment-keyword rogue and the eighteen-function gate passes with it in the real
+  tree; the fix finds every comment/nested spelling, excludes `procreate`/`FUNCTIONAL`/prose, passes
+  the clean tree across all eighteen, and fails the rogue closed; the rogue strips ciphertext
+  (`has_ct t->f`) under a `2100-01-01` obligation on a disposable cluster.
+- **Two constraints are confirmed against the tree, not asserted.** No `pg_query`/`libpg_query`/
+  `pganalyze` in `go.mod`/`go.sum`/`*.go`; the fix is stdlib-only and removes the `regexp` import.
+- **This addendum revises no prior decision.** D1-D138 stand; R1-R65 stand. D132's and D133's texts
+  are not corrected but extended -- the extractor they route through now tokenizes the whole header
+  uniformly, which is the referent their assertions already assume they range over.
+
+**Audit basis commit:** `236d21154bf1abe36f1016a3715014aaf06bc78f`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #16
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
