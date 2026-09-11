@@ -59,53 +59,81 @@ type extractedBody struct {
 
 var dollarTagRe = regexp.MustCompile(`^\s*(\$[A-Za-z0-9_]*\$)`)
 
-// extractFunctionBodies scans source for every occurrence of "CREATE [OR
-// REPLACE] FUNCTION <funcName>(...) ... AS <tag> <body> <tag>", in the
-// order they appear, and returns each body found, tagged with
-// sourceLabel and its raw parameter list (so a caller can disambiguate
-// overloads sharing one name). None of the parameter lists or return
-// types this repository ships contain a literal ")" before the argument
-// list's own close, so the first ")" after the opening "(" is that
-// close; none contain the literal substring "AS" before their own
-// dollar-quote tag either.
-func extractFunctionBodies(t *testing.T, source, sourceLabel, funcName string) []extractedBody {
+// extractFunctionBodies scans source for every occurrence of the CREATE
+// [OR REPLACE] FUNCTION keyword (createFunctionKeywordRe,
+// d137_create_function_name_resolver_test.go), resolves the name
+// production that follows it to a PostgreSQL identity via
+// resolveCreateFunctionName (ADR-0007 Addendum 16 D137), and -- for
+// every occurrence whose resolved identity is (schema absent-or-public,
+// funcName) and is immediately followed by "(" (D137(b): the
+// name-then-"(" shape is the sole declaration-vs-prose discriminator) --
+// extracts "(...) ... AS <tag> <body> <tag>" exactly as before, tagged
+// with sourceLabel and its raw parameter list (so a caller can
+// disambiguate overloads sharing one name). None of the parameter lists
+// or return types this repository ships contain a literal ")" before
+// the argument list's own close, so the first ")" after the opening "("
+// is that close; none contain the literal substring "AS" before their
+// own dollar-quote tag either.
+//
+// A CREATE FUNCTION whose name resolveCreateFunctionName cannot resolve
+// to an identity is returned as a named error (D137(c)'s surfaced,
+// fail-closed default) -- never a silently skipped body, and never a
+// panic or a direct t.Fatal, so a caller testing this exact path (D138
+// item 2's two exotic-form matrix rows) can assert the failure without
+// the assertion itself aborting the test.
+func extractFunctionBodies(t *testing.T, source, sourceLabel, funcName string) ([]extractedBody, error) {
 	t.Helper()
 	var results []extractedBody
-	nameRe := regexp.MustCompile(`CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+` + regexp.QuoteMeta(funcName) + `\s*\(`)
-	rest := source
+	pos := 0
 	for {
-		loc := nameRe.FindStringIndex(rest)
+		loc := createFunctionKeywordRe.FindStringIndex(source[pos:])
 		if loc == nil {
 			break
 		}
-		argsStart := loc[1]
-		closeRel := strings.Index(rest[argsStart:], ")")
+		kwStart := pos + loc[0]
+		kwEnd := pos + loc[1]
+		schema, name, afterName, ok := resolveCreateFunctionName(source, kwEnd)
+		if !ok {
+			return nil, fmt.Errorf("%s: a CREATE [OR REPLACE] FUNCTION at byte offset %d whose name this gate cannot resolve to a PostgreSQL identity (ADR-0007 Addendum 16 D137) -- refusing to treat it as invisible", sourceLabel, kwStart)
+		}
+		if afterName >= len(source) || source[afterName] != '(' || name != funcName || (schema != "" && schema != "public") {
+			// A resolved name that is not this declaration -- either a
+			// prose mention (not followed by "(") or a genuinely
+			// different function/schema (correctly excluded). Advance
+			// past just the keyword occurrence and keep scanning.
+			pos = kwEnd
+			continue
+		}
+		argsStart := afterName + 1
+		closeRel := strings.Index(source[argsStart:], ")")
 		if closeRel < 0 {
-			t.Fatalf("%s: found %q with no closing ')' for its argument list", sourceLabel, funcName)
+			return nil, fmt.Errorf("%s: found %q with no closing ')' for its argument list", sourceLabel, funcName)
 		}
-		argsText := rest[argsStart : argsStart+closeRel]
-		afterArgs := rest[argsStart+closeRel+1:]
-		asIdx := strings.Index(afterArgs, "AS")
-		if asIdx < 0 {
-			t.Fatalf("%s: found %q with no 'AS' after its argument list", sourceLabel, funcName)
+		argsEnd := argsStart + closeRel
+		argsText := source[argsStart:argsEnd]
+		afterArgs := argsEnd + 1
+		asRel := strings.Index(source[afterArgs:], "AS")
+		if asRel < 0 {
+			return nil, fmt.Errorf("%s: found %q with no 'AS' after its argument list", sourceLabel, funcName)
 		}
-		afterAS := afterArgs[asIdx+2:]
-		tagMatch := dollarTagRe.FindStringSubmatch(afterAS)
+		afterAS := afterArgs + asRel + 2
+		tagMatch := dollarTagRe.FindStringSubmatch(source[afterAS:])
 		if tagMatch == nil {
-			t.Fatalf("%s: found %q with no dollar-quote tag immediately after AS", sourceLabel, funcName)
+			return nil, fmt.Errorf("%s: found %q with no dollar-quote tag immediately after AS", sourceLabel, funcName)
 		}
 		tag := tagMatch[1]
-		bodyStart := strings.Index(afterAS, tag) + len(tag)
-		closeIdx := strings.Index(afterAS[bodyStart:], tag)
-		if closeIdx < 0 {
-			t.Fatalf("%s: found %q whose dollar-quote tag %s is never closed", sourceLabel, funcName, tag)
+		tagRel := strings.Index(source[afterAS:], tag)
+		bodyStart := afterAS + tagRel + len(tag)
+		closeRel2 := strings.Index(source[bodyStart:], tag)
+		if closeRel2 < 0 {
+			return nil, fmt.Errorf("%s: found %q whose dollar-quote tag %s is never closed", sourceLabel, funcName, tag)
 		}
-		body := afterAS[bodyStart : bodyStart+closeIdx]
+		bodyEnd := bodyStart + closeRel2
+		body := source[bodyStart:bodyEnd]
 		results = append(results, extractedBody{source: sourceLabel, args: strings.TrimSpace(argsText), body: body})
-		advance := argsStart + closeRel + 1 + asIdx + 2 + bodyStart + closeIdx + len(tag)
-		rest = rest[advance:]
+		pos = bodyEnd + len(tag)
 	}
-	return results
+	return results, nil
 }
 
 func digestHexString(body string) string {
@@ -398,22 +426,30 @@ func (d declaredFunction) derivedPopulation(t *testing.T, migrationDir string, s
 	t.Helper()
 	for _, path := range migrationFilePaths(t, migrationDir) {
 		content := mustReadFile(t, path)
-		for _, found := range extractFunctionBodies(t, content, path, d.funcName) {
-			if d.typeList != "" && argTypeList(canonicalizeArgs(found.args)) != d.typeList {
+		found, err := extractFunctionBodies(t, content, path, d.funcName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range found {
+			if d.typeList != "" && argTypeList(canonicalizeArgs(f.args)) != d.typeList {
 				continue
 			}
-			migration = append(migration, found)
+			migration = append(migration, f)
 		}
 	}
 	schemaSQLContent := SchemaSQL
 	if len(schemaSQLOverride) > 0 {
 		schemaSQLContent = schemaSQLOverride[0]
 	}
-	for _, found := range extractFunctionBodies(t, schemaSQLContent, "SchemaSQL", d.funcName) {
-		if d.typeList != "" && argTypeList(canonicalizeArgs(found.args)) != d.typeList {
+	found, err := extractFunctionBodies(t, schemaSQLContent, "SchemaSQL", d.funcName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range found {
+		if d.typeList != "" && argTypeList(canonicalizeArgs(f.args)) != d.typeList {
 			continue
 		}
-		schemaSQL = append(schemaSQL, found)
+		schemaSQL = append(schemaSQL, f)
 	}
 	return migration, schemaSQL
 }
@@ -542,7 +578,11 @@ func assertNoBodyDropped(t *testing.T, migrationDir string, schemaSQLOverride ..
 	sources = append(sources, namedSource{label: "SchemaSQL", content: schemaSQLContent})
 	for _, src := range sources {
 		for funcName, overloads := range byName {
-			for _, f := range extractFunctionBodies(t, src.content, src.label, funcName) {
+			found, err := extractFunctionBodies(t, src.content, src.label, funcName)
+			if err != nil {
+				return err
+			}
+			for _, f := range found {
 				canonicalFound := canonicalizeArgs(f.args)
 				if isRetiredSignature(funcName, canonicalFound) {
 					// ADR-0007 Addendum 14 D127(a): a retired type list
@@ -769,7 +809,11 @@ func TestSupersededPurgeSnapshotsLiteralsAreNotAccepted(t *testing.T) {
 	// entry any more.
 	const purgeSnapshotsArrayFormBodySHA256Superseded020 = "67964968abee18790da2bc609ba653a1cc287a6ea10e02e30a12ad8a92f113c4"
 	found020Retired := false
-	for _, got := range extractFunctionBodies(t, mustReadFile(t, "../../db/migrations/020_screening_ledger_purge_server_side_floor.sql"), "020", "screening_ledger_purge_snapshots") {
+	bodies020, err := extractFunctionBodies(t, mustReadFile(t, "../../db/migrations/020_screening_ledger_purge_server_side_floor.sql"), "020", "screening_ledger_purge_snapshots")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, got := range bodies020 {
 		canonicalArgs := canonicalizeArgs(got.args)
 		if !isRetiredSignature("screening_ledger_purge_snapshots", canonicalArgs) {
 			continue
@@ -924,7 +968,11 @@ func TestAssertNoBodyDroppedCatchesRespelledSignature(t *testing.T) {
 	// Without canonicalization, the raw type list never even recognises
 	// the respelled body as belonging to this overload.
 	preD108Population := 0
-	for _, found := range extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_respelled.sql")), "zzz999_respelled.sql", d.funcName) {
+	respelledBodies, err := extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_respelled.sql")), "zzz999_respelled.sql", d.funcName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, found := range respelledBodies {
 		if argTypeList(found.args) == d.typeList { // no canonicalization
 			preD108Population++
 		}
@@ -936,7 +984,7 @@ func TestAssertNoBodyDroppedCatchesRespelledSignature(t *testing.T) {
 	// D108(a): canonicalization recognises it as THIS overload's new
 	// live body, and its digest does not match the declared accepted
 	// one, so the gate correctly fails rather than silently passing.
-	err := checkLiveDigestMatchesAccepted(t, d, tempDir)
+	err = checkLiveDigestMatchesAccepted(t, d, tempDir)
 	if err == nil {
 		t.Fatal("ADR-0007 Addendum 12 D108(a): expected checkLiveDigestMatchesAccepted to FAIL once canonicalization recognises the respelled body as this overload's new live literal (wrong digest) -- it passed instead")
 	}
@@ -1019,7 +1067,10 @@ func TestAssertNoBodyDroppedSelectsByTypeIdentityNotParameterName(t *testing.T) 
 
 	t.Run("p_before_invisible_under_the_shipped_prefix_rule", func(t *testing.T) {
 		tempDir := buildTempDir(t, "p_before")
-		rogueBodies := extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_rogue.sql")), "zzz999_rogue.sql", "screening_ledger_purge_snapshots")
+		rogueBodies, err := extractFunctionBodies(t, mustReadFile(t, filepath.Join(tempDir, "zzz999_rogue.sql")), "zzz999_rogue.sql", "screening_ledger_purge_snapshots")
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(rogueBodies) != 1 {
 			t.Fatalf("test construction error: expected exactly 1 extracted rogue body, got %d", len(rogueBodies))
 		}
@@ -1046,7 +1097,7 @@ func TestAssertNoBodyDroppedSelectsByTypeIdentityNotParameterName(t *testing.T) 
 		// match, and this rogue has one extra leading timestamptz
 		// parameter) -- so assertNoBodyDropped must catch it as
 		// unplaceable.
-		err := assertNoBodyDropped(t, tempDir)
+		err = assertNoBodyDropped(t, tempDir)
 		if err == nil {
 			t.Fatal("ADR-0007 Addendum 13 D118: expected assertNoBodyDropped to FAIL against a rogue body whose leading parameter is named p_before -- it passed instead, meaning the body was silently discarded (invisible under the pre-D118 name-prefix rule)")
 		}
