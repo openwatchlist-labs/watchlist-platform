@@ -60,8 +60,11 @@ type extractedBody struct {
 var dollarTagRe = regexp.MustCompile(`^\s*(\$[A-Za-z0-9_]*\$)`)
 
 // extractFunctionBodies scans source for every occurrence of the CREATE
-// [OR REPLACE] FUNCTION keyword (createFunctionKeywordRe,
-// d137_create_function_name_resolver_test.go), resolves the name
+// [OR REPLACE] FUNCTION keyword header (scanCreateFunctionKeyword,
+// d137_create_function_name_resolver_test.go -- ADR-0007 Addendum 17 D139:
+// a lexer over the whole header that treats whitespace and comments
+// uniformly as separators between every keyword token, replacing the
+// pre-D139 regexp that a comment mid-keyword defeated), resolves the name
 // production that follows it to a PostgreSQL identity via
 // resolveCreateFunctionName (ADR-0007 Addendum 16 D137), and -- for
 // every occurrence whose resolved identity is (schema absent-or-public,
@@ -86,12 +89,10 @@ func extractFunctionBodies(t *testing.T, source, sourceLabel, funcName string) (
 	var results []extractedBody
 	pos := 0
 	for {
-		loc := createFunctionKeywordRe.FindStringIndex(source[pos:])
-		if loc == nil {
+		kwStart, kwEnd, found := scanCreateFunctionKeyword(source, pos)
+		if !found {
 			break
 		}
-		kwStart := pos + loc[0]
-		kwEnd := pos + loc[1]
 		schema, name, afterName, ok := resolveCreateFunctionName(source, kwEnd)
 		if !ok {
 			return nil, fmt.Errorf("%s: a CREATE [OR REPLACE] FUNCTION at byte offset %d whose name this gate cannot resolve to a PostgreSQL identity (ADR-0007 Addendum 16 D137) -- refusing to treat it as invisible", sourceLabel, kwStart)
