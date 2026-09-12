@@ -16865,3 +16865,1247 @@ rather than patched.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #16
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 18: the span a control digests -- every boundary lexed, and CAP #17's first false-positive finding (2026-09-12)
+
+- **Status:** Proposed
+- **Trigger:** a seventeenth Composition Audit Program record produced against the implemented
+  Addendum 17 (`docs/backlog/sec-7-cap-record-a7f1c82.md`, adversarial posture, audit basis commit
+  `a7f1c82e6ad7bd340ea54c570774c6b18ea4b48b`) returned **QUALIFIED, not PASS** for the seventeenth
+  consecutive audit -- **one HIGH (L-B) and one MEDIUM (L-A).** **SEC-7 is not closed**, and CAP #17
+  records that this round does **not** start the new clean count, because that count requires no
+  CRITICAL and no HIGH.
+- **Why L-B is treated with the weight of this arc's demonstrated forgeries.** Every prior
+  source-gate finding on this axis -- Addendum 16's H-A, Addendum 17's K-A, and this round's L-A --
+  is a **silent absence**: the gate finds nothing, asserts nothing, and its PASS is merely
+  uninformative. L-B is the gate **finding something, matching it, and affirming it**: it reports
+  `bodies=1` with a digest that **is a member of the declared set** for a file whose function body
+  PostgreSQL compiles as 368 bytes of evidence destruction. It is the first **positive false
+  attestation** this arc has produced on any axis. In a repository whose stated premise is that a
+  corrupted audit record is worse than a missing one (CLAUDE.md), a control that emits a false record
+  is the more serious defect, and it is also the only construction found this round that defeats
+  **D132's membership rule and D133's placement rule simultaneously** -- because both consume the
+  same substituted body rather than two independent properties of it.
+- **What CAP #17 confirmed, and this addendum does not disturb.** D139's keyword tokenizer is correct
+  in shape and its *whitespace* half is exactly right -- CAP #17 section 5.1 measured PostgreSQL's
+  inter-keyword separator set byte by byte as `{0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x20}` and `isPgSpace`
+  (`d137_create_function_name_resolver_test.go:319-325`) as an exact match in both directions. D139's
+  *block*-comment work -- nesting, the balance rule, the confusing marker shapes -- agrees with
+  PostgreSQL on every shape measured. D137's stage-2 identity resolution is sound over its input.
+  D132's membership rule and D133's placement rule are each correct within their populations; this
+  addendum reopens neither -- it repairs the one **shared** extractor they both route through, so it
+  strengthens both. **Every prior addendum's principle stands** -- Addendum 3's scoping, 4's
+  referent, 5's population, 6's atomicity, 7's quantifier, 8's naming, 9's composition, 10's
+  whole-round obligation, 11's cardinality, 12's reduction, 13's derivation, 14's element set, 15's
+  placement, 16's identity resolution and 17's uniform tokenization -- and this addendum reopens none
+  of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D7, not D8-D20, not AR7,
+  not D21-D30, not D31-D37, not D38-D42, not D43-D49, not D50-D58, not D59-D67, not D68-D75, not
+  D76-D85, not D86-D95, not D96-D103, not D104-D112, not D113-D122, not D123-D131, not D132-D136, not
+  D137-D138, not D139-D140, not R1-R66. Decision numbering continues at **D141**; risk numbering at
+  **R67**. Where a prior decision's or risk's *text* is narrower or less accurate than what the system
+  does, the new decision says so in its own words -- the convention AR7 established, and the
+  construction D145 uses for R57.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `a7f1c82e6ad7bd340ea54c570774c6b18ea4b48b` rather than copied from the CAP record. Measured as the
+  first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  a7f1c82e6ad7bd340ea54c570774c6b18ea4b48b
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-18-cap17-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-17
+  held to -- and the execution refuted the brief's own proposed mechanism, widened the finding well
+  beyond the single construction CAP #17 named, and settled by measurement one question this
+  addendum had been prepared to settle by argument.** The DSN-free reproductions, the prototype and
+  the differential matrices ran under `go test`; the live measurements and the destructive
+  demonstration ran on a disposable PostgreSQL **17.11** cluster on **port 55674**,
+  `initdb --auth=scram-sha-256 --pwfile`, TCP-only on `127.0.0.1`, `unix_socket_directories = ''`
+  (the scratchpad socket path is 169 bytes and PostgreSQL's limit is 103), data directory inside this
+  session's own scratchpad.
+
+  ```
+  $ echo -n "$PGDATA/.s.PGSQL.55674" | wc -c
+       169
+  ```
+
+  **Connection hygiene (R63).** Both the ten `OWL_*_DATABASE_URL` DSNs and the libpq
+  `PGHOST`/`PGPORT`/`PGDATABASE`/`PGSUPERUSER`/`PGSUPERPASSWORD` variables were exported into the same
+  shell for every script, gate and test run.
+
+  ```
+  $ env | grep -c '^OWL_.*DATABASE_URL'
+  10
+  ```
+
+  **The developer's own server on port 5432 was never contacted.** Its start time was identical at
+  pass start and pass end and it remained the only listener on 5432. A pre-existing orphaned
+  sibling-session cluster (PID 69994, port 55661, `PPID=1`, the same leak CAP #16 and CAP #17 each
+  recorded, belonging to session `121edd0c`) was present throughout and **left untouched** -- the
+  withdrawn-D74-reaper lesson, surfaced rather than reaped:
+
+  ```
+  $ ps -axo pid,ppid,stat,lstart,command | grep -i '[p]ostgres'      # (pass start)
+  69994     1 Ss   Fri Sep 11 08:21:41 2026     .../17.11/bin/postgres -D data          # sibling leak (55661)
+  95804     1 S    Wed Aug 26 10:01:08 2026     /opt/homebrew/opt/postgresql@17/bin/postgres -D /opt/homebrew/var/postgresql@17
+  $ lsof -nP -iTCP -sTCP:LISTEN | grep -i postgres
+  postgres  69994 piyushdaiya    5u  IPv4 TCP 127.0.0.1:55661 (LISTEN)
+  postgres  95804 piyushdaiya    7u  IPv6 TCP [::1]:5432 (LISTEN)
+  postgres  95804 piyushdaiya    8u  IPv4 TCP 127.0.0.1:5432 (LISTEN)
+  ```
+
+  **Where a claim is about PostgreSQL's own lexer it was measured through a server-side `EXECUTE`
+  inside a `DO` block**, so no result in this addendum can be an artifact of `psql`'s client-side
+  parser. The cluster was provisioned in `.github/workflows/ci.yml`'s exact order (`create-roles`,
+  all twenty-one `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`,
+  `grant-ddl-ownership`, then each fixture database **with its own migration step**), and its
+  baseline is identical to CAP #14's, #15's, #16's and #17's, OIDs included:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_instance_binding   |     1
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+
+                evtname              |    evtevent     | evtenabled
+  -----------------------------------+-----------------+------------
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+
+               proname              |              args              |    body_sha16    |  oid
+  ----------------------------------+--------------------------------+------------------+-------
+   owl_reject_truncate              |                                | e8db5083c6bf20d9 | 16850
+   screening_ledger_purge_snapshots | p_ledger_id text, p_expected_c | d44b2cab4d905faf | 16932
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_le | 763f63090c9af4be | 16931
+   screening_ledger_reject_mutation |                                | 5632734b5c67628b | 16466
+   screening_ledger_snapshot_guard  |                                | f9cb95289a3fdead | 16473
+   sec7_protect_ddl_objects         |                                | de174c42252877d2 | 16957
+  ```
+
+  Every destructive probe ran on a purpose-built throwaway database (`a18_lb_live`, `a18_kw`,
+  `a18_mx`, `a18_atomic`, `a18_r57`); the named CI fixtures were provisioned by their own creators and
+  never re-provisioned by a different command (the CAP #15 mistake). Probe code lived in temporary
+  `_test.go` files in `internal/screeningledger/` calling the **real** `extractFunctionBodies` /
+  `scanCreateFunctionKeyword` / `matchCreateFunctionKeyword` / `skipWSAndComments` / `lexPgIdentifier`
+  / `lexQuotedIdentifier` / `resolveCreateFunctionName` / `assertEveryCommittedLiteralIsADeclaredBody`
+  / `assertNoBodyDropped` scaffolding (never reimplementations), plus a prototype of the fix and one
+  temporary in-place swap of `extractFunctionBodies`'s body (so the full eighteen-function gate
+  exercised the fix rather than a partial), plus rogue `.sql` files temporarily placed in the **real**
+  `db/migrations/`. **All temporary files were deleted and both swapped files restored byte-for-byte
+  before this addendum was written:**
+
+  ```
+  $ git diff --stat
+  (no output -- byte-identical to the audit basis)
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  $ ls db/migrations/*.sql | wc -l
+        21
+  $ go vet ./internal/screeningledger/
+  (clean, rc=0)
+  ```
+
+  The four results that shaped the design, each with its transcript in the section that relies on it:
+
+  1. **The brief's proposed mechanism for L-B does not work as stated, and is corrected here rather
+     than followed.** The brief asks whether `resolveCreateFunctionName`'s own `afterIdx`
+     "already lands at a position where the NEXT token can be lexed and checked for case-insensitive
+     equality to `as`". It does not. `afterIdx` (`d137_create_function_name_resolver_test.go:184-200`)
+     is the offset immediately after the **name** production; the next token there is `(`, which is
+     precisely what `d92_digest_gate_derivation_test.go:100` already tests as the
+     declaration-versus-prose discriminator. Between the name and the body-introducing `as` sit the
+     **entire parameter list** and the **entire routine-option clause list**. The brief's
+     *methodology* -- lex, do not substring-match, reusing D137's own machinery rather than building
+     a parallel one -- is right and is adopted in full; the *mechanism* must be a **bounded token
+     walk**, not a single next-token check.
+  2. **A walk that skips only whitespace and comments reproduces L-B one clause over.** The option
+     region legitimately admits `SET <parameter> = <value>`, and the value may be a string literal, an
+     escape string, a `U&` string, a dollar-quoted string or a quoted identifier -- each of which can
+     carry the letters `AS` where PostgreSQL never lexes a keyword. Measured: **ten** distinct
+     lexical placements defeat the shipped extractor, not the one the CAP record names.
+  3. **L-B is far wider than a "lowercase `as` plus a later `AS`" pairing.** A 32-row differential
+     matrix, generated once and fed to both PostgreSQL and the extractor, puts the shipped
+     extractor's agreement with PostgreSQL at **5 of 32**, with **fourteen rows in which it reports a
+     body that is not the one PostgreSQL compiled**. The prototype agrees on **32 of 32**.
+  4. **The closing boundary needs no change, and that is a measured result rather than an argument.**
+     This addendum was prepared to argue from PostgreSQL's `<xdolq>` scanner that
+     `strings.Index(body, tag)` already matches its close rule. CAP #17 section 9's own finding is
+     that exactly this kind of reading sank Addendum 17, so the argument was replaced by an 18-shape
+     differential matrix over adversarial tag shapes -- prefix traps, non-matching longer delimiters,
+     case variants, non-ASCII tags. **18 of 18 agree.** The conclusion is the same; the evidence for
+     it is not.
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1 and every prior
+addendum's own drift block set.
+
+1. **The brief's `afterIdx` premise is false** (result 1 above). Three consecutive addenda -- 14, 17
+   and this one -- have found a brief premise false on measurement. The standing instruction to
+   verify a brief's own premises holds, and it changed the fix again this round: a next-token check
+   at `afterIdx` would have tested the `(` and never reached the `AS` at all.
+2. **CAP #17's account of both findings is correct in every particular measured here**, and its
+   line citation for the body-location block is one line off in the shipped tree. The record cites
+   `d92_digest_gate_derivation_test.go:110-130`; re-derived at this commit the flat `AS` search is
+   **`:116`**, `dollarTagRe`'s definition is **`:60`** and its use **`:121`**, and the body-location
+   block spans **`:108-135`** inside `extractFunctionBodies` (**`:87-138`**). `skipWSAndComments`'s
+   `--` branch, which the record quotes without a line, is **`d137_create_function_name_resolver_test.go:288-292`**.
+3. **CAP #17 section 3.3 says the composed gate refuses L-B in the last-sorting placement.** True of
+   the *liveness* rule, and reproduced here -- but the eighteen-member gate's failure that an operator
+   reads first is D99's, and it names `024_screening_ledger_purge_element_domain.sql`, a genuine
+   migration. Reproduced verbatim below. What this pass adds is that in the **mid-tree** placement
+   all eighteen pass, so the refusal is placement-dependent, which is the property D132's own rule
+   text ("wherever it sits in apply order", `0007:15211-15213`) asserts it does not have.
+4. **The `AS` premise the code states is one of two, and the other is also false.**
+   `d92_digest_gate_derivation_test.go:76-79` states that no shipped parameter list contains a literal
+   `)` before its own close **and** that none contains the substring `AS` before its dollar-quote tag.
+   CAP #17 section 5.8 measured the first premise's adversarial failure; this pass measures the
+   second's. Both are statements about *what this repository ships*, relied upon as properties of
+   *adversarial input* -- Addendum 5's population error applied to a premise. D142 removes the
+   dependence on both rather than restating them.
+
+### Addendum 18 context: the axis is not "spellings of the header" but "every place this gate decides what text to digest"
+
+Addendum 15 asked whether a control **looked** at a body. Addendum 16 asked how a body is **found**,
+and answered it for the *name* (D137). Addendum 17 asked the same question of the *keyword
+separators* and answered it "by construction" with one uniform tokenizer (D139). CAP #17's own
+closing observation is that these are three answers to one question asked at three points, and that
+the question has never been asked at the remaining ones:
+
+> *"The axis is not 'spellings of the header' but 'every place this gate decides what text to
+> digest'. L-A and L-B are the same question asked at two stages: which bytes are this declaration's?
+> Addendum 16 answered it for the name, Addendum 17 for the keyword separators, and nobody has yet
+> answered it for the `AS ... <tag> ... <tag>` body location, which is still a flat, case-sensitive
+> `strings.Index` over the rest of the file."*
+
+L-B is what happens when that question goes unasked at the boundary that decides the digested bytes
+themselves, and it fails in a direction no prior finding on this axis has: **the located span and the
+executed span diverge, and the gate affirms the located one**. The sentence this addendum adds, one
+level below Addendum 16's:
+
+> **A control that digests a span of text must locate EVERY boundary of that span by lexing the
+> grammar that defines it, never by searching for a literal byte sequence. Where the located span and
+> the span the system actually executes can differ, the control's PASS is not a weaker assertion than
+> its FAIL -- it is a FALSE one, and a false record is worse than a missing one.**
+
+That is Addendum 16's naming principle (a name is an address, resolve it to an identity) applied to a
+*span* rather than to a name, composed with Addendum 9's composition principle: a span with five
+boundaries is only as sound as its weakest boundary, and four of this extractor's boundaries were
+still literal-byte searches after Addendum 17 shipped.
+
+### L-B, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #17's transcript; every run was rebuilt against the baseline above,
+calling the real `extractFunctionBodies`.
+
+**The mechanism, from the code.** `extractFunctionBodies` (`d92_digest_gate_derivation_test.go:87-138`),
+untouched by D139 -- Addendum 17 rewrote header *detection*, not body *location*:
+
+```go
+asRel := strings.Index(source[afterArgs:], "AS")        // :116
+if asRel < 0 {
+	return nil, fmt.Errorf("%s: found %q with no 'AS' after its argument list", sourceLabel, funcName)
+}
+afterAS := afterArgs + asRel + 2
+tagMatch := dollarTagRe.FindStringSubmatch(source[afterAS:])   // :121
+```
+
+The search is for the literal uppercase `"AS"`, unanchored, over the **entire remainder of the
+file**. PostgreSQL's `AS` is a case-insensitive unquoted keyword.
+
+**The construction.** One file. Its header is ordinary and fully resolvable by D137 and D139; a
+**declared historical body** -- 023's own superseded array-form literal, `d32a2ffaab5a8037...`, a
+member of that overload's declared set (`d92_digest_gate_derivation_test.go:225`, unioned in at
+`:280-285`) -- is parked in a block comment above the real body, introduced there by an uppercase
+`AS`; and the real body is introduced by a lowercase `as`:
+
+```
+CREATE OR REPLACE FUNCTION public.screening_ledger_purge_snapshots(<the live type list>)
+RETURNS text[]
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+/* AS $$<THE DECLARED HISTORICAL BODY, 5193 bytes>$$ */
+as $$<THE EVIL BODY, 368 bytes>$$;
+```
+
+**The gate reports a body, and it is the wrong one.** The real `extractFunctionBodies`:
+
+```
+A18-LB  bodies=1 err=<nil>
+A18-LB  body[0] len=5193 digest=d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd
+A18-LB  body[0] args="p_snapshot_sha256 text[], p_ledger_id text, p_expected_count int[], p_expected_max timestamptz[], p_operator text, p_reason text"
+A18-LB  body[0] head="\nDECLARE recorded text[];\nDECLARE conflict_sha256 text;\nDECL"
+A18-LB  declared HISTORICAL 023 digest = d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd
+A18-LB  declared ACCEPTED  migration   = 763f63090c9af4be219176d31dd1d7d304d548062533506b85fff9d439a2d0da
+A18-LB  the REAL (evil) body digest    = 51a5e732455c02a7a6ef429901d778cd84fa652036c06088f24d9cf2cea9763a  len=368
+```
+
+**PostgreSQL compiles the other one.** Throwaway `a18_lb_live`, all 21 migrations, the file applied
+as the function's owner:
+
+```
+=== does PostgreSQL accept it, and which body does it install? ===
+CREATE FUNCTION
+             proname              |    live_sha16    | prosecdef | len  |                  ident
+----------------------------------+------------------+-----------+------+------------------------------------------
+ screening_ledger_purge_snapshots | 51a5e732455c02a7 | t         |  368 | p_snapshot_sha256 text[], p_ledger_id te
+ screening_ledger_purge_snapshots | d44b2cab4d905faf | t         | 3599 | p_ledger_id text, p_expected_count bigin
+```
+
+The gate certified `d32a2ffa...` (5193 bytes); PostgreSQL installed `51a5e732...` (368 bytes),
+`prosecdef=t`, on the **same** array-form regprocedure.
+
+**The composed gate: both members affirm, in both placements, on both bootstrap paths.** The real
+`assertEveryCommittedLiteralIsADeclaredBody` (D132) and `assertNoBodyDropped` (D133):
+
+```
+--- baseline: clean tree, no rogue ---
+clean tree (positive control)                  D132-refuses=false D133-refuses=false *** BOTH PASS -> FAIL-OPEN ***
+migration-file path, 023a_a18_lb.sql           D132-refuses=false D133-refuses=false *** BOTH PASS -> FAIL-OPEN ***
+migration-file path, zzz999_a18_lb.sql         D132-refuses=false D133-refuses=false *** BOTH PASS -> FAIL-OPEN ***
+--- SchemaSQL bootstrap path (schemaSQLOverride, D133's population) ---
+SchemaSQL: L-B lowercase-as rogue              D132-refuses=false D133-refuses=false *** BOTH PASS -> FAIL-OPEN ***
+```
+
+**The full eighteen-function DSN-free gate passes with the rogue in the REAL tree, mid-tree; and
+where the last-sorting placement is caught, the diagnostic names an innocent file.**
+
+```
+=== BASELINE: clean tree, the EIGHTEEN ===
+19
+clean rc=0
+=== the EIGHTEEN with the L-B rogue at 023a_a18_lb.sql ===
+19
+eighteen rc=0
+A16/A17 own tests rc=0
+=== the EIGHTEEN with the L-B rogue at zzz999_a18_lb.sql ===
+16
+eighteen rc=1
+A16/A17 own tests rc=1
+```
+
+19 = 18 `--- PASS` plus 1 package `ok`. At `023a` every member passes, and so do Addendum 16's and
+Addendum 17's own tests. At `zzz999` three fail, and the message an operator reads first is:
+
+```
+d92_digest_gate_derivation_test.go:836: ADR-0007 Addendum 11 D99: a superseded literal for
+screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) in
+../../db/migrations/024_screening_ledger_purge_element_domain.sql digests to
+763f63090c9af4be219176d31dd1d7d304d548062533506b85fff9d439a2d0da, which IS a declared accepted
+digest -- a superseded body must not silently agree with the live one
+```
+
+`024_screening_ledger_purge_element_domain.sql` is the genuine migration. **The refusal is
+placement-dependent and, where it fires, it misattributes.**
+
+**It is live, and it destroys evidence under a live obligation.** Same throwaway, the gate-approved
+file installed, an empty-array call naming no snapshot and no obligation:
+
+```
+=== BEFORE ===
+ snapshot_sha256 |       expires_at       | has_ct | purged
+-----------------+------------------------+--------+--------
+ a18lb0001       | 2100-01-01 00:00:00-05 | t      | f
+ a18lb0002       | 2100-01-01 00:00:00-05 | t      | f
+=== empty-array call: names NO snapshot, NO obligation, NO expected counts ===
+ {a18lb0001,a18lb0002}
+=== AFTER: ciphertext under a live 2100-01-01 obligation ===
+ a18lb0001       | 2100-01-01 00:00:00-05 | f      | t
+ a18lb0002       | 2100-01-01 00:00:00-05 | f      | t
+=== attributable record? ===
+ tombstones
+------------
+          0
+```
+
+`has_ct` went `t` -> `f` and `purged` `f` -> `t` under a live `2100-01-01` obligation, with **zero**
+retention tombstones, via a body the source gate looked at, digested, and **declared to be one this
+repository provably shipped**.
+
+**It is wider than the CAP's construction: ten lexical placements, not one.** The decoy `AS` need
+not sit in a block comment. Each row below is one PostgreSQL lexical form that can carry the letters
+`AS` where no keyword is lexed, with the real body introduced by a lowercase `as`:
+
+```
+A18-TK  block comment                          shipped=*** DECOY (declared historical) ***
+A18-TK  nested block comment                   shipped=*** DECOY (declared historical) ***
+A18-TK  line comment (LF)                      shipped=*** DECOY (declared historical) ***
+A18-TK  line comment (bare CR)                 shipped=*** DECOY (declared historical) ***
+A18-TK  plain string literal                   shipped=*** DECOY (declared historical) ***
+A18-TK  plain string, '' doubled               shipped=*** DECOY (declared historical) ***
+A18-TK  E-string with backslash                shipped=*** DECOY (declared historical) ***
+A18-TK  U&-string                              shipped=*** DECOY (declared historical) ***
+A18-TK  dollar-quoted string                   shipped=*** DECOY (declared historical) ***
+A18-TK  quoted identifier                      shipped=*** DECOY (declared historical) ***
+```
+
+Every one of those ten returns the **declared historical digest** for a file whose body is the evil
+one. The last-listed two rows in the same matrix (`"as"` as a quoted identifier, and an `AS` inside a
+longer identifier) return a surfaced error instead, which is the safe direction and is not the
+finding.
+
+**Severity, adopted from CAP #17 without argument: HIGH.** The reachability bound is the same as
+L-A's -- `grant-ddl-ownership`'s D117 provisioning digest check
+(`scripts/ci/provision_test_roles.sh:458-469`), which queries `pg_proc.prosrc` by identity and does
+no text parsing, refuses it. That is **a different control, D76's forbidden shape** -- the identical
+argument Addendum 15's G-A, Addendum 16's H-A and Addendum 17's K-A each used to justify fixing the
+source gate rather than leaning on provisioning. It is HIGH rather than MEDIUM on the ground none of
+those shared: it is a **positive false attestation**, it defeats D132 and D133 **simultaneously**, and
+where the composed gate refuses at all it **misattributes**.
+
+### L-A, reproduced independently
+
+**PostgreSQL's verdict, measured through the SERVER's own lexer** -- `EXECUTE` inside a `DO` block on
+throwaway `a18_kw`, so the string reaches the server's parser verbatim:
+
+```
+=== SERVER-SIDE EXECUTE: does a bare CR terminate a -- comment? ===
+NOTICE:  CR between CREATE and FUNCTION: ACCEPTED
+NOTICE:  CR between OR and REPLACE: ACCEPTED
+NOTICE:  CR between REPLACE and FUNCTION: ACCEPTED
+=== NEGATIVE CONTROL: form feed (0x0C) does NOT terminate a -- comment ===
+ERROR:  syntax error at end of input
+QUERY:  CREATE --xFUNCTION public.srv_ff() RETURNS int LANGUAGE sql AS $b$select 4$b$
+=== NEGATIVE CONTROL: vertical tab (0x0B) does NOT terminate a -- comment ===
+ERROR:  syntax error at end of input
+QUERY:  CREATE --xFUNCTION public.srv_vt() RETURNS int LANGUAGE sql AS $b$select 5$b$
+=== functions created by the SERVER-side EXECUTE probes ===
+ srv_cr_a
+ srv_cr_b
+ srv_cr_c
+```
+
+The two negative controls establish that this is specifically the **comment terminator set**, not
+"any control character ends a comment": form feed and vertical tab are whitespace to PostgreSQL
+*outside* a comment (CAP #17 section 5.1) and do not end one. PostgreSQL's lexer defines
+`non_newline` as `[^\n\r]`; `skipWSAndComments` (`d137_create_function_name_resolver_test.go:288-292`)
+terminates at `'\n'` alone:
+
+```go
+case idx+1 < len(source) && source[idx] == '-' && source[idx+1] == '-':
+	idx += 2
+	for idx < len(source) && source[idx] != '\n' {
+		idx++
+	}
+```
+
+**The shipped gate is blind at six positions**, and because D139 made the skip *shared*, two of them
+are in stage 2, which D137 owned and CAP #16 certified sound:
+
+```
+A18-LA  control: plain keyword, no comment             kwMatch=true  bodies=1 err=<nil>
+A18-LA  control: K-A block comment (A17 fixed this)    kwMatch=true  bodies=1 err=<nil>
+A18-LA  control: LF-terminated line comment            kwMatch=true  bodies=1 err=<nil>
+A18-LA  control: CRLF-terminated line comment          kwMatch=true  bodies=1 err=<nil>
+A18-LA  CR between CREATE and FUNCTION                 kwMatch=false bodies=0 err=<nil>
+A18-LA  CR between CREATE and OR                       kwMatch=false bodies=0 err=<nil>
+A18-LA  CR between OR and REPLACE                      kwMatch=false bodies=0 err=<nil>
+A18-LA  CR between REPLACE and FUNCTION                kwMatch=false bodies=0 err=<nil>
+A18-LA  CR before the NAME (stage 2)                   kwMatch=true  bodies=0 err=<nil>
+A18-LA  CR around the schema DOT (stage 2)             kwMatch=true  bodies=0 err=<nil>
+```
+
+`bodies=0 err=<nil>` is the finding: a **silent zero**, not D137(c)'s surfaced failure. **Severity:
+MEDIUM**, exactly as CAP #17 rated it and as CAP #15 rated H-A and CAP #16 rated K-A.
+
+### D141. The boundary audit, discharged for this addendum before any fix is designed
+
+D86's whole-round obligation, in the form this round's axis requires -- the D96 / D104 / D113 / D123
+analogue. **One row per boundary the source gate computes**, each answering: how is it located, what
+is PostgreSQL's own rule, and was the agreement **measured** or read? The population is every
+span-locating expression in `extractFunctionBodies` (`d92_digest_gate_derivation_test.go:87-138`) and
+in the shared helpers it routes through (`d137_create_function_name_resolver_test.go`) -- derived by
+reading the two functions end to end, not by listing the ones a finding named.
+
+| # | Boundary | Located by | PostgreSQL's rule | Verdict |
+|---|---|---|---|---|
+| 1 | `CREATE [OR REPLACE] FUNCTION` keyword header | `scanCreateFunctionKeyword` `:136-154`, lexed (D139) | keyword tokens separated by whitespace/comments | Correct in shape; **inherits L-A** through the shared skip |
+| 2 | the `[schema.]name` production | `resolveCreateFunctionName` `:184-200`, lexed (D137) | `[ schema_ident . ] func_ident` | Correct; **inherits L-A** through the shared skip |
+| 3 | argument-list close | `strings.Index(source[argsStart:], ")")` `d92:109` | the paren-balanced list, `)` inside strings/comments/dollar-quotes not counted | **Flat.** Fixed by D142 |
+| 4 | body-introducing `AS` | `strings.Index(source[afterArgs:], "AS")` `d92:116` | an unquoted keyword token, case-insensitive, after the routine-option clause list | **Flat and case-sensitive. This is L-B.** Fixed by D142 |
+| 5 | body open tag | `dollarTagRe` `^\s*(\$[A-Za-z0-9_]*\$)` `d92:60`, used `d92:121` | `$([A-Za-z\200-\377_][A-Za-z\200-\377_0-9]*)?$` after whitespace **or comments** | **Wrong in both directions, and `\s` excludes `\v`.** Fixed by D143(a)/(c) |
+| 6 | body open tag *position* | `strings.Index(source[afterAS:], tag)` `d92:126` | the tag the lexer just read, at the offset it read it | Redundant today, **becomes exploitable under D143(a)**. Removed by D143(b) |
+| 7 | body close tag | `strings.Index(source[bodyStart:], tag)` `d92:128` | `<xdolq>`: the first occurrence of the identical delimiter | **Measured correct, 18/18.** D143(d); no change |
+| 8 | next-scan advance | `pos = bodyEnd + len(tag)` `d92:135` | not a PostgreSQL rule -- the flat scan is deliberate (Addendum 16's refuted alternative) | Decoy-span mechanic; **measured unregressed and still caught by composition.** R69 |
+| 9 | the separator grammar all of the above share | `skipWSAndComments` `:283-317` | whitespace `{09,0A,0B,0C,0D,20}`; `--` to `[^\n\r]`; nested `/* */` | Whitespace exact (CAP #17 5.1); nesting exact; **`--` terminator is L-A.** Fixed by D144(a) |
+
+**Three further members of the population, checked and clean, recorded so a later round does not
+assume they were skipped.** `canonicalizeArgs` / `argTypeList` / `splitTopLevelComma`
+(`d92:340-424`) operate on text row 3 has already delimited and introduce no boundary of their own --
+they inherit row 3's correctness and nothing else. `indexFoldC` (`:157-164`) and `isAsciiWordChar`
+(`:87-89`) were measured complete by CAP #17 sections 5.4 and 5.6, whose four divergences are all in
+the false-refusal direction. And **the one non-Go control that reads a function body is outside this
+class entirely**: `grant-ddl-ownership`'s D117 check (`scripts/ci/provision_test_roles.sh:458-469`)
+digests `pg_proc.prosrc` selected by `regprocedure` identity and performs no text parsing at all.
+
+**D117 was verified against the one body form that has no `prosrc`, because this round's own matrix
+raised the question.** A SQL-standard body (`BEGIN ATOMIC ... END`, or `RETURN expr`) stores
+`prosqlbody` and leaves `prosrc` **empty**, and such a body can be `SECURITY DEFINER` and can strip
+ciphertext -- measured on throwaway `a18_atomic`, `has_ct` `t` -> `f` under a `2100-01-01`
+obligation. The question is whether D117 still holds when the value it digests is the empty string.
+It does, and the reason is that `prosrc` is empty rather than NULL, so the comparison never goes
+three-valued:
+
+```
+             proname              | prosecdef | prosrc_null | len  |   prosrc_sha16   | has_sqlbody
+----------------------------------+-----------+-------------+------+------------------+-------------
+ screening_ledger_purge_snapshots | t         | f           |    0 | e3b0c44298fc1c14 | t
+
+FAIL: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'s body (prosrc)
+digest is 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', which is not in its
+declared accepted set {763f63090c9af4be..., bd7365a49b728621...} (ADR-0007 Addendum 13 D117)
+```
+
+`e3b0c442...` is `sha256("")`. **No finding; a measured negative result**, and the reason D142(d)
+makes such a body a *surfaced* failure at the source gate rather than a silent skip: the two controls
+must agree that a body they cannot digest is a refusal, not an absence.
+
+### D142. L-B (HIGH): the body-introducing `as` is reached by lexing, and by nothing else
+
+**The finding, restated from the code.** `d92:116` searches the entire remainder of the file for the
+literal uppercase `"AS"`. `d92:76-79` states the premise it relies on -- *"none contain the literal
+substring `AS` before their own dollar-quote tag either"* -- which is a statement about the parameter
+lists **this repository ships**, relied upon as a property of **adversarial input**. It is Addendum
+5's population error applied to a premise rather than to a set, and it is false of an adversary in
+ten measured ways.
+
+**Decision: the argument list's close and the body-introducing `as` are both located by walking
+TOKENS forward from the `(` the D137 discriminator already found, using the SAME `skipWSAndComments`
+and `lexPgIdentifier` D137 and D139 use, so that no byte inside a comment, a string literal of any
+form, a dollar-quoted string, or a quoted identifier is ever a position the walk can treat as a token
+start. No literal-byte search survives on this path. D137's stage-2 machinery is extended forward
+over the argument list and the routine-option clause list, exactly as D139 extended it backward over
+the keyword sequence; no second, parallel mechanism is built.**
+
+The brief's own preference for reuse over duplication is honoured, and its proposed *mechanism* is
+corrected (drift note 1): `afterIdx` is the offset after the **name**, so the next token there is
+`(`. The walk is what reaches `as`. Illustrative only -- the implementation PR owns the text:
+
+```go
+at, ok := skipArgumentList(source, afterName)   // paren balance over TOKENS -- boundary 3
+for at < len(source) {
+	at = skipWSAndComments(source, at)               // the SAME skip stages 1 and 2 use
+	if source[at] == ';' { return surfacedFailure }  // (d): the bound
+	if n, handled, ok := skipLexicalToken(source, at); handled { at = n; continue }  // (c)
+	if tok, n, ok := lexPgIdentifier(source, at); ok {
+		if tok == "as" { return n }                  // (a),(b): folded, unquoted, a real token start
+		at = n; continue
+	}
+	at++
+}
+```
+
+Four parts, each decided by execution:
+
+**(a) Case is handled because the token is folded, not because a second literal was added.**
+`lexPgIdentifier` (`d137:216-240`) already folds unquoted identifiers with `strings.ToLower`
+(`:239`). `AS`, `as`, `As` and `aS` are one token. **No `"as"` alternation, `EqualFold` or
+case-insensitive search is introduced anywhere** -- that would be the spelling-by-spelling patch
+Addenda 16 and 17 each rejected, and D146 makes it a withdrawal condition.
+
+**(b) The `as` must be unquoted, and a comment-embedded `AS` is unreachable by construction.** A
+quoted `"as"` is an identifier to PostgreSQL and never the keyword, so the quoted forms are consumed
+by (c) and never reach the equality test. A comment-embedded `AS` is not a token start the walk ever
+arrives at, because `skipWSAndComments` consumes the whole comment as one separator -- the same
+argument D139 made for the keyword sequence, one stage later. **This addendum does not repeat the
+over-match CAP #17 section 5.6 tolerated for the keyword tokens**: there the over-match can only
+produce a false refusal; here it would decide which bytes get digested.
+
+**(c) The walk models every lexical form that can CONTAIN the letters `AS` without lexing a keyword,
+and that list is closed by the grammar rather than by enumeration.** PostgreSQL has exactly four
+kinds of lexical element in this region whose interior is not tokenized: comments (both styles,
+nested), string literals (`'...'` with `''` doubling; `E'...'` with backslash escapes; `U&'...'`;
+`B'...'` / `X'...'`), dollar-quoted strings, and quoted identifiers (`"..."` with `""` doubling,
+`U&"..."`). Everything else -- operators, punctuation, numerics, unquoted identifiers -- either
+cannot contain those letters or contains them inside a maximal identifier run the lexer consumes
+whole. Correction 2 in the verification basis is why this is not optional: `SET <parameter> =
+'<value>'` is legal in the option region and the value is adversary-controlled.
+
+**The one place PostgreSQL's own answer is not a property of the text, made a surfaced failure rather
+than a guess.** A plain `'...'` string containing a backslash has a different extent depending on
+`standard_conforming_strings`. Measured on PG 17 -- `boot_val on`, `source default` -- the backslash
+is data and the string ends at the second quote; with the setting off the same bytes are an escape
+string and it does not. Both halves measured server-side:
+
+```
+            name             | setting | boot_val | source
+-----------------------------+---------+----------+---------
+ standard_conforming_strings | on      | on       | default
+
+NOTICE:  E'a\'b'  -> length 3  (backslash ESCAPED the quote: one 3-char string)
+NOTICE:  plain 'a\' || 'b' -> length 3  (backslash is DATA; the string ended)
+NOTICE:  plain-string SET value ending in a backslash: ACCEPTED (string ended at the 2nd quote)
+NOTICE:  E-string: REJECTED: unterminated quoted string at or near "E'x\' AS $b$select 1$b$"  <- the backslash ate the closing quote
+```
+
+The `E`-prefixed form is unambiguous from the text and is lexed exactly. The plain form is not, and
+CLAUDE.md's own no-tolerance rule applies: **a plain single-quoted string carrying a backslash in
+this region is a named, surfaced failure, not an assumed extent.** Both directions of the guess are
+exploitable -- under-skipping lands the walk inside the string where a planted `as` waits;
+over-skipping runs past the string's real end and can resume inside a comment, where one also waits
+-- so neither default is safe and the honest answer is to refuse. It costs nothing on the real tree:
+no declaration in `db/migrations/*.sql` or `SchemaSQL` has any string literal between its `(` and its
+`AS`. R68 records the false-refusal risk.
+
+**(d) The walk is bounded at the statement terminator, and reaching the bound is a surfaced
+failure.** A top-level `;` ends the search. Reaching it means either a body form this gate cannot
+digest -- `BEGIN ATOMIC ... END`, `RETURN expr`, or `LANGUAGE c AS 'file','sym'` -- or a decoy header
+the flat scan reached where PostgreSQL never lexes one. Both are **named, surfaced** failures,
+matching D137(c)'s direction, and never a silent run-on into the next statement. D141's `a18_atomic`
+measurement is why: for a SQL-standard body there is no `prosrc` at all, so a gate that silently
+skipped it would leave a live `SECURITY DEFINER` body no source assertion has ever seen.
+
+#### Executed: the 32-row differential matrix, generated once and fed to both sides
+
+D144(b)'s obligation, discharged for D142 itself. One shared row list drove the PostgreSQL probe (via
+server-side `EXECUTE`, throwaway `a18_mx`, dropping the overload between rows) and the Go probe, so
+both saw byte-identical input. "agree" means: PostgreSQL rejected and the gate refused or found
+nothing, **or** PostgreSQL created a function and the gate's extracted body digests to exactly that
+function's `prosrc`.
+
+```
+row                                                   PG        shipped    ==PG?      proto      ==PG?
+00 control: uppercase AS, no decoy                    ACCEPTED  bodies=1   agree      bodies=1   agree
+01 control: lowercase as, no decoy                    ACCEPTED  SURFACED   MISS       bodies=1   agree
+02 control: mixed-case As, no decoy                   ACCEPTED  SURFACED   MISS       bodies=1   agree
+03 decoy in a block comment                           ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+04 decoy in a NESTED block comment                    ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+05 decoy in a line comment (LF)                       ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+06 decoy in a line comment (bare CR)                  ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+07 decoy in a line comment (CRLF)                     ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+08 decoy in a plain string                            ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+09 decoy in a plain string with '' doubling           ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+10 decoy in an E-string with a backslash              ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+11 decoy in a U&-string                               ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+12 decoy in a dollar-quoted SET value                 ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+13 decoy in a quoted identifier                       ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+14 quoted identifier spelled "as"                     ACCEPTED  SURFACED   MISS       bodies=1   agree
+15 an AS inside a longer identifier                   ACCEPTED  SURFACED   MISS       bodies=1   agree
+16 AS then a block comment then the tag               ACCEPTED  SURFACED   MISS       bodies=1   agree
+17 AS then a line comment then the tag                ACCEPTED  SURFACED   MISS       bodies=1   agree
+18 AS then a vertical tab then the tag                ACCEPTED  SURFACED   MISS       bodies=1   agree
+19 decoy in a comment INSIDE the arg list             ACCEPTED  SURFACED   MISS       bodies=1   agree
+20 a literal ) inside a parameter DEFAULT             ACCEPTED  SURFACED   MISS       bodies=1   agree
+21 a literal ) inside a DEFAULT, decoy after it       ACCEPTED  bodies=1   *** WRONG ***  bodies=1   agree
+22 tag $a$ (PG-valid)                                 ACCEPTED  SURFACED   MISS       bodies=1   agree
+23 tag $_x9$ (PG-valid)                               ACCEPTED  SURFACED   MISS       bodies=1   agree
+24 tag $1$ (PG-INVALID: tag cannot start with a digit) REJECTED  SURFACED   agree      SURFACED   agree
+25 tag $é$ (PG-VALID: non-ASCII letter)               ACCEPTED  SURFACED   MISS       bodies=1   agree
+26 body contains a NON-matching longer tag $ab$       ACCEPTED  SURFACED   MISS       bodies=1   agree
+27 body contains $$ under an $a$ tag                  ACCEPTED  SURFACED   MISS       bodies=1   agree
+28 body contains $a$$ under a $$ tag-prefix trap      ACCEPTED  SURFACED   MISS       bodies=1   agree
+29 SQL-standard RETURN body (no AS at all)            ACCEPTED  SURFACED   agree      SURFACED   agree
+30 BEGIN ATOMIC body (no AS at all)                   ACCEPTED  SURFACED   agree      SURFACED   agree
+31 RETURN body, decoy AS parked in a comment after it ACCEPTED  SURFACED   agree      SURFACED   agree
+
+AGREEMENT WITH POSTGRESQL:  shipped 5/32   prototype 32/32
+```
+
+**Fourteen `*** WRONG ***` rows.** Each is a file PostgreSQL accepts, for which the shipped extractor
+reports a body that is **not** the one PostgreSQL compiled -- L-B's class, in fourteen distinct
+shapes. The `MISS` rows are the silent-absence class these single-statement probes produce when there
+is no later `AS` to latch onto; in a real file, as the L-B reproduction shows, a `MISS` becomes a
+`*** WRONG ***`. The prototype agrees with PostgreSQL on every row.
+
+### D143. L-B's second half: the body's own open and close boundaries
+
+**(a) `dollarTagRe`'s `^\s*` is replaced by `skipWSAndComments`.** Two divergences close in one move.
+Go's `\s` is `[\t\n\f\r ]` and **excludes `\v` (0x0B)**, which CAP #17 section 5.1 measured as
+PostgreSQL whitespace -- matrix row 18. And PostgreSQL permits a comment between `AS` and the tag --
+rows 16 and 17. All three are fail-closed today and so are not findings; they are false refusals that
+the uniform mechanism removes for free, and leaving them would mean a fourth place where "the
+separator grammar" means something different from what it means everywhere else.
+
+**(b) The trap (a) would otherwise introduce, designed around explicitly.** `d92:126` re-finds the tag
+with `strings.Index(source[afterAS:], tag)`. That is redundant today only because `^\s*` cannot
+contain a `$`. **The moment a comment may sit between `AS` and the tag, that search can find the
+tag's text inside the comment and mis-place `bodyStart`** -- a fresh instance of L-B created by L-B's
+own fix. Line `:126` is therefore **deleted, not adjusted**: the open tag's position is the one the
+lexer already computed. Recorded rather than quietly avoided, because a naive version of this fix
+introduces it and a later CAP would find it.
+
+**(c) The tag is lexed by PostgreSQL's own rule.** `[A-Za-z0-9_]*` diverges in both directions.
+Measured server-side, every accepted and rejected tag:
+
+```
+NOTICE:  tag $$    ACCEPTED          NOTICE:  tag $1$    REJECTED: unterminated dollar-quoted string
+NOTICE:  tag $a$   ACCEPTED          NOTICE:  tag $1a$   REJECTED: trailing junk after parameter
+NOTICE:  tag $A$   ACCEPTED          NOTICE:  tag $a-b$  REJECTED: syntax error at or near "$"
+NOTICE:  tag $_$   ACCEPTED          NOTICE:  tag $a b$  REJECTED: syntax error at or near "$"
+NOTICE:  tag $a1$  ACCEPTED
+NOTICE:  tag $_1$  ACCEPTED
+NOTICE:  tag $é$   ACCEPTED
+NOTICE:  tag $aé$  ACCEPTED
+```
+
+That is exactly `$([A-Za-z\200-\377_][A-Za-z\200-\377_0-9]*)?$`. The shipped pattern **accepts** the
+digit-leading tags PostgreSQL rejects (matrix row 24) and **rejects** the non-ASCII tags PostgreSQL
+accepts (row 25, and CAP #17 section 5.8's `$é$`). A byte-level test is exact rather than
+approximate, because every byte of a multi-byte UTF-8 rune is `>= 0x80`, which is PostgreSQL's own
+`\200-\377` class. Anything that is not a tag by that rule is a surfaced failure.
+
+**(d) The closing boundary needs no change, and this is a measured result.** The available *argument*
+is that `strings.Index(body, tag)` already matches PostgreSQL: its `<xdolq>` scanner does `yyless(1)`
+on a non-matching delimiter, so every `$` position is reconsidered, and no valid tag can be a proper
+prefix of a longer delimiter because a tag cannot contain `$`. **CAP #17 section 9's own finding is
+that reading rather than measuring is what sank Addendum 17**, so the argument was replaced by an
+18-shape differential matrix over the adversarial cases -- prefix traps, non-matching longer
+delimiters, case sensitivity, non-ASCII tags, bare `$` runs:
+
+```
+A18-DQ 00 $$ plain                                        PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 01 $a$ plain                                       PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 02 $$ body contains $a$ ... $a$                    PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 03 $a$ body contains $$                            PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 04 $a$ body contains $ab$ (longer, non-matching)   PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 05 $ab$ body contains $a$                          PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 06 $ab$ body contains $a$b$ (prefix trap)          PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 07 $a$ body contains $aa$a$ (yyless(1) trap)       PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 08 $$ body contains $x$$                           PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 09 $a$ body contains a bare $                      PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 10 $a$ body contains $$$                           PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 11 $_$ body contains $_x$                          PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 12 $A$ (case-sensitive) body contains $a$          PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 13 $a$ body contains $A$                           PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 14 $é$ non-ASCII tag                               PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 15 $é$ body contains $e$                           PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 16 $a1$ body contains $a$1$                        PG=ACCEPTED  proto=bodies=1   agree
+A18-DQ 17 $$ body contains a lone $ then $$               PG=ACCEPTED  proto=bodies=1   agree
+
+D143(d) DOLLAR-QUOTE CLOSE: prototype agrees with PostgreSQL on 18/18 shapes
+```
+
+**D141 row 7 is therefore closed as measured-correct rather than as unexamined**, which is the whole
+difference this addendum is trying to make.
+
+### D144. L-A (MEDIUM): the line-comment terminator, and the obligation that would have caught it
+
+**(a) A `--` line comment terminates at `'\n'` OR `'\r'`, matching PostgreSQL's `non_newline` class
+exactly.** One byte, at the one shared mechanism (`d137:290`):
+
+```go
+for idx < len(source) && source[idx] != '\n' && source[idx] != '\r' {
+	idx++
+}
+```
+
+The terminating byte is left for the enclosing loop's `isPgSpace` to consume, which is what
+PostgreSQL does too (the newline is whitespace after the comment, not part of it). **No other
+separator change is made**: CAP #17 section 5.1 measured the inter-token whitespace set as
+`{0x09,0x0A,0x0B,0x0C,0x0D,0x20}` and `isPgSpace` (`d137:319-325`) as an exact match in both
+directions, and the two negative controls above establish that the *comment terminator* set is
+`{\n, \r}` specifically and not "any control character". Because D139 made the skip shared, this one
+byte repairs all four keyword boundaries and both stage-2 positions at once -- uniformity propagating
+the fix as it propagated the defect.
+
+**(b) A "closed by construction" claim on this gate is discharged by differential measurement against
+the real lexer, never by reading its documentation.** CAP #17 section 9 observation 1, promoted here
+to a numbered obligation so that it binds the next round rather than being a lesson in a record:
+
+> D139's exhaustiveness argument was sound *given its premises*. Its whitespace premise was measured
+> and was right. Its comment-terminator premise was never executed and was wrong. **The two premises
+> are indistinguishable from inside the argument; only measurement separates them.**
+
+Concretely: any future decision that claims a grammar is covered "by construction" must ship a
+differential matrix generated once and fed to both PostgreSQL and the gate, and must state its
+agreement count. This addendum discharges the obligation for itself three times -- 32/32 for the
+token walk, 18/18 for the dollar-quote close, and, for L-A's own axis, CAP #17's thirty separator
+shapes regenerated and re-run:
+
+```
+A18-SEP 5  "/* a /* b */"                 PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 6  "/*/"                          PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 8  "/*/*/"                        PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 9  "--c\n"                        PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 10 "--c\r"                        PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 11 "--c\r\n"                      PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 13 "--c*/\r"                      PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 15 "--c/*\r"                      PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 21 "--a\r--b\r"                   PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 22 "--a\n--b\r"                   PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 24 "/*a*/ --b\r"                  PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 25 "--b\r /*a*/"                  PG=ACCEPTED  gate: bodies=1 err=false   agree
+A18-SEP 26 "*/"                           PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 27 "/*"                           PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 28 "--c"                          PG=REJECTED  gate: bodies=0 err=false   agree
+A18-SEP 29 "/* \r */"                     PG=ACCEPTED  gate: bodies=1 err=false   agree
+
+D144(b) SEPARATOR GRAMMAR: the fixed gate agrees with PostgreSQL on 30/30 shapes
+```
+
+**30/30.** CAP #17 section 5.2 measured 23/30 with all seven disagreements CR-terminated and all
+seven fail-open; rows 10, 13, 15, 21, 22, 24 and 25 are those seven, and every one now agrees.
+
+### D145. R57's characterization, corrected forward
+
+R57 (`0007:14621-14635`) records the undeclared-live-overload class and states that **"its
+exploitation is bounded by ownership and not by any gate"** (`0007:14626-14628`). Two later sections
+repeat the wording: Addendum 16's new-risks section (`0007:16332-16334`, *"remains bounded by
+ownership and by the provisioning-time D117 digest check"*) and Addendum 17's R66
+(`0007:16806-16807`, *"remains out of scope and bounded by ownership and D117"*).
+
+**Measured on a fully provisioned throwaway (`a18_r57`: all 21 migrations, `grant-app-privileges`,
+`grant-ddl-ownership`, three PASS lines), the bound is not ownership, and the relationship is
+inverted.**
+
+```
+      rolname      | create_on_public | usage
+-------------------+------------------+-------
+ owl_app           | f                | t
+ owl_ledger_anchor | f                | t
+ owl_ledger_ddl    | f                | t
+ owl_migrator      | t                | t
+
+             proname              |     owner      | prosecdef |         ident
+----------------------------------+----------------+-----------+------------------------
+ screening_ledger_purge_snapshots | owl_ledger_ddl | t         | p_ledger_id text, p_ex
+ screening_ledger_purge_snapshots | owl_ledger_ddl | t         | p_snapshot_sha256 text
+
+=== as owl_migrator (owns NONE of the declared overloads) ===
+CREATE FUNCTION
+=== as owl_ledger_ddl (the OWNER of both declared overloads) ===
+ERROR:  permission denied for schema public
+```
+
+**Decision: R57's stated bound is corrected, in this addendum's own words rather than by editing
+R57's text (the AR7 convention, which every addendum in this arc follows).** Wherever R57,
+`0007:16332-16334` or `0007:16806-16807` say the class is "bounded by ownership", read instead:
+
+> **R57 is bounded by `CREATE` privilege on the schema holding the protected function, and by D117
+> not covering identities it was never given. It is NOT bounded by ownership of the declared
+> overloads -- and the two are inverted: `owl_ledger_ddl`, the role that legitimately owns both
+> declared overloads, CANNOT create an undeclared one, because provisioning leaves it without
+> `CREATE` on `public`; `owl_migrator`, which owns none of them, CAN, because provisioning
+> deliberately retains that privilege for it. The role the "bounded by ownership" framing implies is
+> the risk is the only one that cannot exploit it.**
+
+Everything else about R57 is unchanged and re-confirmed by measurement. It is live and destructive on
+a fully provisioned database, and it leaves no attributable record:
+
+```
+ snapshot_sha256 |       expires_at       | has_ct | purged
+-----------------+------------------------+--------+--------
+ r57probe        | 2100-01-01 00:00:00-05 | t      | f
+ -> as owl_migrator: SELECT public.screening_ledger_purge_snapshots('r57probe','b');
+ r57probe        | 2100-01-01 00:00:00-05 | f      | t
+=== does it leave a retention tombstone (the attributable record)? ===
+ 0
+```
+
+Re-provisioning does not detect it, and the PASS line's own quantifier is wrong -- Addendum 7's axis
+in the provisioning **reporter** rather than in a control:
+
+```
+PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by
+owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only ...
+
+             proname              |     owner      | prosecdef | in_registry
+----------------------------------+----------------+-----------+-------------
+ screening_ledger_purge_snapshots | owl_ledger_ddl | t         | t
+ screening_ledger_purge_snapshots | owl_ledger_ddl | t         | t
+ screening_ledger_purge_snapshots | owl_migrator   | t         | f
+```
+
+"**both** overloads", in a database holding **three**.
+
+**The class itself is NOT closed here, and the re-entry condition is restated in the corrected
+terms.** Closing it is D62(a)'s shape applied to functions -- enumerate the live overloads of a
+declared name and refuse an undeclared one -- which is a new provisioning-time assertion over a
+population this addendum has not measured, and folding it into a round that is repairing a source-gate
+extractor is how a round ships a mechanism it did not audit (R57's own words, and this addendum
+declines for the same reason Addendum 14 did). What changes is the **re-entry condition**: it is no
+longer "the first change that gives any role other than `owl_migrator` `CREATE` on a schema holding a
+protected function" as a matter of *ownership*, but **any change to the set of roles holding `CREATE`
+on such a schema, in either direction** -- including one that revokes it from `owl_migrator`, which
+would close the class without any new control and should be evaluated on that basis first. The
+committed-source route remains genuinely covered: an undeclared overload's type list matches no
+declared overload and D133 refuses it in both placements (CAP #17 section 5.7, and unchanged by this
+addendum -- the decoy matrix below re-confirms it).
+
+### Executed: the positive control, the end-to-end refusals, and the unregressed residual
+
+**The positive control first, because D37's rule (`0007:2643-2645`) applies verbatim** -- a gate that
+only refuses has not been shown safe to install. With D142/D143/D144 swapped into the real
+`extractFunctionBodies` and the real shared `skipWSAndComments`, against the **unmodified**
+`db/migrations/` and `SchemaSQL` tree:
+
+```
+=== POSITIVE CONTROL: the CLEAN tree, all eighteen, with the fix installed ===
+19
+eighteen rc=0
+=== D137/D138/D139/D140's own tests, with the fix installed ===
+--- PASS: TestExtractFunctionBodiesResolvesSchemaQualifiedIdentity (0.00s)
+--- PASS: TestExtractFunctionBodiesSpellingMatrix (0.00s)
+--- PASS: TestD137EndToEndGateBothBootstrapPathsBothPlacements (0.02s)
+--- PASS: TestD137PositiveControlRealTreeAllDeclarationsFound (0.01s)
+--- PASS: TestExtractFunctionBodiesSkipsCommentProseMentionRatherThanFailing (0.00s)
+--- PASS: TestExtractFunctionBodiesRunsWithNoDSN (0.00s)
+--- PASS: TestD139CommentKeywordRogueIsFound (0.00s)
+--- PASS: TestD139KeywordCommentInterspersalMatrix (0.00s)
+--- PASS: TestD139CommentAroundSchemaDot (0.00s)
+--- PASS: TestD139EndToEndGateBothBootstrapPathsBothPlacements (0.03s)
+--- PASS: TestD139PositiveControlRealTreeAllDeclarationsFound (0.01s)
+--- PASS: TestD139SkipWSAndCommentsNesting (0.00s)
+--- PASS: TestD139WordBoundaryAndDollarQuote (0.00s)
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	0.340s
+```
+
+**Every `declaredFunctions()` entry is still found, on both bootstrap paths, including the four
+`$exec$`-embedded SchemaSQL declarations** (`postgres.go:2010`, `:2047`, `:2121`, `:2122`) --
+and nothing D132, D133, D137 or D139 closed is reopened, which their own tests are the control for.
+Worth naming, because it decides what the positive control does and does not prove: **no declaration
+in `db/migrations/*.sql` or `SchemaSQL` introduces its body with a lowercase or mixed-case `as` --
+every one uses an uppercase `AS`** (measured: a case-insensitive scan for `as`/`As`/`aS` immediately
+preceding a dollar-quote tag returns nothing in either population). The case fold is there for the
+adversary; the tree is unaffected either way, and the positive control therefore proves the walk
+finds every real declaration, not that the fold was needed to find them.
+
+**The end-to-end refusals: both findings, both placements, both bootstrap paths.**
+
+```
+=== L-B: the lowercase-as / comment-parked-historical-body rogue ===
+A18-E2E L-B rogue @ 023a_a18.sql                     D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E L-B rogue @ zzz999_a18.sql                   D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E L-B rogue @ SchemaSQL                        D132=true      D133=false     CAUGHT
+=== L-A: the bare-CR keyword rogue (four boundaries) ===
+A18-E2E CR CREATE|FUNCTION @ 023a_a18.sql            D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR CREATE|FUNCTION @ zzz999_a18.sql          D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR CREATE|FUNCTION @ SchemaSQL               D132=true      D133=false     CAUGHT
+A18-E2E CR CREATE|OR @ 023a_a18.sql                  D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR CREATE|OR @ zzz999_a18.sql                D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR CREATE|OR @ SchemaSQL                     D132=true      D133=false     CAUGHT
+A18-E2E CR OR|REPLACE @ 023a_a18.sql                 D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR OR|REPLACE @ zzz999_a18.sql               D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR OR|REPLACE @ SchemaSQL                    D132=true      D133=false     CAUGHT
+A18-E2E CR REPLACE|FUNCTION @ 023a_a18.sql           D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR REPLACE|FUNCTION @ zzz999_a18.sql         D132=true      D133=false     CAUGHT (names the rogue file)
+A18-E2E CR REPLACE|FUNCTION @ SchemaSQL              D132=true      D133=false     CAUGHT
+=== controls that must STILL be caught (nothing reopened) ===
+A18-CTL K-A block-comment keyword (A17) @ 023a_a18.sql   D132=true  D133=false     CAUGHT (names the rogue file)
+A18-CTL K-A block-comment keyword (A17) @ zzz999_a18.sql D132=true  D133=false     CAUGHT (names the rogue file)
+A18-CTL K-A block-comment keyword (A17) @ SchemaSQL      D132=true  D133=false     CAUGHT
+A18-CTL plain-keyword rogue @ 023a_a18.sql               D132=true  D133=false     CAUGHT (names the rogue file)
+A18-CTL plain-keyword rogue @ zzz999_a18.sql             D132=true  D133=false     CAUGHT (names the rogue file)
+A18-CTL plain-keyword rogue @ SchemaSQL                  D132=true  D133=false     CAUGHT
+```
+
+**The eighteen, with each rogue in the REAL tree, after the fix -- and the misattribution is gone.**
+
+```
+=== WITH THE FIX: the EIGHTEEN, L-B rogue at 023a_a18_lb.sql ===
+  eighteen rc=1 (want 1 = the gate refuses)
+ADR-0007 Addendum 15 D132: ../../db/migrations/023a_a18_lb.sql defines a literal for
+screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...) whose body digests to
+51a5e732455c02a7a6ef429901d778cd84fa652036c06088f24d9cf2cea9763a, which is not a member of that
+overload's declared set (accepted + historical) -- every committed literal must be a body this
+repository provably shipped, wherever it sits in apply order
+=== WITH THE FIX: the EIGHTEEN, L-B rogue at zzz999_a18_lb.sql ===
+  eighteen rc=1 (want 1 = the gate refuses)
+ADR-0007 Addendum 15 D132: ../../db/migrations/zzz999_a18_lb.sql defines a literal for ...
+=== and the L-A bare-CR rogue in the real tree ===
+CR count: 1  bare CR (not CRLF): 1
+header: b'CREATE OR --x\rREPLACE FUNCTION public.screening_ledger_purge'
+  eighteen rc=1 (want 1)
+023a_a18_cr.sql defines a literal for screening_ledger_purge_snapshots(p_snapshot_sha256 text[],...)
+whose body digests to 297997d59ac4dbbed11c2d5412d024e786adbb354a9d384ab7f7e534622511ba, ...
+```
+
+The digest D132 now names for L-B is `51a5e732...` -- **the body PostgreSQL actually compiles** -- and
+the file it names is the rogue's, in **both** placements. D132's own rule text, "wherever it sits in
+apply order", becomes true of this construction.
+
+**D141 row 8's residual, measured rather than assumed.** The decoy-span mechanic CAP #17 section 5.7
+found is a property of the deliberately-kept flat scan (Addendum 16's refuted alternative) and is
+**unchanged** by this fix. It remains caught by composition, by two different members depending on
+the decoy's type list, in both placements:
+
+```
+A18-DEC decoy args = the SAME live type list       bodies=1
+        @ 023a_a18_dec.sql     D132=true  D133=false CAUGHT
+        @ zzz999_a18_dec.sql   D132=true  D133=false CAUGHT
+A18-DEC decoy args = an UNDECLARED type list       bodies=1
+        @ 023a_a18_dec.sql     D132=false D133=true  CAUGHT
+        @ zzz999_a18_dec.sql   D132=false D133=true  CAUGHT
+A18-DEC decoy args = empty ()                      bodies=1
+        @ 023a_a18_dec.sql     D132=false D133=true  CAUGHT
+        @ zzz999_a18_dec.sql   D132=false D133=true  CAUGHT
+```
+
+Whichever member a decoy evades, the other catches it -- Addendum 9's and Addendum 10's composition
+argument, re-measured after the change rather than assumed to survive it. R69 records it.
+
+**The full package under `-race`, on the provisioned cluster, both with and without the fix.** The
+clean-tree run is the baseline that makes the second number meaningful:
+
+```
+$ go test -race -count=1 ./internal/screeningledger/            # CLEAN tree at a7f1c82
+CLEAN TREE RACE EXIT: 0
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	134.000s
+
+$ go test -race -count=1 ./internal/screeningledger/            # D142/D143/D144 prototype installed
+RACE EXIT (D142/D143/D144 prototype installed): 0
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	139.707s
+```
+
+**The full CI gate**, run from a **clean detached worktree** of `a7f1c82` rather than the shared
+primary directory (whose nested `.claude/worktrees/agent-a53b7a9b8c4cb3ee3` pollutes
+`check_tenant_binding.py`), with all ten DSNs and the five libpq variables exported, and **the exit
+code captured explicitly** -- a bare run fails closed at the D18 gate and piping to `tail` reads a
+false pass:
+
+```
+$ git rev-parse HEAD                       # in the clean worktree
+a7f1c82e6ad7bd340ea54c570774c6b18ea4b48b
+$ git status --porcelain
+(clean)
+$ ./scripts/ci/run-ci.sh > run-ci.log 2>&1 ; echo "RUN-CI EXIT CODE: $?"
+RUN-CI EXIT CODE: 0
+$ grep -cE '^(FAIL|--- FAIL)' run-ci.log
+0
+$ tail -8 run-ci.log
+PASS: every relation with row-level security enabled has at least
+PASS: every relation in the declared tenant-scoped set has RLS
+PASS: no relation whose name ends _idempotency or _receipt has a
+PASS: no open row in security_control_suspension. A rollback via
+PASS: no policy reachable by owl_app -- the role every sink
+PASS: owl_app does not have rolbypassrls. Granting BYPASSRLS to
+PASS: 9 SQL security invariant(s) hold
+PASS: OpenWatchlist clean-restart CI
+```
+
+Connection hygiene confirmed inside the gate -- all ten DSN gates and the libpq-connecting script
+passed against the disposable cluster:
+
+```
+PASS: OWL_TEST_DATABASE_URL is set
+PASS: OWL_MIGRATOR_DATABASE_URL is set
+PASS: OWL_LEDGER_ANCHOR_DATABASE_URL is set
+PASS: OWL_LEDGER_DDL_DATABASE_URL is set
+PASS: OWL_MIGRATOR_STALE_DATABASE_URL is set
+PASS: OWL_BOOTSTRAP_SUPERUSER_DATABASE_URL is set
+PASS: OWL_MIGRATOR_UNPROVISIONED_DATABASE_URL is set
+PASS: OWL_SCHEMASQL_ONLY_DATABASE_URL is set
+PASS: OWL_MIGRATOR_RESTORED_DATABASE_URL is set
+PASS: OWL_MIGRATOR_CLONED_DATABASE_URL is set
+PASS: all check_db_gates.sh tests
+PASS: case 2 (a dangling membership from any source is refused, not silently inherited)
+```
+
+**One process note recorded rather than glossed, because it produced a false negative mid-pass.**
+`TestMigrateFailsOnStaleAnchorTable` failed on the *clean* tree until `owl_ci_sec7_stale` was
+migrated through 016 -- the `create-stale-anchor-database` subcommand creates only an empty database,
+and the migrations are applied by a **separate `.github/workflows/ci.yml` step** (`ci.yml:178-188`),
+which a local reproduction that runs only the `provision_test_roles.sh` subcommands silently omits.
+The same is true of `owl_ci_sec7_unprovisioned` (`ci.yml:195-203`). Running the subcommands is not
+the same as provisioning the fixtures; the failure was diagnosed by re-running the clean tree rather
+than attributed to the fix, and both numbers above are from a correctly provisioned cluster.
+
+#### Rejected alternatives, recorded so a later reader does not re-derive them
+
+- **A case-insensitive `AS` search (`strings.Index` over an upper-cased copy, or `EqualFold`).** It
+  closes exactly one of L-B's two halves and none of the other nine lexical placements: a lowercase
+  `as` inside a comment or a string is still a match. The referent is a **token**, not a case-folded
+  substring. D146 makes this a withdrawal condition.
+- **Requiring the `AS` to be preceded by whitespace and followed by whitespace-then-`$`.** A
+  spelling-specific patch of exactly the shape Addenda 16 and 17 each replaced, and matrix rows 05,
+  08 and 12 defeat it directly -- a decoy `AS $decoy$...$decoy$` inside a comment or a string
+  satisfies both conditions.
+- **A top-level tokenizer that skips comments and dollar-quoted regions at the SCAN level.** Built
+  and refuted in Addendum 16 and re-affirmed in Addendum 17: SchemaSQL's declarations live inside
+  `EXECUTE $exec$...$exec$`, so a scan that skips dollar-quoted regions misses every one. The **flat
+  scan is kept**; the token walk operates only *within* a declaration the flat scan has already
+  found and D137 has already resolved.
+- **`pg_query_go` / libpg_query / an offline SQL parser dependency.** CLAUDE.md rule 1. A grep over
+  `go.mod`, `go.sum` and all `*.go` at this commit finds no `pg_query`, `libpg_query` or `pganalyze`;
+  the fix is stdlib-only and adds no import that is not already present.
+- **A live-connection resolve of the body.** D92's DSN-free property, re-confirmed by D146 item 6.
+- **Assuming a `standard_conforming_strings` value for a plain string containing a backslash.**
+  Refuted by measurement in D142(c): both guesses are exploitable in opposite directions, so the
+  extent is surfaced rather than assumed.
+- **Changing the closing boundary.** Refuted by measurement in D143(d): 18/18 agreement. A change
+  there would be motion without evidence, and would risk the one boundary this round proved correct.
+
+### D146. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy -- the standard D20, D37, D42, D138, D140 set.
+**Every test below fails before its change (CLAUDE.md rule 5), confirmed by running them against the
+shipped pre-D142 extractor during this design pass: the L-B rogue returns `bodies=1` with a declared
+historical digest, the token-kind matrix returns the decoy in ten placements, the CR matrix returns
+`bodies=0`, and the end-to-end gate passes in the mid-tree placement.**
+
+1. **The L-B reproduction, in the exact shape this addendum measured:** a lowercase `as` introducing
+   the real body with a **declared historical** digest parked in a block comment above it. The test
+   must assert three things, not one -- that the fixed extractor returns the **real** body, that its
+   digest is **not** in the declared set, and that D132 **and** D133 each refuse and each name the
+   rogue's own file in **both** placements and on **both** bootstrap paths. A test that only asserts
+   "the gate now fails" does not distinguish this fix from one that breaks the extractor.
+2. **The token-kind matrix**, table-driven: a decoy `AS <tag> ... <tag>` planted inside each of a
+   block comment, a nested block comment, a `--` comment terminated by LF, one terminated by a bare
+   CR, a plain string, a plain string using `''` doubling, an `E'...'` string containing a backslash,
+   a `U&'...'` string, a dollar-quoted string, and a quoted identifier -- each finding the **real**
+   body; plus the quoted-`"as"` and mid-identifier rows finding the real body rather than
+   false-matching.
+3. **The 32-row differential matrix against PostgreSQL**, generated once and fed to both sides, with
+   its agreement count asserted (32/32) -- D144(b)'s obligation, discharged as a test rather than as
+   a design-time transcript. It requires a DSN; it must **skip**, not fail, without one, so item 6
+   holds.
+4. **The 18-shape dollar-quote close matrix**, same construction and same assertion, so D141 row 7's
+   "no change needed" verdict is re-derived on every run rather than trusted from this document.
+5. **The L-A reproduction:** the bare-CR construction at all four keyword boundaries **and** both
+   stage-2 positions, with the LF and CRLF controls, plus the thirty-shape separator matrix asserting
+   30/30; plus a real `db/migrations/*.sql` rogue carrying exactly one bare CR (byte-count asserted,
+   since a CRLF passes today and proves nothing).
+6. **The positive control** (D37 verbatim): the unmodified tree passes all eighteen gate functions
+   plus every D137/D138/D139/D140 test, every `declaredFunctions()` entry found on both bootstrap
+   paths including the four `$exec$` SchemaSQL declarations.
+7. **The gate still runs with no DSN** (D92's property), for every member that does not require one.
+8. **The surfaced-failure cases are asserted as surfaced, not as absent:** a `BEGIN ATOMIC` body, a
+   `RETURN expr` body, a plain single-quoted string containing a backslash in the option region, an
+   unterminated string or dollar-quote, and a tag that is not a tag by PostgreSQL's rule. Each must
+   return a **named error**, never `bodies=0, err=nil`.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D142 must not be discharged by a case-insensitive substring search**, an `EqualFold`, an
+  upper-cased copy of the source, or any alternation of `AS` spellings. The referent is a lexed
+  token.
+- **D142 must not skip comments or dollar-quoted regions at the SCAN level.** The flat scan is kept
+  (Addendum 16's refuted alternative, re-affirmed by D139); the token walk operates only inside an
+  already-resolved declaration.
+- **The `as` token must be unquoted**, and the argument-list close must be paren-balanced over
+  tokens. Reverting either to a byte search reopens D141 rows 3 and 4.
+- **`d92:126`'s tag re-search must be removed, not adjusted.** D143(b): leaving it in place while
+  D143(a) admits comments creates a fresh instance of L-B inside L-B's own fix.
+- **The closing boundary must not be changed** without a new differential matrix contradicting
+  D143(d)'s 18/18.
+- **D137(c)'s surfaced failure on an unresolvable name must not soften**, and D139's
+  unterminated-comment *skip* must not become a surfaced failure -- the two are distinct events and
+  must stay distinct.
+- **Any future "closed by construction" claim on this gate must ship its differential matrix and
+  state its agreement count** (D144(b)). A claim argued from documentation does not discharge it.
+- **No new dependency**, and no SQL-parser dependency (CLAUDE.md rule 1).
+- **No tolerance, anywhere.** If any comparison cannot be made exact, the implementation stops and
+  this addendum is amended rather than shipping an invented equivalence. The eighth round to restate
+  D85's condition.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered.** D132's
+membership rule and D133's placement rule are not reopened -- only the extractor they share is
+strengthened, and their own tests are the positive control. D137's stage-2 contract is unchanged;
+D139's tokenizer is unchanged except for the one byte in the skip they share. `prosrc` is not
+normalised in any control -- every tokenization D142/D143 performs is on the `CREATE FUNCTION`
+*header and option region*, never on a function body, whose bytes are digested exactly as delimited.
+D134/D135 untouched; D117's accepted sets untouched; D118's type-list equality untouched; D124's
+element-set corroboration untouched; `screening_ledger_event` still not a protected object; the
+withdrawn D74 reaper not reintroduced.
+
+### New accepted risks
+
+**R67 -- the coordinated-edit surface does NOT grow this round.** R23, R29, R33, R42, R46, R50, R55,
+R59, R65 and R66 track a declaration surface that grew nearly every round. D142, D143 and D144 add
+**no declared literal, no digest, no accepted set, and no function-body change** -- they change only
+how the gate's shared extractor delimits the bytes it digests. D141's audit table and D144(b)'s
+matrix obligation add a *process* surface, not a declaration one. R66's own statement of this
+property carries forward unchanged.
+
+**R68 -- the fail-closed default gains three new false-refusal cases, which is R64's shape one stage
+later.** D142(c) surfaces a failure on a plain single-quoted string containing a backslash in the
+option region; D142(d) surfaces one on a `BEGIN ATOMIC` or `RETURN expr` body; D143(c) surfaces one
+on a dollar-quote tag that is not a tag by PostgreSQL's rule. Each is the safe direction -- a red
+gate rather than an invisible body -- and **none of them exists in the tree today**: no declaration
+in `db/migrations/*.sql` or `SchemaSQL` has any string literal between its `(` and its `AS`, and
+every one uses `AS $$` or `AS $func$`. The re-entry condition is the first declaration that
+legitimately uses one of those three forms, at which point the choice is to extend the lexer (for the
+SQL-standard bodies, that means digesting `prosqlbody` rather than `prosrc`, which is a different
+referent and its own decision) rather than to soften the default. R64 is unchanged and its re-entry
+condition stands.
+
+**R69 -- the decoy-span residual is unchanged, and is now measured after the change rather than
+before it.** `pos = bodyEnd + len(tag)` (`d92:135`) advances past a matched body, so a decoy header
+placed where PostgreSQL never lexes one -- inside a `--` comment -- whose dollar-quote close sits
+after a real declaration still swallows that declaration into the decoy's body. This is a property of
+the flat scan, which Addendum 16 refuted the alternative to and this addendum keeps. It is bounded by
+composition: a decoy carrying a **declared** type list is refused by D132 on membership and one
+carrying an **undeclared** type list by D133 on placement, in both placements, with no third option
+(measured above). The re-entry condition is any change that makes one of those two members
+conditional on the other's outcome, at which point the composition argument no longer holds and the
+scan itself must be revisited.
+
+**R57's stated bound is corrected by D145 and the class remains open.** Not a new risk -- a
+correction to an existing one, recorded here so the risk register's own wording is not the thing a
+later round reasons from.
+
+### Staging
+
+Same shape as the seventeen prior addenda: each stage independently reviewable and independently
+provable.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage T1 -- the boundary fix.** D142, D143 and D144(a) together, plus D146's tests. They are one
+   change to one function and its shared skip, and splitting them would ship a tree in which
+   `dollarTagRe` admits comments while `d92:126` still re-searches for the tag -- D143(b)'s named
+   trap, live in the interval. The positive control across both bootstrap paths is a shipping
+   requirement. No new DSN, no new fixture database, and no `.github/workflows/*.yml` wiring -- every
+   member except D146 items 3 and 4 is DSN-free, and those two skip without one.
+3. **Stage T2 -- D144(b)'s obligation as a durable artifact.** The two differential matrices become
+   committed tests rather than transcripts in this document, so the next "closed by construction"
+   claim inherits a harness instead of rebuilding one.
+4. **`SECURITY.md` and `README.md` language.** R3's rule unchanged; the requalification notice stays
+   until the stages above land and their reproductions pass.
+
+**SEC-7 does not close on this addendum, and this round is not the start of the new clean count** --
+CAP #17's own determination, which this addendum adopts: the reset count requires no CRITICAL and no
+HIGH, and L-B is a HIGH. For the fifth consecutive round the reason SEC-7 stays open is not a forgery
+on a correctly-provisioned database; the chain layer is unbroken across all seventeen rounds. It is
+that a `SECURITY DEFINER` body which destroys evidence under a live obligation can be committed in a
+form the source gate does not merely miss but **affirmatively certifies as one this repository
+shipped**. D142-D144 are the whole of that barrier.
+
+### Addendum 18 summary
+
+- **CAP #17's verdict is QUALIFIED, not PASS, for the seventeenth consecutive audit -- one HIGH
+  (L-B) and one MEDIUM (L-A).** The new clean count does not start here.
+- **L-B is the first false-positive-shaped finding in this arc's history on this axis.** H-A, K-A and
+  L-A each make a body invisible; L-B makes the gate assert, of a specific file, that its committed
+  literal **is** a body this repository provably shipped -- while PostgreSQL compiles 368 bytes of
+  evidence destruction. It is the only construction found this round that defeats D132 and D133
+  simultaneously, and where the composed gate does refuse it names an innocent file.
+- **The sentence this addendum adds:** a control that digests a span must locate **every** boundary
+  of that span by lexing the grammar that defines it; where the located span and the executed span
+  can differ, the control's PASS is not weaker than its FAIL, it is **false**.
+- **The design is D141-D146.** D141 audits all nine boundaries the source gate computes before any
+  fix is designed; D142 replaces the flat argument-list and `AS` searches with a bounded token walk
+  reusing D137's own `skipWSAndComments` and `lexPgIdentifier`; D143 lexes the dollar-quote tag by
+  PostgreSQL's rule, deletes the re-search D143(a) would otherwise make exploitable, and settles the
+  closing boundary by measurement; D144 fixes the `--` terminator and promotes differential
+  measurement to a standing obligation; D145 corrects R57's characterization forward; D146 owns the
+  proof obligations and the withdrawal conditions.
+- **This design pass executed its mechanism assumptions, and the execution corrected the brief and
+  widened the finding.** `resolveCreateFunctionName`'s `afterIdx` lands on `(`, not on `as`, so the
+  brief's next-token check would have tested the wrong token; a walk that skips only whitespace and
+  comments reproduces L-B inside a string literal; the shipped extractor agrees with PostgreSQL on
+  **5 of 32** rows with **fourteen** of the disagreements being wrong-body rather than no-body; the
+  prototype agrees on **32 of 32**; the dollar-quote close agrees on **18 of 18**; the separator
+  grammar goes from CAP #17's 23/30 to **30/30**.
+- **Everything is measured against a real PostgreSQL 17.11 server.** L-B and L-A each reproduced
+  independently, L-B demonstrated live (`has_ct` `t` -> `f`, `purged` `f` -> `t`, zero tombstones,
+  under a `2100-01-01` obligation), D117 verified to hold against the one body form with no `prosrc`,
+  R57's inversion measured on a fully provisioned database, the clean tree green under `-race` and
+  `run-ci.sh` (exit code captured, not inferred), and the fix green under both.
+- **This addendum revises no prior decision.** D1-D140 stand; R1-R66 stand. R57's *characterization*
+  is corrected in D145's own words rather than by an edit above this section, the AR7 convention.
+  D132's and D133's texts are not corrected but made true of one more construction -- the extractor
+  they route through now delimits by lexing at every boundary, which is the referent their assertions
+  already assume they range over.
+
+**Audit basis commit:** `a7f1c82e6ad7bd340ea54c570774c6b18ea4b48b`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #17
+was produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
