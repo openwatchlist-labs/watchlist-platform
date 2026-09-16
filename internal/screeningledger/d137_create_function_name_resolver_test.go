@@ -280,6 +280,18 @@ func lexQuotedIdentifier(source string, idx int) (normalized string, next int, o
 // the inner close and, applied to the keyword header, mis-parses a nested
 // comment into a fail-open miss. The nested balance rule matches PG's lexer
 // exactly: balanced <=> PG accepts <=> this skip completes.
+//
+// ADR-0007 Addendum 18 D144(a) (CAP #17's L-A, MEDIUM): a "--" line
+// comment terminates at '\n' OR '\r', matching PostgreSQL's own
+// non_newline class ([^\n\r]) exactly. Terminating at '\n' alone (the
+// pre-D144 code) left a bare CR invisible to this skip -- measured
+// server-side on PG 17 to end a "--" comment on its own, at all four
+// CREATE FUNCTION keyword boundaries and both stage-2 name-production
+// positions, since D139 made this skip shared across every one of them.
+// The terminating byte itself is left for isPgSpace to consume next, which
+// is what PostgreSQL does too (the newline is whitespace AFTER the
+// comment, not part of it) -- so a CRLF is still consumed as two
+// whitespace bytes, one at a time, exactly as before this fix.
 func skipWSAndComments(source string, idx int) int {
 	for idx < len(source) {
 		switch {
@@ -287,7 +299,7 @@ func skipWSAndComments(source string, idx int) int {
 			idx++
 		case idx+1 < len(source) && source[idx] == '-' && source[idx+1] == '-':
 			idx += 2
-			for idx < len(source) && source[idx] != '\n' {
+			for idx < len(source) && source[idx] != '\n' && source[idx] != '\r' {
 				idx++
 			}
 		case idx+1 < len(source) && source[idx] == '/' && source[idx+1] == '*':
