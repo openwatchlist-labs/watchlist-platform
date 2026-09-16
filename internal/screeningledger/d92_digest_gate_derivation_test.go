@@ -42,7 +42,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -57,8 +56,6 @@ type extractedBody struct {
 	body   string
 }
 
-var dollarTagRe = regexp.MustCompile(`^\s*(\$[A-Za-z0-9_]*\$)`)
-
 // extractFunctionBodies scans source for every occurrence of the CREATE
 // [OR REPLACE] FUNCTION keyword header (scanCreateFunctionKeyword,
 // d137_create_function_name_resolver_test.go -- ADR-0007 Addendum 17 D139:
@@ -70,20 +67,35 @@ var dollarTagRe = regexp.MustCompile(`^\s*(\$[A-Za-z0-9_]*\$)`)
 // every occurrence whose resolved identity is (schema absent-or-public,
 // funcName) and is immediately followed by "(" (D137(b): the
 // name-then-"(" shape is the sole declaration-vs-prose discriminator) --
-// extracts "(...) ... AS <tag> <body> <tag>" exactly as before, tagged
-// with sourceLabel and its raw parameter list (so a caller can
-// disambiguate overloads sharing one name). None of the parameter lists
-// or return types this repository ships contain a literal ")" before
-// the argument list's own close, so the first ")" after the opening "("
-// is that close; none contain the literal substring "AS" before their
-// own dollar-quote tag either.
+// extracts "(...) ... AS <tag> <body> <tag>", tagged with sourceLabel and
+// its raw parameter list (so a caller can disambiguate overloads sharing
+// one name).
+//
+// ADR-0007 Addendum 18 D142/D143 (CAP #17's L-B, HIGH): the argument
+// list's close, the body-introducing `AS`, and the body's own open
+// dollar-quote tag are each located by walking TOKENS forward
+// (skipArgumentList, findBodyIntroducingAS, lexDollarQuoteTag --
+// d142_d143_body_boundary_walk_test.go), reusing D137's own
+// skipWSAndComments and lexPgIdentifier, rather than by a flat,
+// literal-byte search -- the pre-Addendum-18 code searched the ENTIRE
+// remainder of the file for a bare, case-sensitive "AS" and matched the
+// body's open tag with a regexp anchored only by leading whitespace, and
+// ten distinct PostgreSQL lexical forms in the routine-option region (a
+// comment, a string of any form, a dollar-quoted SET value, a quoted
+// identifier) could carry those letters where PostgreSQL never lexes a
+// keyword. The body's CLOSE boundary is unchanged: D143(d) measured it
+// already agrees with PostgreSQL's own <xdolq> scanner on every
+// adversarial shape tried (this package's 18-shape differential matrix),
+// so `strings.Index(source[bodyStart:], tag)` stays exactly as it was.
 //
 // A CREATE FUNCTION whose name resolveCreateFunctionName cannot resolve
-// to an identity is returned as a named error (D137(c)'s surfaced,
-// fail-closed default) -- never a silently skipped body, and never a
-// panic or a direct t.Fatal, so a caller testing this exact path (D138
-// item 2's two exotic-form matrix rows) can assert the failure without
-// the assertion itself aborting the test.
+// to an identity, or whose argument list, body-introducing `as`, or open
+// dollar-quote tag this walk cannot locate by PostgreSQL's own grammar, is
+// returned as a named error (D137(c)'s surfaced, fail-closed default) --
+// never a silently skipped body, and never a panic or a direct t.Fatal, so
+// a caller testing this exact path (D138 item 2's two exotic-form matrix
+// rows, D146 item 8's surfaced-failure cases) can assert the failure
+// without the assertion itself aborting the test.
 func extractFunctionBodies(t *testing.T, source, sourceLabel, funcName string) ([]extractedBody, error) {
 	t.Helper()
 	var results []extractedBody
@@ -105,26 +117,24 @@ func extractFunctionBodies(t *testing.T, source, sourceLabel, funcName string) (
 			pos = kwEnd
 			continue
 		}
-		argsStart := afterName + 1
-		closeRel := strings.Index(source[argsStart:], ")")
-		if closeRel < 0 {
-			return nil, fmt.Errorf("%s: found %q with no closing ')' for its argument list", sourceLabel, funcName)
+		closeParenIdx, err := skipArgumentList(source, afterName)
+		if err != nil {
+			return nil, fmt.Errorf("%s: found %q whose argument list has %v (ADR-0007 Addendum 18 D142, D141 row 3)", sourceLabel, funcName, err)
 		}
-		argsEnd := argsStart + closeRel
-		argsText := source[argsStart:argsEnd]
-		afterArgs := argsEnd + 1
-		asRel := strings.Index(source[afterArgs:], "AS")
-		if asRel < 0 {
-			return nil, fmt.Errorf("%s: found %q with no 'AS' after its argument list", sourceLabel, funcName)
+		argsText := source[afterName+1 : closeParenIdx]
+		afterArgs := closeParenIdx + 1
+		afterAS, err := findBodyIntroducingAS(source, afterArgs)
+		if err != nil {
+			return nil, fmt.Errorf("%s: found %q -- %v (ADR-0007 Addendum 18 D142, D141 row 4)", sourceLabel, funcName, err)
 		}
-		afterAS := afterArgs + asRel + 2
-		tagMatch := dollarTagRe.FindStringSubmatch(source[afterAS:])
-		if tagMatch == nil {
-			return nil, fmt.Errorf("%s: found %q with no dollar-quote tag immediately after AS", sourceLabel, funcName)
+		tagSearchStart := skipWSAndComments(source, afterAS)
+		if isStuckAtUnterminatedComment(source, tagSearchStart) {
+			return nil, fmt.Errorf("%s: found %q with an unterminated block comment between AS and its dollar-quote tag", sourceLabel, funcName)
 		}
-		tag := tagMatch[1]
-		tagRel := strings.Index(source[afterAS:], tag)
-		bodyStart := afterAS + tagRel + len(tag)
+		tag, bodyStart, ok := lexDollarQuoteTag(source, tagSearchStart)
+		if !ok {
+			return nil, fmt.Errorf("%s: found %q with no dollar-quote tag immediately after AS matching PostgreSQL's own tag grammar (ADR-0007 Addendum 18 D143(a)/(c))", sourceLabel, funcName)
+		}
 		closeRel2 := strings.Index(source[bodyStart:], tag)
 		if closeRel2 < 0 {
 			return nil, fmt.Errorf("%s: found %q whose dollar-quote tag %s is never closed", sourceLabel, funcName, tag)
