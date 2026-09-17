@@ -351,6 +351,19 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 	} else if reason != "" {
 		return ProvisioningState{Reason: reason}, nil
 	}
+	// ADR-0007 Addendum 19 D149 (F2): the two screening_ledger_purge_snapshots
+	// overloads' EXECUTE holder set must equal requiredFunctionExecuteHolders
+	// exactly, in both the holder-side and grantee-side senses -- Addendum
+	// 7's quantifier principle applied to the one capability surface D60/D61
+	// never covered (a callable SECURITY DEFINER function, not a table
+	// privilege). scripts/ci/provision_test_roles.sh grant-ddl-ownership
+	// revokes EXECUTE from PUBLIC and grants it to owl_migrator; nothing
+	// before this enumerated who could call it afterward.
+	if reason, err := p.functionExecuteHoldersReason(ctx); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 19 D149: checking EXECUTE holders: %w", err)
+	} else if reason != "" {
+		return ProvisioningState{Reason: reason}, nil
+	}
 	// ADR-0007 Addendum 4 D41: sec7_protected_object's identity, asserted
 	// against requiredProtectedObjects rather than the registry's own
 	// `note` column. R15 claimed "every registry row's OID resolves to
@@ -1019,6 +1032,25 @@ const privilegeHolderRoleFilterSQLTemplate = `
 	  )
 `
 
+// privilegeObjectKind is ADR-0007 Addendum 19 D149: the one piece of
+// object-kind-specific SQL privilegeHolders' grantee-side (aclexplode)
+// limb needs to scan a function's proacl instead of a table's relacl --
+// D149's own text: "privilegeHolders gains an object-kind parameter; the
+// two SQL strings are its only kind-specific text." aclCatalog/aclColumn
+// name the system catalog and its ACL column; castType is the identifier
+// cast ($1::regclass or $1::regprocedure) that resolves object (a table
+// name or a "name(arg,...)" function signature) to that catalog's OID.
+type privilegeObjectKind struct {
+	aclCatalog string
+	aclColumn  string
+	castType   string
+}
+
+var (
+	privilegeObjectKindTable    = privilegeObjectKind{aclCatalog: "pg_class", aclColumn: "relacl", castType: "regclass"}
+	privilegeObjectKindFunction = privilegeObjectKind{aclCatalog: "pg_proc", aclColumn: "proacl", castType: "regprocedure"}
+)
+
 // privilegeHolders is ADR-0007 Addendum 8 D73: the two independent
 // limbs D39's rejected aclexplode scan and D60/D61's has_table_privilege
 // enumeration each become, neither subsuming the other (D73's own
@@ -1027,32 +1059,34 @@ const privilegeHolderRoleFilterSQLTemplate = `
 // grantee-side limb closes -- a member reaching the privilege through a
 // role the ACL never names literally). holderClause is the
 // privilege-specific EXISTS predicate against pg_roles s (table-level
-// has_table_privilege or D39's anyColumnPrivilege-shaped column check),
-// referencing s.rolname and $1 (table); allowlist is
-// predefinedRoleStructuralPrivilege[priv] or nil. Grantee-side is
-// deliberately scoped to relacl (table-level ACL) only -- every grant
-// this repository's provisioning issues is table-level (never
-// column-level), so this matches what D73's own MAINTAIN example scans
-// and does not need pg_attribute.attacl.
-func (p *PostgresSink) privilegeHolders(ctx context.Context, table, priv string, holderClause string, allowlist []string) (holderSide, granteeSide []string, err error) {
+// has_table_privilege, D39's anyColumnPrivilege-shaped column check, or
+// ADR-0007 Addendum 19 D149's has_function_privilege), referencing
+// s.rolname and $1 (object, cast per kind); allowlist is
+// predefinedRoleStructuralPrivilege[priv] or nil. Grantee-side scans
+// kind.aclCatalog's kind.aclColumn -- D73's own MAINTAIN example for
+// tables, D149's regprocedure form for functions; every grant this
+// repository's provisioning issues is object-level (never column-level),
+// so this does not need pg_attribute.attacl.
+func (p *PostgresSink) privilegeHolders(ctx context.Context, kind privilegeObjectKind, object, priv string, holderClause string, allowlist []string) (holderSide, granteeSide []string, err error) {
 	if allowlist == nil {
 		allowlist = []string{}
 	}
 	err = p.conn.QueryRow(ctx,
 		fmt.Sprintf(privilegeHolderRoleFilterSQLTemplate, holderClause),
-		table, allowlist,
+		object, allowlist,
 	).Scan(&holderSide)
 	if err != nil {
 		return nil, nil, fmt.Errorf("holder-side (pg_has_role MEMBER) enumeration: %w", err)
 	}
-	err = p.conn.QueryRow(ctx, `
+	granteeQuery := fmt.Sprintf(`
 		SELECT COALESCE(array_agg(DISTINCT grantee_name ORDER BY grantee_name), ARRAY[]::text[])
 		FROM (
 			SELECT (CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END) AS grantee_name
-			FROM pg_class c, aclexplode(c.relacl) a
-			WHERE c.oid = $1::regclass AND a.privilege_type = $2
+			FROM %s c, aclexplode(c.%s) a
+			WHERE c.oid = $1::%s AND a.privilege_type = $2
 		) granted
-	`, table, priv).Scan(&granteeSide)
+	`, kind.aclCatalog, kind.aclColumn, kind.castType)
+	err = p.conn.QueryRow(ctx, granteeQuery, object, priv).Scan(&granteeSide)
 	if err != nil {
 		return nil, nil, fmt.Errorf("grantee-side (aclexplode) scan: %w", err)
 	}
@@ -1072,7 +1106,7 @@ func (p *PostgresSink) privilegeHolders(ctx context.Context, table, priv string,
 // right question here, not anyColumnPrivilege.
 func (p *PostgresSink) maintainHoldersReason(ctx context.Context) (string, error) {
 	for _, table := range requiredDDLOwnedTables {
-		holderSide, granteeSide, err := p.privilegeHolders(ctx, table, "MAINTAIN",
+		holderSide, granteeSide, err := p.privilegeHolders(ctx, privilegeObjectKindTable, table, "MAINTAIN",
 			`has_table_privilege(s.rolname, $1::regclass, 'MAINTAIN')`,
 			predefinedRoleStructuralPrivilege["MAINTAIN"],
 		)
@@ -1184,7 +1218,7 @@ func (p *PostgresSink) tablePrivilegeHoldersReason(ctx context.Context) (string,
 			} else {
 				holderClause = fmt.Sprintf(`has_table_privilege(s.rolname, $1::regclass, %s)`, quoteSQLStringLiteral(priv))
 			}
-			holderSide, granteeSide, err := p.privilegeHolders(ctx, table, priv, holderClause, predefinedRoleStructuralPrivilege[priv])
+			holderSide, granteeSide, err := p.privilegeHolders(ctx, privilegeObjectKindTable, table, priv, holderClause, predefinedRoleStructuralPrivilege[priv])
 			if err != nil {
 				return "", fmt.Errorf("checking %s holders on %s: %w", priv, table, err)
 			}
@@ -1201,6 +1235,58 @@ func (p *PostgresSink) tablePrivilegeHoldersReason(ctx context.Context) (string,
 			if !stringSlicesEqual(granteeSide, want) {
 				return fmt.Sprintf("live %s privilege grantees (grantee-side, aclexplode) on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 8 D73): a literal ACL grantee the declared matrix does not name, or a declared holder has no literal grant", priv, table, describe(granteeSide), describe(want)), nil
 			}
+		}
+	}
+	return "", nil
+}
+
+// requiredFunctionExecuteHolders is ADR-0007 Addendum 19 D149's declared
+// literal: for each requiredDefinerFunctions overload, the exact set of
+// roles that may hold EXECUTE -- measured against the shipped baseline
+// (scripts/ci/provision_test_roles.sh:373-376 revokes EXECUTE from
+// PUBLIC and grants it to owl_migrator; the functions' owner,
+// owl_ledger_ddl, carries it as an implicit owner privilege, matching
+// D60/D61's own inclusion of the owner). No predefined role structurally
+// carries EXECUTE on either overload -- measured, not assumed -- so
+// predefinedRoleStructuralPrivilege has deliberately no "EXECUTE" key:
+// D72's own representation of "measured, and none carry it", not an
+// unconsidered omission.
+var requiredFunctionExecuteHolders = []string{"owl_ledger_ddl", "owl_migrator"}
+
+// functionExecuteHoldersReason is ADR-0007 Addendum 19 D149 (F2,
+// MEDIUM): the definer functions' EXECUTE holder set, enumerated through
+// the exact D60/D61/D73 two-limb machinery tablePrivilegeHoldersReason
+// uses for tables -- has_function_privilege in place of
+// has_table_privilege, privilegeObjectKindFunction's regprocedure/proacl
+// pair in place of privilegeObjectKindTable's regclass/relacl, set
+// equality in both directions on both overloads. Closes F2: nothing
+// previously enumerated who could CALL either purge_snapshots overload,
+// so a GRANT EXECUTE ... TO owl_app (an undeclared role with no table
+// privilege of its own on any of the three relations these functions
+// touch) went unobserved by every existing check, including
+// checkPurgeSnapshotsDefiner and grant-ddl-ownership's own postcondition
+// -- confirmed by execution during this addendum's design pass.
+func (p *PostgresSink) functionExecuteHoldersReason(ctx context.Context) (string, error) {
+	want := append([]string(nil), requiredFunctionExecuteHolders...)
+	sort.Strings(want)
+	describe := func(roles []string) string {
+		if len(roles) == 0 {
+			return "<none>"
+		}
+		return strings.Join(roles, ", ")
+	}
+	for _, fn := range requiredDefinerFunctions {
+		signature := fn.name + "(" + fn.identityArgs + ")"
+		holderClause := `has_function_privilege(s.rolname, $1::regprocedure, 'EXECUTE')`
+		holderSide, granteeSide, err := p.privilegeHolders(ctx, privilegeObjectKindFunction, signature, "EXECUTE", holderClause, predefinedRoleStructuralPrivilege["EXECUTE"])
+		if err != nil {
+			return "", fmt.Errorf("checking EXECUTE holders on %s: %w", signature, err)
+		}
+		if !stringSlicesEqual(holderSide, want) {
+			return fmt.Sprintf("live EXECUTE privilege holders (holder-side, pg_has_role MEMBER) on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 19 D149): a role holds EXECUTE the declared matrix does not name, or a declared holder is missing it", signature, describe(holderSide), describe(want)), nil
+		}
+		if !stringSlicesEqual(granteeSide, want) {
+			return fmt.Sprintf("live EXECUTE privilege grantees (grantee-side, aclexplode) on %s are {%s}, expected exactly {%s} (ADR-0007 Addendum 19 D149): a literal ACL grantee the declared matrix does not name, or a declared holder has no literal grant", signature, describe(granteeSide), describe(want)), nil
 		}
 	}
 	return "", nil
