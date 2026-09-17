@@ -18109,3 +18109,1070 @@ shipped**. D142-D144 are the whole of that barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #17
 was produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 19: resolved identity at the JSON layer -- the signed policy's review-evasion class reopened one level below D38(a), and CAP #19's two findings (2026-09-16)
+
+- **Status:** Proposed
+- **Trigger:** a nineteenth Composition Audit Program record produced against the same tree as CAP #18
+  (`docs/backlog/sec-7-cap-record-d94a041f3154af7076b9e0c8c5efeef360a307f3-cap19.md` -- a `-cap19`
+  suffix, because CAP #18's own record already occupies the commit-named path; adversarial posture,
+  audit basis commit `d94a041f3154af7076b9e0c8c5efeef360a307f3`) returned **QUALIFIED, not PASS**,
+  breaking what would otherwise have been the second consecutive clean round after CAP #18's first-ever
+  PASS. **One HIGH (F1), one MEDIUM (F2), and a sharpened accepted residual (R40/R44).** **SEC-7 is not
+  closed**, and a QUALIFIED round with a HIGH does not start the new clean count.
+- **Why F1 is weighted with this arc's demonstrated forgeries.** The Ed25519-signed verification
+  policy (D10) is one of the few mechanisms in this document designed to sit **outside section 2's
+  reach** -- its whole value rests on a human reviewing a document and a signature binding exactly what
+  that human reviewed. D38(a) exists so that "the bytes an operator read" cannot diverge from "the
+  values that got signed" (`0007:2992-2996`). F1 defeats that guarantee in its own threat model, at
+  signing time, before any signature exists to constrain the adversary, on the anchor-rollback floor
+  (D25), the cross-tenant discriminator (D110) and the anchored-mode gate (D12) alike. It is not a chain
+  forgery; it is a forgery of the human review the policy's trust root depends on.
+- **What CAP #19 confirmed, and this addendum does not disturb.** No forgery on a correctly provisioned
+  database, nineteenth consecutive round; `anchorMAC`, D116's global corroboration, D124's element set
+  and D38(b)'s genesis pin held against everything tried. The spelling/span axis Addenda 16-18 closed was
+  not re-opened. The DR tooling and `docs/operations/sec7-database-copies.md` were walked end to end and
+  are accurate. D38(a)'s *exact*-duplicate refusal is correct and is kept verbatim as a control. D60's
+  and D61's two-limb holder enumeration is correct and is **reused**, not replaced. **Every prior
+  addendum's principle stands** -- Addendum 3's scoping, 4's referent, 5's population, 6's atomicity,
+  7's quantifier, 8's naming, 9's composition, 10's whole-round obligation, 11's cardinality, 12's
+  reduction, 13's derivation, 14's element set, 15's placement, 16's identity resolution, 17's uniform
+  tokenization and 18's span -- and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D146, not AR7, not the D19
+  correction note, not R1-R69. Decision numbering continues at **D147**; risk numbering at **R70**. Where
+  a prior decision's or risk's *text* is narrower than what the system does, the new decision says so in
+  its own words -- the AR7 convention, and the construction D145 used for R57.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `d94a041f3154af7076b9e0c8c5efeef360a307f3` rather than copied from the CAP record. Measured as the
+  first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  d94a041f3154af7076b9e0c8c5efeef360a307f3
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-19-cap19-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+- **This design pass executed its mechanism assumptions, as Addendum 3 established and Addenda 4-18 held
+  to.** The DSN-free reproductions, the fold-equivalence measurements and the prototype ran under
+  `go test` against this repository's own toolchain (`go 1.26.6`, `go.mod:3`); the provisioning
+  measurements ran on a disposable PostgreSQL **17.11** cluster on **port 55910**,
+  `initdb -U owl_ci --auth=scram-sha-256 --pwfile`, `listen_addresses='127.0.0.1'`,
+  `unix_socket_directories=''`, data directory inside this session's own scratchpad.
+
+  **Connection hygiene (R63).** The ten `OWL_*_DATABASE_URL` DSNs and
+  `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`/`PGSUPERUSER`/`PGSUPERPASSWORD` were sourced from
+  one env file into the same shell before every script, gate and test run, all pointed at
+  `127.0.0.1:55910`:
+
+  ```
+  $ env | grep -c '^OWL_.*DATABASE_URL'
+  10
+  ```
+
+  **The developer's own server on port 5432 was never contacted.** At pass start the only PostgreSQL
+  processes were that server and its children, and no orphaned sibling-session cluster existed:
+
+  ```
+  $ ps -axo pid,ppid,stat,lstart,command | grep -i '[p]ostgres'      # PASS START
+  95804     1 S    Wed Aug 26 10:01:08 2026     /opt/homebrew/opt/postgresql@17/bin/postgres -D /opt/homebrew/var/postgresql@17
+  95805..95811  postgres: checkpointer / background writer / walwriter / autovacuum launcher / logical replication launcher
+  $ lsof -nP -iTCP -sTCP:LISTEN | grep -i postgres                  # PASS START
+  postgres  95804 piyushdaiya    7u  IPv6 TCP [::1]:5432 (LISTEN)
+  postgres  95804 piyushdaiya    8u  IPv4 TCP 127.0.0.1:5432 (LISTEN)
+  ```
+
+  The cluster was provisioned in `.github/workflows/ci.yml:141-281`'s exact order (`create-roles`, all 21
+  `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`, `grant-ddl-ownership`, then each fixture
+  database with its own migration step), and its baseline is identical to CAP #14-#19's:
+
+  ```
+              t            | count
+  -------------------------+-------
+   sec7_protected_object   |    13
+   sec7_protected_relation |     2
+   sec7_instance_binding   |     1
+
+                evtname              |    evtevent     | evtenabled
+  -----------------------------------+-----------------+------------
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+
+               proname              |              args              |    body_sha16    | prosecdef |     owner      |                             proacl
+  ----------------------------------+--------------------------------+------------------+-----------+----------------+-----------------------------------------------------------------
+   owl_reject_truncate              |                                | e8db5083c6bf20d9 | f         | owl_migrator   |
+   screening_ledger_purge_snapshots | p_ledger_id text, p_expected_c | d44b2cab4d905faf | t         | owl_ledger_ddl | {owl_ledger_ddl=X/owl_ledger_ddl,owl_migrator=X/owl_ledger_ddl}
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[], p_le | 763f63090c9af4be | t         | owl_ledger_ddl | {owl_ledger_ddl=X/owl_ledger_ddl,owl_migrator=X/owl_ledger_ddl}
+   screening_ledger_reject_mutation |                                | 5632734b5c67628b | f         | owl_migrator   |
+   screening_ledger_snapshot_guard  |                                | f9cb95289a3fdead | f         | owl_migrator   |
+   sec7_protect_ddl_objects         |                                | de174c42252877d2 | t         | owl_ci         |
+  ```
+
+  Every destructive probe ran on a `CREATE DATABASE ... TEMPLATE owl_ci` clone (`a19_f2`, `a19_r_r0_clean`
+  through `a19_r_r7_grantopt`, `a19_r40`); no named CI fixture was re-provisioned by a different command
+  (the CAP #15 lesson). Probe code lived in one temporary `_test.go` file inside
+  `internal/screeningledger/` calling the **real** `DecodeUnsignedPolicy` / `SignVerificationPolicy` /
+  `LoadSignedVerificationPolicy` / `checkNoDuplicateJSONKeys` (never reimplementations), plus one
+  temporary in-place swap of `policy.go` so the full package suite exercised the prototype rather than a
+  partial. **The probe file was deleted and `policy.go` restored byte-for-byte before this addendum was
+  written:**
+
+  ```
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  $ git diff --stat
+  (no output)
+  $ shasum -a 256 internal/screeningledger/policy.go
+  93d487b330b64ffc4bc656a116f1dbc24a6486b5d237fb36ba4c48a22f5b3bfe  internal/screeningledger/policy.go   (== pass start)
+  $ go vet ./internal/screeningledger/
+  (clean)
+  ```
+
+  The four results that shaped the design, each with its transcript in the section that relies on it:
+
+  1. **Go's standard library exports the exact equivalence `encoding/json` uses to resolve a key to a
+     field, and it was measured exact rather than trusted from its doc comment.** `bytes.EqualFold`
+     agrees with the real decoder on **all 1,112,064 Unicode scalar values**, on **8,057** (key x field)
+     combinations of real-tag fold-orbit substitutions across the three policy structs, and on the unquoting path both sides share
+     (D147).
+  2. **F1 is every field, not three.** All eleven `VerificationPolicy` tags reproduce at the signer
+     *and* the loader, as do all three envelope tags -- including `schema_version`, the pin D25/D38(b)
+     rely on to refuse a retired document.
+  3. **Fixing only the fold leaves the consumer half of F1 open by a different spelling.** The loader
+     decodes with bare `json.Unmarshal` and silently ignores an **unknown** key, so a fullwidth-letter
+     homoglyph (`min_anchor_ｓequence`, U+FF53, which Go does not fold) survives a fold-only fix at the
+     consumer while the signer already refuses it. Found by this addendum's own sweep, named by no CAP
+     (D148).
+  4. **The sharpened R40 falsifies R40's own stated closure recipe, and R44 has no parallel.** The
+     snapshot guard *permits* the ciphertext strip, so "protect the trigger" would not close it; the
+     event guard refuses its analogous UPDATE outright (D150).
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1 and every prior
+addendum's own drift block set.
+
+1. **CAP #19's F1 transcript is correct in every particular measured here, and its population is four
+   times wider than it states.** The record demonstrates `min_anchor_sequence`, `tenancy` and
+   `allow_unanchored`. Re-derived by reflection over the three structs rather than from the record, every
+   one of the eleven `VerificationPolicy` tags and all three `SignedVerificationPolicy` tags reproduces --
+   including `schema_version`, which is D25/D38(b)'s exact-equality pin, and `genesis_event_sha256`, which
+   is D38(b)'s prefix commitment. CAP #19's own severity argument rested on three security-relevant
+   fields; the measured population contains every field the signed artifact has.
+2. **CAP #19 section "Item 1, part C" names `checkNoDuplicateJSONKeys` at `policy.go:457` and the seen-set
+   at `:515`.** Both accurate at this commit. It does not name the loader's non-strict decode at
+   `policy.go:392`, which is where D148's finding lives.
+3. **CAP #19's F2 "suggested direction" asserts the holder set "equals `{owl_migrator}` for non-owner
+   non-superuser roles."** D61's own declared matrix includes the owner's implicit privileges
+   (`requiredTablePrivilegeHolders`, `postgres.go:1131`), and matching D60/D61 exactly -- the brief's
+   own requirement -- means doing the same here. Measured below, the baseline holder set is
+   `{owl_ledger_ddl, owl_migrator}` in both limbs; D149 declares that, not the CAP's owner-excluded form.
+
+### Addendum 19 context: D38(a) compared spellings; the decoder compares identities
+
+Addendum 4 asked *which property* a control compares (`0007:2853-2857`) and D38(a) answered it for the
+policy document: "the bytes an operator read" against "the values that got signed". Addendum 8 said
+**a name is an address and never evidence** (`0007:6732-6738`). Addenda 16 and 17 applied that to
+function names: a textual name must be resolved to the identity PostgreSQL resolves it to (D137, D139).
+Addendum 12's D108 and Addendum 13's D118 applied it to type spellings.
+
+**This addendum introduces no new axis.** CAP #19's own framing is right: F1 is "CAP #3's H-B reopened
+one level below D38(a)'s own literal-byte check". D38(a) asked "does any member name repeat?" and
+answered it by **byte equality**. The question that matters is "do two member names resolve to the same
+field?", and the party that decides that is not the bytes but `encoding/json`'s own field resolver. Two
+spellings the scan sees as distinct are one field to the decoder, and the decoder's answer is the one
+that gets signed and acted on. **That is the referent principle's move -- compare by resolved identity,
+not textual spelling -- applied to JSON key resolution specifically**, exactly as D69, D108, D118 and
+D137 applied it to triggers, type spellings, type lists and function names.
+
+F2 is Addendum 7's quantifier principle unapplied to one capability surface. D60 and D61 enumerate the
+live holders of MAINTAIN and of the seven table privileges; `grant-ddl-ownership` revokes EXECUTE on the
+two definer functions from PUBLIC and grants it to `owl_migrator` (`provision_test_roles.sh:373-376`),
+and **nothing enumerates who holds it afterwards**. "A capability removed and a capability
+asserted-absent must be quantified over the same population" (`0007:5585-5588`), one object type over.
+
+### F1, reproduced independently on every field before anything is repaired
+
+Nothing below is taken from CAP #19's transcript; every run was rebuilt at this commit through the real
+functions.
+
+**The mechanism, from both sides' code.** The scan keys its seen-set on the exact decoded string
+(`internal/screeningledger/policy.go:515`):
+
+```go
+if seen[key] {
+	repeatedSet[childPath] = true
+}
+seen[key] = true
+```
+
+The decoder does not (`$GOROOT/src/encoding/json/decode.go:699-702`, Go 1.26.6, built under
+`//go:build !goexperiment.jsonv2` -- the v1 package this code calls):
+
+```go
+f := fields.byExactName[string(key)]
+if f == nil {
+	f = fields.byFoldedName[string(foldName(key))]
+}
+```
+
+Exact match first, then a folded match; the last occurrence to resolve to a field wins. And
+`DisallowUnknownFields` (`policy.go:245`, `decode.go:739`) only fires when **neither** lookup resolves,
+so a fold-spelled duplicate is neither unknown nor missing.
+
+**The population, derived by reflection rather than listed** (D129's lesson):
+
+```
+A19F1 VerificationPolicy tags (reflected, 11): [schema_version ledger_id min_event_schema min_audit_schema genesis_event_sequence genesis_audit_sequence allow_unanchored min_anchor_sequence genesis_event_sha256 genesis_audit_sha256 tenancy]
+A19F1 unsignedPolicyInput tags (reflected, 11): [schema_version ledger_id min_event_schema min_audit_schema genesis_event_sequence genesis_audit_sequence allow_unanchored min_anchor_sequence genesis_event_sha256 genesis_audit_sha256 tenancy]
+A19F1 SignedVerificationPolicy tags (reflected, 3): [policy signature_base64 public_key_base64]
+```
+
+**Control first -- an exact duplicate is refused, so the scan is live:**
+
+```
+A19F1 CONTROL exact-dup min_anchor_sequence signer: err=unsigned policy document (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [min_anchor_sequence]
+```
+
+**Producer side, every field.** Each document carries the canonical key with the value a reviewer reads
+first, followed by a second spelling -- the all-uppercase form, and, for every tag containing an `s`,
+the U+017F LONG S form -- carrying the value the decoder takes. `reviewer_reads` is the first member
+whose raw name is byte-identical to the tag; `signed` is `DecodeUnsignedPolicy` -> `SignVerificationPolicy`;
+`loaded` is the resulting envelope through `LoadSignedVerificationPolicy`:
+
+```
+A19F1 schema_version           U+017F(long s)  d38a_scan=<nil> reviewer_reads="...verification-policy.v3" signed="...verification-policy.v4" loaded="...verification-policy.v4" load_err=<nil>
+A19F1 schema_version           UPPER           d38a_scan=<nil> reviewer_reads="...verification-policy.v3" signed="...verification-policy.v4" loaded="...verification-policy.v4" load_err=<nil>
+A19F1 ledger_id                UPPER           d38a_scan=<nil> reviewer_reads="ledger-reviewed" signed="ledger-attacker" loaded="ledger-attacker" load_err=<nil>
+A19F1 min_event_schema         U+017F(long s)  d38a_scan=<nil> reviewer_reads="...event.v2" signed="...event.v1" loaded="...event.v1" load_err=<nil>
+A19F1 min_event_schema         UPPER           d38a_scan=<nil> reviewer_reads="...event.v2" signed="...event.v1" loaded="...event.v1" load_err=<nil>
+A19F1 min_audit_schema         U+017F(long s)  d38a_scan=<nil> reviewer_reads="...audit.v2" signed="...audit.v1" loaded="...audit.v1" load_err=<nil>
+A19F1 min_audit_schema         UPPER           d38a_scan=<nil> reviewer_reads="...audit.v2" signed="...audit.v1" loaded="...audit.v1" load_err=<nil>
+A19F1 genesis_event_sequence   U+017F(long s)  d38a_scan=<nil> reviewer_reads=2 signed=1 loaded=1 load_err=<nil>
+A19F1 genesis_event_sequence   UPPER           d38a_scan=<nil> reviewer_reads=2 signed=1 loaded=1 load_err=<nil>
+A19F1 genesis_audit_sequence   U+017F(long s)  d38a_scan=<nil> reviewer_reads=2 signed=1 loaded=1 load_err=<nil>
+A19F1 genesis_audit_sequence   UPPER           d38a_scan=<nil> reviewer_reads=2 signed=1 loaded=1 load_err=<nil>
+A19F1 allow_unanchored         UPPER           d38a_scan=<nil> reviewer_reads=false signed=true loaded=true load_err=<nil>
+A19F1 min_anchor_sequence      U+017F(long s)  d38a_scan=<nil> reviewer_reads=500 signed=0 loaded=0 load_err=<nil>
+A19F1 min_anchor_sequence      UPPER           d38a_scan=<nil> reviewer_reads=500 signed=0 loaded=0 load_err=<nil>
+A19F1 genesis_event_sha256     U+017F(long s)  d38a_scan=<nil> reviewer_reads="aaaaaaaa...aaaa" signed="" loaded="" load_err=<nil>
+A19F1 genesis_event_sha256     UPPER           d38a_scan=<nil> reviewer_reads="aaaaaaaa...aaaa" signed="" loaded="" load_err=<nil>
+A19F1 genesis_audit_sha256     U+017F(long s)  d38a_scan=<nil> reviewer_reads="bbbbbbbb...bbbb" signed="" loaded="" load_err=<nil>
+A19F1 genesis_audit_sha256     UPPER           d38a_scan=<nil> reviewer_reads="bbbbbbbb...bbbb" signed="" loaded="" load_err=<nil>
+A19F1 tenancy                  UPPER           d38a_scan=<nil> reviewer_reads="exclusive" signed="shared" loaded="shared" load_err=<nil>
+```
+
+(Schema-version strings abbreviated to their distinguishing suffix; the transcript carries the full
+`openwatchlist.screening-ledger-*` constants.) **Nineteen of nineteen constructions sign and load a
+value the reviewer never read**, including a reviewer reading a *v3* `schema_version` -- a document D25
+and D38(b) exist to refuse -- and a signed *v4*; a reviewer reading `v2` minimum schema floors and a
+signed `v1` floor, the exact downgrade F1 (Addendum 1) was about; and a reviewer reading a non-empty
+genesis pin and a signed empty one.
+
+**The real signing binary, CAP #19's own two documents** (`cmd/screening-ledger-policy sign`, built from
+this commit, the committed example signing key):
+
+```
+== [shipped] sign case.json            # "min_anchor_sequence":500 ... "MIN_ANCHOR_SEQUENCE":0,"Tenancy":"shared","Allow_Unanchored":true
+rc=0
+   signed -> min_anchor_sequence=0 allow_unanchored=True tenancy=shared
+== [shipped] sign fold.json            # "min_anchor_sequence":500 ... "min_anchor_ſequence":0
+rc=0
+   signed -> min_anchor_sequence=0 allow_unanchored=False tenancy=exclusive
+```
+
+**Consumer side, every field.** A genuine, validly signed envelope with a differently-spelled copy of
+one tag carrying a different value **prepended** into the `policy` object, so the reviewer's first
+occurrence is the planted one and the decoder's last occurrence is the genuine one the signature
+covers:
+
+```
+A19F1C schema_version           EXACT(control)  err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy.schema_version]
+A19F1C schema_version           UPPER           reviewer_reads_first="...verification-policy.v3" (first member, spelled "SCHEMA_VERSION") loaded="...verification-policy.v4" err=<nil>
+A19F1C schema_version           U+017F(long s)  reviewer_reads_first="...verification-policy.v3" (first member, spelled "ſchema_version") loaded="...verification-policy.v4" err=<nil>
+A19F1C ledger_id                UPPER           reviewer_reads_first="ledger-reviewed" (first member, spelled "LEDGER_ID") loaded="ledger-a19" err=<nil>
+A19F1C min_event_schema         U+017F(long s)  reviewer_reads_first="...event.v2" (first member, spelled "min_event_ſchema") loaded="...event.v2" err=<nil>
+A19F1C genesis_event_sequence   U+017F(long s)  reviewer_reads_first=2 (first member, spelled "geneſis_event_sequence") loaded=1 err=<nil>
+A19F1C min_anchor_sequence      EXACT(control)  err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy.min_anchor_sequence]
+A19F1C min_anchor_sequence      UPPER           reviewer_reads_first=500 (first member, spelled "MIN_ANCHOR_SEQUENCE") loaded=0 err=<nil>
+A19F1C min_anchor_sequence      U+017F(long s)  reviewer_reads_first=500 (first member, spelled "min_anchor_ſequence") loaded=0 err=<nil>
+A19F1C tenancy                  UPPER           reviewer_reads_first="exclusive" (first member, spelled "TENANCY") loaded="exclusive" err=<nil>
+A19F1E envelope-level POLICY             prepended={"schema_version":"x"} load_err=<nil> scan=<nil>
+A19F1E envelope-level Signature_Base64   prepended="AAAA" load_err=<nil> scan=<nil>
+A19F1E envelope-level PUBLIC_KEY_BASE64  prepended="AAAA" load_err=<nil> scan=<nil>
+```
+
+(Rows shown are representative; the full run covers all eleven policy tags in all applicable spellings,
+and every non-control row loads with `err=<nil>` while every exact-duplicate control is refused.) The
+consumer half is the one CAP #19 names as H-B's distribution-time form: a signed envelope can be
+edited after signing -- no key needed -- so that what a reviewer of the distributed file reads is not
+what the verifier acts on, and the signature still verifies because the canonical bytes are re-derived
+from the resolved struct (`policy.go:395`, `:403`).
+
+### D147. F1 (HIGH): the duplicate-key scan compares member names by the identity `encoding/json` resolves them to
+
+**Decision: two member names at the same object level are duplicates if and only if `bytes.EqualFold`
+holds between them. The scan remains D38(a)'s token-level, recursive, pre-decode scan at both ends,
+unchanged in every other respect -- only the equality it asks of two names changes, from byte equality
+to the exported equivalence Go's own JSON field resolver implements.**
+
+#### Why `bytes.EqualFold`, and why it is not an approximation
+
+`foldName` is unexported (`$GOROOT/src/encoding/json/fold.go:16`), so the resolver cannot be called.
+Its doc comment states the equivalence it implements (`fold.go:14-15`):
+
+```go
+// foldName returns a folded string such that foldName(x) == foldName(y)
+// is identical to bytes.EqualFold(x, y).
+```
+
+and Go's own test suite pins that claim with a fuzz target (`$GOROOT/src/encoding/json/fold_test.go:14`,
+`:47`):
+
+```go
+equalFold := func(x, y []byte) bool { return string(foldName(x)) == string(foldName(y)) }
+f.Fuzz(func(t *testing.T, x, y []byte) {
+	got := equalFold(x, y)
+	want := bytes.EqualFold(x, y)
+```
+
+**A doc comment and a fuzz target are evidence, not proof, and this arc does not stop at documentation
+(D144(b)).** Four measurements, each against the real decoder rather than `foldName` in isolation, so
+that what is compared is *field resolution* and not a helper:
+
+**(1) Exhaustive per-rune differential.** A probe struct with one `int` field per character appearing in
+any of the three structs' tags (the population measured from the tags, not assumed), and every Unicode
+scalar value decoded as a one-member object into it. For each value: which field did Go resolve, and
+which tag character does `bytes.EqualFold` say it equals?
+
+```
+A19EQ tag character population (measured from the three structs' tags, 27): "2456_abcdeghiklmnopqrstuvwy"
+A19EQ exhaustive per-rune differential: scalar values checked=1112064  resolved-to-a-field=51  Go-decoder vs bytes.EqualFold disagreements=0  bytes.EqualFold vs strings.EqualFold disagreements=0
+A19EQ non-identical runes Go resolves onto a tag character: [U+0041->"a" U+0042->"b" U+0043->"c" U+0044->"d" U+0045->"e" U+0047->"g" U+0048->"h" U+0049->"i" U+004B->"k" U+004C->"l" U+004D->"m" U+004E->"n" U+004F->"o" U+0050->"p" U+0051->"q" U+0052->"r" U+0053->"s" U+0054->"t" U+0055->"u" U+0056->"v" U+0057->"w" U+0059->"y" U+017F->"s" U+212A->"k"]
+```
+
+**Zero disagreements over every scalar value Unicode defines** (1,114,112 code points minus the 2,048
+surrogates). The last line is the complete list of non-identical runes that land on a policy tag
+character: the ASCII capitals, U+017F LONG S, and U+212A KELVIN SIGN. That is the whole attack surface
+at the per-rune level, and it is closed-form because Unicode simple case folding is.
+
+**(2) Composition on the real tags.** Resolution is per-rune, but a key is a string; so for every tag of
+every struct, at every position, every member of that character's `unicode.SimpleFold` orbit was
+substituted and the real decoder asked which field the result resolved to, against `bytes.EqualFold`'s
+prediction for **every** field in that struct:
+
+```
+A19COMP screeningledger.VerificationPolicy       tags=11 EqualFold-colliding tag pairs=0  (key x field) combinations=3916  Go-vs-EqualFold disagreements=0
+A19COMP screeningledger.unsignedPolicyInput      tags=11 EqualFold-colliding tag pairs=0  (key x field) combinations=3916  Go-vs-EqualFold disagreements=0
+A19COMP screeningledger.SignedVerificationPolicy tags=3  EqualFold-colliding tag pairs=0  (key x field) combinations=225   Go-vs-EqualFold disagreements=0
+```
+
+**(3) The shared unquoting path.** The scan sees member names through `json.Decoder.Token()`; the
+decoder resolves them after `unquoteBytes`. If the two unquoted differently, the scan and the resolver
+would be comparing different strings. Measured on JSON escapes, raw non-ASCII, invalid UTF-8 and a lone
+surrogate escape:
+
+```
+A19UQ input="{\"min_anchor_ſequence\":1}" token_key="min_anchor_ſequence" unmarshal_key="min_anchor_ſequence" equal=true struct_resolved(min_anchor=1) EqualFold(min_anchor_sequence)=true
+A19UQ input="{\"SCHEMA_version\":1}"      token_key="SCHEMA_version"      unmarshal_key="SCHEMA_version"      equal=true struct_resolved(schema=1)     EqualFold(...)=false
+A19UQ input="{\"min_anchor_\xffsequence\":1}"   token_key="min_anchor_�sequence" unmarshal_key="min_anchor_�sequence" equal=true struct_resolved(min_anchor=0) EqualFold(min_anchor_sequence)=false
+A19UQ input="{\"min_anchor_ſequence\":1}"       token_key="min_anchor_ſequence" unmarshal_key="min_anchor_ſequence" equal=true struct_resolved(min_anchor=1) EqualFold(min_anchor_sequence)=true
+A19UQ input="{\"min_anchor_\ud800sequence\":1}" token_key="min_anchor_�sequence" unmarshal_key="min_anchor_�sequence" equal=true struct_resolved(min_anchor=0) EqualFold(min_anchor_sequence)=false
+```
+
+Both sides replace invalid UTF-8 and lone surrogates with U+FFFD identically, and in every case the
+string the scan would compare is the string the resolver resolved.
+
+**(4) The precondition under which EqualFold-equal means same-field, stated and measured.** Go's folded
+index keeps the **first** field when two field names fold-collide (`$GOROOT/src/encoding/json/encode.go:1305-1308`,
+"For historical reasons, first folded match takes precedence"). So `bytes.EqualFold(k1, k2)` is exactly
+"`k1` and `k2` resolve to the same field" **only if no two json tags in the target struct are
+EqualFold-equal to each other.** Measured in (2) above: **zero** colliding tag pairs in all three
+structs. D151 pins this as a test, so a future tag that breaks it fails loudly rather than silently
+changing what D147 means.
+
+#### Strictness relative to Go, stated exactly rather than claimed "equivalent"
+
+The brief's own caution is correct: a fix slightly looser than Go's real algorithm is a gap, and one
+slightly stricter can be a new failure mode. The relationship is:
+
+- **For names that resolve to a field: exactly Go's equivalence.** Given the measured precondition, two
+  names are EqualFold-equal iff the decoder resolves them to the same field -- no looser (every pair Go
+  folds together, D147 refuses) and no stricter (every pair D147 refuses, Go folds together).
+- **For names that resolve to no field: stricter, and only in the refusal direction.** Two unknown
+  names that happen to be EqualFold-equal (`"foo"`, `"FOO"`) are refused by D147 although Go would
+  ignore both. At the signer such a document is already refused by `DisallowUnknownFields`
+  (`policy.go:245`); at the loader, after D148, likewise. So the extra strictness never refuses a
+  document that would otherwise have been accepted, and it can never *admit* anything: it is a false
+  refusal on an already-refused document, which is the safe direction.
+- **The comparison is pairwise over the names already seen at that object level**, with the exported
+  function called directly. No fold table is built, no `unicode.SimpleFold` orbit is reimplemented, and
+  no canonical folded key is constructed -- each of which would be a second implementation of Go's rule
+  with its own chance of diverging from it. Object widths here are at most eleven members, so the
+  quadratic comparison is immaterial.
+
+#### Applied at every object level, and both spellings named
+
+D38(a)'s scan is type-agnostic and recursive (`policy.go:490-538`); D147 keeps that shape, so the
+envelope-level `POLICY`/`Signature_Base64` cases are closed by the same rule as the policy-level ones,
+and a later nested object is covered without an edit. The refusal names **both** spellings, so an
+operator sees what collided rather than a single name that appears only once in the file. Illustrative
+only -- the implementation PR owns the text:
+
+```go
+for prior := range seen {
+	if bytes.EqualFold([]byte(prior), []byte(key)) {
+		repeated = append(repeated, fmt.Sprintf("%s (also spelled %q)", childPath, prior))
+	}
+}
+seen[key] = true
+```
+
+#### Executed: the prototype against every construction, and the positive controls
+
+The prototype replaced `policy.go:515-518` in place with the comparison above (plus D148's one-line
+change), and the same probe file was re-run unchanged.
+
+**Producer, every field refused:**
+
+```
+A19F1 schema_version           U+017F(long s)  decode_err=unsigned policy document (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [ſchema_version~schema_version]
+A19F1 schema_version           UPPER           decode_err=... repeated JSON key(s): [SCHEMA_VERSION~schema_version]
+A19F1 ledger_id                UPPER           decode_err=... repeated JSON key(s): [LEDGER_ID~ledger_id]
+A19F1 min_event_schema         U+017F(long s)  decode_err=... repeated JSON key(s): [min_event_ſchema~min_event_schema]
+A19F1 min_event_schema         UPPER           decode_err=... repeated JSON key(s): [MIN_EVENT_SCHEMA~min_event_schema]
+A19F1 min_audit_schema         U+017F(long s)  decode_err=... repeated JSON key(s): [min_audit_ſchema~min_audit_schema]
+A19F1 min_audit_schema         UPPER           decode_err=... repeated JSON key(s): [MIN_AUDIT_SCHEMA~min_audit_schema]
+A19F1 genesis_event_sequence   U+017F(long s)  decode_err=... repeated JSON key(s): [geneſis_event_sequence~genesis_event_sequence]
+A19F1 genesis_event_sequence   UPPER           decode_err=... repeated JSON key(s): [GENESIS_EVENT_SEQUENCE~genesis_event_sequence]
+A19F1 genesis_audit_sequence   U+017F(long s)  decode_err=... repeated JSON key(s): [geneſis_audit_sequence~genesis_audit_sequence]
+A19F1 genesis_audit_sequence   UPPER           decode_err=... repeated JSON key(s): [GENESIS_AUDIT_SEQUENCE~genesis_audit_sequence]
+A19F1 allow_unanchored         UPPER           decode_err=... repeated JSON key(s): [ALLOW_UNANCHORED~allow_unanchored]
+A19F1 min_anchor_sequence      U+017F(long s)  decode_err=... repeated JSON key(s): [min_anchor_ſequence~min_anchor_sequence]
+A19F1 min_anchor_sequence      UPPER           decode_err=... repeated JSON key(s): [MIN_ANCHOR_SEQUENCE~min_anchor_sequence]
+A19F1 genesis_event_sha256     U+017F(long s)  decode_err=... repeated JSON key(s): [geneſis_event_sha256~genesis_event_sha256]
+A19F1 genesis_event_sha256     UPPER           decode_err=... repeated JSON key(s): [GENESIS_EVENT_SHA256~genesis_event_sha256]
+A19F1 genesis_audit_sha256     U+017F(long s)  decode_err=... repeated JSON key(s): [geneſis_audit_sha256~genesis_audit_sha256]
+A19F1 genesis_audit_sha256     UPPER           decode_err=... repeated JSON key(s): [GENESIS_AUDIT_SHA256~genesis_audit_sha256]
+A19F1 tenancy                  UPPER           decode_err=... repeated JSON key(s): [TENANCY~tenancy]
+```
+
+**Consumer, every field refused, and every envelope-level spelling:**
+
+```
+A19F1C min_anchor_sequence      UPPER           loaded=0 err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy.min_anchor_sequence~MIN_ANCHOR_SEQUENCE]
+A19F1C min_anchor_sequence      U+017F(long s)  loaded=0 err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy.min_anchor_sequence~min_anchor_ſequence]
+A19F1C tenancy                  UPPER           loaded="" err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy.tenancy~TENANCY]
+A19F1E envelope-level POLICY             load_err=signed verification policy envelope (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [policy~POLICY]
+A19F1E envelope-level Signature_Base64   load_err=... repeated JSON key(s): [signature_base64~Signature_Base64]
+A19F1E envelope-level PUBLIC_KEY_BASE64  load_err=... repeated JSON key(s): [public_key_base64~PUBLIC_KEY_BASE64]
+```
+
+(Every one of the nineteen non-control consumer rows across all eleven tags refuses; representative rows
+shown.)
+
+**The real signing binary, prototype build, CAP #19's two documents and an ordinary one:**
+
+```
+== [proto] sign case.json
+unsigned policy document (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [Allow_Unanchored~allow_unanchored MIN_ANCHOR_SEQUENCE~min_anchor_sequence Tenancy~tenancy]
+rc=1
+== [proto] sign fold.json
+unsigned policy document (ADR-0007 Addendum 4 D38(a)): repeated JSON key(s): [min_anchor_ſequence~min_anchor_sequence]
+rc=1
+== [proto] sign ordinary.json        # the committed example policy's own fields, ledger_id changed
+rc=0
+   signed -> min_anchor_sequence=0 allow_unanchored=False tenancy=exclusive
+```
+
+**Positive controls, which D37's rule makes a shipping requirement** (`0007:2643-2645`): the committed
+example fixture and the freshly signed ordinary policy both load through the real
+`LoadSignedVerificationPolicy` under the prototype, D38(a)'s and D36's existing tests are unregressed,
+and the whole package is green under `-race` on the provisioned cluster:
+
+```
+A19POS load example-policy.signed.json -> err=<nil> ledger_id=screening-api-v8g-example policy_sha256=8b7a67c0904980a9
+A19POS load out-proto-ordinary.json    -> err=<nil> ledger_id=cap19-ordinary policy_sha256=f9cf5a9533d9b974
+
+$ go test -count=1 -run 'Policy|D38|D36|Duplicate|Genesis' ./internal/screeningledger/ ./cmd/screening-ledger-policy/ ./cmd/screening-ledger/
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	9.727s
+ok  	github.com/openwatchlist-labs/watchlist-platform/cmd/screening-ledger	1.420s
+$ go test -race -count=1 ./cmd/screening-ledger/ ./cmd/screening-ledger-policy/
+ok  	github.com/openwatchlist-labs/watchlist-platform/cmd/screening-ledger	2.696s
+ok  	github.com/openwatchlist-labs/watchlist-platform/cmd/screening-ledger-policy	2.056s
+$ go test -race -count=1 ./internal/screeningledger/          # D147/D148 prototype installed
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	155.748s
+RACE EXIT (D147/D148 prototype installed): 0        (--- FAIL count: 0)
+```
+
+`8b7a67c0...` is the same committed-fixture `policy_sha256` CAP #19's DR walkthrough recorded, so the
+prototype changes no canonical policy bytes.
+
+#### Rejected alternatives, recorded so a later reader does not re-derive them
+
+- **A hand-written fold map or a reimplementation over `unicode.SimpleFold`.** It would be a second
+  implementation of Go's rule; the measurement above shows the exported function is exact, and a
+  reimplementation has its own chance of diverging on some orbit a table author did not consider.
+- **Resolving keys against the struct by reflection** (parse each json tag, apply exact-then-fold). It
+  reimplements tag parsing -- options, `-`, embedded-field dominance -- which is exactly the approximation
+  surface D147 avoids; and under the measured no-collision precondition it answers the identical
+  question `bytes.EqualFold` already answers.
+- **`encoding/json/v2`, which rejects duplicates and folds differently.** Rejected by D38(a) on
+  `GOEXPERIMENT` grounds (`0007:2961-2972`), re-confirmed: `$GOROOT/src/encoding/json/v2_decode.go:5` is
+  `//go:build goexperiment.jsonv2` and `decode.go:8`/`fold.go:5` are `//go:build !goexperiment.jsonv2`.
+  Switching packages is a toolchain-wide build-mode change, not a patch, and it would change field
+  resolution semantics under the very decoder this repository signs with.
+- **`DisallowUnknownFields` alone.** CAP #19 showed it is not sufficient: a folded spelling resolves to a
+  known field, so it is neither unknown nor missing (`decode.go:739`).
+- **Refusing non-ASCII member names.** A spelling patch: it closes U+017F and U+212A and leaves the ASCII
+  case variants, which are twenty-two of the twenty-four non-identical resolving runes measured above.
+- **Canonicalising the document before review.** D38(a) already declined this (`0007:2998-3003`): no such
+  pipeline exists, and a decoder that accepts an ambiguous document is a defect whoever reads it first.
+
+### D148. F1's consumer half, found by this addendum's sweep: the loader decodes as strictly as the signer
+
+**The finding, measured, and named by no CAP.** D36 made the **signer** strict --
+`DisallowUnknownFields` at `policy.go:245` -- and argued explicitly that "enforcing at only one end ...
+would leave the producer as the gap" (`0007:2602-2606`). The **loader** was never given the same
+treatment: `LoadSignedVerificationPolicy` decodes with bare `json.Unmarshal` (`policy.go:392`), which
+silently ignores any member name that resolves to no field. An unknown key is not signed -- canonical
+bytes are re-derived from the resolved struct (`policy.go:395`) -- so it can be added to a distributed
+envelope after signing, with no key, and the signature still verifies:
+
+```
+A19ADJ (a) policy-level near-miss unknown key min_anchor_seqence=500   loaded min_anchor_sequence=0 load_err=<nil>
+A19ADJ (a) envelope-level unknown key min_anchor_sequence=500          loaded min_anchor_sequence=0 load_err=<nil>
+```
+
+**Why this is in D147's scope rather than adjacent cleanup** -- section 5.1's and D13's own test, "an
+existing weakness that would make the new guarantee false". Some visually near-identical spellings are
+**not** simple-fold-equal and therefore resolve to no field at all. Measured against both ends:
+
+```
+A19ADJ (b) non-simple-fold spelling "min_anchor_ｓequence": EqualFold(min_anchor_sequence)=false signer_err=decode unsigned policy document (ADR-0007 Addendum 3 D36): json: unknown field "min_anchor_ｓequence"
+A19ADJ (b) same key at loader "min_anchor_ｓequence"               loaded min_anchor_sequence=0 load_err=<nil>
+A19ADJ (b) non-simple-fold spelling "min_anchor_sequenceß": ...   signer_err=... json: unknown field "min_anchor_sequenceß"
+A19ADJ (b) same key at loader "min_anchor_sequenceß"              loaded min_anchor_sequence=0 load_err=<nil>
+A19ADJ (b) non-simple-fold spelling "tenancı": ...                signer_err=... json: unknown field "tenancı"
+A19ADJ (b) same key at loader "tenancı"                           loaded min_anchor_sequence=0 load_err=<nil>
+```
+
+`min_anchor_ｓequence` uses U+FF53 FULLWIDTH LATIN SMALL LETTER S -- a homoglyph at least as
+convincing as U+017F -- and it is *correctly* not folded by Go, so D147 correctly does not treat it as a
+duplicate. **At the signer that is fine**: strict decoding refuses it. **At the loader it is exactly F1's
+consumer half by a different spelling**: an envelope carrying `"min_anchor_sequence": 0` and a planted
+`"min_anchor_ｓequence": 500` loads, a reviewer of the distributed file sees two near-identical keys
+exactly as in the U+017F case, and the verifier acts on `0`. **D147 alone would close the fold spellings
+and leave this one**, which is why the two are one barrier.
+
+**Decision: `LoadSignedVerificationPolicy` decodes the envelope with `json.Decoder` +
+`DisallowUnknownFields`, in place of `json.Unmarshal`, before the signature check -- D36's own mechanism,
+applied at the end D36 said must not be the gap.** It covers both object levels because
+`DisallowUnknownFields` applies to every struct the decoder descends into, and it is the same
+established pattern `cmd/policy-evaluate`, `cmd/release-config`, `cmd/catalog-registry` and
+`cmd/matcher-project` already use (D36, `0007:2590-2595`). **The stop condition this addendum
+pre-declared was checked first** -- if strict decoding refused the committed example fixture, the design
+would stop rather than choose -- and it does not:
+
+```
+A19ADJ committed example fixture under DisallowUnknownFields: err=<nil>
+```
+
+**Executed under the prototype** -- every unknown-key and non-fold homoglyph construction is refused at
+the loader, and the positive controls above load:
+
+```
+A19ADJ (a) policy-level near-miss unknown key min_anchor_seqence=500 load_err=parse verification policy: json: unknown field "min_anchor_seqence"
+A19ADJ (a) envelope-level unknown key min_anchor_sequence=500     load_err=parse verification policy: json: unknown field "min_anchor_sequence"
+A19ADJ (b) same key at loader "min_anchor_ｓequence"               load_err=parse verification policy: json: unknown field "min_anchor_ｓequence"
+A19ADJ (b) same key at loader "min_anchor_sequenceß"              load_err=parse verification policy: json: unknown field "min_anchor_sequenceß"
+A19ADJ (b) same key at loader "tenancı"                           load_err=parse verification policy: json: unknown field "tenancı"
+```
+
+**What D147 and D148 together establish, stated as one property.** For every member name in a policy
+document, at either end, exactly one of three things is true: it is byte-identical to a tag and occurs
+once; it resolves to a tag by Go's own fold equivalence and is then refused as a duplicate if the tag
+also occurs (D147), or accepted as that tag's single spelling if it does not; or it resolves to no tag and
+is refused (D36 at the signer, D148 at the loader). **There is no fourth outcome** -- no name the decoder
+silently ignores and no name the decoder silently merges -- so a reviewer who reads each member once
+reads every value the verifier will act on, under whatever spelling it appears.
+
+**A single differently-spelled key with no canonical twin is accepted, and that is correct rather than a
+gap.** `"MIN_ANCHOR_SEQUENCE": 500` with no lowercase copy decodes to 500 and a reviewer reads 500: there is
+no second value to hide. Measured, identically before and after the prototype:
+
+```
+[shipped]   A19SINGLE only spelling "MIN_ANCHOR_SEQUENCE":500, no canonical twin -> err=<nil> min_anchor_sequence=500
+[prototype] A19SINGLE only spelling "MIN_ANCHOR_SEQUENCE":500, no canonical twin -> err=<nil> min_anchor_sequence=500
+```
+
+Recorded so a later reader does not "tighten" D147 into a
+spelling-exactness rule, which would be a different decision -- one that would refuse documents Go reads
+unambiguously -- and not a stricter form of this one.
+
+### D149. F2 (MEDIUM): the definer functions' EXECUTE holder set is enumerated on D60/D61's exact pattern
+
+**The finding, reproduced independently.** The provisioning step revokes EXECUTE from PUBLIC and grants it
+to `owl_migrator` (`scripts/ci/provision_test_roles.sh:373-376`); `checkProvisioningState`
+(`internal/screeningledger/postgres.go:267`) asserts, for each definer function in
+`requiredDefinerFunctions` (`postgres.go:134`), `prosecdef`, `proowner` and the body digest -- and nothing
+about who may call it. Measured first, the baseline holder matrix on a `TEMPLATE` clone:
+
+```
+=== measured EXECUTE holder matrix on the provisioned baseline (both overloads, every role) ===
+ screening_ledger_purge_snapshots(text[],text,integer[],timestamp with time zone[],text,text) | owl_ci         |    10 | t | t
+ screening_ledger_purge_snapshots(text[],text,integer[],timestamp with time zone[],text,text) | owl_ledger_ddl | 16388 | f | t
+ screening_ledger_purge_snapshots(text[],text,integer[],timestamp with time zone[],text,text) | owl_migrator   | 16385 | f | t
+ screening_ledger_purge_snapshots(text,bigint,timestamp with time zone,text,text)             | owl_ci         |    10 | t | t
+ screening_ledger_purge_snapshots(text,bigint,timestamp with time zone,text,text)             | owl_ledger_ddl | 16388 | f | t
+ screening_ledger_purge_snapshots(text,bigint,timestamp with time zone,text,text)             | owl_migrator   | 16385 | f | t
+=== predefined roles (oid < 16384) reporting EXECUTE on either overload ===
+ predefined_roles_total | with_execute
+                     15 |            0
+=== grantee side: aclexplode(proacl) ===
+ ...(text[],...) | owl_ledger_ddl | owl_ledger_ddl | EXECUTE
+ ...(text[],...) | owl_migrator   | owl_ledger_ddl | EXECUTE
+ ...(text,...)   | owl_ledger_ddl | owl_ledger_ddl | EXECUTE
+ ...(text,...)   | owl_migrator   | owl_ledger_ddl | EXECUTE
+```
+
+The non-superuser holder set is `{owl_ledger_ddl, owl_migrator}` in both limbs on both overloads, and
+**no predefined role structurally carries EXECUTE** -- so, unlike MAINTAIN's `pg_maintain` (D72), this
+capability's allowlist is **empty**, measured rather than assumed.
+
+**The end-to-end consequence, on a clone where `owl_ledger_ddl` -- the functions' owner, non-superuser,
+both event triggers `A` -- granted EXECUTE to `owl_app`.** `owl_app` holds no table privilege on any of
+the three relations the definer touches; the definer's own D116 refusal text leaks the mirror aggregate
+to it, which it replays with a forged operator attribution:
+
+```
+[owl_app] own table privileges on event SELECT / snapshot UPDATE / tombstone INSERT:
+ f | f | f
+[owl_app] probe call with a guessed obligation (0, NULL) -- the D116 refusal text is the oracle:
+ERROR:  ADR-0007 Addendum 13 D116: snapshot a19exp0001 (element 1 of 1)'s GLOBAL mirror screening_ledger_event aggregate (count=1, max=2000-01-01 00:00:00-05) disagrees with the caller-supplied chain-authenticated obligation (count=0, max=<NULL>, claimed ledger=a19L): refusing rather than purging under an unverified claim
+[owl_app] replay the leaked aggregate, forged operator attribution:
+ {a19exp0001}
+ snapshot_sha256 | has_ct |    operator    |         reason
+ a19exp0001      | f      | compliance-bot | purged under 90d policy
+
+######## CONTROL on a19_r_r0_clean (no grant): the identical owl_app call ########
+ERROR:  permission denied for function screening_ledger_purge_snapshots
+```
+
+**And nothing observes the transfer** -- neither the verifier nor the installer re-run:
+
+```
+SHIPPED screening-ledger migrate (CheckProvisioningState): {"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+######## installer: grant-ddl-ownership re-run against the granted clone (throwaway) ########
+PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner; ...
+PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); ...
+PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, ...
+EXECUTE holders after re-provisioning: owl_app,owl_ledger_ddl,owl_migrator
+```
+
+Three PASS lines, zero FAIL lines, and `owl_app` still holds EXECUTE afterwards: the installer's
+`REVOKE ... FROM PUBLIC` does not reach a named grantee, and its PASS line ("owl_migrator ... gained
+EXECUTE only", `provision_test_roles.sh:489`) asserts a quantifier over one role.
+
+**What bounds it, carried from CAP #19 and not inflated.** D98's ALL-expired eligibility and D116's
+corroboration still bind -- `owl_app` can purge only a genuinely expired snapshot, and must replay a true
+aggregate; the forged tombstone carries no audit-chain attestation, so D70's reverse pass flags it at the
+next `VerifyAnchored` in exclusive tenancy; the grantor is in R12's excluded set.
+
+**Decision: a declared literal `requiredFunctionExecuteHolders` -- both `screening_ledger_purge_snapshots`
+overloads, holder set `{owl_ledger_ddl, owl_migrator}`, allowlist empty -- asserted by set equality
+through the existing `privilegeHolders` two-limb machinery (`postgres.go:1037`), exactly as D61's
+`requiredTablePrivilegeHolders` (`postgres.go:1131`) is. No new mechanism is invented.** Precisely:
+
+- **Holder side:** the existing `privilegeHolderRoleFilterSQLTemplate` (`postgres.go:1011`) --
+  `NOT rolsuper`, per-privilege allowlist (D72), `pg_has_role(r.oid, s.oid, 'MEMBER')` (D73) -- with the
+  privilege clause `has_function_privilege(s.rolname, $1::regprocedure, 'EXECUTE')` in place of
+  `has_table_privilege`. The template already takes the privilege predicate as its `%s` slot; the only
+  change is that `$1` is a `regprocedure` rather than a `regclass`.
+- **Grantee side:** the same `aclexplode` scan over `pg_proc.proacl` for the regprocedure, in place of
+  `pg_class.relacl` for the regclass (`postgres.go:1052`). `privilegeHolders` gains an object-kind
+  parameter; the two SQL strings are its only kind-specific text.
+- **Set equality, both directions**, per overload and per limb: an extra holder is a named failure, and
+  so is a missing declared holder -- D61's direction (`0007:5867-5870`).
+- **The allowlist entry is declared, not omitted.** `predefinedRoleStructuralPrivilege["EXECUTE"]` is
+  absent, which is D72's own representation of "measured, and no predefined role carries this" -- recorded
+  so a reader sees the measurement rather than an unconsidered omission.
+- **The installer proves the property it installs** -- D60's own reasoning (`0007:5781-5782`): the
+  `grant-ddl-ownership` postcondition beside `maintain_holders_tombstone` (`provision_test_roles.sh:475`)
+  enumerates EXECUTE holders over the live role population in both limbs and fails naming them, and its
+  PASS line states the quantifier the enumeration actually checked.
+
+**Executed: the prototype query against every route D59/D72/D73 established, each on its own `TEMPLATE`
+clone, with the shipped check's verdict beside it.** The roles are cluster-wide throwaways created by the
+bootstrap superuser (`a19_grp`, `a19_noinh NOINHERIT` member of it; `a19_grp2`, `a19_mif` member `WITH
+INHERIT FALSE`; `a19_grp3`, `a19_mid NOINHERIT` member of it, `a19_chain NOINHERIT` member of `a19_mid`;
+`a19_empty` with no members); every GRANT is issued as `owl_ledger_ddl`:
+
+```
+ROUTE r0_clean (no grant)                 holder={owl_ledger_ddl,owl_migrator}            grantee={owl_ledger_ddl,owl_migrator}          d148_accepts=t   SHIPPED provisioned=true
+ROUTE r1_owl_app (both overloads)         holder={owl_app,owl_ledger_ddl,owl_migrator}    grantee={owl_app,owl_ledger_ddl,owl_migrator}  d148_accepts=f   SHIPPED provisioned=true
+ROUTE r2_public (both overloads)          holder={a19_chain,...,owl_app,owl_ledger_anchor,owl_ledger_ddl,owl_migrator,pg_checkpoint,...,pg_write_server_files}
+                                          grantee={PUBLIC,owl_ledger_ddl,owl_migrator}                                                  d148_accepts=f   SHIPPED provisioned=true
+ROUTE r3_noinherit_member (array form)    holder={a19_grp,a19_noinh,owl_ledger_ddl,owl_migrator}   grantee={a19_grp,owl_ledger_ddl,owl_migrator}   d148_accepts=f   SHIPPED provisioned=true
+ROUTE r4_inherit_false (array form)       holder={a19_grp2,a19_mif,owl_ledger_ddl,owl_migrator}    grantee={a19_grp2,owl_ledger_ddl,owl_migrator}  d148_accepts=f   SHIPPED provisioned=true
+ROUTE r5_transitive (array form)          holder={a19_chain,a19_grp3,a19_mid,owl_ledger_ddl,owl_migrator}  grantee={a19_grp3,owl_ledger_ddl,owl_migrator}  d148_accepts=f   SHIPPED provisioned=true
+ROUTE r6_memberless (array form)          holder={a19_empty,owl_ledger_ddl,owl_migrator}  grantee={a19_empty,owl_ledger_ddl,owl_migrator}  d148_accepts=f   SHIPPED provisioned=true
+```
+
+(Condensed from the per-overload transcript; in r3-r6 the time-floor overload's row is unchanged and
+the array form's row carries the extra holders. `d148_accepts` is the prototype's set-equality verdict
+across both limbs and both overloads -- the column label is the probe's working name for this decision.)
+**Every route the shipped check certifies as provisioned, the prototype refuses; the clean baseline it
+accepts.** The PUBLIC route's holder side names the fifteen predefined roles individually, and they are
+correctly *not* allowlisted: under a PUBLIC grant they genuinely hold the capability.
+
+**The whole-round sweep, D59's quantifier asked of every function the registry protects.** EXECUTE is a
+capability only where a function can be *called*. Measured on the clean clone, as `owl_app`:
+
+```
+ screening_ledger_reject_mutation()                                                           | trigger | f | owl_migrator   |
+ owl_reject_truncate()                                                                        | trigger | f | owl_migrator   |
+ screening_ledger_purge_snapshots(text[],text,integer[],timestamp with time zone[],text,text) | text[]  | t | owl_ledger_ddl | {owl_ledger_ddl=X/owl_ledger_ddl,owl_migrator=X/owl_ledger_ddl}
+ screening_ledger_purge_snapshots(text,bigint,timestamp with time zone,text,text)             | bigint  | t | owl_ledger_ddl | {owl_ledger_ddl=X/owl_ledger_ddl,owl_migrator=X/owl_ledger_ddl}
+
+ERROR:  trigger functions can only be called as triggers     -- screening_ledger_reject_mutation()
+ERROR:  trigger functions can only be called as triggers     -- owl_reject_truncate()
+ERROR:  trigger functions can only be called as triggers     -- sec7_protect_ddl_objects()
+ERROR:  trigger functions can only be called as triggers     -- screening_ledger_snapshot_guard()
+```
+
+| Function | Callable directly? | EXECUTE is a capability? | Disposition |
+|---|---|---|---|
+| both `screening_ledger_purge_snapshots` overloads | yes, `SECURITY DEFINER` | **yes** | **D149** |
+| `screening_ledger_reject_mutation()`, `owl_reject_truncate()` | no -- trigger functions | checked, does not apply | none |
+| `sec7_protect_ddl_objects()` | no -- event-trigger function, superuser-owned, not a registry member | checked, does not apply | none |
+| `screening_ledger_snapshot_guard()` | no -- trigger function, not a registry member (R40) | checked, does not apply | none |
+
+**One observation the route table surfaced, recorded rather than fixed here.** A grant `WITH GRANT
+OPTION` to a *declared* holder leaves both limbs' role sets unchanged, so the enumeration -- D61's for
+tables as much as D149's for functions -- does not see the latent re-grant capability until it is used:
+
+```
+[owl_ledger_ddl] GRANT EXECUTE ... TO owl_migrator WITH GRANT OPTION; GRANT SELECT ON screening_ledger_anchor TO owl_migrator WITH GRANT OPTION
+ d148_accepts = t
+ function            | owl_migrator   | is_grantable = t
+ anchor table SELECT | owl_migrator   | is_grantable = t
+SHIPPED migrate: {"provisioned":true,"provisioning_reason":"", ...}
+[owl_migrator] GRANT EXECUTE ... TO owl_app       -- now exercised
+ d148_accepts = f
+```
+
+Once exercised, the transfer is caught, exactly as D60's own framing expects ("converts an unobserved
+capability transfer into an observed one", `0007:5789-5790`). The latent state is the R27 point-in-time
+class and applies equally to D61's shipped matrix, so it is **not** folded into D149 -- making
+`is_grantable` part of the declared literal would change D61 as well as D149, which is a decision about
+both and not one this addendum's F2 brief ("match D60/D61's existing pattern exactly") licenses. R71
+records it.
+
+**What D149 is, stated so it is not read as more.** Like D60 it converts an unobserved capability transfer
+into an observed one on the next `verify`/`migrate`; it does not prevent the GRANT, which reports
+`objid = NULL` and is invisible to D34 (R27). The information oracle in D116's refusal text is not changed:
+it leaks only to a party already holding EXECUTE, which after D149 is a named failure if undeclared, and changing the
+definer body would move both declared digests a sixth consecutive round (D135's precedent). R72 records it.
+
+### D150. R40/R44 and R57: the sharpened residual, measured, and R40's closure recipe corrected forward
+
+**CAP #19's sharpening, reproduced on a clone of the fully provisioned database** (both event triggers `A`,
+`screening_ledger_snapshot` owned by `owl_migrator` and absent from the registry), with three snapshots
+carrying a live `2100-01-01` obligation:
+
+```
+=== (1) R40 sharpened: [owl_migrator] direct UPDATE on a 2100-obligation snapshot, NO DROP TRIGGER ===
+UPDATE 1
+    control: the same UPDATE also rewriting expires_at (guard's allowed-transition test, 008g:17)
+ERROR:  screening snapshot mutation is not an allowed retention transition
+=== (2) R57 route: [owl_migrator] CREATE an undeclared SECURITY DEFINER overload that does the same strip ===
+CREATE FUNCTION
+ screening_ledger_purge_snapshots(text,text) | owl_migrator | t
+ 1
+=== (3) what the overload lets owl_migrator hand to owl_app vs what owl_migrator can hand over directly as the table OWNER ===
+GRANT
+REVOKE
+ snapshot_sha256 |       expires_at       | has_ct | purged | tombstones
+ a19live0001     | 2100-01-01 00:00:00-05 | f      | t      |          0
+ a19live0002     | 2100-01-01 00:00:00-05 | t      | f      |          0
+ a19live0003     | 2100-01-01 00:00:00-05 | f      | t      |          0
+SHIPPED migrate after (1)-(3): {"operation":"migrate","provisioned":true,"provisioning_reason":"", ...}
+```
+
+**The mechanism, from the code.** `screening_ledger_snapshot_guard()` refuses DELETE and permits exactly
+one UPDATE shape (`db/migrations/008g_screening_ledger.sql:17`, identically `postgres.go:2023`):
+
+```sql
+IF OLD.purged_at IS NULL AND NEW.purged_at IS NOT NULL AND OLD.snapshot_sha256=NEW.snapshot_sha256
+   AND OLD.kind=NEW.kind AND OLD.created_at=NEW.created_at AND OLD.expires_at=NEW.expires_at
+   AND OLD.retention_class=NEW.retention_class AND NOT(NEW.envelope_json?'ciphertext_base64') THEN RETURN NEW;
+```
+
+The allowed transition pins every column *against its own prior value* and never compares `expires_at`
+against the present, so the guard **permits** stripping ciphertext from a snapshot under a live obligation
+-- row `a19live0001`. The control row shows the guard is live and doing what it says.
+
+**Is R40's existing entry sufficient? Its disposition is; its closure recipe is not.**
+
+- **The disposition covers the sharpened path, and this is cited rather than asserted.** R40 accepts "a
+  retention-integrity control on a relation holding encrypted evidence that the constrained party can
+  remove unobserved" (`0007:9798-9799`), bounded by section 3.2: the file chain is authoritative and
+  Postgres mirrors it (`0007:162-167`). That bound holds for this path, by code: the mirror row is written
+  from the file-store envelope `Store.LoadSnapshot` reads (`internal/screeningledger/sync.go:73`, `:77`,
+  `:85`; `store.go:807-815`; `postgres.go:1956`), and verification reads the **local** envelope, never the
+  mirror row (`store.go:871-900`). Stripping the mirror copy destroys the mirror's copy of evidence the
+  file store still holds, and changes no input to any verification decision. No new mechanism is
+  therefore required in this addendum, and none is designed.
+- **The closure recipe is narrower than the exposure, and a later reader would act on the recipe.** R40
+  states: "Closing it requires giving `screening_ledger_snapshot_guard()` D78's assert-and-fail treatment and
+  making both trigger creations in `SchemaSQL` conditional" (`0007:9799-9802`). That protects the guard
+  from being **dropped**. Measured above, the sharpened path needs no drop: the guard as written permits it.
+  A change that implemented R40's recipe exactly would leave row `a19live0001`'s outcome unchanged.
+
+**Decision: R40's closure recipe is corrected forward, in this decision's own words and not by editing
+R40 (the AR7 convention, and D145's construction for R57).** Wherever R40 names what closing it requires,
+read instead:
+
+> **Closing R40 requires both (a) that the guard's allowed purge transition be expiry-aware -- permitting
+> the ciphertext strip only when no referencing obligation is live, the same ALL-expired quantifier D98
+> gave the definer, or equivalently that the strip be reachable only through the `SECURITY DEFINER` purge
+> path -- and (b) the protection R40 already names (D78's assert-and-fail treatment and conditional trigger
+> creation in `SchemaSQL`). (b) without (a) closes the DROP TRIGGER route and leaves the direct-UPDATE
+> route CAP #19 measured; (a) without (b) leaves a guard its owner can drop.** R40's disposition, its
+> re-entry conditions and its register entry are otherwise unchanged.
+
+**R44 has no parallel, and that was measured rather than inferred from the symmetry.** R44's relation is
+guarded by `screening_ledger_reject_mutation()`, which has no allowed transition at all:
+
+```
+=== R44 parallel check: [owl_migrator] direct UPDATE of screening_ledger_event.expires_at (no DROP TRIGGER) ===
+ERROR:  screening ledger rows are append-only
+```
+
+So R44's route genuinely requires the DROP TRIGGER it names (`0007:10965-10969`), and R44's closure
+recipe (`0007:10973-10974`) is sufficient for R44. **R44's text is not corrected.**
+
+**R57 remains deferred, and CAP #19's value-per-effort reasoning is confirmed by measurement, not adopted
+by assent.** An undeclared overload created by `owl_migrator` (row `a19live0003`) is `SECURITY DEFINER`
+**as its creator**, so it executes with `owl_migrator`'s privileges and nothing more; everything it does,
+`owl_migrator` does directly (row `a19live0001`). Everything it lets `owl_migrator` hand to another role
+via `GRANT EXECUTE`, `owl_migrator` can hand over directly as the table's owner (`GRANT UPDATE ON
+screening_ledger_snapshot TO owl_app` succeeded, step (3)). **R57's capability is a strict subset of
+R40's direct path**, both leave zero tombstones and both leave `migrate` reporting clean. Closing R57
+while R40's direct route stays open closes a harder path to a capability the same role already has by an
+easier one. R57 stays deferred and, when taken up, is sequenced after R40 -- with D145's corrected bound
+and re-entry condition unchanged.
+
+### D151. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge this
+addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95, D103, D112,
+D122, D131, D136, D138, D140 and D146 set. **Every test below must fail before its change, per CLAUDE.md
+rule 5** -- confirmed for D147/D148/D149 during this design pass by running each construction against the
+shipped code (the transcripts above). Where a transcript exists above, the test reproduces it, not a
+paraphrase.
+
+1. **D147, per field, both ends.** Table-driven over the tags of `VerificationPolicy` **enumerated by
+   reflection** (so a field added later is covered without an edit), each in the all-uppercase spelling
+   and -- for every tag containing a character with a non-ASCII simple-fold partner -- that spelling, as
+   (a) an unsigned document through `DecodeUnsignedPolicy` and (b) a spelled-differently key prepended into
+   a genuinely signed envelope through `LoadSignedVerificationPolicy`. Each asserts, against the shipped
+   code, that the scan returns nil and the loaded value is the **later** member while the first member
+   carries a different value; and after the change a refusal naming **both** spellings. Plus the three
+   `SignedVerificationPolicy` tags at envelope level. Plus CAP #19's own `case.json` and `fold.json` through
+   `cmd/screening-ledger-policy sign`, `rc=0` today and `rc=1` after.
+2. **D147's equivalence, pinned so a later reader does not re-derive it.** The exhaustive per-rune
+   differential (every Unicode scalar value against a struct of the tag character population, asserting
+   zero disagreements between the real decoder and `bytes.EqualFold`), the composition check over every
+   tag of all three structs, and the unquoting-parity cases. DSN-free. **This is the test that fails if a
+   future Go release changes `encoding/json`'s folding rule** -- which is exactly the event that should
+   stop the build rather than silently change what D147 means.
+3. **D147's precondition.** No two json tags in `VerificationPolicy`, `unsignedPolicyInput` or
+   `SignedVerificationPolicy` are `bytes.EqualFold`-equal. A tag added later that breaks this fails here,
+   naming both tags.
+4. **D147's controls unregressed.** D38(a)'s existing `TestDecodeUnsignedPolicyRejectsDuplicateKeys`
+   (`d38_referent_test.go:30`) -- exact duplicate, nested object, array element, trailing content,
+   whitespace-differing duplicate -- passes unchanged. **Plus the single-spelling positive**: a document
+   whose only spelling of a tag is uppercase decodes to that value (D148's closing note), so the rule is
+   not accidentally tightened into spelling-exactness.
+5. **D148.** An envelope carrying (a) a policy-level unknown key, (b) an envelope-level unknown key, and
+   (c) the U+FF53 fullwidth homoglyph beside the canonical key each loads with `err=nil` today and is
+   refused after. Plus D36's own producer-side refusal of the same homoglyph unregressed.
+6. **The positive controls, a shipping requirement and not a nicety** (D37 verbatim). The committed
+   `test/fixtures/screening-ledger/policy/example-policy.signed.json` loads under the committed example
+   public key with its recorded `policy_sha256` (`8b7a67c0...`) unchanged; a freshly authored ordinary
+   policy decodes, signs through the real CLI and loads; and every test in `cmd/screening-ledger` and
+   `cmd/screening-ledger-policy` passes.
+7. **D149.** `TestProvisioningStateDetectsDefinerExecuteGrantToUndeclaredRole` (pgx), table-driven over
+   routes r1-r6 above, each asserting `CheckProvisioningState` returns `Provisioned=true Reason=""` **today**
+   and a specifically named failure after, naming the function, the limb and the role. Plus the r1
+   end-to-end limb as a named regression: the `owl_app` purge with forged attribution succeeds today on the
+   granted state. Plus **the positive**: the clean provisioned database returns `Provisioned=true`, and so
+   does a `TEMPLATE` clone (Addendum 5's population positive). Plus the missing-holder direction: revoking
+   `owl_migrator`'s EXECUTE is a named failure. Plus the installer: `grant-ddl-ownership` on the r1 state
+   exits 1 naming `owl_app` after, where it prints three PASS lines today -- **and D90 unregressed**, both
+   event triggers `evtenabled='A'` and all three registries at 13/2/1 after that refusal.
+8. **D150.** No new mechanism, so no new test, stated rather than left blank: the three transcripts above
+   (the direct-UPDATE strip with its guard control, the R57 overload strip, and the R44 refusal) are the
+   evidence a later addendum needs so it does not re-derive them.
+9. **Every gate still runs with no DSN where it did before** (D92's property): items 1-6 are DSN-free
+   except where they already share a DSN-gated fixture.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D147 must not be discharged by a hand-written fold table, a reimplementation over
+  `unicode.SimpleFold`, a canonical folded-key construction, or struct-tag reflection.** The exported
+  function is measured exact; a second implementation is an approximation with its own failure surface.
+- **D147 must not be discharged by switching to `encoding/json/v2` or any `GOEXPERIMENT`.** D38(a)'s
+  rejection stands and is re-confirmed above.
+- **D147 must not be discharged by refusing non-ASCII member names**, or by any spelling-exactness rule.
+  The first is a spelling patch that misses the ASCII case variants; the second refuses documents Go reads
+  unambiguously and is a different decision.
+- **D147's precondition test (D151 item 3) must not be deleted or weakened.** If a future field requires
+  two EqualFold-colliding tags, the implementation stops and this addendum is amended: under a collision
+  Go's resolver and `bytes.EqualFold` are no longer the same relation, and D147's exactness argument no
+  longer holds.
+- **D147 and D148 ship together.** D147 alone leaves the non-fold homoglyph route open at the consumer
+  (transcript above); D148 alone leaves every fold spelling open at both ends.
+- **D38(a)'s exact-duplicate refusal, recursion and trailing-content check must not be removed on D147's
+  strength** -- D147 changes the equality the scan asks, not the scan.
+- **D149 must match D60/D61's pattern: both limbs, set equality in both directions, the measured (empty)
+  allowlist, the installer postcondition.** It must not be discharged by revoking EXECUTE from named roles
+  in the installer alone -- a REVOKE narrower than its check is the asymmetry Addendum 7 exists to remove,
+  and a REVOKE cannot observe a later GRANT.
+- **D149 must not be widened to fold `is_grantable` into the declared literal inside this addendum's
+  implementation.** It would change D61's shipped matrix as well; R71 carries the question.
+- **D150 must not be read as designing R40's closure.** It corrects what closing R40 requires; it does not
+  schedule it, and R40's register entry and re-entry conditions are unchanged. **R44 is not corrected.**
+- **No new dependency** (CLAUDE.md rule 1): D147 and D148 use `bytes` and `encoding/json`, both already
+  imported by `policy.go` (`:4`, `:8`).
+- **No tolerance, anywhere.** If any comparison in this addendum cannot be made exact, the implementation
+  stops and this addendum is amended rather than shipping an invented equivalence. The ninth round to
+  restate D85's condition.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified against
+what this addendum designs rather than inherited from CAP #19's confirmation. D38(a) and D38(b) remain
+shipped together, and D38(b)'s genesis pin is untouched. D36's `Validate()` at both ends is untouched and
+D148 extends D36's own strict-decoding decision to the end D36 named. D25's schema pin and D110's tenancy
+field are untouched; no policy schema version changes, and no canonical policy bytes change (the fixture's
+`policy_sha256` is measured unchanged). D60's empty-set MAINTAIN assertion, D61's matrix, D72's allowlist and
+D73's two limbs are reused unchanged and not reopened. D117's accepted digest sets are untouched -- no
+definer body changes in this addendum. D124's element-set corroboration, D116's global aggregate and D98's
+quantifier are untouched. D132/D133's gate and the D137/D139/D142-D144 extractor are untouched. D145's
+correction of R57 stands and D150 adds to it without revising it. `screening_ledger_event` and
+`screening_ledger_snapshot` are not registered as protected objects. `prosrc` is not normalised anywhere.
+D88(a)/(b) remain shipped together and `anchorMAC`'s input is untouched. D77 and D80 remain shipped
+together. D79's hoist and D90's restore are untouched. D65's validity branch and D50's `index_defs` are
+untouched, so Addendum 6's and Addendum 7's fallbacks are **not** required. The withdrawn D74 reaper is not
+reintroduced. The instance binding is still not a gate. D46 is not split from D45. D69's rejection of
+`pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R70 -- D147 is exact for names that resolve to a field and stricter for names that do not, and its
+exactness rests on a Go standard-library property.** Two EqualFold-equal unknown names are refused where Go
+would ignore both; at both ends after D148 such a document is refused anyway, so the extra strictness never
+changes an outcome. The property D147 relies on -- that `encoding/json` v1 resolves keys by exact match then
+by the equivalence `bytes.EqualFold` implements -- is stated in Go's source and pinned by Go's own fuzz
+target, and is measured exact at this toolchain; D151 item 2 makes a change to it a red build rather than a
+silent redefinition. **The re-entry condition is any Go toolchain upgrade that changes `encoding/json`'s
+field resolution, any adoption of `encoding/json/v2` (whose folding differs), or any struct field whose tag
+EqualFold-collides with another.**
+
+**R71 -- a grant option on a declared holder is a latent re-grant capability the enumeration does not see
+until it is exercised.** Measured above for EXECUTE and, identically, for a table privilege under D61's
+shipped matrix. It is R27's point-in-time class: the transfer becomes a named failure on the first
+`verify` after it happens, not before. Folding `is_grantable` into the declared literals would close the
+latent window for D61 and D149 together and is a decision about both; **the register should carry it**,
+and the re-entry condition is the first change to either declared literal.
+
+**R72 -- D116's refusal text is an information oracle to any EXECUTE holder, and is left as is.** It
+discloses the mirror's global aggregate for a named snapshot. Before D149 that reached an undeclared
+grantee unobserved; after D149 an undeclared grantee is a named provisioning failure, and of the two declared
+holders `owl_migrator` owns the mirror relation the aggregate is computed from and `owl_ledger_ddl` owns the
+function that computes it. Redacting the message changes both definer bodies and moves every
+declared digest a sixth consecutive round for a disclosure with no remaining unobserved audience -- D135's
+reasoning, one message over. **The re-entry condition is any change that gives a role outside
+`requiredFunctionExecuteHolders` a legitimate reason to hold EXECUTE.**
+
+**R73 -- the coordinated-edit surface grows by one literal.** D149 adds `requiredFunctionExecuteHolders`
+beside `requiredTablePrivilegeHolders`, and a matching installer postcondition. D147 and D148 add no
+literal. The mitigating property R23, R29, R33, R42, R46, R50, R55, R59, R60 and R65-R67 already record is
+unchanged: every one of these assertions fails closed. The aggravating property section 10.3 names -- that
+these controls have no single owner -- is unchanged and not addressed here.
+
+### Staging
+
+Same shape and reason as section 8 and the eighteen prior addenda: each stage independently reviewable and
+independently provable. Ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage U1 -- the policy trust path.** D147 and D148 together (D151's "ship together" condition), plus
+   D151 items 1-6. **The HIGH, and first**: it is the only stage that restores a guarantee sitting outside
+   section 2's reach, and it touches no database object, no declared digest and no fixture. The positive
+   controls are a shipping requirement.
+3. **Stage U2 -- the definer EXECUTE quantifier.** D149 plus D151 item 7. Independent of U1; it edits
+   `checkProvisioningState` and the provisioning postconditions, which no other stage touches. D90's
+   non-disarm assertion on the new refusal path is part of the stage, not a follow-up.
+4. **R40's corrected recipe (D150)** is recorded in the register; no stage implements it, per its own
+   withdrawal condition.
+5. **`SECURITY.md` and `README.md` language.** R3's rule unchanged; `README.md:93-97`'s requalification
+   notice stays until the stages above land and their reproductions pass.
+
+Per CLAUDE.md Boundaries, any `.github/workflows/*.yml` wiring is named explicitly in the stage PR
+description, following D30's precedent. **No stage in this addendum needs a new DSN or a new fixture
+database**, so no workflow wiring is expected -- and a local `run-ci.sh` pass does not prove workflow
+wiring, which this document does not pretend otherwise.
+
+**SEC-7 does not close on this addendum, and this round is not the start of the new clean count.** Section
+8's closing condition remains met for the **chain**: CAP #19 confirms the cryptographic layer unbroken
+across all nineteen rounds and found no forgery on a correctly provisioned database. It is not met for the
+**signed policy's human-review guarantee**: a policy document can be authored so that its reviewer reads
+one anchor floor, tenancy and schema pin and the signature binds another, and a signed envelope can be
+edited after signing so that its reader and its verifier disagree. D147 and D148 are the whole of that
+barrier.
+
+### Addendum 19 summary
+
+- **CAP #19's verdict is QUALIFIED, not PASS** -- one HIGH (F1), one MEDIUM (F2), and a sharpened accepted
+  residual (R40/R44) -- breaking what would have been the second consecutive clean round after CAP #18's
+  PASS. The new clean count does not start here.
+- **This addendum introduces no new axis.** F1 is D38(a)'s referent asked one level down: the scan
+  compared member names by bytes, and the value that matters is the field `encoding/json` resolves them
+  to. F2 is Addendum 7's quantifier unapplied to one capability surface.
+- **The design is D147-D151.** The duplicate-key scan compares names by `bytes.EqualFold`, the exported
+  equivalence Go's own field resolver implements, at every object level and at both ends (D147); the loader
+  decodes as strictly as the signer, closing the non-fold homoglyph route D147 alone would leave (D148); the
+  definer functions' EXECUTE holder set is enumerated through D60/D61's own two-limb machinery against a
+  measured literal (D149); R40's closure recipe is corrected forward to name the expiry-aware guard
+  transition the sharpened path requires, R44 is measured to have no parallel, and R57 is confirmed a strict
+  subset of R40 (D150); and the proof obligations with withdrawal conditions (D151).
+- **This design pass executed its mechanism assumptions, and the execution widened the finding and chose
+  the equivalence.** F1 reproduces on **all eleven** policy fields and **all three** envelope fields at
+  both ends, not the three CAP #19 named -- including the `schema_version` pin. `bytes.EqualFold` agrees
+  with the real decoder on **all 1,112,064** Unicode scalar values and on **8,057** (key x field)
+  combinations of real-tag fold-orbit substitutions, the unquoting path is shared, and the no-collision precondition holds in all three
+  structs. The loader's non-strict decode lets a **fullwidth** homoglyph Go does not fold survive a
+  fold-only fix. The prototype refuses every construction, loads the committed fixture with an unchanged
+  `policy_sha256`, and leaves the full package green under `-race`. F2 reproduces end to end with a forged
+  operator attribution, every D59/D72/D73 route is certified clean by the shipped check and refused by the
+  prototype, and no predefined role carries EXECUTE.
+- **One finding is owed to the audit rather than to the CAP** (D148), and **one CAP premise is corrected
+  by measurement**: CAP #19's suggested F2 literal excludes the owner, and D61's own pattern, measured,
+  includes it.
+- **Four risks are recorded** rather than designed away: D147's exactness rests on a pinned Go property
+  (R70); a grant option on a declared holder is latent until used, for D61 and D149 alike (R71); D116's
+  refusal text remains an oracle to declared holders only (R72); and the coordinated-edit surface grows by
+  one literal (R73).
+- **This addendum revises no prior decision.** D1-D146 stand; R1-R69 stand. R40's *closure recipe* is
+  corrected in D150's own words rather than by an edit above this section, the AR7 convention; R40's
+  disposition, R44 and R57 are unchanged.
+
+**Audit basis commit:** `d94a041f3154af7076b9e0c8c5efeef360a307f3`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #19 was
+produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
