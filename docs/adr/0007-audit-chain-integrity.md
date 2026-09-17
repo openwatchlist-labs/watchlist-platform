@@ -19176,3 +19176,671 @@ barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #19 was
 produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+
+## Addendum 20: the file's bytes versus the decoded struct -- the review-evasion class reopened on the chain evidence files, and CAP #20's seven findings (2026-09-17)
+
+- **Status:** Proposed
+- **Trigger:** a twentieth Composition Audit Program record produced against the same tree as CAP #19's
+  remediation merged into (`docs/backlog/sec-7-cap-record-ef9f41a893bcad06e8ea8f6e1f9560b04a28d3d0.md`,
+  adversarial posture, audit basis commit `ef9f41a893bcad06e8ea8f6e1f9560b04a28d3d0`) returned
+  **QUALIFIED, not PASS**: one HIGH (G1), two MEDIUM (G2, G3), four LOW (G4-G7), and a recommendation to
+  promote R40. **SEC-7 is not closed**, and a QUALIFIED round with a HIGH does not start a new clean count.
+- **Why G1 is weighted with this arc's demonstrated forgeries.** Addendum 19's F1 (D147/D148) closed a
+  review-evasion class -- integrity computed over what Go *decodes*, not the raw bytes -- for the signed
+  verification policy. G1 is that exact class one layer deeper, on the ledger's **own evidence files**.
+  The chain MAC (`hashEvent`, `store.go:958`; `hashAudit`, `audit.go:202`) covers
+  `json.Marshal` of the decoded struct, not the file's bytes; every reader on the read path is a bare
+  `json.Unmarshal` (eleven sites, enumerated in D152). A party who can write the ledger directory, **with
+  no key of any kind**, can add JSON key spellings so that `jq`, Python and Postgres `jsonb` read a forged
+  value while `hashEvent` still recomputes the authentic one and `status` reports
+  `"anchor_status":"verified"`. It was demonstrated end to end on a real sanctions hit (`sdn-1001`,
+  `name_exact`, score 930): every exact-match JSON reader sees an empty candidate list. It is not a chain
+  forgery -- the anchor, the mirror and the definer purge all still read the authentic value -- but §3.2
+  makes the file store authoritative and `sec7-database-copies.md` tells operators to run `verify` to
+  learn whether history is trustworthy, and `verify` passes over files that read as a cleared screening to
+  everything except Go's own decoder. It is F1's class, on the artifact this system exists to protect.
+- **What CAP #20 confirmed, and this addendum does not disturb.** No forgery of any value the system
+  itself acts on, twentieth consecutive round: the verifier, the anchor, the mirror and the definer purge
+  each read the authentic value. CAP #19's F1 and F2 are closed at both ends -- D147's `EqualFold` scan and
+  D148's strict envelope decode refuse every fold/duplicate/unknown-key construction on the signed policy,
+  and D149's EXECUTE holder enumeration is exact. `anchorMAC`, D116's global corroboration, D124's element
+  set and D38(b)'s genesis pin held against everything tried. **Every prior addendum's principle stands** --
+  Addendum 3's scoping, 4's referent, 5's population, 6's atomicity, 7's quantifier, 8's naming, 9's
+  composition, 10's whole-round obligation, 11's cardinality, 12's reduction, 13's derivation, 14's element
+  set, 15's placement, 16's identity resolution, 17's uniform tokenization, 18's span and 19's JSON-layer
+  resolved identity -- and this addendum reopens none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D151, not AR7, not the D19
+  correction note, not R1-R73. Decision numbering continues at **D152**; risk numbering at **R74**. Where a
+  prior decision's or a CAP premise's *text* is narrower than what the system does, the new decision says so
+  in its own words -- the AR7 convention, and the construction D145/D150 used for R57/R40.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `ef9f41a893bcad06e8ea8f6e1f9560b04a28d3d0`. Measured as the first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  ef9f41a893bcad06e8ea8f6e1f9560b04a28d3d0
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-20-cap20-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+  The DSN-free reproductions, the two prototypes and the differential matrices ran under `go test` against
+  this repository's own toolchain (`go 1.26.6`, `go.mod:3`) from a **clean detached worktree of `ef9f41a`
+  in this session's scratchpad** (never the shared primary checkout, whose sibling worktrees pollute the CI
+  gates). The provisioning and CLI measurements ran on a disposable PostgreSQL **17.11** cluster,
+  `initdb -U owl_ci --auth=scram-sha-256 --pwfile`, `listen_addresses='127.0.0.1'`, port 55930,
+  `unix_socket_directories=''`, data directory inside the scratchpad.
+
+  ```
+  $ psql -Atc "select version(), inet_server_port()"
+  PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, ... 64-bit|55930
+  $ env | grep -c '^OWL_.*DATABASE_URL='
+  10
+  ```
+
+  **The developer's own server on port 5432 was never contacted.** At pass start and pass end the only
+  homebrew postgres was PID 95804, started `Wed Aug 26 10:01:08 2026`, unchanged, and it remained the only
+  listener on 5432. The cluster was provisioned in `.github/workflows/ci.yml`'s exact order (`create-roles`,
+  all 21 `db/migrations/*.sql` as `owl_migrator`, `grant-app-privileges`, `grant-ddl-ownership`, then each
+  of the five fixture databases with its own migration step). Baseline identical to CAP #14-#20's:
+
+  ```
+   sec7_protected_object 13 | sec7_protected_relation 2 | sec7_instance_binding 1
+   sec7_protect_ddl_objects_on_alter | ddl_command_end | A
+   sec7_protect_ddl_objects_on_drop  | sql_drop        | A
+   owl_reject_truncate              | e8db5083c6bf20d9
+   screening_ledger_purge_snapshots | p_ledger_id text ...     | d44b2cab4d905faf
+   screening_ledger_purge_snapshots | p_snapshot_sha256 text[] | 763f63090c9af4be
+   screening_ledger_reject_mutation | 5632734b5c67628b
+   screening_ledger_snapshot_guard  | f9cb95289a3fdead
+   sec7_protect_ddl_objects         | de174c42252877d2
+  ```
+
+  Every destructive probe ran on a `CREATE DATABASE ... TEMPLATE owl_ci` clone or a purpose-built database;
+  no named CI fixture was re-provisioned by a different command (the CAP #15 lesson). The Go probes lived in
+  temporary `_test.go` files inside `internal/screeningledger/`, calling the **real** `hashEvent` /
+  `Event` / `AuditEvent` / `SnapshotEnvelope` / `Head` / `checkNoDuplicateJSONKeys` / `Store.Append`
+  scaffolding (never reimplementations); all were **deleted before this addendum was written** and
+  `git status --porcelain` is back to its pass-start value. The four results that shaped the design, each
+  with its transcript in the section that relies on it:
+
+  1. **The canonical-bytes rule closes G1 by construction; D147/D148 applied to chain files does not.** A
+     single fold-spelled key with no canonical twin (`"CANDIDATE_SUMMARY"` alone, no `"candidate_summary"`)
+     passes D147's duplicate scan and strict decode, and the sanctions hit vanishes for every exact-match
+     reader. `bytes.Equal(raw, json.Marshal(decoded))` refuses it, along with 12 of 13 other non-clean
+     constructions measured (D153).
+  2. **The two committed fixtures and every legitimate `Append` output are byte-canonical, so the rule is
+     safe to install** -- 13 of 13 fixture files and 16 of 16 fuzzed-`Append` files round-trip
+     byte-identically to `json.Marshal` (D153, positive controls).
+  3. **G2's `export` authenticates nothing -- not the filename, not the MAC.** A MAC-broken event
+     (`http_status:403`) that `verify` rejects is still exported verbatim, so the CAP's "the fix is one
+     comparison in `GetEvent` and `Verify`'s walk" is narrower than the exposure: `export`/`replay` never
+     call `Verify` (D154).
+  4. **The R40 exposure G1 does not touch is the same relation's *unauthenticated metadata* (G4), which the
+     canonical-bytes rule makes reader-consistent but not decision-authenticated** -- so R40 is promoted to
+     "needs a design" and deferred to Addendum 21 rather than designed here (D160).
+
+### Drift found while writing this addendum
+
+Recorded rather than silently corrected, the convention section 3.4, section 6.1 and every prior addendum's
+own drift block set.
+
+1. **CAP #20's G2 "fix" is narrower than the exposure it measured, and correcting it moves the fix.** CAP
+   #20 states G2 "is one comparison, in `GetEvent` and in `Verify`'s walk". Measured at this commit:
+   `export` (`replay.go:75`) and `replay` (`replay.go:18`) call `GetEvent` (`store.go:770`) and never call
+   any verifier, and `GetEvent` checks neither `event.EventID == eventID` nor the MAC. A **MAC-broken**
+   event -- not merely a filename swap -- exports verbatim (transcript in D154). So binding the filename
+   alone leaves a forged-content export open; the fix must route `export`/`replay` through verification.
+   The finding is undiminished; its remedy is larger than the record's one clause.
+2. **CAP #20 G4's own note that the metadata "does not drive any decision" is exact and is the reason R40,
+   not this round, owns it.** `PurgeExpired` (`replay.go`) and the definer's eligibility read
+   `screening_ledger_event.expires_at`, never the envelope's `retention_class`/`expires_at`/`created_at`,
+   re-confirmed here. The canonical-bytes rule makes the envelope reader-consistent; making its metadata a
+   *decision-authenticated* referent is R40's `screening_ledger_snapshot` bootstrap-contract change (D160).
+
+### Addendum 20 context: a name is an address, and a machine-written file is bound by its bytes
+
+Addendum 4 asked *which property* a control compares (`0007:2853-2857`); Addendum 8 said **a name is an
+address and never evidence** (`0007:6732-6738`); Addendum 19's D147 applied that to JSON key resolution on
+the signed policy -- two spellings the byte scan sees as distinct are one field to `encoding/json`, and the
+decoder's answer is the one that gets signed and acted on.
+
+**This addendum introduces no new axis.** G1 is D147's referent one layer down, on the evidence files, and
+its fix is decided by a distinction D147 could not use: **a machine-written file has exactly one writer.**
+The signed policy is authored by hand and by tooling, so it has no canonical byte form and must be bound by
+*resolved identity* (D147). Every chain file is written by exactly one deterministic path -- `marshalAndWrite`
+(`store.go:1013`), `writeSnapshot` (`store.go:834`) and `PurgeExpired`'s envelope rewrite -- each a
+`json.Marshal` of the record. So a chain file can be bound by its *bytes*: accept it only if its bytes are
+exactly the canonical serialization of the struct they decode to. The sentence this addendum adds:
+
+> **Where an artifact is written by exactly one deterministic serializer, bind it by its bytes: a file is
+> authentic only if it is byte-identical to the canonical serialization of the value the integrity
+> mechanism authenticates. Where an artifact has no canonical writer (a human-authored document), bind it
+> by resolved identity instead. The two are the same referent principle -- compare what the reader reads,
+> not a spelling of it -- and the choice between byte-equality and identity-resolution is decided by whether
+> a single canonical form exists.**
+
+That asymmetry is why D147 stays on the policy path unchanged and the chain files get a different, stronger
+rule: byte-equality composes with the MAC to give, by construction, *a file verifies if and only if every
+RFC 8259 reader reads exactly the MAC-authenticated values*.
+
+### G1, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #20's transcript; every run was rebuilt at this commit through the real
+functions and the real CLI. The event file is the committed fixture's sequence-1 event, whose
+`candidate_summary` carries the `sdn-1001` hit
+(`test/fixtures/screening-ledger/state/events/9c15117914fe...2236.json`).
+
+**Controls first.** A copy of the committed fixture verifies, and a direct value edit is caught by the MAC:
+
+```
+CLEAN verify (historical-unanchored) rc=0
+== CONTROL direct edit http_status 200 -> 403 ==   verify rc=1  ledger event checksum mismatch at sequence 1
+```
+
+**The defeat, historical-unanchored mode** (a copy of the committed fixture ledger, verified under a test
+policy signed with the committed example key and `allow_unanchored=true`). For each construction, the
+shipped `verify` return code and what `jq`, Python's `json` and Postgres `jsonb ->` read from the same file:
+
+```
+                          verify   jq/python http_status   jq/python candidate_summary.candidates
+T1 exact-dup (403 first)  rc=0     200 (last-wins)         [sdn-1001,...]      (ambiguous file, verify passes)
+T2 U+017F  http_status    rc=0     403 (forged)            [sdn-1001,...]      Go folds to authentic 200
+T3 UPPER   HTTP_STATUS    rc=0     403 (forged)            [sdn-1001,...]      Go folds to authentic 200
+T4 candidate_summary=[] , CANDIDATE_SUMMARY=hit  rc=0      candidates=[]       Go folds to the authentic hit
+T5 single fold CANDIDATE_SUMMARY only (no twin)   rc=0     candidate_summary = null / absent
+T6 unknown key injected    rc=0    (ignored by Go, present to readers)
+```
+
+Postgres's own `jsonb` reader agrees with `jq` and Python on every one, measured through a server-side cast:
+
+```
+T2 pg jsonb ->'http_status' = 403     ->candidate_summary->candidates = [{"score":930,"candidate_id":"sdn-1001",...}]
+T3 pg jsonb ->'http_status' = 403     ->candidate_summary->candidates = [ ... sdn-1001 ... ]
+T4 pg jsonb ->'http_status' = 200     ->candidate_summary->candidates = []
+T5 pg jsonb ->'http_status' = 200     ->candidate_summary->candidates = (null)
+```
+
+**T4 and T5 are the headline: `verify` returns success, and the `sdn-1001` sanctions hit reads as an empty
+candidate list (T4) or a wholly absent field (T5) to jq, Python and Postgres alike.** T5 is the case D147
+cannot reach: a single fold spelling with no canonical twin is not a duplicate and resolves to a known
+field, so it is neither a repeated key nor an unknown one.
+
+**The defeat, anchored mode.** On a freshly provisioned, never-anchored mirror, a genesis anchor was written
+first (`policy_sha256:8b7a67c0...`, matching CAP #20; `anchor rc=0`; `status` returns
+`anchor_status:verified`), then the event file's `candidate_summary` was rewritten T4-style:
+
+```
+##### three readers on the edited, anchored ledger #####
+jq  candidate_summary -> {"blockers":[],"candidates":[]}
+py  candidate_summary -> {'blockers': [], 'candidates': []}
+pg  jsonb->candidate_summary -> {"blockers": [], "candidates": []}
+##### status in anchored mode on the edited ledger #####
+{'anchor_status': 'verified', 'anchor_sequence': 2, 'status': 'ok'}   rc=0
+```
+
+No key of any kind. Every exact-match reader sees the cleared screening; `status` reports verified. Every
+Go consumer still reads the authentic hit -- which is why this is HIGH and not CRITICAL: `hashEvent`
+re-marshals to the authentic struct (the MAC matches), and `Persist` mirrors `json.Marshal(event)`
+(`postgres.go:1577`), so the anchor, the mirror and the definer purge are unaffected.
+
+**Every chain file type shares the class, not only the event file.** On the anchored ledger, a fold spelling
+in each of the other file types, with the shipped `status` verdict beside what a reader sees:
+
+```
+audit  "OPERATOR" authentic / "operator" forged   jq .operator -> forged-operator      status: verified ok
+snap   "RETENTION_CLASS" authentic / forged        jq .retention_class -> legal-hold-... status: verified ok  (this is G4)
+head   "SEQUENCE":999 injected beside "sequence":2 jq .SEQUENCE -> 999                  status: verified ok
+```
+
+### D152. The chain-file read/write sweep, discharged before any fix is designed
+
+**Decision: enumerate every chain-file read site, its writer, whether the MAC covers what it reads, and its
+measured G1 exposure, before the fix, and record "checked, and it does not apply" for the non-chain files.**
+Every reader below is a bare `json.Unmarshal` and every writer a `json.Marshal`, so each file has exactly
+one deterministic serialization -- the precondition D153's byte-equality rests on.
+
+| # | File | Readers (file:line) | Writer | MAC covers | G1 exposure (measured) |
+|---|---|---|---|---|---|
+| 1 | `events/<id>.json` | `store.go:384,546,734,760,776,799`; `store.go:322` | `marshalAndWrite` `:1013` (`json.Marshal(Event)`) | `hashEvent` `:958` over `json.Marshal` of the decoded struct | **T1-T6, all readers** |
+| 2 | `audit/<seq>-<sha>.json` | `audit.go:90,168`; `store.go:760` (via `readAuditEntries`) | `marshalAndWrite` (`json.Marshal(AuditEvent)`) | `hashAudit` `:202` | **operator fold, status verified** |
+| 3 | `snapshots/<sha>.json` | `store.go:813,839` (`LoadSnapshot`) | `writeSnapshot` `:834`; `PurgeExpired` | AAD is `kind + ":" + snapSHA` only; envelope metadata is under **no** MAC | **retention_class fold = G4** |
+| 4 | `head.json` | `store.go:910` | `marshalAndWrite` | compared field-wise (`sequence`,`event_sha256`), not MAC'd | **SEQUENCE fold, status verified** |
+| 5 | `audit-head.json` | `audit.go:185` | `marshalAndWrite` | compared field-wise | same class; also copied raw into `export` (`replay.go:110`) |
+| 6 | `pending.json` | `store.go:384` | `marshalAndWrite` | recovery replay only | same class (recovery path) |
+| 7 | `replication/<id>.json` | `store.go:IsReplicated` (existence) | `MarkReplicated` (`map[string]string`) | none | **checked, does not apply** -- read by existence, not content |
+| 8 | `holds/<id>`, `purged/` | `os.Stat` | -- | none | **checked, does not apply** -- existence markers |
+| 9 | `ledger-id` | `ensureLedgerID` `:924` (`TrimSpace`) | plain text | EA3 compares it to the policy | **checked, does not apply** -- not JSON |
+
+**One sibling recorded, not fixed:** `external_audit.go:66` (`json.Unmarshal` into `phase8fAuditEvent`) is the
+identical class on the `activationpromotion` sibling chain, which §7.2 triages as "rides on
+`activationpromotion`". It is named here, not scored, exactly as §7.2 requires (R79).
+
+### D153. G1 (HIGH): the canonical-bytes rule, one shared reader, byte-equality composed with the MAC
+
+**Decision: every chain-file read (D152 rows 1-6) goes through one shared reader that accepts a file only if
+`bytes.Equal(raw, json.Marshal(decoded))`, and fails otherwise with a named error. The MAC check is
+unchanged and runs after. Byte-equality is not a spelling list; it is the single equality that, composed
+with the existing MAC, makes every RFC 8259 reader read exactly the authenticated values.**
+
+The composition, stated as the property it buys:
+
+- **MAC** (`hashEvent`/`hashAudit`, unchanged): the decoded struct is the authentic one.
+- **Canonical-bytes** (new): the file's bytes are exactly `json.Marshal` of that struct.
+- **Together:** a verified file's bytes are the canonical serialization of the authentic value, and Go's
+  canonical output has no duplicate keys, no fold spellings, no unknown members, no reordering and valid
+  UTF-8 -- so `jq`, Python, Postgres `jsonb` and `grep` all read what the MAC authenticated. This covers, by
+  construction rather than by enumeration, every divergence kind D147 would have to list: duplicates, case
+  and U+017F/U+212A folds, single fold spellings with no twin, unknown keys, member reordering, whitespace,
+  `\u` escape respellings, invalid-UTF-8 replacement, trailing content, BOMs and nested-RawMessage
+  whitespace.
+
+**Why this and not D147/D148 applied to chain files -- measured, not argued.** Two prototypes were built and
+run through real `Event` decoding: prototype A = D147's `EqualFold` duplicate scan plus
+`DisallowUnknownFields`; prototype B = the canonical-bytes rule. Fed byte-exact constructions authored by
+Python (so nothing depends on Go-source escaping):
+
+```
+transform         protoA(D147)  protoB(canonical)  shipped-Go decode vs an exact-match reader
+clean             ACCEPT        ACCEPT             agree
+exact_dup         refuse        refuse             agree (both take last)
+upper_fold        refuse        refuse             SILENT DIVERGENCE (Go=200, reader=403)
+longs_fold(U+017F)refuse        refuse             SILENT DIVERGENCE (Go=200, reader=403)
+single_fold       ACCEPT        refuse             SILENT DIVERGENCE (Go=200, reader: field ABSENT)
+single_fold_cs    ACCEPT        refuse             candidate_summary vanishes to readers
+unknown_key       refuse        refuse             agree
+reordered         ACCEPT        refuse             agree (legitimate content, non-canonical bytes)
+pretty-whitespace ACCEPT        refuse             agree
+u_escaped_key     ACCEPT        refuse             agree (escape resolves; bytes non-canonical)
+leading_ws / bom / trailing_doc / number_respell   refuse/refuse
+A20 matrix: 3 silent divergences under shipped Go on http_status alone; protoB refused 13/13 non-clean rows;
+protoA left 6 non-clean rows accepted, including single_fold and single_fold_cs -- the G1 divergences.
+```
+
+**`single_fold` is the decisive counterexample.** It passes D147 (no duplicate, no unknown field) and is
+exactly D148's own accepted "single differently-spelled key with no canonical twin" case (`0007:18703-18713`)
+-- correct for a human-reviewed policy, and the whole of G1 for a machine-read evidence file, because the
+sanctions field then reads as *absent* to every exact-match reader. Byte-equality refuses it by construction.
+
+**Positive controls -- the rule is safe to install, measured against the tree and against `Append`.** Both
+are pre-declared stop conditions; both hold:
+
+```
+A20 fixture byte-equality: 13 files checked, 0 non-canonical
+   (state/ and frozen-v1-synthetic/state/: every event, audit, snapshot and head file)
+A20 Append round-trip: 16 files, 0 non-canonical
+   (real Store.Append over 4 adversarial bodies: unicode, <>&, big ints, floats, nested objects,
+    duplicate keys in the response, tabs/newlines -- every written event/snapshot/head/pending file
+    is byte-identical to json.Marshal of the struct it decodes to)
+```
+
+`ctl_direct` is worth naming: a plain value edit is byte-canonical (it *is* `json.Marshal` of its forged
+struct), so protoB accepts it at the byte layer and the **MAC** rejects it. The two layers are orthogonal and
+compose; byte-equality is not asked to catch value edits.
+
+**Diagnostics are read only on the already-failing path** (D46's arrangement, so a diagnostic can never widen
+what passes): on a byte mismatch the shared reader reports the first divergent offset and, when the divergence
+is a repeated or fold-spelled key, runs D147's own `checkNoDuplicateJSONKeys` scan (reused, not
+reimplemented) to name it -- so an operator sees "duplicate/fold key `candidate_summary`" rather than a bare
+offset.
+
+**Rejected alternatives, recorded so a later reader does not re-derive them.**
+
+- **D147/D148 applied to chain files.** Refuted above by the `single_fold` row: it is enumerative over
+  divergence kinds and accepts the single fold spelling that hides the hit.
+- **Moving the MAC onto the raw file bytes (a `v3` chain format).** Equivalent to byte-equality *once
+  equality is asserted*, and strictly more expensive: it still needs a parse to blank the self-digest field
+  before hashing, and it forces fixture regeneration, anchor re-MACs and a `PACKAGE`/schema bump for no added
+  guarantee. Byte-equality reuses the existing `json.Marshal` writer and the existing MAC and regenerates
+  nothing -- proven by the 13/13 fixture positive control.
+- **`encoding/json/v2`.** Rejected for D147 already (`0007:18623-18626`); the same `GOEXPERIMENT` reasoning
+  applies and it would not make v1's `Unmarshal` reject a non-canonical file anyway.
+
+### D154. G2 (MEDIUM): the filename is bound to its content, and export/replay read only verified evidence
+
+**The finding, reproduced.** `Verify` walks events by the `sequence` *inside* each file and never compares the
+filename with `event_id`; `GetEvent` (`store.go:770`) reads `events/<id>.json` and returns whatever it holds
+with no `event.EventID == eventID` check. Swapping the two committed fixture events' filenames:
+
+```
+verify (historical-unanchored) after the swap: status=unavailable event_count=2  rc=0   (verify PASSES)
+export --event-id 9c15117914fe...2236  ->  manifest event_id = 9c1511...    (the sdn-1001 request)
+                                            event.json in bundle: event_id 898f6e8c..., route "_sec7_genesis", http_status 0
+```
+
+A request for the evidence behind the `sdn-1001` screening returns a bundle labelled for it that holds a
+genesis marker. **And the exposure is wider than a swap: `export` authenticates nothing.** A direct value edit
+that `verify` rejects still exports:
+
+```
+edit http_status 200 -> 403 (breaks the MAC):  verify rc=1  ledger event checksum mismatch at sequence 1
+export --event-id <that event>:                rc=0, bundled event.json http_status = 403
+```
+
+`export` (`replay.go:75`) and `replay` (`replay.go:18`) call `GetEvent` -> `DecryptSnapshot` and never call
+`Verify`, `VerifyDetail` or `VerifyAnchored`. **So G2's remedy is two parts, and the CAP's "one comparison"
+is the first only.**
+
+**Decision, two parts, and D153 and D154 ship together (D161).**
+
+**(a) Identity is bound at every locate-by-name read site.** `GetEvent` asserts `event.EventID == eventID`;
+`Verify`'s event walk asserts the filename stem equals each entry's `event_id`; `auditEntryAtSequence`
+(`store.go:746`) and the audit filename's `<seq>-<sha>` prefix are asserted against the entry; and
+`LoadSnapshot`/`verifySnapshotChecked` already compare the requested sha to `env.SnapshotSHA256`
+(`store.go:817`, `:877`) -- kept, and the AAD binding (`crypto.go`, `aad = kind + ":" + snapSHA`) is noted as
+the existing content-to-sha binding for the envelope. A mismatch is a named refusal, never a silent return.
+
+**(b) `export` and `replay` read only verified evidence.** Both gain a required signed `--policy-file` /
+`--policy-public-key-file` (the same pair `status`/`verify` take) and run `VerifyAnchored` (or, filesystem-only,
+`VerifyPolicy` under the signed policy) over the event before decrypting its snapshots -- so a MAC-broken or
+identity-mismatched event is refused before it can be bundled. This is a **named CLI contract change**
+(`export`/`replay` gain required flags), stated as one per CLAUDE.md Boundaries. If a deployment needs an
+unverified diagnostic export, it is an explicit, separately-named mode, not the default.
+
+### D155. G3 (MEDIUM): the D87 repair procedure is corrected, per-overload, and made drift-proof
+
+**The three defects, reproduced literally on a `TEMPLATE` clone of the provisioned baseline.**
+
+1. **The confirmation `status` (`sec7-database-copies.md:258-259`) is not runnable as written.** Run with the
+   flags the document shows (`--postgres-dsn-env`, `--policy-file`, `--policy-public-key-file`, `--ledger-dir`,
+   `--ledger-id`) it fails `snapshot encryption key is required` -- it omits `--key-file` and
+   `--anchor-key-file`, the exact set D84 already spells out at `:90-93`.
+2. **The literal `-f db/migrations/022...` (`:236`) installs a superseded body.** Applied as the bootstrap
+   superuser inside the disable window, then `grant-ddl-ownership`:
+
+   ```
+   022 applied
+   FAIL: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)'s body (prosrc) digest is
+         '8771275cef309f91...', which is not in its declared accepted set {d44b2cab..., 156cfb60...}
+   on_alter after the refusal: D            <- the refusal leaves DDL enforcement DISABLED
+   ```
+
+3. **The document's own correction "apply the last one" (`:239-243`) does not repair it**, because the two
+   overloads' current bodies live in different files: the array overload's is in `024`, the time-floor
+   overload's in `023`.
+
+   ```
+   apply 024 (the "last one"), then grant-ddl-ownership:
+   FAIL: screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)'s body (prosrc) digest is
+         '8771275cef309f91...'   <- the time-floor overload is still superseded
+   ```
+
+**The corrected procedure, run end to end:** apply **`023` then `024`** (the latest defining file for each
+overload), inside the disable window, then `grant-ddl-ownership`:
+
+```
+023 applied ; 024 applied ; grant-ddl-ownership -> 3 PASS lines
+pg_event_trigger: sec7_protect_ddl_objects_on_alter | A   sec7_protect_ddl_objects_on_drop | A
+```
+
+**Decision:** `sec7-database-copies.md`'s D87 procedure gains (i) the full D84 flag set on its confirmation
+`status`; (ii) a **per-overload** rule -- "apply the latest defining file for *each* overload
+(`db/migrations/0*_screening_ledger_purge_*.sql`), not a single last file" -- because the overloads' current
+bodies are split across files; and (iii) the explicit note that a refusal in the disable window leaves
+`on_alter` disabled and the recovery is to complete the per-overload apply and re-run `grant-ddl-ownership`
+(which restores both triggers to `A`). Every command written into the document is executed before it is
+written and its output pasted in the stage PR (D84's standard). A **DSN-free doc-drift test** derives the
+current per-overload defining files from `db/migrations/*.sql` (D99's own directory-scan population) and
+asserts the document's named files match -- so the next body move (which will occur, per the document's own
+"pointer, not a fixed reference" note) fails the gate rather than leaving the document pointing at `022`.
+
+### D156. G4 (LOW): the snapshot envelope's metadata is reader-consistent under D153, and decision-binding is R40's
+
+**The finding, reproduced (in the sweep above):** `retention_class` (and `created_at`/`expires_at`) in the
+snapshot envelope is under no MAC -- the AAD is `kind + ":" + snapSHA` only (`crypto.go`) -- so a fold edit
+makes `jq .retention_class` read `legal-hold-indefinite` while `status` reports verified, and `insertSnapshot`
+(`postgres.go:2040`) mirrors the forged value into the typed column.
+
+**Decision:** D153 closes the *reader-divergence* half by construction -- a folded or duplicated envelope key
+is refused by the canonical-bytes reader on `SnapshotEnvelope` exactly as on `Event` (the fixture
+byte-equality control covers all four struct types). What D153 does not do is make the envelope metadata a
+*decision-authenticated* referent: it is still an unMAC'd value the mirror-writer can set at insert. G4 is
+**not decision-bearing** -- `PurgeExpired` and the definer's eligibility read
+`screening_ledger_event.expires_at`, never the envelope (drift note 2) -- so no guarantee this document makes
+is false because of it. Binding the envelope metadata to an authenticated source is the same
+`screening_ledger_snapshot` bootstrap-contract change R40 already scopes, and is **carried into R40's design
+(D160)**, not designed here.
+
+### D157. G5 (LOW): `K_anchor` disjointness from `R` is asserted at load
+
+**The finding, reproduced on a freshly provisioned, never-anchored mirror:**
+
+```
+anchor --anchor-key-file <the snapshot/root key file R> --allow-genesis true
+{"audit_sequence":1,"operation":"anchor","policy_sha256":"8b7a67c0...","sequence":2,"status":"ok"}  rc=0
+(the same 32 bytes were loaded as both R and K_anchor; nothing compared them)
+```
+
+§5.3 point 1 makes `K_anchor` not-derived-from-`R` load-bearing ("otherwise the anchor proves nothing beyond
+the chain MAC"), and it is asserted only by a unit test on `deriveChainKeys`'s output, never against the loaded
+bytes. **Decision:** the anchor path asserts, with a constant-time comparison at key-load, that the loaded
+`K_anchor` bytes are not equal to `R` and not equal to any of the three derived subkeys (`K_snap`, `K_redact`,
+`K_chain`), refusing with a named error otherwise. This is operator-misconfiguration protection, not an §2
+adversary path (LOW), and a byte comparison is all it needs.
+
+### D158. G6 (LOW): repeated flags and file+env collisions are refused, on both CLIs
+
+**The finding, reproduced.** `parseOptions` (`main.go:447`) stores `out[flag]=value`, so a repeated flag keeps
+the last value, and `readKeyMaterial` (`crypto.go:79`) silently prefers a file over an env var:
+
+```
+verify ... --policy-public-key-file <real> --policy-public-key-file <wrong>  -> "public key must be 32 bytes"  (last wins)
+verify ... --key-file <real R> --key-env <WRONG>                             -> rc=0                            (file silently wins)
+```
+
+A reviewer reading the first `--policy-public-key-file` in a long runbook line does not see the trust root in
+use. **Decision:** `parseOptions` refuses a repeated flag by name rather than last-wins, and `readKeyMaterial`
+refuses when both a file and an env var are supplied for the same key rather than silently preferring one. The
+sibling `screening-ledger-policy` CLI (stdlib `flag`, also last-wins) gets the same refusal on its own flags.
+R58's separate finding -- the CLI silently *accepting unknown* flags -- is a larger, separately-scoped contract
+change and is **not** reopened here (it is named in R58 already).
+
+### D159. G7 (LOW): the DR step-5 assertion ranges over the named triggers, not any trigger
+
+**The finding, reproduced on a clone.** `verify_cross_cluster_dr.sh:224` asserts
+`count(*) FROM pg_event_trigger WHERE evtenabled='A' == 2`, which counts *any* enabled event trigger. A decoy
+plus a disabled real trigger satisfies it:
+
+```
+sec7_protect_ddl_objects_on_alter | D    sec7_protect_ddl_objects_on_drop | A    zz_decoy | A
+step-5 query count(evtenabled='A') = 2    <- passes the script's "== 2" while on_alter is DISABLED
+```
+
+The script's *final* D74 assertion (`screening-ledger migrate`) does catch this state -- it names the disabled
+trigger -- so the script's overall PASS remains correct:
+
+```
+{"operation":"migrate","provisioned":false,"provisioning_reason":"DDL event trigger
+ sec7_protect_ddl_objects_on_alter exists but is not ENABLE ALWAYS (evtenabled=\"D\") (ADR-0007 Addendum 3 D33)",...}
+```
+
+**Decision:** step 5's query is scoped to the two named triggers
+(`evtname IN ('sec7_protect_ddl_objects_on_alter','sec7_protect_ddl_objects_on_drop') AND evtenabled='A'`, count
+== 2), so a decoy cannot satisfy it. The reason it is fixed despite the D74 backstop is D76 (one control's gap
+must not be carried by another control's independent refusal) and D63 (a message -- here "enforcement is
+genuinely live" -- must not assert what it never checked). Per CLAUDE.md Boundaries a change to a CI/gate
+script is its own reviewed PR; D159 ships as that gate PR (staging V5), not folded into a feature stage.
+
+### D160. R40 is promoted to "needs a design", and the design is deferred to Addendum 21
+
+CAP #20 recommends promoting R40 from "recorded risk" to "needs a design", as the superset R57 and G4 sit
+inside. **Decision: the promotion is recorded here as a numbered decision; the design is deferred to a future
+addendum (Addendum 21), and the reasons are stated rather than assented to.**
+
+- **What R40 must cover, named so Addendum 21 inherits it rather than re-deriving it:** D150's corrected
+  closure recipe -- (a) an expiry-aware guard transition (or the strip reachable only through the
+  `SECURITY DEFINER` purge path) **and** (b) D78's assert-and-fail treatment plus conditional trigger
+  creation in `SchemaSQL`; G4's envelope metadata (D156) becoming a decision-authenticated referent; the R44
+  parallel on `screening_ledger_event` (measured to have no allowed-UPDATE transition, so R44's own recipe
+  suffices there and is not corrected); and R57 sequenced after R40, being a strict subset (D150).
+- **Why not designed in this round.** It requires the `SchemaSQL` bootstrap-contract change D89 ground-one and
+  D100 both measured breaks `Migrate()` on every provisioned database unless done with D78's treatment on both
+  bootstrap paths -- a change with its own positives to prove, which D95's and D103's own withdrawal
+  conditions forbid folding into a round that is repairing a referent (here, the chain-file byte binding). It
+  is also not decision-bearing (D150 / §3.2: the file chain is authoritative and the mirror mirrors it), so it
+  changes no guarantee this addendum's G1 fix makes. And G1 alone -- the review-evasion class on the
+  authoritative evidence itself -- is substantial scope for one round. The register carries R40 as "needs a
+  design, Addendum 21", with D150's corrected recipe and the D156/R44/R57 scope above.
+
+### D161. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge this
+addendum -- the standard D20, D26, D37, D42, D49, D58, D67, D75, D85, D95, D103, D112, D122, D131, D136, D138,
+D140, D146 and D151 set. **Every test below must fail before its change, per CLAUDE.md rule 5** -- confirmed
+for D153/D154/D155 during this design pass by running each construction against the shipped code (the
+transcripts above). Where a transcript exists above, the test reproduces it, not a paraphrase.
+
+1. **D153, the CRITICAL-adjacent HIGH.** Table-driven over T1-T6 plus the byte-exact matrix rows
+   (exact-dup, upper/U+017F/U+212A fold, single-fold with no twin, unknown key, reorder, whitespace, `\u`
+   escape, BOM, leading whitespace, trailing document, number respell), for **each** chain struct
+   (`Event`, `AuditEvent`, `SnapshotEnvelope`, `Head`): assert the shipped reader accepts and the sanctions
+   value diverges to an exact-match reader **today**, and the canonical-bytes reader refuses after, with the
+   first divergent offset and (for a key divergence) the named key. **Plus the single-fold row asserted
+   ACCEPT under a D147-only prototype and REFUSE under canonical-bytes** -- the measurement that decides the
+   direction. **Plus the two positive controls, a shipping requirement:** every committed fixture file and
+   every real-`Append` output over the adversarial-body fuzz set is byte-canonical.
+2. **D154.** The filename swap (verify passes, export mislabels) and the MAC-broken export, each asserted to
+   succeed today and be refused after; plus a clean export/replay positive under a signed policy.
+3. **D155.** The three defects reproduced (missing-flag `status`, `022` installs superseded body and leaves
+   `on_alter=D`, "last one" 024 still fails the time-floor overload) and the corrected 023-then-024 procedure
+   asserted to produce 3 PASS lines and both triggers `A`; plus the DSN-free doc-drift test.
+4. **D156.** A folded snapshot envelope is refused by the canonical-bytes reader; the metadata-authentication
+   half is R40's, asserted as deferred.
+5. **D157/D158/D159.** `K_anchor==R` and `K_anchor==`any derived subkey refused at load; a repeated flag and a
+   file+env collision refused on both CLIs; the DR step-5 named-trigger query rejects a decoy + disabled
+   `on_alter`.
+6. **The policy path and the whole prior body are unregressed.** D147/D148/D38's existing tests pass
+   unchanged, and D151 item 3's EqualFold-collision precondition test is untouched -- confirmed in this pass
+   (the policy/duplicate/D38 suite ran green, `ok ... 1.261s`), and the full package
+   `go test -race -count=1 ./internal/screeningledger/` is green at this commit with all five CI fixture
+   databases provisioned (`ok ... 154.353s`, 0 `--- FAIL` lines). This addendum changes no code, so it does
+   not disturb CAP #20 Item 4's own `run-ci.sh`/`-race`/cargo/legacy-gate green at `ef9f41a`.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D153 must not be discharged by extending D147/D148 to chain files.** Refuted by the single-fold row; the
+  referent for a machine-written file is its bytes, not resolved identity.
+- **The byte-equality comparison must carry no tolerance, normalization, trimming or whitespace-folding.** It
+  is `bytes.Equal(raw, json.Marshal(decoded))` exactly. A tolerance is a new equivalence relation over a
+  security comparison, which D85's, D103's, D112's, D122's and D131's conditions forbid -- the tenth round to
+  restate it.
+- **No committed fixture is regenerated.** The 13/13 byte-equality control is a stop condition: if any fixture
+  is not byte-canonical, the implementation stops and this addendum is amended (D114(a)'s precedent). Both
+  fixtures were measured canonical, so this is expected to remain un-triggered.
+- **D153 and D154 ship together.** D153 alone leaves the filename an unauthenticated referent and `export`
+  authenticating nothing; D154 alone leaves the byte-forgery on every non-export read path.
+- **The policy loader (`LoadSignedVerificationPolicy`, D147/D148) is untouched.** The chain-file rule is a
+  different referent (bytes, one canonical writer) from the policy rule (resolved identity, no canonical
+  writer), and conflating them would reopen the single-fold gap on the policy or over-tighten the chain files.
+- **`export`/`replay`'s new required flags are a named contract change**, not a silent one; the stage PR names
+  the flag set and the operator document is updated in the same stage.
+
+### New accepted risks
+
+**R74 -- the canonical-bytes rule false-refuses a hand-edited or pretty-printed ledger file, and that is the
+safe direction.** An operator who reformats a chain file, or a tool that re-serializes it non-canonically
+(different key order, added whitespace), produces a file the reader refuses even though its decoded value is
+unchanged. This is D45's shape: a false refusal on a legitimately-reformatted file is loud and recoverable
+(re-write it through the canonical serializer), where G1's false acceptance is silent and permanent. The
+re-entry condition is any legitimate workflow that rewrites a chain file outside `Store`'s own writer -- of
+which there is none today (every writer is `marshalAndWrite`/`writeSnapshot`).
+
+**R75 -- the guarantee rests on `encoding/json` v1's marshal being deterministic and canonical, a Go
+standard-library property.** `json.Marshal` emits struct fields in declaration order, escapes `<`, `>`, `&`
+and control characters, and does not fold or reorder -- the property byte-equality relies on. It is measured
+exact at this toolchain (13/13 fixtures, 16/16 `Append` outputs round-trip), and D161's fixture and round-trip
+tests make a change to it a red build rather than a silent redefinition -- R70's shape for D147, one referent
+over. The re-entry condition is any Go toolchain upgrade that changes `encoding/json` v1 marshal output, or
+adoption of `encoding/json/v2`.
+
+**R76 -- the guarantee is verify-conditional.** The canonical-bytes rule protects a reader who runs
+`verify`/`status`/`export` through this package; it does not protect a reader (`jq`, an external auditor's
+script) who reads a chain file directly without verifying it first. That is the same limit §8 and R76's
+predecessors state for the whole verification mechanism: a control nobody runs protects nothing. What D153
+adds is that once `verify` is run, its PASS is now evidence about what every direct reader will read -- which
+is exactly the property G1 showed was false. The gate PR making verification non-skippable (§8/D18) is where
+this stops being conditional; that is unchanged and still open.
+
+**R77 -- a TOCTOU window between the verify walk and later readers.** `verify` reads each file once; a
+subsequent `ListEvents`/`readAuditEntries`/`GetEvent` re-reads it, and a directory-writer could edit between
+the two. The canonical-bytes rule applies at *every* read (D152 routes all readers through the shared reader),
+so a between-reads edit is refused by the later read too -- the window is closed for the byte-forgery class
+specifically, and the residual is the general TOCTOU that any filesystem control has, which no in-process
+mechanism closes.
+
+**R78 -- the coordinated-edit surface: `export`/`replay` gain required policy flags.** D154 adds a CLI
+contract change (two required flags on two subcommands) and the operator document must move with it. Every
+assertion added fails closed. §10.3's no-single-owner property is unchanged and not addressed here.
+
+**R79 -- `external_audit.go`'s bare `json.Unmarshal` is the same class on the sibling chain and is not fixed
+here.** `external_audit.go:66` decodes a `phase8fAuditEvent` with a bare `json.Unmarshal` and its unkeyed
+`sha256` over the re-marshalled struct is §7.2's "rides on `activationpromotion`" triage. It is named, not
+scored: fixing it is that sibling's own adoption PR, and folding it into this round would be exactly the
+scope-widening D95/D103 forbid.
+
+### Staging
+
+Same shape and reason as section 8 and the nineteen prior addenda: each stage independently reviewable and
+independently provable. Ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage V1 -- the canonical-bytes reader and identity binding.** D153 and D154(a) together (D161's "ship
+   together" condition), plus D157/D158's key-load and flag refusals. The HIGH; the whole of the byte-forgery
+   class. The two positive controls are a shipping requirement. No new DSN and no new fixture database.
+3. **Stage V2 -- export/replay read only verified evidence.** D154(b), the CLI contract change, with the
+   operator document updated in the same stage.
+4. **Stage V3 -- the operator document and the drift test.** D155 and D156's documentation half. Blocks
+   nothing and is therefore sequenced here and explicitly **not** droppable -- the D93(b) lesson.
+5. **Stage V4 -- the DR gate.** D159, as its own reviewed gate PR per CLAUDE.md Boundaries.
+6. **`SECURITY.md` and `README.md` language.** R3's rule unchanged; `README.md:93-97`'s requalification notice
+   stays until the stages above land and their reproductions pass.
+
+Per CLAUDE.md Boundaries, any `.github/workflows/*.yml` wiring is named explicitly in the stage PR
+description, following D30's precedent -- and a local `run-ci.sh` pass does not prove workflow wiring.
+
+**SEC-7 does not close on this addendum, and this round is not the start of a clean count.** Section 8's
+closing condition remains met for the **chain** and the **signed policy**: CAP #20 found no forgery of any
+value the system acts on, and D147/D148 hold. It is **not** met for the ledger's **own evidence files**: a
+`candidate_summary` recording a real sanctions hit can be authored so that `jq`, Python and Postgres read an
+empty result while `verify` reports `anchor_status:verified`, with no key. D153 and D154 are the whole of that
+barrier.
+
+### Addendum 20 summary
+
+- **CAP #20's verdict is QUALIFIED, not PASS** -- one HIGH (G1), two MEDIUM (G2, G3), four LOW (G4-G7), and a
+  recommendation to promote R40. The clean count does not start here.
+- **This addendum introduces no new axis.** G1 is Addendum 19's F1 / D147 referent one layer down, on the
+  chain evidence files. The sentence it adds: an artifact with exactly one deterministic serializer is bound
+  by its bytes; one with no canonical writer is bound by resolved identity; both are the referent principle.
+- **The design is D152-D161.** The chain-file sweep table (D152); the canonical-bytes rule via one shared
+  reader, composed with the MAC, with the two prototypes measured and the single-fold counterexample that
+  decides the direction (D153); filename-to-content identity binding plus export/replay reading only verified
+  evidence, correcting the CAP's "one comparison" (D154); the corrected, per-overload, drift-tested D87
+  procedure (D155); G4's reader-divergence closed by D153 and its decision-binding deferred to R40 (D156);
+  `K_anchor` disjointness (D157); repeated-flag and file+env refusal (D158); the DR step-5 named-trigger query
+  (D159); R40 promoted to "needs a design" and deferred to Addendum 21 with its scope named (D160); and the
+  proof obligations with pre-declared withdrawal conditions (D161).
+- **This design pass executed its mechanism assumptions.** G1 reproduced end to end on T1-T6, in anchored
+  mode, across `jq`/Python/Postgres `jsonb`, and on every chain file type; the canonical-bytes prototype
+  refused 13/13 non-clean constructions where D147-only left the single fold spelling accepted; every committed
+  fixture (13/13) and every fuzzed `Append` output (16/16) is byte-canonical; `export` was measured to
+  authenticate neither filename nor MAC; the D87 defects and the corrected 023-then-024 procedure were run on a
+  real clone; and G4-G7 each reproduced with the DR step-5 count measured at 2 against a decoy.
+- **One CAP premise is corrected by measurement:** G2's "the fix is one comparison" is narrower than the
+  exposure -- `export`/`replay` verify nothing, so a MAC-broken event exports verbatim (D154, drift note 1).
+- **Six risks are recorded** rather than designed away: byte-equality false-refuses a reformatted file, the
+  safe direction (R74); the guarantee rests on a pinned Go marshal property (R75); it is verify-conditional
+  (R76); the TOCTOU window is closed for the byte class at every read (R77); the export/replay contract change
+  grows the surface (R78); and `external_audit.go` is the same class on the sibling chain, named not scored
+  (R79).
+- **This addendum revises no prior decision.** D1-D151 stand; R1-R73 stand. R40's *disposition* changes from
+  "recorded risk" to "needs a design (Addendum 21)", recorded in D160's own words rather than by an edit above
+  this section, the AR7 convention; R40's re-entry conditions and D150's corrected recipe are unchanged.
+
+**Audit basis commit:** `ef9f41a893bcad06e8ea8f6e1f9560b04a28d3d0`
+
+Every file:line citation in this addendum was verified against that tree -- the same commit CAP #20 was
+produced against, so no drift separates the audit from this design. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
