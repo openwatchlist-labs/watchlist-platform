@@ -486,7 +486,58 @@ grant-ddl-ownership)
     echo "FAIL: MAINTAIN on screening_ledger_retention_tombstone is held by: $maintain_holders_tombstone (ADR-0007 Addendum 7 D60): REVOKE did not hold" >&2
     exit 1
   }
-  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only; MAINTAIN held by no non-superuser role in the live population (ADR-0007 Addendum 6 D51 / Addendum 7 D60)"
+  # ADR-0007 Addendum 19 D149 (F2): "the installer proves the property it
+  # installs" (D60's own reasoning, applied one object over) -- both
+  # screening_ledger_purge_snapshots overloads' EXECUTE holder set is
+  # asserted here too, using the same two-limb pattern
+  # (maintain_holders_tombstone above): holder-side (pg_has_role MEMBER,
+  # no allowlist -- measured, no predefined role structurally carries
+  # EXECUTE) and grantee-side (aclexplode(proacl)). Both directions:
+  # a live holder/grantee outside {owl_ledger_ddl, owl_migrator} is a
+  # named failure, and so is a declared holder missing the privilege.
+  for decl_purge_fn_execute in \
+    "p_ledger_id text, p_expected_count bigint, p_expected_max timestamp with time zone, p_operator text, p_reason text:screening_ledger_purge_snapshots(text,int8,timestamptz,text,text)" \
+    "p_snapshot_sha256 text[], p_ledger_id text, p_expected_count integer[], p_expected_max timestamp with time zone[], p_operator text, p_reason text:screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)"
+  do
+    exec_args="${decl_purge_fn_execute%%:*}"
+    exec_label="${decl_purge_fn_execute#*:}"
+    exec_oid_subquery="(SELECT oid FROM pg_proc WHERE proname='screening_ledger_purge_snapshots' AND pg_get_function_identity_arguments(oid)='${exec_args}')"
+    exec_holder_side="$(psql_super -tAc "
+      SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
+      FROM pg_roles r
+      WHERE NOT r.rolsuper AND r.rolname NOT IN ('owl_ledger_ddl','owl_migrator')
+        AND EXISTS (
+          SELECT 1 FROM pg_roles s
+          WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
+            AND has_function_privilege(s.rolname, ${exec_oid_subquery}, 'EXECUTE')
+        )
+    ")"
+    [[ -z "$exec_holder_side" ]] || {
+      echo "FAIL: EXECUTE on ${exec_label} is held by (holder-side, pg_has_role MEMBER): $exec_holder_side (ADR-0007 Addendum 19 D149): a role beyond {owl_ledger_ddl, owl_migrator} can call this SECURITY DEFINER function" >&2
+      exit 1
+    }
+    exec_grantee_side="$(psql_super -tAc "
+      SELECT coalesce(string_agg(DISTINCT grantee_name, ', ' ORDER BY grantee_name), '')
+      FROM (
+        SELECT (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END) AS grantee_name
+        FROM pg_proc p, aclexplode(p.proacl) a
+        WHERE p.oid = ${exec_oid_subquery} AND a.privilege_type='EXECUTE'
+      ) granted
+      WHERE grantee_name NOT IN ('owl_ledger_ddl','owl_migrator')
+    ")"
+    [[ -z "$exec_grantee_side" ]] || {
+      echo "FAIL: EXECUTE on ${exec_label} is granted to (grantee-side, aclexplode): $exec_grantee_side (ADR-0007 Addendum 19 D149): a literal ACL grantee beyond {owl_ledger_ddl, owl_migrator}" >&2
+      exit 1
+    }
+    for decl_exec_role in owl_ledger_ddl owl_migrator; do
+      exec_has_it="$(psql_super -tAc "SELECT has_function_privilege('${decl_exec_role}', ${exec_oid_subquery}, 'EXECUTE')")"
+      [[ "$exec_has_it" == "t" ]] || {
+        echo "FAIL: ${decl_exec_role} is missing EXECUTE on ${exec_label} (ADR-0007 Addendum 19 D149)" >&2
+        exit 1
+      }
+    done
+  done
+  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only; MAINTAIN held by no non-superuser role in the live population (ADR-0007 Addendum 6 D51 / Addendum 7 D60); EXECUTE on both purge_snapshots overloads held by exactly {owl_ledger_ddl, owl_migrator} in both the holder-side and grantee-side senses (ADR-0007 Addendum 19 D149)"
 
   # ADR-0007 Addendum 3 D34 (G-B, G-D, G-G): D26's event trigger scoped
   # itself twice -- WHEN TAG on the trigger, object_identity string

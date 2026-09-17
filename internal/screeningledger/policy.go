@@ -388,8 +388,22 @@ func LoadSignedVerificationPolicy(path string, trustedPublicKey ed25519.PublicKe
 	if err != nil {
 		return VerificationPolicy{}, "", fmt.Errorf("read verification policy: %w", err)
 	}
+	// ADR-0007 Addendum 19 D148: strict decoding (json.Decoder +
+	// DisallowUnknownFields), the same mechanism D36 already requires of
+	// the producing end (cmd/policy-evaluate, cmd/release-config,
+	// cmd/catalog-registry and cmd/matcher-project all use it too), in
+	// place of a bare json.Unmarshal -- applied at the end D36's own
+	// text named as the gap enforcing at only one end would leave open.
+	// A member name that resolves to no field (including a homoglyph
+	// like U+FF53 FULLWIDTH LATIN SMALL LETTER S, which is not
+	// bytes.EqualFold-equal to any tag and so is outside D147's scan)
+	// is refused here rather than silently ignored. Before the
+	// signature check, matching D36's own producing-end position and
+	// this function's pre-existing decode step it replaces.
 	var envelope SignedVerificationPolicy
-	if err := json.Unmarshal(raw, &envelope); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&envelope); err != nil {
 		return VerificationPolicy{}, "", fmt.Errorf("parse verification policy: %w", err)
 	}
 	canon, err := canonicalPolicyBytes(envelope.Policy)
@@ -483,10 +497,14 @@ func checkNoDuplicateJSONKeys(raw []byte) error {
 // array. path is this value's dotted position for error reporting only
 // ("" at the top level, "a.b" for a nested object field, "a.[].b" for a
 // field inside an element of array "a"). Every object member name found
-// at this value's own level is recorded in repeatedSet, keyed by its
-// full path, the second and any later time the same name is seen at the
-// same level -- so a key repeated three times still produces one entry,
-// not two.
+// at this value's own level is compared against every name already seen
+// at that same level (ADR-0007 Addendum 19 D147: by bytes.EqualFold, the
+// exact equivalence encoding/json's own field resolver uses -- exact
+// match, then folded match -- not byte equality), and each colliding
+// pair is recorded in repeatedSet as "<second occurrence's path>~<prior
+// spelling>", so a key repeated three times under the same spelling
+// still produces one entry, not two, while a key repeated under two
+// DIFFERENT fold-equivalent spellings produces an entry naming both.
 func scanJSONValueForDuplicateKeys(dec *json.Decoder, path string, repeatedSet map[string]bool) error {
 	tok, err := dec.Token()
 	if err != nil {
@@ -512,8 +530,16 @@ func scanJSONValueForDuplicateKeys(dec *json.Decoder, path string, repeatedSet m
 			if path != "" {
 				childPath = path + "." + key
 			}
-			if seen[key] {
-				repeatedSet[childPath] = true
+			// ADR-0007 Addendum 19 D147: pairwise EqualFold against every
+			// name already seen at this level, not exact-string lookup.
+			// The precondition this equivalence relies on -- no two of
+			// this scan's own tags are themselves EqualFold-colliding --
+			// is pinned as a standing test (D151 item 3), not asserted
+			// here; this function has no struct to check it against.
+			for prior := range seen {
+				if bytes.EqualFold([]byte(prior), []byte(key)) {
+					repeatedSet[fmt.Sprintf("%s~%s", childPath, prior)] = true
+				}
 			}
 			seen[key] = true
 			if err := scanJSONValueForDuplicateKeys(dec, childPath, repeatedSet); err != nil {
