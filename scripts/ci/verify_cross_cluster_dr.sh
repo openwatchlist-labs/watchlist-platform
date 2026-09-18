@@ -220,10 +220,16 @@ PGHOST=localhost PGPORT="$DR_PORT" PGDATABASE=owl_dr2 \
   ./scripts/ci/provision_test_roles.sh grant-ddl-ownership
 
 echo "== D66 step 5: confirming enforcement is genuinely live on the DR copy =="
+# ADR-0007 Addendum 20 D159 (G7): this used to count ANY enabled event
+# trigger, which a decoy (any unrelated event trigger left ENABLE ALWAYS
+# on this database) satisfies together with only ONE of the two real SEC-7
+# triggers -- measured: a decoy plus a disabled sec7_protect_ddl_objects_on_alter
+# still counted 2. Scoped to the two named triggers by evtname so a decoy
+# cannot substitute for either of them.
 enabled_count="$(PGPASSWORD="$DR_PERSISTENT_PASSWORD" "$PG_BIN_DIR/psql" -h localhost -p "$DR_PORT" -U "$PRIMARY_PGSUPERUSER" -d owl_dr2 -tAc \
-  "SELECT count(*) FROM pg_event_trigger WHERE evtenabled = 'A'")"
+  "SELECT count(*) FROM pg_event_trigger WHERE evtname IN ('sec7_protect_ddl_objects_on_alter', 'sec7_protect_ddl_objects_on_drop') AND evtenabled = 'A'")"
 [[ "$enabled_count" == "2" ]] || {
-  echo "FAIL: expected both event triggers ENABLE ALWAYS after recovery, found $enabled_count" >&2
+  echo "FAIL: expected both named SEC-7 event triggers (sec7_protect_ddl_objects_on_alter, sec7_protect_ddl_objects_on_drop) ENABLE ALWAYS after recovery, found $enabled_count (ADR-0007 Addendum 20 D159)" >&2
   exit 1
 }
 
