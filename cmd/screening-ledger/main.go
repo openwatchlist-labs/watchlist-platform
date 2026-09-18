@@ -29,8 +29,8 @@ commands:
   verify       (same flags as status)
   sync         --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> --anchor-key-file|--anchor-key-env <key> [--verification-mode anchored|historical-unanchored] [--operator <name>]
   anchor       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> --anchor-key-file|--anchor-key-env <key> --anchor-dsn-env <var> [--allow-genesis true] [--verification-mode anchored|historical-unanchored]
-  replay       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --event-id <id> --backend-url <url> [--timeout <duration>]
-  export       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --event-id <id> --output <path> [--mode redacted|internal] [--redact-keys <csv>] [--hash-keys <csv>]
+  replay       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --event-id <id> --backend-url <url> [--timeout <duration>] [--postgres-dsn-env <var>] [--anchor-key-file|--anchor-key-env <key>] [--verification-mode anchored|historical-unanchored]
+  export       --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --event-id <id> --output <path> [--mode redacted|internal] [--redact-keys <csv>] [--hash-keys <csv>] [--postgres-dsn-env <var>] [--anchor-key-file|--anchor-key-env <key>] [--verification-mode anchored|historical-unanchored]
   purge        --ledger-dir <dir> --key-file|--key-env <key> --ledger-id <id> --policy-file <file> --policy-public-key-file|--policy-public-key-env <key> --postgres-dsn-env <var> [--before <RFC3339>] [--operator <name>] [--reason <text>]
   import-audit --postgres-dsn-env <var> [--source <name>] --audit-directory <dir>
 `
@@ -91,7 +91,7 @@ func main() {
 		if dsnEnvName := opts["--postgres-dsn-env"]; strings.TrimSpace(dsnEnvName) != "" {
 			sink := mustSink(ctx, opts)
 			defer closeSink(ctx, sink)
-			kAnchor := mustAnchorKey(opts)
+			kAnchor := mustAnchorKey(opts, store)
 			report, err = store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
 				Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
@@ -152,7 +152,7 @@ func main() {
 		must(sink.Migrate(ctx))
 		policy, policySHA256, _ := mustLoadPolicy(opts)
 		mode := verificationMode(opts)
-		kAnchor := mustAnchorKey(opts)
+		kAnchor := mustAnchorKey(opts, store)
 		// ADR-0007 D19/F5: sync used to mirror every unreplicated event
 		// with no verification anywhere on the path, reporting "ok"
 		// unconditionally. Full anchored-mode verification now runs
@@ -217,7 +217,7 @@ func main() {
 		if allowGenesis && policy.MinAnchorSequence > 0 {
 			fatal(fmt.Sprintf("--allow-genesis was passed but the signed policy commits to a minimum anchor sequence of %d (ADR-0007 Addendum 2 D25): a genuine genesis is only possible under a policy with min_anchor_sequence 0", policy.MinAnchorSequence))
 		}
-		kAnchor := mustAnchorKey(opts)
+		kAnchor := mustAnchorKey(opts, store)
 		result, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
 			VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: migratorSink},
 			Anchors:       migratorSink, Provisioning: migratorSink, KAnchor: kAnchor, PolicySHA256: policySHA256, AllowGenesis: allowGenesis,
@@ -234,11 +234,20 @@ func main() {
 		must(anchorSink.WriteAnchor(ctx, kAnchor, policy.LedgerID, int64(result.Head.Sequence), result.Head.EventSHA256, result.AuditHead.EventSHA256, int64(result.AuditHead.Sequence), policySHA256))
 		output(map[string]any{"status": "ok", "operation": "anchor", "sequence": result.Head.Sequence, "audit_sequence": result.AuditHead.Sequence, "policy_sha256": policySHA256})
 	case "replay":
+		// ADR-0007 Addendum 20 D154(b): replay used to call GetEvent
+		// directly with no verification anywhere on the path -- a
+		// MAC-broken or identity-mismatched event replayed verbatim.
+		// --policy-file/--policy-public-key-file are now required (the
+		// same pair status/verify take) and mustPreReadVerifier runs the
+		// same VerifyAnchored/VerifyPolicy check they do before the event
+		// is ever read (CLI contract change, named per CLAUDE.md
+		// Boundaries).
 		store := mustStore(opts)
+		verify := mustPreReadVerifier(ctx, opts, store)
 		eventID := opts.required("--event-id")
 		backend := opts.required("--backend-url")
 		timeout := opts.duration("--timeout", 30*time.Second)
-		report, err := store.Replay(ctx, eventID, backend, &http.Client{Timeout: timeout})
+		report, err := store.Replay(ctx, verify, eventID, backend, &http.Client{Timeout: timeout})
 		must(err)
 		output(report)
 	case "export":
@@ -252,13 +261,18 @@ func main() {
 		// wiring a dead flag to a newly-invented meaning here is
 		// inventing a contract in the implementing pass (CLAUDE.md rule
 		// 7) -- removing them is the smaller, more honest change.
+		//
+		// ADR-0007 Addendum 20 D154(b): the same required-verification
+		// contract change as `replay`, above -- export authenticated
+		// neither the requested event's identity nor its MAC before this.
 		store := mustStore(opts)
+		verify := mustPreReadVerifier(ctx, opts, store)
 		policy := screeningledger.RetentionPolicy{
 			Class:      "screening-standard",
 			RedactKeys: splitCSV(opts.value("--redact-keys", "account_number,iban,bic,passport_number,tax_id")),
 			HashKeys:   splitCSV(opts.value("--hash-keys", "name,address,original_value")),
 		}
-		manifest, err := store.ExportBundle(opts.required("--event-id"), opts.required("--output"), opts.value("--mode", "redacted"), policy)
+		manifest, err := store.ExportBundle(ctx, verify, opts.required("--event-id"), opts.required("--output"), opts.value("--mode", "redacted"), policy)
 		must(err)
 		output(manifest)
 	case "purge":
@@ -406,16 +420,57 @@ func outOfScopeCount(status screeningledger.OutOfScopeCheckStatus, records []scr
 	return len(records)
 }
 
+// mustPreReadVerifier is ADR-0007 Addendum 20 D154(b): builds the
+// screeningledger.PreReadVerifier that `replay` and `export` must run and
+// have succeed before reading any evidence -- exactly the same
+// VerifyAnchored (a Postgres sink configured) or VerifyPolicy
+// (filesystem-only, D154(b)'s own stated alternative) construction
+// `status`/`verify` use, so this is not a third, weaker definition of
+// "verified" invented for these two commands.
+func mustPreReadVerifier(ctx context.Context, opts options, store *screeningledger.Store) screeningledger.PreReadVerifier {
+	policy, policySHA256, _ := mustLoadPolicy(opts)
+	mode := verificationMode(opts)
+	if dsnEnvName := opts["--postgres-dsn-env"]; strings.TrimSpace(dsnEnvName) != "" {
+		sink := mustSink(ctx, opts)
+		kAnchor := mustAnchorKey(opts, store)
+		return func(ctx context.Context) error {
+			defer closeSink(ctx, sink)
+			_, err := store.VerifyAnchored(ctx, screeningledger.AnchorOptions{
+				VerifyOptions: screeningledger.VerifyOptions{Policy: policy, Mode: mode, Purges: sink},
+				Anchors:       sink, Provisioning: sink, KAnchor: kAnchor, PolicySHA256: policySHA256,
+			})
+			return err
+		}
+	}
+	return func(ctx context.Context) error {
+		_, err := store.VerifyPolicy(ctx, screeningledger.VerifyOptions{Policy: policy, Mode: mode})
+		return err
+	}
+}
+
 // mustAnchorKey loads K_anchor via the same LoadKey used for the
 // snapshot/root key, fixing the misattributed error ADR-0007 D12 names:
 // LoadKey's own error text ("snapshot encryption key is required") is
 // correct for its usual caller but wrong here, where the missing key is
 // K_anchor. Every call site wraps it with a name so an operator does not
 // misdiagnose an anchor-key problem as a snapshot-key one.
-func mustAnchorKey(opts options) []byte {
+//
+// ADR-0007 Addendum 20 D157 (G5): also re-loads the root secret R (the
+// same --key-file/--key-env this command already required for `store`)
+// and refuses if K_anchor equals R or any of the three derived subkeys --
+// §5.3 point 1's "K_anchor is not derived from R" made a runtime
+// assertion, not only a unit-test property of deriveChainKeys's output.
+func mustAnchorKey(opts options, store *screeningledger.Store) []byte {
 	kAnchor, err := screeningledger.LoadKey(opts["--anchor-key-file"], opts["--anchor-key-env"])
 	if err != nil {
 		fatal(fmt.Sprintf("anchor key (K_anchor): %s", err.Error()))
+	}
+	root, err := screeningledger.LoadKey(opts["--key-file"], opts["--key-env"])
+	if err != nil {
+		fatal(fmt.Sprintf("root key (R): %s", err.Error()))
+	}
+	if err := screeningledger.AssertAnchorKeyDisjoint(root, kAnchor, store.LedgerID()); err != nil {
+		fatal(err.Error())
 	}
 	return kAnchor
 }
@@ -444,6 +499,14 @@ func closeSink(ctx context.Context, sink *screeningledger.PostgresSink) {
 		fmt.Fprintln(os.Stderr, "warning: failed to close PostgreSQL connection:", err)
 	}
 }
+
+// parseOptions is ADR-0007 Addendum 20 D158 (G6): used to store
+// out[flag]=value, so a repeated flag silently kept the last value --
+// measured: `verify ... --policy-public-key-file <real> --policy-public-key-file <wrong>`
+// used the wrong one with no indication, and a reviewer reading the
+// runbook's first occurrence of a flag would not see the trust root
+// actually in use. A repeated flag is now refused by name rather than
+// resolved last-wins.
 func parseOptions(args []string) (options, error) {
 	out := options{}
 	for i := 0; i < len(args); i++ {
@@ -452,6 +515,9 @@ func parseOptions(args []string) (options, error) {
 		}
 		if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
 			return nil, fmt.Errorf("%s requires a value", args[i])
+		}
+		if _, seen := out[args[i]]; seen {
+			return nil, fmt.Errorf("%s was passed more than once (ADR-0007 Addendum 20 D158): refusing rather than silently using the last occurrence", args[i])
 		}
 		out[args[i]] = args[i+1]
 		i++

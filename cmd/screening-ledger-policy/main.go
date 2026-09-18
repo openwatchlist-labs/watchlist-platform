@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger"
 )
@@ -48,7 +49,31 @@ func main() {
 // here to the policy signing key: it belongs on a host that is not the
 // ledger directory's owner, and it is used only at ledger-provisioning
 // and policy-change time, never by the appending or verifying process.
+// checkNoRepeatedFlags is ADR-0007 Addendum 20 D158 (G6): this sibling CLI
+// uses the stdlib flag package, which -- like screening-ledger's own
+// hand-rolled parseOptions before this decision -- silently applies
+// last-occurrence-wins to a repeated flag. A pre-scan over the raw args,
+// before flag.FlagSet.Parse ever runs, closes the same gap here.
+func checkNoRepeatedFlags(args []string) error {
+	seen := map[string]bool{}
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			continue
+		}
+		name := strings.TrimLeft(arg, "-")
+		if i := strings.IndexByte(name, '='); i >= 0 {
+			name = name[:i]
+		}
+		if seen[name] {
+			return fmt.Errorf("-%s was passed more than once (ADR-0007 Addendum 20 D158): refusing rather than silently using the last occurrence", name)
+		}
+		seen[name] = true
+	}
+	return nil
+}
+
 func runKeygen(args []string) {
+	must(checkNoRepeatedFlags(args))
 	fs := flag.NewFlagSet("keygen", flag.ExitOnError)
 	privOut := fs.String("private-key-file", "", "path to write the Ed25519 private key, hex-encoded, mode 0400 (required)")
 	pubOut := fs.String("public-key-file", "", "path to also write the Ed25519 public key, hex-encoded (optional -- the public key is always printed to stdout)")
@@ -79,6 +104,7 @@ func runKeygen(args []string) {
 // presence-checking catch both; SignVerificationPolicy's own Validate()
 // call is the second, independent enforcement point D36 requires.
 func runSign(args []string) {
+	must(checkNoRepeatedFlags(args))
 	fs := flag.NewFlagSet("sign", flag.ExitOnError)
 	policyFile := fs.String("policy-file", "", "path to an unsigned VerificationPolicy JSON document (required)")
 	privKeyFile := fs.String("private-key-file", "", "path to the Ed25519 private key")
@@ -113,6 +139,7 @@ func runSign(args []string) {
 // their JSON output -- so an operator can compare a trust-root key
 // against an out-of-band record without running a verification.
 func runFingerprint(args []string) {
+	must(checkNoRepeatedFlags(args))
 	fs := flag.NewFlagSet("fingerprint", flag.ExitOnError)
 	pubKeyFile := fs.String("public-key-file", "", "path to the Ed25519 public key")
 	pubKeyEnv := fs.String("public-key-env", "", "env var holding the Ed25519 public key")

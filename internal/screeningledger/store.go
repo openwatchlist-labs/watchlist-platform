@@ -223,6 +223,12 @@ func NewStore(directory string, key []byte, requestedLedgerID ...string) (*Store
 
 func (s *Store) Directory() string { return s.directory }
 
+// LedgerID returns this store's durable ledger ID -- ADR-0007 Addendum 20
+// D157's caller needs it to re-derive chainKeys for the K_anchor
+// disjointness comparison without this package exposing the root secret
+// itself back out.
+func (s *Store) LedgerID() string { return s.ledgerID }
+
 func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -317,14 +323,10 @@ func (s *Store) Append(input AppendInput) (AppendResult, error) {
 	}
 	eventID := digestHex([]byte(strings.Join(identityParts, "\n")))
 	path := s.eventPath(eventID)
-	if raw, err := os.ReadFile(path); err == nil {
-		var existing Event
-		if json.Unmarshal(raw, &existing) != nil {
-			return AppendResult{}, errors.New("existing ledger event is invalid")
-		}
+	if existing, _, err := readCanonicalChainFile[Event](path); err == nil {
 		return AppendResult{Event: existing, Replayed: true}, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return AppendResult{}, err
+		return AppendResult{}, fmt.Errorf("existing ledger event is invalid (ADR-0007 Addendum 20 D153): %w", err)
 	}
 	head, err := s.loadHead()
 	if err != nil {
@@ -373,16 +375,15 @@ func (s *Store) Recover() error {
 
 func (s *Store) recoverLocked() error {
 	pending := filepath.Join(s.directory, "pending.json")
-	raw, err := os.ReadFile(pending)
+	// ADR-0007 Addendum 20 D153: pending.json is written by the same
+	// marshalAndWrite as every other chain file (D152 row 6), so it is
+	// bound by its bytes exactly as events/audit/snapshots/head are.
+	event, _, err := readCanonicalChainFile[Event](pending)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
-		return err
-	}
-	var event Event
-	if err := json.Unmarshal(raw, &event); err != nil {
-		return err
+		return fmt.Errorf("pending event is invalid (ADR-0007 Addendum 20 D153): %w", err)
 	}
 	if _, err := os.Stat(s.eventPath(event.EventID)); err == nil {
 		headRaw, _ := json.Marshal(Head{SchemaVersion: headSchemaFor(event.SchemaVersion), LedgerID: s.ledgerID, Sequence: event.Sequence, EventID: event.EventID, EventSHA256: event.EventSHA256})
@@ -538,12 +539,15 @@ func (s *Store) verifyPolicyLocked(ctx context.Context, opts VerifyOptions) (Ver
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(s.directory, "events", entry.Name()))
+		// ADR-0007 Addendum 20 D153 (G1, the review-evasion class on the
+		// ledger's own evidence files): a bare json.Unmarshal here is
+		// exactly what let a fold-spelled or duplicate key make this
+		// verifier's own decode disagree with jq/Python/Postgres jsonb
+		// reading the same file. readCanonicalChainFile refuses any file
+		// whose bytes are not the canonical serialization of what it
+		// decodes to, before the MAC (below) is ever computed.
+		event, _, err := readCanonicalChainFile[Event](filepath.Join(s.directory, "events", entry.Name()))
 		if err != nil {
-			return VerifyReport{}, err
-		}
-		var event Event
-		if err := json.Unmarshal(raw, &event); err != nil {
 			return VerifyReport{}, err
 		}
 		pairs = append(pairs, pair{event.Sequence, event})
@@ -726,12 +730,9 @@ func (s *Store) eventAtSequence(seq uint64) (Event, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(s.directory, "events", entry.Name()))
+		// ADR-0007 Addendum 20 D153.
+		event, _, err := readCanonicalChainFile[Event](filepath.Join(s.directory, "events", entry.Name()))
 		if err != nil {
-			return Event{}, err
-		}
-		var event Event
-		if err := json.Unmarshal(raw, &event); err != nil {
 			return Event{}, err
 		}
 		if event.Sequence == seq {
@@ -752,15 +753,18 @@ func (s *Store) auditEntryAtSequence(seq uint64) (AuditEvent, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", entry.Name()))
+		// ADR-0007 Addendum 20 D153.
+		event, _, err := readCanonicalChainFile[AuditEvent](filepath.Join(s.directory, "audit", entry.Name()))
 		if err != nil {
 			return AuditEvent{}, err
 		}
-		var event AuditEvent
-		if err := json.Unmarshal(raw, &event); err != nil {
-			return AuditEvent{}, err
-		}
 		if event.Sequence == seq {
+			// ADR-0007 Addendum 20 D154(a) scoping note: see
+			// verifyAuditPolicyLocked's comment (audit.go) for why no
+			// filename-to-digest assertion is added here. This function is
+			// only ever called after verifyAuditPolicyLocked has already
+			// validated the full audit chain's content and position, so
+			// the returned entry is already known-good.
 			return event, nil
 		}
 	}
@@ -768,13 +772,19 @@ func (s *Store) auditEntryAtSequence(seq uint64) (AuditEvent, error) {
 }
 
 func (s *Store) GetEvent(eventID string) (Event, error) {
-	raw, err := os.ReadFile(s.eventPath(eventID))
+	// ADR-0007 Addendum 20 D153/D154(a): the canonical-bytes reader closes
+	// G1 here too, and the identity assertion immediately after is D154(a)
+	// -- GetEvent used to return whatever events/<id>.json held with no
+	// check that its own event_id field matched the requested id at all,
+	// which is what let a filename swap make `export` mislabel a bundle.
+	event, _, err := readCanonicalChainFile[Event](s.eventPath(eventID))
 	if err != nil {
 		return Event{}, err
 	}
-	var event Event
-	err = json.Unmarshal(raw, &event)
-	return event, err
+	if event.EventID != eventID {
+		return Event{}, fmt.Errorf("event file %s holds event_id %q, not the requested %q (ADR-0007 Addendum 20 D154(a)): refusing rather than returning a mislabeled event", s.eventPath(eventID), event.EventID, eventID)
+	}
+	return event, nil
 }
 
 // ListEvents used to silently skip any file it could not read or parse
@@ -791,13 +801,10 @@ func (s *Store) ListEvents() ([]Event, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(s.directory, "events", e.Name()))
+		// ADR-0007 Addendum 20 D153.
+		event, _, err := readCanonicalChainFile[Event](filepath.Join(s.directory, "events", e.Name()))
 		if err != nil {
 			return nil, fmt.Errorf("read event file %s: %w", e.Name(), err)
-		}
-		var event Event
-		if err := json.Unmarshal(raw, &event); err != nil {
-			return nil, fmt.Errorf("unmarshal event file %s: %w", e.Name(), err)
 		}
 		out = append(out, event)
 	}
@@ -805,12 +812,11 @@ func (s *Store) ListEvents() ([]Event, error) {
 	return out, nil
 }
 func (s *Store) LoadSnapshot(sha string) (SnapshotEnvelope, error) {
-	raw, err := os.ReadFile(s.snapshotPath(sha))
-	if err != nil {
-		return SnapshotEnvelope{}, err
-	}
-	var env SnapshotEnvelope
-	err = json.Unmarshal(raw, &env)
+	// ADR-0007 Addendum 20 D153; the sha-to-content identity binding
+	// (D154(a)) is already asserted by every caller (verifySnapshotChecked
+	// here, s.snapshotPath(sha) matching env.SnapshotSHA256 at :877) --
+	// kept unchanged.
+	env, _, err := readCanonicalChainFile[SnapshotEnvelope](s.snapshotPath(sha))
 	return env, err
 }
 func (s *Store) DecryptSnapshot(sha string) ([]byte, error) {
@@ -899,15 +905,11 @@ func (s *Store) snapshotPath(sha string) string {
 	return filepath.Join(s.directory, "snapshots", sha+".json")
 }
 func (s *Store) loadHead() (Head, error) {
-	raw, err := os.ReadFile(filepath.Join(s.directory, "head.json"))
+	// ADR-0007 Addendum 20 D153.
+	head, _, err := readCanonicalChainFile[Head](filepath.Join(s.directory, "head.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}, nil
 	}
-	if err != nil {
-		return Head{}, err
-	}
-	var head Head
-	err = json.Unmarshal(raw, &head)
 	return head, err
 }
 func ensureLedgerID(directory string, requested []string) (string, error) {

@@ -82,12 +82,11 @@ func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, e
 	last := Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}
 	frozenPrefixLength := 0
 	for i, name := range names {
-		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", name))
+		// ADR-0007 Addendum 20 D153: the same review-evasion class G1
+		// closed on the event chain applies identically to the audit
+		// chain -- a fold-spelled "operator" is CAP #20's own example.
+		event, _, err := readCanonicalChainFile[AuditEvent](filepath.Join(s.directory, "audit", name))
 		if err != nil {
-			return Head{}, 0, err
-		}
-		var event AuditEvent
-		if err := json.Unmarshal(raw, &event); err != nil {
 			return Head{}, 0, err
 		}
 		if event.Sequence != uint64(i+1) || event.PreviousAuditSHA256 != previous {
@@ -118,6 +117,26 @@ func (s *Store) verifyAuditPolicyLocked(policy VerificationPolicy) (Head, int, e
 		if auditSHA != event.AuditSHA256 {
 			return Head{}, 0, errors.New("audit checksum mismatch")
 		}
+		// NOTE (ADR-0007 Addendum 20 D154(a) scoping, recorded rather than
+		// silently decided per §3.4/6.1 convention): an audit-filename-to-
+		// AuditSHA256 assertion was tried here and withdrawn. It broke
+		// TestGenesisBoundaryRequiresPrefixCommitment's own "honest
+		// re-issue" positive control (d38_referent_test.go): D4's real
+		// downgrade-to-frozen-v1-prefix migration (downgradeAndForge)
+		// rewrites an audit entry's content and AuditSHA256 in place via
+		// legacyHashAudit without renaming the file, so the write-time
+		// name legitimately disagrees with the post-downgrade digest.
+		// Unlike events (which carry a stable EventID independent of
+		// EventSHA256, so GetEvent's identity check is unaffected by a
+		// schema downgrade), audit entries have no name-independent
+		// identity field to bind to -- only the content-hash, which
+		// changes across a downgrade by design. The position-based
+		// sequence check immediately above (event.Sequence != uint64(i+1))
+		// already closes the reordering angle D154(a) names for the audit
+		// chain: a filename swap between two distinct, internally
+		// consistent entries puts at least one out of its required
+		// position and is refused there, by content, before this function
+		// ever returns. No additional filename assertion is added.
 		// ADR-0007 Addendum 4 D38(b): the last entry of the declared
 		// frozen prefix (position genesis-1), the one entry whose digest
 		// the policy must pin.
@@ -160,12 +179,9 @@ func (s *Store) readAuditEntries() ([]AuditEvent, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(s.directory, "audit", e.Name()))
+		// ADR-0007 Addendum 20 D153.
+		event, _, err := readCanonicalChainFile[AuditEvent](filepath.Join(s.directory, "audit", e.Name()))
 		if err != nil {
-			return nil, err
-		}
-		var event AuditEvent
-		if err := json.Unmarshal(raw, &event); err != nil {
 			return nil, err
 		}
 		out = append(out, event)
@@ -174,15 +190,11 @@ func (s *Store) readAuditEntries() ([]AuditEvent, error) {
 }
 
 func (s *Store) loadAuditHead() (Head, error) {
-	raw, err := os.ReadFile(filepath.Join(s.directory, "audit-head.json"))
+	// ADR-0007 Addendum 20 D153.
+	head, _, err := readCanonicalChainFile[Head](filepath.Join(s.directory, "audit-head.json"))
 	if errors.Is(err, os.ErrNotExist) {
 		return Head{SchemaVersion: HeadSchemaV1, LedgerID: s.ledgerID}, nil
 	}
-	if err != nil {
-		return Head{}, err
-	}
-	var head Head
-	err = json.Unmarshal(raw, &head)
 	return head, err
 }
 

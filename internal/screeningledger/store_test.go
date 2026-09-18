@@ -153,8 +153,16 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 		}
 	}
 
+	// ADR-0007 Addendum 20 D154(b): export/replay now require a verified
+	// evidence gate; filesystem-only VerifyPolicy under this test's own
+	// policy is exactly what a real caller with no --postgres-dsn-env
+	// supplies.
+	verify := func(ctx context.Context) error {
+		_, err := store.VerifyPolicy(ctx, VerifyOptions{Policy: testPolicy("ledger-test")})
+		return err
+	}
 	bundle := filepath.Join(t.TempDir(), "audit.zip")
-	manifest, err := store.ExportBundle(first.Event.EventID, bundle, "redacted", testAppendInput().Retention)
+	manifest, err := store.ExportBundle(context.Background(), verify, first.Event.EventID, bundle, "redacted", testAppendInput().Retention)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +195,7 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 		_, _ = w.Write(testAppendInput().ResponseBytes)
 	}))
 	defer exactServer.Close()
-	report, err := store.Replay(context.Background(), first.Event.EventID, exactServer.URL, exactServer.Client())
+	report, err := store.Replay(context.Background(), verify, first.Event.EventID, exactServer.URL, exactServer.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +207,7 @@ func TestAppendReplayVerifyExportReplayAndPurge(t *testing.T) {
 		_, _ = w.Write([]byte(`{"candidates":[{"candidate_id":"cand-2","score":800}]}`))
 	}))
 	defer driftServer.Close()
-	report, err = store.Replay(context.Background(), first.Event.EventID, driftServer.URL, driftServer.Client())
+	report, err = store.Replay(context.Background(), verify, first.Event.EventID, driftServer.URL, driftServer.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
