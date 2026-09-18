@@ -19844,3 +19844,1099 @@ barrier.
 Every file:line citation in this addendum was verified against that tree -- the same commit CAP #20 was
 produced against, so no drift separates the audit from this design. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 21: closing a carried residual by decision -- R40's expiry-aware guard, the bootstrap contract D89 deferred, and R44 as its weakest member (2026-09-18)
+
+- **Status:** Proposed
+- **Trigger: a deliberate business decision, not a Composition Audit Program finding.** There is no CAP
+  #21. After reviewing the standing residuals the decision was made to close **R40** and **R57** now
+  rather than carry them, on the ground that the consequence -- silently destroying compliance evidence
+  under a live retention obligation -- is too severe to accept regardless of how contained the
+  credential population that can reach it (`owl_migrator` or `owl_ledger_ddl`) is under this
+  deployment's own access controls. R40 has been carried since Addendum 10 (D89, `0007:9793-9804`),
+  sharpened by Addendum 19 (D150, `0007:18880-18967`) and promoted to "needs a design, Addendum 21" by
+  Addendum 20 (D160, `0007:19666-19685`). This is that design.
+- **What D160 handed this round, and what this round found it did not know.** D160 named the inherited
+  scope precisely: D150's corrected recipe -- (a) an expiry-aware guard transition **and** (b) D78's
+  assert-and-fail treatment plus conditional trigger creation in `SchemaSQL`; D156's envelope-metadata
+  half; the R44 parallel, characterised as needing no correction; and R57 sequenced after R40. Three of
+  those five statements survived this pass unchanged. Two did not, and both were found by execution
+  rather than by reading: **D150's "or equivalently ... reachable only through the `SECURITY DEFINER`
+  purge path" is not an equivalent** (D163), and **R44 is not a parallel residual sitting beside R40 --
+  it is the weakest member of R40's own fix, and R40 is not closed without it** (D167). A third thing
+  was found that no prior round names at all: the guard runs with **invoker** rights, so a bare relation
+  name in it is shadowable from `pg_temp`, and `SET search_path = pg_catalog, public` does **not**
+  prevent that (D164).
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D161, not AR7, not the D19
+  correction note, not R1-R79. Decision numbering continues at **D162**; risk numbering at **R80**.
+  Where a prior decision's *text* is narrower than what this pass measured, the new decision says so in
+  its own words -- the AR7 convention, and the construction D145/D150/D160 used for R57/R40.
+- **Verification basis:** every `file:line` below was derived from the working tree at
+  `77ebea575a556584175d84a4bacb07a70ebcd3cf`. Measured as the first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  77ebea575a556584175d84a4bacb07a70ebcd3cf
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-21-r40-r57
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ```
+
+  Every database reproduction below ran against a loopback-only PostgreSQL 17.11 instance
+  (`listen_addresses=localhost`, `inet_server_addr()=127.0.0.1`), on **throwaway databases created for
+  this pass** -- never `owl_ci` and never any DSN-gated CI fixture, per the standing rule that a
+  walkthrough must not re-provision a fixture another test depends on. Each was built by the documented
+  path: all 21 `db/migrations/*.sql` as `owl_migrator`, then `grant-app-privileges`, then
+  `grant-ddl-ownership` to three `PASS` lines.
+
+### Drift found while writing this addendum
+
+Five items. Recorded here rather than corrected silently, the standing convention.
+
+1. **D150's, D89's and D100's `postgres.go` citations for the guard have drifted by Addendum 20's
+   implementation.** D150 cites the `SchemaSQL` guard literal at `postgres.go:2023`
+   (`0007:18906`); D89 ground one cites `:1766`, `:1767`, `:1799` (`0007:9147-9149`); D100 cites
+   `requiredProtectedObjects` at `:396-413` and `requiredProtectedRelationStates` at `:694`
+   (`0007:10655-10657`). At this tree they are `postgres.go:2109` (the guard function), `:2110` (the
+   guard trigger), `:2142` (the `no_truncate` trigger), `:446-463` (the thirteen-row registry) and
+   `:744` (the two-row relation registry). The **content** each citation names is unchanged; only the
+   line numbers moved. `SchemaSQL` itself begins at `postgres.go:2060`.
+2. **D150's stated equivalence is false, and it is the one D160 handed forward.** D150 offers
+   "permitting the ciphertext strip only when no referencing obligation is live ... **or equivalently**
+   that the strip be reachable only through the `SECURITY DEFINER` purge path" (`0007:18939-18942`).
+   The second disjunct is not an equivalent of the first and cannot be implemented soundly -- measured
+   in D163. This pass adopts the first.
+3. **R40's own recipe clause (b) is necessary but is not the mechanism that closes the `DROP TRIGGER`
+   route.** R40 states that closing it "requires giving `screening_ledger_snapshot_guard()` D78's
+   assert-and-fail treatment and making both trigger creations in `SchemaSQL` conditional"
+   (`0007:9800-9802`). Measured: D78 treatment plus conditional creation, on their own, stop nothing --
+   the `DROP TRIGGER` is refused only once the object is **registered** in `sec7_protected_object`, and
+   registration is what breaks `Migrate()` today. (b) is the change that makes registration *survivable*;
+   registration is the change that makes the route *refused*. Both are required and they are not the
+   same thing. Corrected forward in D166, not by editing R40.
+4. **D160's characterisation of R44 is narrower than what R44 does to R40's guarantee.** D160 records
+   "the R44 parallel on `screening_ledger_event` (measured to have no allowed-UPDATE transition, so
+   R44's own recipe suffices there and is not corrected)" (`0007:19675-19677`). That is true about R44
+   *as a finding*, and it is the wrong question for this round: after R40(a) ships, R44 is the route by
+   which R40's new refusal is defeated in three statements, silently. D167.
+5. **The guard is a committed function literal on both bootstrap paths that D132's gate has never
+   covered.** `declaredFunctions()` (`internal/screeningledger/d92_digest_gate_derivation_test.go:238`)
+   has exactly four entries -- `owl_reject_truncate`, `screening_ledger_reject_mutation` and the two
+   `screening_ledger_purge_snapshots` overloads. `screening_ledger_snapshot_guard` is not among them, so
+   D132's "every committed literal is a declared body" rule has never ranged over it. Not a defect
+   introduced here; a population gap this addendum closes as a consequence of declaring the body at all
+   (D170). Addendum 11's own audit table already recorded the state without naming the gate
+   consequence: row 9, "`screening_ledger_snapshot_guard()` | not declared | n/a | R40's residual,
+   unchanged | none" (`0007:10106`).
+
+### Addendum 21 context: what a guard trigger can and cannot know
+
+Every axis this arc has established -- scoping (D31), referent (D38), population (D43), atomicity
+(D50), quantifier (D59), naming (D68), composition (D76), the whole-round obligation (D86), cardinality
+(D96), reduction (D104), derivation (D113), element set (D123), placement (D132), identity resolution
+(D137), tokenization (D139), span (D147/D153) -- asks a question about a control that already exists.
+R40's difficulty is different in kind: the control exists and is live, and the transition it permits is
+adjudicated against **nothing at all**. `screening_ledger_snapshot_guard()`
+(`db/migrations/008g_screening_ledger.sql:17`, identically `internal/screeningledger/postgres.go:2109`)
+pins every column against its own prior value and never compares any of them against the present:
+
+```sql
+IF OLD.purged_at IS NULL AND NEW.purged_at IS NOT NULL AND OLD.snapshot_sha256=NEW.snapshot_sha256
+   AND OLD.kind=NEW.kind AND OLD.created_at=NEW.created_at AND OLD.expires_at=NEW.expires_at
+   AND OLD.retention_class=NEW.retention_class AND NOT(NEW.envelope_json?'ciphertext_base64')
+THEN RETURN NEW;
+```
+
+Read as a specification, that says: *a purge is any UPDATE that sets `purged_at`, changes nothing else,
+and removes the ciphertext.* It does not say *and only when the retention period has passed*, because
+nothing in the row can tell it that -- D89 withdrew `created_at` as a referent for exactly this reason
+(`0007:9171-9194`), and D156 records that `expires_at` and `retention_class` are the same class of
+value, under no MAC anywhere (`0007:19591-19594`).
+
+**The structural constraint that shapes every decision below: a row trigger receives no arguments.** The
+Go verification pass (D89/D97) terminates on `Event.ExpiresAt` inside `hashEvent`'s MAC under
+`K_chain`; the definer overloads (D116/D124) terminate on caller-supplied chain-authenticated
+`(count, max)` pairs corroborated against the mirror. A trigger gets neither. Its only available
+referent is the mirror itself. **So the honest form of this round's question is not "what is the
+strongest possible referent" but "what is the strongest referent reachable from inside a row trigger,
+and what does the system have to look like for that referent to be sound?"** The answer to the first
+half is D163; the answer to the second half is why R44 is in scope (D167).
+
+### D162. The standing audits, discharged for this addendum before any fix is designed
+
+D86's whole-round obligation, with D96's cardinality column, D104's reduction column, D113's derivation
+table and D123's element-set column, run over **every value this addendum touches or introduces**,
+before the repairs below are designed. "Checked, and it does not apply" is a result.
+
+| # | Value | Derivation / referent | How many answer to it | Who reduces | Disposition |
+|---|---|---|---|---|---|
+| 1 | `screening_ledger_event.expires_at` (the new referent) | mirror column, written by `insertEvent` from the chain's `Event.ExpiresAt` | one per referencing event row; the guard quantifies with `EXISTS`/`NOT EXISTS`, never a scalar selection | neither side -- `timestamptz` compared to `timestamptz` by one Postgres operator | **adopted, D163; its soundness precondition is R44, D167** |
+| 2 | `Event.ExpiresAt`'s own derivation | `parsed.Add(time.Duration(days)*24*time.Hour)` (`store.go:939`) | one | Go | **F-A's overflow class -- checked, and CLOSED upstream by D114(b)**: `RetentionDays` is refused below 1 and above 36525 rather than computed (`store.go:255-260`). The guard adds no arithmetic of its own. Re-entry: any change to that derivation |
+| 3 | `clock_timestamp()` in the guard | one Postgres clock | one | Postgres | **checked, and it introduces no cross-clock comparison** -- D70's criterion (`0007:6975-6980`) forbids comparing against a *Go-process* timestamp; both sides here are server-side, and the guard's predicate is byte-for-byte the definer's own (`024:170-174`) |
+| 4 | `screening_ledger_snapshot.expires_at` / `created_at` / `retention_class` | envelope, unMAC'd, chosen at INSERT (`postgres.go:2040`) | one | -- | **refused as a referent, D163.** D89 ground two's shape one column over; D156 states the same fact for all three |
+| 5 | `max(e.expires_at)` in the guard's RAISE text | aggregate over the referencing set | one scalar over a set | Postgres | **checked: it never decides.** Read only inside the diagnostic, D46's and D124's own arrangement (`024:143-148`). D120's "the reduction from a set to a scalar loses what the question needs" is why the decision uses `EXISTS`, not `max(...) >= now` |
+| 6 | the relation name `screening_ledger_event` inside the guard | a **name**, resolved through `search_path` at execution | **more than one can answer to it** -- measured, D164 | Postgres | **D164: this is a defect in the obvious form of the fix, found by measurement. The name is schema-qualified; qualification is the control** |
+| 7 | `sha256(prosrc)` of the new guard body | sha256 over exact bytes, both bootstrap paths | **one member, measured** -- unlike `owl_reject_truncate()`'s two | both sides, identically | adopted, D165/D170 |
+| 8 | `sec7_protected_object` cardinality | declared literal, asserted by installer and verifier | 13 today, 20 after | both | D166; D41's exact-cardinality assertion means this is a re-provisioning event, D172 |
+| 9 | the four newly declared triggers' `tgtype`/`tgnargs`/`tgattr`/`tgfoid` | catalog properties | one each | -- | **measured, not computed**, D166 |
+
+**Element-set column (D123), stated because it is the row most likely to be assumed rather than
+checked:** the guard's two subqueries range over *the set of `screening_ledger_event` rows whose
+`request_snapshot_sha256` or `response_snapshot_sha256` equals `OLD.snapshot_sha256`*. That is the
+identical set expression the definer's `eligible` CTE uses at `024:166-174` and `021`'s two copies --
+same columns, same `OR`, same equality. **There is no second description of the set anywhere in the
+guard**, which is D124's own requirement (one element set, not two that must be asserted to coincide).
+No array, no subscript, no `array_length`; D123's array rows are checked and do not apply.
+
+### R40, reproduced on both roles before anything is repaired
+
+Fully provisioned throwaway (`owl_a21`: all 21 migrations, `grant-app-privileges`,
+`grant-ddl-ownership` to three `PASS` lines). Baseline first, because the finding is about what is
+*absent* from the registry:
+
+```
+=== A21BASE event triggers / registries ===
+sec7_protect_ddl_objects_on_alter|A
+sec7_protect_ddl_objects_on_drop|A
+obj|13
+rel|2
+bind|1
+=== A21BASE: is screening_ledger_snapshot / its guard / its triggers registered? ===
+0
+=== A21BASE: is screening_ledger_event / its triggers registered? (R44) ===
+0
+public.screening_ledger_anchor
+public.screening_ledger_retention_tombstone
+=== A21BASE guard body digest ===
+f9cb95289a3fdead146dc24a3f8d0824dc225e37bfa98a0dc120731f09872330
+```
+
+Three snapshots under a live `2100-01-01` obligation, each referenced by one `screening_ledger_event`
+row. The guard trigger is live (`tgenabled='O'`) and both event triggers are `ENABLE ALWAYS`
+throughout. **No `DROP TRIGGER` anywhere in what follows.**
+
+```
+=== A21PROBE (1) R40 as [owl_migrator]: direct UPDATE strip on a LIVE 2100 obligation, NO DROP TRIGGER ===
+(succeeds)
+
+=== A21PROBE (1c) CONTROL: the same UPDATE also rewriting expires_at (guard's allowed-transition test, 008g:17) ===
+ERROR:  screening snapshot mutation is not an allowed retention transition
+CONTEXT:  PL/pgSQL function screening_ledger_snapshot_guard() line 1 at RAISE
+
+=== A21PROBE (2) R40 as [owl_ledger_ddl]: the SAME direct UPDATE, NO DROP TRIGGER ===
+(succeeds)
+
+=== A21PROBE (3) state after: ciphertext gone under a LIVE obligation, zero tombstones ===
+a21expired01|2021-01-01|t|f|0
+a21live0001|2100-01-01|f|t|0
+a21live0002|2100-01-01|f|t|0
+a21live0003|2100-01-01|t|f|0
+a21orphan01|2021-01-01|t|f|0
+```
+
+The control row is the part that matters for method: the guard **is** live and **is** refusing the
+transitions it was written to refuse. What it does not refuse is the one that destroys evidence.
+
+**Both roles the business decision names can do it.** D150 measured `owl_migrator`; `owl_ledger_ddl` is
+measured here for the first time, and it can, because provisioning leaves it `UPDATE` on the relation
+it does not own:
+
+```
+owl_ledger_ddl|screening_ledger_retention_tombstone|t|t|t|t
+owl_migrator  |screening_ledger_retention_tombstone|t|f|f|f
+owl_ledger_ddl|screening_ledger_snapshot           |t|f|t|f
+owl_migrator  |screening_ledger_snapshot           |t|t|t|t
+owl_migrator  |screening_ledger_event              |t|t|t|t
+```
+
+**Nothing observes it.** Both shipped observers, run immediately after the strip:
+
+```
+=== A21PROBE (4) SHIPPED migrate after the strip ===
+{"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+
+=== A21PROBE (5) SHIPPED grant-ddl-ownership after the strip ===
+PASS lines: 3
+FAIL/ERROR lines: 0
+```
+
+**And it is silent in the verification pass too, not merely undetected at provisioning time** -- which
+this pass established from the code rather than assuming from the zero tombstone count.
+`purgeLowerBoundSource.forSnapshot` (`anchor.go:636-653`) is the D89/D97 comparison that would catch a
+mirror/chain `expires_at` divergence. It is reached from exactly two populations: the local purge
+claims loop (`anchor.go:732`) and the tombstone-row loop (`anchor.go:760`, call at `:789`). A direct
+mirror-side strip writes **neither** -- it never touches the local file store, so there is no purge
+claim, and it leaves zero tombstone rows. `forSnapshot` is therefore never called for a silently
+stripped snapshot, and the divergence comparison never runs. This is the difference between R38's
+audit-denial class (which D12 accepts as the right direction) and silent evidence destruction (which
+it does not).
+
+### D163. The referent: `screening_ledger_event.expires_at` under the definer's own quantifier, and the two alternatives refused
+
+**Decision: the guard's allowed purge transition becomes expiry-aware, adjudicated against the set of
+`screening_ledger_event` rows referencing the snapshot, using the identical `EXISTS` / `NOT EXISTS`
+pair the definer's `eligible` CTE already uses (`024:166-174`, and both of `021`'s copies) -- both
+halves, not one.** Illustrative fragment only; the shipped text is the implementation PR's (CLAUDE.md
+rule 7):
+
+```sql
+IF NOT EXISTS (SELECT 1 FROM public.screening_ledger_event e
+               WHERE e.request_snapshot_sha256=OLD.snapshot_sha256
+                  OR e.response_snapshot_sha256=OLD.snapshot_sha256) THEN
+  RAISE EXCEPTION '... snapshot % has no referencing screening_ledger_event row ...', OLD.snapshot_sha256;
+END IF;
+IF EXISTS (SELECT 1 FROM public.screening_ledger_event e
+           WHERE (e.request_snapshot_sha256=OLD.snapshot_sha256
+               OR e.response_snapshot_sha256=OLD.snapshot_sha256)
+             AND e.expires_at >= clock_timestamp()) THEN
+  RAISE EXCEPTION '... snapshot % is still under a live retention obligation (mirror MAX(...)=%) ...', ...;
+END IF;
+RETURN NEW;
+```
+
+**Why both halves.** The `NOT EXISTS` alone is **vacuously true** for a snapshot no event references,
+so it would permit stripping exactly the rows about which the mirror knows nothing -- D116(b)'s own
+vacuity trap, and the reason the definer carries the non-vacuity `EXISTS` at `024:166-169`. Shipping
+one half would make the guard *weaker* than the definer it is meant to align with. Measured, against
+the fixed guard:
+
+```
+--- vacuity: unreferenced snapshot ---
+ERROR:  ADR-0007 Addendum 21 D163: snapshot a21orphan01 has no referencing screening_ledger_event row:
+        refusing to strip protected content rather than reading an absent obligation as an expired one
+```
+
+**Why not the snapshot's own `expires_at`, which is the obvious move.** It is D89 ground two's exact
+shape, one column over, and this addendum refuses it on D89's own reasoning rather than re-deriving
+it. The value is written at INSERT by `owl_migrator` from `SnapshotEnvelope` (`postgres.go:2040`), it
+is covered by **no MAC anywhere** (D156, `0007:19591-19594`, states this for `retention_class`,
+`created_at` *and* `expires_at`), and the guard's existing `OLD.expires_at=NEW.expires_at` pin makes it
+un-rewritable *at this statement* while doing nothing about its having been freely chosen at insert.
+**N-A's lesson, verbatim: un-rewritable is not unforgeable.** Adopting it would terminate D76's
+recursion on a value section 2 supplied -- one level below where D89 already refused to terminate.
+
+**Why not "reachable only through the `SECURITY DEFINER` purge path", which D150 offers as an
+equivalent.** It is not an equivalent, and the reason is measured, not argued:
+
+- Implemented the only way a trigger can implement it -- a `current_user` test -- it is a **name as
+  terminating literal**, which D68 established is not a referent.
+- The name it would have to accept is `owl_ledger_ddl`, the definers' owner. Measured above,
+  `owl_ledger_ddl` holds `UPDATE` on `screening_ledger_snapshot` **directly** and needs no definer to
+  use it, so the test is satisfied by an ordinary connection. It is not merely a weak spelling of the
+  right rule; it admits the exact path A21PROBE (2) demonstrates.
+- It is role-scoped where the capability is not -- D59/D60's quantifier defect. D163's predicate names
+  no role at all, and refuses both roles identically (A21CLOSE below).
+
+**What this referent is, stated precisely so a later round does not over-read it.** It is the
+**mirror**, not the chain. The chain's `Event.ExpiresAt` remains the authority and the mirror remains
+corroboration -- D89's authority/corroboration split (`0007:9248-9255`) is untouched, and this
+addendum does not promote the mirror to authority anywhere. What changes is that the mirror value now
+**prevents** a destructive transition in-database, where before D97 it only let a later Go pass
+**detect** a divergence. That is a strictly stronger arrangement and a strictly larger dependency, and
+the dependency is what D167 is about.
+
+### D164. The guard runs with invoker rights, so its bare relation name is shadowable -- and `SET search_path` does not fix it
+
+**Found while prototyping D163, not inherited from any CAP.** The obvious spelling of D163 uses the
+bare name `screening_ledger_event`, matching the definer bodies' style. The definers can afford that;
+the guard cannot, and the difference is invoker versus definer rights.
+
+**Measured on PostgreSQL 17.11.** `TEMP` is granted to `PUBLIC` by default, so every role in the live
+population holds it:
+
+```
+=== TEMP privilege on the database, live role population ===
+owl_app|t|f
+owl_ci|t|t
+owl_ledger_anchor|t|f
+owl_ledger_ddl|t|f
+owl_migrator|t|f
+```
+
+and `pg_temp` is searched **before** the listed path for relation names when it is not itself listed:
+
+```
+ real public row count |     4
+ temp decoy row count  |     2
+
+                          probe                           | rows_seen
+----------------------------------------------------------+-----------
+ inside fn, BARE name (SET search_path=pg_catalog,public)  |         2
+ inside fn, public.-QUALIFIED name                         |         4
+ inside fn, BARE name with pg_temp LAST in search_path     |         4
+```
+
+**Executed end to end against the prototype guard**, one session, `CREATE TEMP TABLE
+screening_ledger_event` carrying a `2000-01-01` row for the target snapshot, then the strip:
+
+```
+########## PROTO-A  guard WITHOUT SET search_path         target=a21live0001 ##########
+UPDATE 1
+a21live0001|f|t
+########## PROTO-B  bare names + SET search_path=pg_catalog,public   target=a21live0001 ##########
+UPDATE 1
+a21live0001|f|t
+########## PROTO-C  public.-qualified + SET search_path   target=a21live0002 ##########
+a21live0002|t|f
+########## PROTO-D  public.-qualified, NO SET search_path target=a21live0003 ##########
+a21live0003|t|f
+```
+
+**Decision: every mirror reference in the guard body is schema-qualified (`public.screening_ledger_event`),
+and qualification -- not the `SET search_path` clause -- is the control.** D31's own move applied to a
+name: do not make the dangerous construct safe, remove the construct. The function carries
+`SET search_path = pg_catalog, public` as well, matching `019`-`024`'s style, and this decision states
+explicitly that **it is not what makes the guard sound** -- PROTO-B has it and is defeated, PROTO-D
+lacks it and is not. A later reader must not remove the qualification on the strength of the
+`SET search_path` clause. D76's rule, applied to two mechanisms that look interchangeable and are not.
+
+**The shipped definers are NOT exposed to this, and that was measured rather than inferred from the
+symmetry.** They carry the same bare names, but a `SECURITY DEFINER` function executes as
+`owl_ledger_ddl`, which has no `USAGE` on the caller's temp schema:
+
+```
+=== ARRAY-FORM definer (024), called by owl_migrator with a pg_temp decoy in scope ===
+ERROR:  permission denied for table screening_ledger_event
+CONTEXT:  SQL expression "NOT EXISTS (SELECT 1 FROM screening_ledger_event WHERE ledger_id = p_ledger_id)"
+```
+
+That is a fail-closed outcome and the right direction, **but it is a privilege accident rather than a
+designed property** -- it holds only while the definers run as a role distinct from every role that can
+call them. R84 records it so a later change that collapses those identities re-opens the question on
+the definer bodies too.
+
+### D165. The `SchemaSQL` bootstrap-contract change, and the mechanical reason Addendum 10 could not make it
+
+**The mechanical reason, stated exactly rather than as "correctly deferred."** `SchemaSQL` runs as
+`owl_migrator` on **every** `migrate`, `sync` and `import-audit` invocation (`postgres.go:98-101`,
+executed at `:101`), and it carries, unconditionally: a `CREATE OR REPLACE FUNCTION
+screening_ledger_snapshot_guard()` (`:2109`), and a `DROP TRIGGER IF EXISTS ... CREATE TRIGGER` for
+each of the relation's two triggers (`:2110`, `:2142`) -- plus the same shape for
+`screening_ledger_event`'s two triggers. D34's event trigger refuses exactly those statements against a
+registered object. So the moment any of these objects is registered, every `migrate` on every
+provisioned database fails. D89 measured three of its four probe registrations breaking `Migrate()`
+(`0007:9151-9163`); D100 measured the same one relation over (`0007:10664-10674`). **Re-measured at
+this tree, with the seven objects D166 registers:**
+
+```
+=== A21REG (5) SHIPPED Migrate() with the snapshot+event objects registered (D89 ground one, re-measured) ===
+ERROR: ADR-0007 Addendum 3 D34: screening_ledger_event_immutable on public.screening_ledger_event
+       (objid 27760) is protected by a superuser-only DDL event trigger and cannot be dropped (SQLSTATE P0001)
+```
+
+Addendum 10 was repairing a floor and Addendum 11 an aggregate; folding a new bootstrap contract into
+either is CLAUDE.md rule 7's own prohibition, which D89 cites by name (`0007:9274-9277`). This round
+exists to make that change and nothing else, so it is in scope here and was not there.
+
+**Decision, in two parts, both on both bootstrap paths in the same change (D125's rule, `024:46-51`).**
+
+1. **The guard function gets D78's assert-and-fail treatment** -- the shape already shipped for
+   `screening_ledger_reject_mutation()` in `SchemaSQL` (`postgres.go:2091-2103`, the refusal at
+   `:2100`): `IF to_regprocedure('screening_ledger_snapshot_guard()') IS NULL THEN EXECUTE
+   $exec$CREATE FUNCTION ...$exec$; ELSE` compare `sha256(prosrc)` against the declared set and
+   `RAISE` naming the function, the live digest and the remedy. **It deliberately does not repair**, for
+   D78's own path-specific reason: a repairing `CREATE OR REPLACE` is refused by D34 on every
+   provisioned database, so a repairing guard converts a silent acceptance into a hard failure of
+   `migrate`/`sync`/`import-audit` on exactly the healthy databases it protects.
+2. **All four declared trigger creations become conditional** on the trigger's absence, replacing the
+   unconditional `DROP TRIGGER IF EXISTS ... CREATE TRIGGER`. Both of
+   `screening_ledger_snapshot`'s and both of `screening_ledger_event`'s -- the latter two because D167
+   brings that relation into the same change.
+
+**The accepted digest set has exactly ONE member, measured rather than assumed.** This is the question
+D77 was forced to answer the other way for `owl_reject_truncate()`, whose migration and `SchemaSQL`
+literals disagree on whitespace so that declaring one digest false-fails every clean
+migration-bootstrapped database (`0007:714-727`). Measured here, for the shipped body and for the new
+one:
+
+```
+shipped guard body, both paths
+  008g:17                       sha256=f9cb95289a3fdead146dc24a3f8d0824dc225e37bfa98a0dc120731f09872330  len=483
+  postgres.go SchemaSQL:2109    sha256=f9cb95289a3fdead146dc24a3f8d0824dc225e37bfa98a0dc120731f09872330  len=483
+  byte-identical: True
+
+new guard body, both paths
+  migration 025 literal  sha256 = 24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616  1452 bytes
+  SchemaSQL literal      sha256 = 24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616  1452 bytes
+  BYTE-IDENTICAL: True -> accepted set has 1 member(s)
+  superseded 008g literal digest f9cb9528... is OUTSIDE this set: True
+```
+
+**The implementation must keep those two literals byte-identical**, and D171 item 7 makes that a test
+rather than a convention. `008g:17`'s literal stays committed and untouched -- D99(c)'s precedent
+(`024:53-60`): on the full migration path `025`'s `CREATE OR REPLACE` wins, so `008g`'s body is live on
+no database this repository provisions, and D99(b)'s already-shipped property (every superseded
+committed literal must digest outside every declared accepted set) covers it without a new pinned
+constant, as the last line above measures.
+
+**The whole contract, executed.** Prototype `SchemaSQL` (D78 block plus four conditional trigger
+creations) against the database whose seven objects are registered:
+
+```
+=== A21BOOT (2) SHIPPED SchemaSQL, as owl_migrator, objects registered (the D89 ground-one break) ===
+ERROR:  ADR-0007 Addendum 3 D34: screening_ledger_event_immutable on public.screening_ledger_event
+        (objid 27760) is protected by a superuser-only DDL event trigger and cannot be dropped
+
+=== A21BOOT (3, corrected) PROTOTYPE SchemaSQL as owl_migrator, all 7 objects registered ===
+  -> executed cleanly, rc=0
+
+=== A21BOOT (4) state intact ===
+20|4|2|24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616
+```
+
+**And D78's refusal direction, both ways** -- substitute the body inside the documented disable window,
+re-run, restore, re-run:
+
+```
+=== A21BOOT (5a) substitute the guard body inside the documented disable window (superuser) ===
+  live digest now: b3771fd26ec5e368... (declared: 24b2052608931...)
+
+=== A21BOOT (5b) PROTOTYPE SchemaSQL re-run: D78 assert-and-fail must REFUSE, not repair ===
+ERROR:  ADR-0007 Addendum 21 D165: screening_ledger_snapshot_guard() already exists but its body digest
+        b3771fd26ec5e3685166deb1aa3aa7c5bf7bce550afb959de6a723e0033bd412 is not in the accepted set
+        declared by Addendum 21 D165 -- Migrate() deliberately does not repair this
+        (see docs/operations/sec7-database-copies.md); investigate before proceeding
+
+=== A21BOOT (5c) restore the declared body, re-run: must pass again ===
+  -> executed cleanly, rc=0
+```
+
+**Both bootstrap paths produce the same object, measured separately.** A full migration path with a
+prototype `025`, and a `SchemaSQL`-only bootstrap on a virgin database with no `db/migrations/` ever
+run -- the `OWL_SCHEMASQL_ONLY_DATABASE_URL` fixture's shape:
+
+```
+########## PATH 1: full migration path + prototype 025 ##########
+  migrations + 025 applied
+  grant-ddl-ownership PASS lines: 3
+  7 objects registered (D166)
+20|24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616
+  prototype SchemaSQL (Migrate's script) against it:
+    -> rc=0, clean
+
+########## PATH 2: SchemaSQL-only bootstrap (no db/migrations/ ever run) ##########
+  prototype SchemaSQL on a virgin database -> rc=0
+  objects it created:
+24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616|4
+  re-running it (idempotence -- the D78 ELSE branch + 4 conditional skips):
+    -> rc=0, clean
+
+  the guard actually works on the SchemaSQL-only database:
+ERROR:  ADR-0007 Addendum 21 D163: snapshot p2live is still under a live retention obligation
+        (mirror MAX(screening_ledger_event.expires_at)=2100-01-01 00:00:00-05): refusing to strip protected content
+```
+
+**One already-shipped check stops being vacuous as a side effect, and it is named rather than left for
+a later round to notice.** `checkRequiredSchemaObjects` (`postgres.go:1414`) already declares
+`screening_ledger_snapshot_guard_trigger` (`postgres.go:1356`), but it runs at `postgres.go:104` --
+*after* `SchemaSQL` has executed at `:101` and unconditionally re-created the trigger. Today a dropped
+guard trigger is silently repaired and never reported; after part 2 the creation is conditional, so the
+same check becomes a real observer of a missing trigger. The failure direction is fail-closed on a
+database whose trigger has been removed and unchanged on every healthy one -- D78's own direction.
+
+### D166. Registration: what closes the `DROP TRIGGER` route, and the two registries' declared state
+
+**R40's recipe clause (b) is necessary and is not the mechanism** (drift note 3). D78 treatment and
+conditional creation stop nothing by themselves; they make registration *survivable*. Registration is
+what makes the route *refused*. Measured, all three routes, against the seven registered objects:
+
+```
+=== A21REG (2) the R44 parlay's statement 1, against the registered trigger ===
+ERROR:  ADR-0007 Addendum 3 D34: screening_ledger_event_immutable on public.screening_ledger_event
+        (objid 27760) is protected by a superuser-only DDL event trigger and cannot be dropped
+=== A21REG (3) R40's DROP TRIGGER route, against the registered guard trigger ===
+ERROR:  ADR-0007 Addendum 3 D34: screening_ledger_snapshot_guard_trigger on public.screening_ledger_snapshot
+        (objid 27767) is protected by a superuser-only DDL event trigger and cannot be dropped
+=== A21REG (4) the guard-function body swap (M-A's shape) against the registered function ===
+ERROR:  ADR-0007 Addendum 3 D34: public.screening_ledger_snapshot_guard() (objid 27766, tag CREATE FUNCTION)
+        is protected by a superuser-only DDL event trigger
+```
+
+**Decision: `requiredProtectedObjects` (`postgres.go:446-463`) and `grant-ddl-ownership`'s population
+(`scripts/ci/provision_test_roles.sh:843-858`, cardinality asserted at `:861-864`) gain seven rows,
+13 -> 20** -- two independent literals compared through the catalog, which is D41's arrangement and not
+one trusting the other:
+
+| classid | identity |
+|---|---|
+| `pg_class` | `public.screening_ledger_snapshot` |
+| `pg_proc` | `public.screening_ledger_snapshot_guard()` |
+| `pg_trigger` | `screening_ledger_snapshot_guard_trigger on public.screening_ledger_snapshot` |
+| `pg_trigger` | `screening_ledger_snapshot_no_truncate on public.screening_ledger_snapshot` |
+| `pg_class` | `public.screening_ledger_event` |
+| `pg_trigger` | `screening_ledger_event_immutable on public.screening_ledger_event` |
+| `pg_trigger` | `screening_ledger_event_no_truncate on public.screening_ledger_event` |
+
+`screening_ledger_reject_mutation()` and `owl_reject_truncate()` are already registered
+(`postgres.go:455-456`) and are not duplicated.
+
+**`requiredProtectedRelationStates` (`postgres.go:744`) gains two entries, 2 -> 4**, and D47's literals
+are **measured on the baseline, not computed**:
+
+```
+=== A21DECL: measured trigger state for the four newly declared triggers (D69's four properties) ===
+screening_ledger_event_immutable|27|0||t|public.screening_ledger_reject_mutation()
+screening_ledger_event_no_truncate|34|0||t|public.owl_reject_truncate()
+screening_ledger_snapshot_guard_trigger|27|0||t|public.screening_ledger_snapshot_guard()
+screening_ledger_snapshot_no_truncate|34|0||t|public.owl_reject_truncate()
+
+=== A21DECL: measured index state for the two newly protected relations (D91's four properties) ===
+screening_ledger_event_event_sha256_key|t|f|4|1|1|t|t
+screening_ledger_event_ledger_id_sequence_key|t|f|2 3|2|2|t|t
+screening_ledger_event_pkey|t|t|1|1|1|t|t
+screening_ledger_snapshot_pkey|t|t|1|1|1|t|t
+```
+
+(columns: `indisunique`, `indisprimary`, `indkey`, `indnkeyatts`, `indnatts`, `indpred IS NULL`,
+`indexprs IS NULL`.) **`relowner` is `owl_migrator` for both relations, on both bootstrap paths** --
+unlike the two existing entries, which declare `owl_ledger_ddl`:
+
+```
+  owl_a21_p1: screening_ledger_event=owl_migrator screening_ledger_snapshot=owl_migrator
+  owl_a21_p2: screening_ledger_event=owl_migrator screening_ledger_snapshot=owl_migrator
+```
+
+**D40 phase 2 registration was executed, not assumed to follow from phase 1** -- it is the registration
+D89's fourth probe found breaks `Migrate()` with "its trigger set changed" (`0007:9160-9162`):
+
+```
+=== D40 phase 2: register both relations in sec7_protected_relation, then run the PROTOTYPE SchemaSQL ===
+  sec7_protected_relation rows: 4
+  SHIPPED SchemaSQL:
+ERROR:  ADR-0007 Addendum 3 D34: screening_ledger_event_immutable on public.screening_ledger_event
+        (objid 28362) is protected by a superuser-only DDL event trigger and cannot be dropped
+  PROTOTYPE SchemaSQL:
+    -> rc=0, clean
+```
+
+D90's trap postcondition message (`provision_test_roles.sh:929`, `:931`) carries the literals `13` and
+`2` and moves with them; the implementation must change both, and D171 item 9 asserts it.
+
+### D167. R44 is in scope by section 5.1's own test, not as adjacent cleanup
+
+**D160 scoped R44 out on the ground that it "has no allowed-UPDATE transition, so R44's own recipe
+suffices there" (`0007:19675-19677`).** That is a correct statement about R44 considered alone, and it
+answers a different question than the one this round has to answer. **Measured: after D163 ships and
+before R44 is closed, R40's new refusal is defeated in three statements, silently.**
+
+```
+=== A21C (8) R44 parlay, statement 1: [owl_migrator] drops the event relation's immutability trigger,
+    both event triggers ENABLE ALWAYS ===
+sec7_protect_ddl_objects_on_alter|A
+sec7_protect_ddl_objects_on_drop|A
+DROP TRIGGER
+=== A21C (9) statement 2: rewrite the mirror obligation into the past ===
+UPDATE 1
+=== A21C (10) statement 3: the strip the fixed guard refused above ===
+UPDATE 1
+=== A21C (11) evidence destroyed; zero tombstones ===
+a21live0001|f|t|0
+=== A21C (12) does anything observe it? ===
+{"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+grant-ddl-ownership PASS lines: 3
+1
+```
+
+Statements 1 and 3 are the same statements the *fixed* guard refused moments earlier in the same
+database (A21C (1) and (2) above). The trailing `1` is the count of
+`screening_ledger_event_immutable` rows **after** `migrate` -- `SchemaSQL`'s unconditional
+`DROP TRIGGER IF EXISTS ... CREATE TRIGGER` silently re-created the trigger, so **the next `migrate`
+erases the evidence that the drop ever happened.**
+
+**Decision: R44 is closed together with R40, and the reason is section 5.1 / D13's own test, cited
+rather than restated -- "a weakness that would make the new guarantee false is not adjacent cleanup."**
+D89 applied that test to R40 and found it *not* met, correctly, because after D89 `created_at` was no
+referent of anything (`0007:9268-9272`). D163 changes the antecedent: `screening_ledger_event.expires_at`
+is now a referent of a *preventive* control, and R44 is the ability to rewrite it at T1 unobserved. The
+guarantee D163 would otherwise make -- *a snapshot under a live obligation cannot have its protected
+content stripped* -- is **false** while R44 is open, and false silently, per the `forSnapshot`
+reachability analysis above. D76's composition rule says the property set is only as strong as its
+weakest member; here the weakest member is a mirror column behind a droppable trigger.
+
+**It is also the same change.** D100 already measured that closing R44 needs "the `SchemaSQL`
+bootstrap-contract change D100 measures, with its own positives to prove on both paths"
+(`0007:10972-10974`) -- *the same* change, on *the same* two unconditional statement shapes, in *the
+same* constant. Splitting them would mean paying the re-provisioning cost twice for one contract.
+
+**What R44's closure does not do, stated so it is not over-read.** It removes the T1 rewrite route. A
+bootstrap superuser can still open the documented disable window and rewrite anything; that is
+unchanged, is the same standing property every D34-protected object has, and is R80.
+
+### D168. R57, verified rather than inherited -- and the half of it that does not close
+
+D150 records that "R57's capability is a strict subset of R40's direct path" and that closing R57
+before R40 "closes a harder path to a capability the same role already has by an easier one"
+(`0007:18963-18966`). **The brief for this round required verifying that rather than accepting it, and
+verification splits it in two.**
+
+**The destructive half closes, and the mechanism is not the one "strict subset" suggests.** It closes
+not because the rogue overload is weaker, but because a `BEFORE ROW` trigger fires on the rogue
+overload's `UPDATE` exactly as it fires on a direct one -- `SECURITY DEFINER` changes the executing
+role, not whether row triggers run. Reproduced on the shipped tree and then against the fixed guard,
+with D145's own construction:
+
+```
+=== A21PROBE (7) R57: [owl_migrator] creates an UNDECLARED SECURITY DEFINER overload that strips ===
+CREATE FUNCTION
+1
+=== A21PROBE (8) state: a21live0003 stripped under a LIVE 2100 obligation, 0 tombstones ===
+a21live0001|2100-01-01|f|t|0
+a21live0002|2100-01-01|f|t|0
+a21live0003|2100-01-01|f|t|0
+
+--- R57 against the fixed guard, same construction ---
+  CREATE FUNCTION (enumeration gap NOT closed -- D168)
+ERROR:  ADR-0007 Addendum 21 D163: snapshot a21live0003 is still under a live retention obligation
+        (mirror MAX(screening_ledger_event.expires_at)=2100-01-01 00:00:00-05): refusing to strip protected content
+```
+
+D145's inversion is re-confirmed on a freshly provisioned database, so the corrected bound
+(`0007:17681-17687`) is measured again rather than carried on trust:
+
+```
+=== A21PROBE (6) CREATE privilege on public, live population (D145's inversion) ===
+owl_app|f
+owl_ci|t
+owl_ledger_anchor|f
+owl_ledger_ddl|f
+owl_migrator|t
+```
+
+**The enumeration half does NOT close, and saying otherwise would be a false attestation.** R57's
+stated class is that **no control enumerates the live catalog's set of overloads of a protected
+function name** (`0007:14621-14635`). Nothing in this addendum enumerates them: the `CREATE FUNCTION`
+above still succeeds on a fully provisioned database with both event triggers `ENABLE ALWAYS`, and
+`grant-ddl-ownership` still never mentions it. What this addendum closes is R57's **measured
+exploitation against snapshot evidence**, which was the only destructive use any round has
+demonstrated for it.
+
+**Decision: R57's disposition becomes "the demonstrated exploitation is closed by D163; the
+enumeration gap is unchanged and stays open," recorded in this decision's own words rather than by
+editing R57 (the AR7 convention).** Wherever R57 or D150 imply that R57 closes as a consequence of
+R40, read instead:
+
+> **D163 closes every route by which an undeclared overload can strip protected content from a
+> snapshot under a live obligation, because the guard adjudicates the `UPDATE` regardless of who or
+> what issues it. R57's own class -- an undeclared live overload of a declared function name that no
+> control enumerates -- is untouched. Its closure remains D62(a)'s shape applied to functions, it is
+> not designed here, and its re-entry condition and D145's corrected bound are unchanged.**
+
+R85 carries it. This is a narrower claim than "R57 is closed," and it is the one the measurements
+support.
+
+### D169. The tombstone-existence conjunct, investigated and refuted by measurement
+
+A conjunct requiring a matching `screening_ledger_retention_tombstone` row before permitting the strip
+is the obvious defence in depth, and it looked strong: `owl_migrator` **cannot** write a tombstone
+(measured above, `INSERT=f`), which is also why R57's rogue definer leaves none. **It is rejected on
+two independent grounds, the second measured.**
+
+1. **It is role-dependent where the capability is not.** `owl_ledger_ddl` holds full DML on the
+   tombstone table and `UPDATE` on the snapshot table (measured above), so it can write the tombstone
+   and then strip directly. The conjunct narrows one role's route rather than adjudicating the fact,
+   which is D59/D60's quantifier defect and the same reason D163 refuses the `current_user` test.
+2. **The two shipped overloads disagree about whether the trigger can even see the tombstone, so the
+   conjunct would refuse every legitimate purge through one of them.** Measured with a probe guard
+   that reports the count it can see and then allows the transition. (The probe's own text says
+   `D164 PROBE` -- it was written before this decision was renumbered, and the transcript is pasted
+   as it ran rather than edited.)
+
+   ```
+   === D169 (a) ARRAY-FORM definer (024): tombstone INSERT and snapshot UPDATE are SIBLING CTEs in ONE statement ===
+   WARNING:  D164 PROBE: tombstone rows visible to the BEFORE-ROW trigger for d164array = 0
+   {d164array}
+
+   === D169 (b) TIME-FLOOR definer (023): tombstone INSERT is a SEPARATE, EARLIER statement ===
+   WARNING:  D164 PROBE: tombstone rows visible to the BEFORE-ROW trigger for d164floor = 1
+   1
+   ```
+
+   `024:175-185` runs the `inserted` and `updated` CTEs as siblings of one statement, and a sibling
+   CTE's inserted rows are not visible to the statement's own triggers; `023`/`021`'s time-floor form
+   issues the `INSERT` as an earlier statement, so they are. **A conjunct that is satisfied by one
+   shipped purge path and refused by the other is not a control, it is a false-failure generator** --
+   D45's pre-declared shape. Adopting it would require restructuring `024`'s body, moving both
+   array-form digests for a fifth consecutive round, to buy a role-dependent narrowing D163 already
+   covers role-independently.
+
+**Decision: not adopted. Recorded with its measurement so a later round has the answer rather than
+re-deriving it.** If a future change ever makes the array-form overload issue its tombstone `INSERT`
+as a separate statement for independent reasons, ground 2 lapses and ground 1 still stands.
+
+### D170. `declaredFunctions()` and the D132 gate population gain the guard
+
+Declaring the guard's body digest has a consequence beyond D165's assertion: it brings
+`screening_ledger_snapshot_guard` into the populations three already-shipped gates range over --
+`declaredFunctions()` (`d92_digest_gate_derivation_test.go:238`, four entries today),
+`assertEveryCommittedLiteralIsADeclaredBody` (D132) and `assertNoBodyDropped` over `SchemaSQL` (D133).
+
+**Decision: the guard joins `declaredFunctions()` with a ONE-member accepted set (measured, D165), and
+the D99(b) superseded-literal property is asserted for `008g:17`'s now-superseded body.** Three notes
+so the implementation does not get this subtly wrong:
+
+- `declaredFunctions()` dispatches on `typeList`; the guard takes no arguments, so its entry has
+  `typeList: ""`, the same dispatch `owl_reject_truncate` already uses (D132(b)'s own second case,
+  `d132_d133_placement_test.go:114`).
+- The accepted set is one member **because the two literals are byte-identical**, not because one path
+  was picked. If the implementation's editing makes them diverge, the correct response is to make them
+  identical again, **not** to declare a second digest -- a two-member set here would accept a body
+  that no bootstrap path produces.
+- `008g:17`'s literal is a **superseded** literal after `025`, exactly as `022`'s and `023`'s
+  array-form literals are (D132(a)). It must digest outside the accepted set; measured above, it does
+  (`f9cb9528...` vs `24b20526...`).
+
+**`proconfig` is deliberately not added to any declared property set, and the reason is recorded rather
+than left implicit.** The declared referent for a function is `sha256(prosrc)`, and `prosrc` does not
+include the `SET search_path` clause -- so a repair that omitted the clause would pass the digest
+check. That is sound **only because D164 makes the qualified name the control and the clause
+decoration**; if a future change ever reintroduces a bare name into any declared function body, this
+reasoning is void and `proconfig` must be re-evaluated. R81 records it.
+
+### D171. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge this
+addendum -- the standard D20, D26, D37, D42, D49, D58, D67, D75, D85, D95, D103, D112, D122, D131,
+D136, D138, D140, D146, D151 and D161 set. **Every test below must fail before its change, per
+CLAUDE.md rule 5** -- confirmed for D163, D164, D165, D166 and D167 during this design pass by running
+each construction against the shipped code (the transcripts above). Where a transcript exists above,
+the test reproduces it, not a paraphrase.
+
+1. **D163, the finding itself, pgx, DSN-gated.** D150's `a19live*` construction as `a21live*`: a
+   snapshot under a `2100-01-01` obligation, direct `UPDATE` stripping `ciphertext_base64`, **no
+   `DROP TRIGGER`**, issued as **both** `owl_migrator` and `owl_ledger_ddl`. Each asserts `UPDATE 1`
+   and `has_ct=f` with zero tombstones **today**, and the D163 refusal naming the snapshot and the
+   mirror maximum **after**. Plus the guard-live control (the same UPDATE also rewriting `expires_at`,
+   refused today) -- without it the test cannot distinguish "the guard refuses" from "the guard is
+   gone."
+2. **D163's silence half, as its own assertion.** After the strip, `migrate` returns
+   `{"provisioned":true,"provisioning_reason":""}` and `grant-ddl-ownership` exits 0 with three `PASS`
+   lines -- today. A test that only proves the strip succeeds does not prove the finding, which is that
+   nothing sees it.
+3. **D163's vacuity half.** An unreferenced snapshot is refused after, with the distinct
+   no-referencing-event message, and the two messages differ. Plus the matching definer positive: the
+   same snapshot is not purged by either overload today either, so the guard and the definer agree.
+4. **D164, the shadowing matrix, DSN-gated.** All four prototypes -- bare/qualified x with/without
+   `SET search_path` -- against one `CREATE TEMP TABLE screening_ledger_event` decoy in one session,
+   asserting the shipped-shape variants (PROTO-A, PROTO-B) strip and the qualified variants (PROTO-C,
+   PROTO-D) refuse. **This is the test that fails if a later edit replaces a qualified name with a bare
+   one**, and it must not be discharged by asserting the `SET search_path` clause is present.
+5. **D164's definer control.** The same decoy against the shipped array-form overload asserts
+   `permission denied for table screening_ledger_event` -- pinning that the definers fail **closed**
+   here, so a later change that makes them run as their caller fails this test rather than shipping
+   the exposure (R84).
+6. **The positive controls, a shipping requirement and not a nicety (D37 verbatim).** A snapshot whose
+   referencing events have genuinely expired is purged end to end through **both** overloads -- the
+   array form (`024`) and the time-floor form (`023`) -- each producing a tombstone row, `has_ct=f`,
+   and `purged_at` set. Both, not one: both issue the `UPDATE` the guard now adjudicates, and D169
+   measured that they differ in statement structure. **A guard that blocks a legitimate purge is the
+   over-tightening failure this item exists to catch.**
+7. **D165's byte-identity pin, DSN-free.** `db/migrations/025`'s guard literal and `SchemaSQL`'s are
+   byte-identical, and their shared `sha256` equals the single declared constant. Plus `008g:17`'s
+   superseded literal digesting outside the accepted set. This is the test that fails if a future edit
+   touches one literal and not the other -- the false-failure mode D77 was forced into for
+   `owl_reject_truncate()`.
+8. **D165's bootstrap contract, both paths, DSN-gated.** (a) The shipped `SchemaSQL` errors with the
+   seven objects registered, and the prototype does not -- D89's probe, re-run. (b) A `SchemaSQL`-only
+   virgin database gets the guard at the declared digest and all four declared triggers, and a second
+   run is a clean no-op. (c) The D78 refusal direction: substitute the body, `Migrate()` refuses naming
+   the live digest and the remedy and **does not repair**; restore it, `Migrate()` passes. (d)
+   `checkRequiredSchemaObjects` now reports a missing guard trigger rather than silently re-creating
+   it.
+9. **D166/D167, the closure matrix, DSN-gated, table-driven over every route.** Against the fully
+   registered database: direct `UPDATE` as each role; `DROP TRIGGER` on the guard trigger; the guard
+   body swap; `DROP TRIGGER` on `screening_ledger_event_immutable`; the direct `UPDATE` of
+   `screening_ledger_event.expires_at`; the R57 overload; the `pg_temp` decoy; the vacuity case. Each
+   asserts the specific refusal, not merely "an error." **Plus D90 unregressed**: after every new
+   refusal path, both event triggers `evtenabled='A'` and all three registries at **20/4/1** -- the new
+   literals, which must also be updated in `provision_test_roles.sh:929` and `:931`.
+10. **The registry positives.** `grant-ddl-ownership` on a clean database exits 0 with three `PASS`
+    lines and 20/4/1; `CheckProvisioningState` returns `Provisioned=true Reason=""` on it and on a
+    `TEMPLATE` clone (Addendum 5's population positive); and a partially registered database is a named
+    failure rather than a silent pass.
+11. **D172's recovery procedure, executed before it is written** (D84's standard): the documented
+    disable-window procedure applied to a database carrying the pre-025 guard body, ending in three
+    `PASS` lines and both event triggers `A`. Plus the DSN-free doc-drift test's widened population
+    (D172).
+12. **Every gate still runs with no DSN where it did before** (D92's property): items 7 and the
+    doc-drift half of 11 are DSN-free.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D163 must not be discharged by consulting any `screening_ledger_snapshot` column** as the expiry
+  referent -- `expires_at`, `created_at`, `retention_class` or the envelope's copies of them. That is
+  D89 ground two's withdrawn referent and D156's unMAC'd metadata, and the guard's own
+  `OLD.x=NEW.x` pins do not change it.
+- **D163 must not be discharged by a `current_user` / `session_user` test**, by a GUC the definer sets,
+  or by any other "was this reached through the definer" construction. Measured: `owl_ledger_ddl` holds
+  `UPDATE` directly, so it admits A21PROBE (2).
+- **D163 must ship both halves.** The `NOT EXISTS` without the non-vacuity `EXISTS` is vacuously true
+  for an unreferenced snapshot and is weaker than the definer it aligns with.
+- **D164 must not be discharged by the `SET search_path` clause alone** -- PROTO-B has it and is
+  defeated -- nor by listing `pg_temp` last, which works (measured) but leaves a bare name whose
+  resolution depends on a setting rather than on the text. Qualification is the control.
+- **D165 must not declare a second accepted digest** to accommodate divergent literals. One member,
+  measured; divergence is repaired in the literals, not absorbed into the set.
+- **D165's guard must not repair.** A repairing `CREATE OR REPLACE` is refused by D34 on every
+  provisioned database, which converts a silent acceptance into a hard failure of `migrate`, `sync`
+  and `import-audit` on healthy databases -- D78's own reasoning, one object over.
+- **D166 must not be discharged by registering the relations alone.** D89 and D100 both measured that
+  a relation-only registration protects nothing and, by D41's exact cardinality, wedges
+  `CheckProvisioningState` into `Provisioned=false`. The function and all four triggers are registered
+  or none is.
+- **D167 must not be dropped from the change on the ground that R44 has its own register entry.** The
+  measurement in D167 is the whole reason: R40's guarantee is false without it.
+- **D168 must not be reported as "R57 closed."** The enumeration gap is untouched, and a summary that
+  says otherwise is the false-attestation class CAP #17's L-B named.
+- **D169 must not be re-proposed as defence in depth** without re-running its measurement; it refuses
+  every array-form purge as things stand.
+- **No new dependency** (CLAUDE.md rule 1): the guard is SQL, and every Go change is to existing
+  declared-literal slices.
+- **No tolerance, anywhere.** If any comparison in this addendum cannot be made exact, the
+  implementation stops and this addendum is amended rather than shipping an invented equivalence. The
+  eleventh round to restate D85's condition.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what this addendum designs rather than inherited. D77/D78's guard-body arrangement is extended
+to a third function, not revised; `screening_ledger_reject_mutation()`'s and `owl_reject_truncate()`'s
+own accepted sets are untouched. D117's definer digest sets are untouched -- **no definer body changes
+in this addendum**, which is what keeps the array-form digests from moving a fifth time (D169's own
+reason for refusing the conjunct). D98's quantifier, D116's global corroboration, D124's element set
+and D107's reduction are untouched; the guard *consumes* D98's predicate and does not restate it
+differently. D88(a)/(b) remain shipped together and `anchorMAC`'s input is untouched. D153's
+canonical-bytes rule is untouched, and no chain struct changes. D132/D133's gate and the
+D137/D139/D142-D144 extractor are untouched except for the population addition D170 names. D38(a)'s
+duplicate-key scan, D147's `EqualFold` equality and D148's strict decode are untouched. D50's
+`index_defs` and D65's validity branch are untouched, so Addendum 6's and Addendum 7's fallbacks are
+**not** required. `prosrc` is not normalised anywhere. The withdrawn D74 reaper is not reintroduced.
+The instance binding is still not a gate. D46 is not split from D45. D69's rejection of
+`pg_get_triggerdef` stands.
+
+### D172. The re-provisioning cost, named here rather than discovered by a later round, and the recovery procedure confirmed to cover it
+
+**This IS a re-provisioning event on every already-provisioned database**, as every definer/trigger-body
+change in this arc has been (`019`, `020`, `021`, `022`, `023`, `024`). Three independent grounds, and
+the addendum states all three rather than the one that is easiest to notice:
+
+1. **The guard function's declared body digest moves** (`f9cb9528...` -> `24b20526...`), so a database
+   carrying the old body fails D165's new assertion inside `Migrate()`.
+2. **`sec7_protected_object`'s declared cardinality moves, 13 -> 20**, so `CheckProvisioningState`
+   reports `Provisioned=false` until `grant-ddl-ownership` re-runs (D41's exact-cardinality assertion,
+   and D100's measured wedge).
+3. **`sec7_protected_relation` gains two entries, 2 -> 4**, each with newly declared trigger and index
+   state.
+
+On a **fresh** database none of this applies: `db/migrations/025` runs in order, as `owl_migrator`,
+before `grant-ddl-ownership` ever installs the event triggers -- the property `019`-`024` already
+established (`024:214-216`).
+
+**The documented recovery procedure covers it, and that was executed rather than asserted** (D84's
+standard, and D155's own lesson that this procedure must be run literally end to end rather than
+reasoned about). On a fully provisioned throwaway carrying the pre-`025` guard:
+
+```
+=== A21REC (2) apply 025 as owl_migrator WITHOUT the disable window (must be refused) ===
+ERROR:  ADR-0007 Addendum 3 D34: public.screening_ledger_snapshot_guard() (objid 29077, tag CREATE FUNCTION)
+        is protected by a superuser-only DDL event trigger
+
+=== A21REC (3) the documented procedure: disable window open, apply 025, close the window ===
+  025 applied inside the window (as the bootstrap superuser)
+  guard digest now: 24b205260893 (declared: 24b205260893)
+
+=== A21REC (4) re-run grant-ddl-ownership: re-registers and restores both triggers to A ===
+  PASS lines: 3
+
+=== A21REC (5) state after the documented procedure ===
+13|sec7_protect_ddl_objects_on_alter=A sec7_protect_ddl_objects_on_drop=A|24b205260893
+
+=== A21REC (7) the guard is LIVE and refusing on the recovered database ===
+ERROR:  ADR-0007 Addendum 21 D163: snapshot a21live0001 is still under a live retention obligation
+        (mirror MAX(screening_ledger_event.expires_at)=2100-01-01 00:00:00-05): refusing to strip protected content
+```
+
+(The `13` in A21REC (5) is the **shipped** `grant-ddl-ownership` re-populating its own declared
+thirteen; after D166 that literal is 20. The transcript is run against this tree, where the script is
+unchanged.)
+
+**Two corrections the document needs, both found by running it, neither inferable from D155's text.**
+
+1. **Unlike the two `screening_ledger_purge_snapshots` overloads, `screening_ledger_snapshot_guard()`
+   is still owned by `owl_migrator` after `grant-ddl-ownership`** -- ownership transfer covers the
+   anchor and tombstone relations and the two purge overloads, not this function. So D155's
+   "**Verified by execution: the migration must be applied as the bootstrap superuser, not as
+   `owl_migrator`**" (`sec7-database-copies.md`, the D87 block) is correct **for the overloads it was
+   written about and wrong if generalised to this migration.** Measured:
+
+   ```
+   === A21REC (1) who owns the guard function? ===
+   owl_migrator
+   === A21REC (6) can owl_migrator apply 025 itself inside the window? ===
+     YES -- owl_migrator applied 025 inside the window, rc=0
+     guard digest: 24b205260893
+   ```
+
+   The document gains a per-object statement rather than a per-procedure one: the disable window is
+   required for **every** protected function; the superuser *identity* is required only where
+   ownership has moved.
+2. **D155's drift-proof test does not cover the new file, and its population must widen.**
+   `d155_doc_drift_test.go:43` derives the current defining file from
+   `CREATE\s+OR\s+REPLACE\s+FUNCTION\s+screening_ledger_purge_snapshots\s*\(` across
+   `db/migrations/*.sql`. `025` defines `screening_ledger_snapshot_guard`, which that regexp does not
+   match, so the gate that exists precisely to stop the document pointing at a superseded file would
+   not notice the guard's file moving. The implementation widens the population to the **declared
+   function set** (`declaredFunctions()` after D170) rather than to one hard-coded second name --
+   D99's own directory-scan discipline, applied to the function axis instead of the file axis.
+
+### New accepted risks
+
+**R80 -- the guard's referent is the mirror, and a bootstrap superuser is outside its scope by
+construction.** D163 adjudicates against `screening_ledger_event.expires_at`, which D167 places behind
+a registered, D34-protected immutability trigger. That closes the T1 route. It does not, and cannot,
+close a bootstrap superuser who opens the documented disable window: that identity can rewrite any
+value in the database, and this is the same standing property every D34-protected object already has
+(section 10, `sec7-database-copies.md`'s "`event_triggers = off` is not a bypass"). What the chain
+still provides above the mirror is unchanged -- `Event.ExpiresAt` under `K_chain`, committed under
+`K_anchor` -- and D89's authority/corroboration split is untouched: **a later reader must not conclude
+from D163 that the mirror has become the authority.**
+
+**R81 -- `proconfig` is not a declared property of any protected function, and this is sound only
+while no declared body carries a bare relation name.** The declared referent is `sha256(prosrc)`,
+which excludes the `SET search_path` clause, so a repair omitting that clause passes every check. That
+is acceptable because D164 makes qualification the control. **If any future change reintroduces a bare
+relation name into `screening_ledger_snapshot_guard()`, either purge overload, or any function later
+added to the declared set, this reasoning is void and `proconfig` must join the declared state.** D171
+item 4 is the test that fires.
+
+**R82 -- the coordinated-edit surface grew again, along the axis R23, R29, R33, R35 and R42 already
+track.** One new declared body digest; seven new `sec7_protected_object` identities in two independent
+literals; two new `sec7_protected_relation` entries with four trigger-state and four index-state
+declarations; three count literals in `provision_test_roles.sh` (`:861-864`, `:929`, `:931`). No new
+*kind* of literal is introduced -- every one is a property of an object this document already declares
+-- and **every one fails closed**, which is why the arrangement survives. The aggravating property
+section 10.3 names, that these controls have no single owner, is unchanged and is not addressed here.
+
+**R83 -- the guard now runs two subqueries per protected `UPDATE`, and the cost is measured rather than
+assumed negligible.** Same database, same indexes, same 2000-row array-form purge, only the guard body
+differing:
+
+```
+########## same database, batch 2, SHIPPED guard ##########
+   2000
+Time: 61.854 ms
+########## same database, batch 3, PROTO-C guard ##########
+   2000
+Time: 106.468 ms
+```
+
+About 22 microseconds per protected row, against a purge path that runs on an operator's schedule and
+not on the request path. It is recorded because it is a real cost on the one path that must not become
+unusable, and because a deployment whose `screening_ledger_event` lacks an index on
+`request_snapshot_sha256`/`response_snapshot_sha256` will pay far more than this -- neither column is
+indexed by `008g:3`, and both measurements above were taken with indexes added. **The implementation
+must decide whether `025` creates them, and if it does not, this risk is the reason a later round will
+ask why the purge got slow.**
+
+**R84 -- the shipped definers resist the `pg_temp` shadowing D164 found only because they execute as a
+role that cannot read the caller's temp schema.** Measured (`permission denied for table
+screening_ledger_event`), fail-closed, and **not a designed property**: it holds while
+`owl_ledger_ddl` is distinct from every role holding `EXECUTE`. A change that made a purge overload
+`SECURITY INVOKER`, or that granted `owl_ledger_ddl` membership in a calling role, re-opens D164's
+class on bodies this addendum does not touch. D171 item 5 pins the current behaviour so such a change
+fails a test.
+
+**R85 -- R57's enumeration gap is unchanged and stays open.** D168 closes R57's demonstrated
+exploitation and not its class: nothing enumerates the live catalog's overloads of a declared function
+name, and `CREATE FUNCTION` of an undeclared overload still succeeds on a fully provisioned database
+with both event triggers `ENABLE ALWAYS` and `grant-ddl-ownership` printing three `PASS` lines.
+D145's corrected bound (`CREATE` on the schema holding the protected function, not ownership) and
+R57's re-entry condition are unchanged. Closing it remains D62(a)'s shape applied to functions.
+
+**R86 -- D156's envelope-metadata decision-binding is NOT closed by this addendum, and D160's scope
+statement is narrowed accordingly.** D160 listed "G4's envelope metadata (D156) becoming a
+decision-authenticated referent" among what R40's design must cover (`0007:19672-19675`). This
+addendum does not do that, and the reason is that D163 made it unnecessary for R40's own guarantee
+rather than merely deferring it: the guard does not read the envelope or any snapshot column, so the
+unMAC'd metadata decides nothing in the new control either. G4 remains what D156 found it -- reader-
+consistent under D153, not decision-bearing -- and binding it to an authenticated source is now a
+standalone question rather than a sub-part of R40. It is recorded here so the register carries it after
+R40 closes, instead of it disappearing with the risk that used to host it.
+
+### Staging
+
+Same shape and reason as section 8 and the twenty prior addenda: each stage independently reviewable
+and independently provable, ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage U1 -- the guard body, both bootstrap paths.** D163, D164, D165 part 1's literal and D170's
+   declared digest: `db/migrations/025_screening_ledger_snapshot_guard_expiry.sql` plus the
+   byte-identical `SchemaSQL` literal, the one-member accepted set, `declaredFunctions()`, and D171
+   items 1, 2, 3, 4, 5, 6, 7. **Sequenced first and shippable alone**: it closes the direct-UPDATE and
+   R57 routes -- the paths the business decision is actually about -- without touching any registry,
+   so it carries no re-provisioning cost beyond the guard body itself. On a database not yet carrying
+   D166's registration the guard is still droppable; that is R40's *other* route and it is Stage U2's.
+3. **Stage U3's prerequisite, Stage U2 -- the bootstrap contract.** D165 part 2: all four trigger
+   creations conditional, D78's assert-and-fail on the guard function, and D171 item 8. **No
+   registration yet**, so this stage changes no observable refusal; it exists to make U3 survivable,
+   and its proof is that `Migrate()` still returns `<nil>` on every fixture and that the shipped
+   `SchemaSQL` errors where the new one does not.
+4. **Stage U3 -- registration, and R44.** D166 and D167: seven `sec7_protected_object` rows, two
+   `sec7_protected_relation` entries, `requiredProtectedObjects`, `requiredProtectedRelationStates`,
+   `provision_test_roles.sh`'s population and its three count literals, and D171 items 9 and 10. This
+   is the stage that carries the re-provisioning cost, and it must not be merged before U2.
+5. **Stage U4 -- the operator document and its gate.** D172's two corrections and the widened
+   doc-drift population, with every command executed before it is written (D84). Per CLAUDE.md
+   Boundaries, the part of this that changes `scripts/ci/` -- `provision_test_roles.sh`'s population
+   is a provisioning script rather than a CI gate script, so it rides with U3; the doc-drift test's
+   population change is a test and rides here.
+
+**Ordering constraint, stated because reversing it is the tempting mistake:** U3 before U2 breaks
+`Migrate()` on every provisioned database (measured, A21REG (5) / A21BOOT (2)). U1 before U2 is safe
+and is why U1 is first.
+
+### Addendum 21 summary
+
+- **Not a CAP round.** No Composition Audit Program record triggered this. R40 and R57 were closed by
+  decision, because silently destroying evidence under a live retention obligation was judged too
+  severe to carry. **SEC-7 is not closed by this addendum**, and no clean count starts here.
+- **R40 is closed on all three of its routes**, measured against a fully provisioned database with
+  both event triggers `ENABLE ALWAYS`: the direct `UPDATE` (as `owl_migrator` **and** as
+  `owl_ledger_ddl`), the `DROP TRIGGER`, and the guard-body swap. Plus two routes no prior round
+  named: the `pg_temp` shadowing D164 found while prototyping, and the R57 overload.
+- **The design is D162-D172.** The standing audits discharged first (D162); the expiry-aware referent
+  under the definer's own two-part quantifier, with the snapshot's own columns and the `current_user`
+  test both refused by measurement (D163); schema-qualification as the control, with `SET search_path`
+  measured insufficient (D164); the `SchemaSQL` bootstrap-contract change with a measured one-member
+  digest set (D165); registration as the mechanism R40's own recipe did not name (D166); R44 brought
+  into scope by section 5.1's test rather than left beside (D167); R57 verified and split into a closed
+  half and an open one (D168); the tombstone conjunct refuted by measurement (D169); the D132 gate
+  population (D170); the proof obligations with pre-declared withdrawal conditions (D171); and the
+  re-provisioning cost with its executed recovery (D172).
+- **This design pass executed its assumptions rather than reasoning about them.** R40 reproduced on
+  both roles with the guard live and a control proving it live; the silence measured through `migrate`,
+  `grant-ddl-ownership` **and** `forSnapshot`'s two call sites; four prototypes measured against one
+  `pg_temp` decoy; both definer overloads measured to purge correctly after the fix; the tombstone
+  conjunct measured to break one of them; both bootstrap paths built from scratch and measured to
+  produce the same digest; the D78 refusal measured in both directions; the recovery procedure run end
+  to end; and the cost measured on one database with only the guard body differing.
+- **Three prior statements are corrected forward, in this addendum's own words** (the AR7 convention):
+  D150's "or equivalently ... reachable only through the `SECURITY DEFINER` purge path" is not an
+  equivalent (D163); R40's recipe clause (b) is the enabler and registration is the mechanism (D166);
+  and D160's treatment of R44 as a parallel residual is narrower than what R44 does to R40's guarantee
+  (D167). D168 narrows R57's expected closure, and R86 narrows D160's scope list where D163 made one
+  item unnecessary rather than deferred.
+- **Seven risks are recorded** rather than designed away: the superuser is outside the guard's scope by
+  construction (R80); `proconfig` is undeclared and that is sound only while no declared body carries a
+  bare name (R81); the coordinated-edit surface grew again (R82); the guard costs about 22 microseconds
+  per protected row and the mirror's join columns are unindexed (R83); the definers resist D164's class
+  by a privilege accident rather than by design (R84); R57's enumeration gap stays open (R85); and
+  D156's envelope-metadata binding becomes a standalone question rather than disappearing with R40
+  (R86).
+- **This addendum revises no prior decision.** D1-D161 stand; R1-R79 stand. R40's and R44's
+  *dispositions* change from "recorded risk" / "needs a design" to "closed by D163-D167", and R57's
+  from "deferred" to "exploitation closed, enumeration open", each recorded in the new decisions' own
+  words rather than by an edit above this section.
+
+**Design basis commit:** `77ebea575a556584175d84a4bacb07a70ebcd3cf`
+
+Every file:line citation in this addendum was verified against that tree. For a CAP record covering the
+implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
