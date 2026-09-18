@@ -76,15 +76,25 @@ func LoadEd25519PrivateKey(file, envName string) (ed25519.PrivateKey, error) {
 	return nil, fmt.Errorf("verification policy signing key must be %d bytes encoded as hex or base64", ed25519.PrivateKeySize)
 }
 
+// readKeyMaterial is ADR-0007 Addendum 20 D158 (G6): used to silently
+// prefer a file over an env var when both were supplied for the same key
+// -- measured: `verify ... --key-file <real R> --key-env <WRONG>` exits 0,
+// the file silently winning with no indication a second, ignored source
+// was even given. Both supplied for the same key is now refused by name.
 func readKeyMaterial(file, envName string) (string, error) {
-	if strings.TrimSpace(file) != "" {
+	haveFile := strings.TrimSpace(file) != ""
+	haveEnv := strings.TrimSpace(envName) != ""
+	if haveFile && haveEnv {
+		return "", fmt.Errorf("both a file (%s) and an env var (%s) were supplied for the same key (ADR-0007 Addendum 20 D158): refusing rather than silently preferring the file", file, envName)
+	}
+	if haveFile {
 		data, err := os.ReadFile(file)
 		if err != nil {
 			return "", fmt.Errorf("read key material: %w", err)
 		}
 		return strings.TrimSpace(string(data)), nil
 	}
-	if strings.TrimSpace(envName) != "" {
+	if haveEnv {
 		return strings.TrimSpace(os.Getenv(envName)), nil
 	}
 	return "", nil

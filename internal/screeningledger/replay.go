@@ -15,7 +15,24 @@ import (
 	"time"
 )
 
-func (s *Store) Replay(ctx context.Context, eventID, backendURL string, client *http.Client) (ReplayReport, error) {
+// PreReadVerifier is ADR-0007 Addendum 20 D154(b): the check Replay and
+// ExportBundle must run, and must have SUCCEEDED, before decrypting any
+// evidence. Measured gap this closes: GetEvent used to be `export`'s and
+// `replay`'s only gate, and GetEvent has never called Verify/VerifyAnchored
+// -- a MAC-broken event (one `verify` itself refuses) exported verbatim,
+// and a filename swap mislabeled a bundle for a different event entirely.
+// The caller (cmd/screening-ledger) supplies either a full VerifyAnchored
+// check (a Postgres sink configured) or a filesystem-only VerifyPolicy
+// check under the signed policy (D154(b)'s stated "or, filesystem-only,
+// VerifyPolicy" alternative) -- never a bespoke, weaker check invented
+// here, so this package enforces "verified" the same way status/verify do,
+// not a second definition of it.
+type PreReadVerifier func(ctx context.Context) error
+
+func (s *Store) Replay(ctx context.Context, verify PreReadVerifier, eventID, backendURL string, client *http.Client) (ReplayReport, error) {
+	if err := verify(ctx); err != nil {
+		return ReplayReport{}, fmt.Errorf("refusing to replay unverified evidence (ADR-0007 Addendum 20 D154(b)): %w", err)
+	}
 	event, err := s.GetEvent(eventID)
 	if err != nil {
 		return ReplayReport{}, err
@@ -72,7 +89,17 @@ func compareCandidates(left, right []byte) json.RawMessage {
 	raw, _ := json.Marshal(map[string]any{"original": extract(left), "replay": extract(right)})
 	return raw
 }
-func (s *Store) ExportBundle(eventID, outPath, mode string, policy RetentionPolicy) (BundleManifest, error) {
+func (s *Store) ExportBundle(ctx context.Context, verify PreReadVerifier, eventID, outPath, mode string, policy RetentionPolicy) (BundleManifest, error) {
+	// ADR-0007 Addendum 20 D154(b): export used to authenticate neither
+	// the filename (fixed by GetEvent's identity check above) nor the
+	// MAC -- a MAC-broken event that `verify` itself refuses still
+	// exported verbatim, since ExportBundle never called Verify/
+	// VerifyAnchored at all. Measured end to end: editing http_status
+	// 200->403 (breaking the chain MAC) still produced a bundle with
+	// http_status 403 in event.json, rc=0.
+	if err := verify(ctx); err != nil {
+		return BundleManifest{}, fmt.Errorf("refusing to export unverified evidence (ADR-0007 Addendum 20 D154(b)): %w", err)
+	}
 	if mode != "redacted" && mode != "internal" {
 		return BundleManifest{}, errors.New("bundle mode must be redacted or internal")
 	}

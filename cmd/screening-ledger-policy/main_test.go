@@ -176,6 +176,26 @@ func TestSignRejectsWrongPublicKey(t *testing.T) {
 	}
 }
 
+// TestKeygenRejectsRepeatedFlag is ADR-0007 Addendum 20 D158 (G6): the
+// stdlib flag package this CLI uses silently applies last-occurrence-wins
+// to a repeated flag, the same gap screening-ledger's own hand-rolled
+// parseOptions had. checkNoRepeatedFlags's pre-scan closes it here too.
+func TestKeygenRejectsRepeatedFlag(t *testing.T) {
+	dir := t.TempDir()
+	privA := filepath.Join(dir, "a.hex")
+	privB := filepath.Join(dir, "b.hex")
+	_, stderr, code := run("keygen", "--private-key-file", privA, "--private-key-file", privB)
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code for a repeated flag (ADR-0007 Addendum 20 D158)")
+	}
+	if !strings.Contains(stderr, "was passed more than once") {
+		t.Fatalf("expected a message naming the repeated flag, got: %q", stderr)
+	}
+	if _, err := os.Stat(privA); err == nil {
+		t.Fatal("expected no key file to be written when the flags themselves are refused")
+	}
+}
+
 func mustDecodeHexPublicKey(t *testing.T, path string) ed25519.PublicKey {
 	t.Helper()
 	pub, err := screeningledger.LoadEd25519PublicKey(path, "")

@@ -230,17 +230,45 @@ triggers. **Verified by execution: the migration must be applied as the bootstra
 `ERROR: must be owner of function screening_ledger_purge_snapshots` regardless of event-trigger
 state, distinct from and in addition to D34's own refusal:
 
-```sh
-# as the bootstrap superuser, with the event-trigger disable window open (see step 1 above)
-psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -v ON_ERROR_STOP=1 \
-  -f db/migrations/022_screening_ledger_purge_chain_corroboration.sql
-```
+**D155 correction (ADR-0007 Addendum 20, three defects found by running this procedure literally,
+end to end, on a real bricked-restore reproduction rather than editing prose and assuming it now
+works):**
 
-**This `db/migrations/` filename is a pointer to the newest purge migration, not a fixed reference
--- it has already moved twice (020 to 021 for D98, 021 to 022 for D107) and will move again the next
-time either overload's body changes.** Confirm which file is current by listing
-`db/migrations/0*_screening_ledger_purge_*.sql` in apply order and applying the last one, rather than
-trusting this document's own literal filename against a tree that has moved past it.
+1. **This is not a single migration -- it is TWO overloads, and their current bodies live in
+   DIFFERENT files.** `screening_ledger_purge_snapshots` has an array overload
+   (`p_snapshot_sha256 text[]`, Addendum 12's D107 corroboration) and a scalar/time-floor overload
+   (`p_expected_count bigint`, pre-D107). Measured against this tree: the array overload's current
+   body is last (re-)defined in `024_screening_ledger_purge_element_domain.sql`; the time-floor
+   overload's current body is defined in `023_screening_ledger_purge_global_corroboration.sql` and
+   is **not** touched by `024`. The previous single literal (`022_screening_ledger_purge_chain_corroboration.sql`)
+   installs a **superseded** body for both and is refused by D34's own guard-body assertion, leaving
+   `sec7_protect_ddl_objects_on_alter` **DISABLED** (see point 3) rather than repairing anything.
+   Applying only the newest file ("apply the last one," this document's own prior advice) is
+   insufficient for the same reason: `024` alone never re-applies the time-floor overload's `023`
+   body at all.
+2. **The corrected procedure is per-overload, not "the last file":** derive the current defining
+   file for *each* overload from `db/migrations/0*_screening_ledger_purge_*.sql` (do not trust this
+   document's own literal filenames against a tree that has moved past them -- they have already
+   moved three times: 020 to 021 for D98, 021 to 022 for D107, 022 to 023/024 for this addendum's
+   own corroboration work), and apply **every** currently-defining file, in migration order, not
+   only the newest one:
+
+   ```sh
+   # as the bootstrap superuser, with the event-trigger disable window open (see step 1 above)
+   psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -v ON_ERROR_STOP=1 \
+     -f db/migrations/023_screening_ledger_purge_global_corroboration.sql
+   psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -v ON_ERROR_STOP=1 \
+     -f db/migrations/024_screening_ledger_purge_element_domain.sql
+   ```
+
+3. **A refusal partway through this window leaves `on_alter` DISABLED, not restored.** If either
+   `psql` invocation above (or `grant-ddl-ownership` immediately after) fails on a body-digest
+   mismatch, the event-trigger disable window opened in step 1 above is still open -- DDL enforcement
+   on the protected objects is NOT currently live. The recovery is to finish applying the correct
+   defining file for **every** overload above (not merely retry the one that failed) and then
+   re-run `grant-ddl-ownership`, which restores both event triggers to `ENABLE ALWAYS` on success.
+   Do not treat a partial apply as "safe to leave for later" -- the window is a reduction in
+   protection for as long as it stays open.
 
 **Confirmation, named rather than described.** "Confirm the new bodies are in their declared
 accepted sets" means two concrete commands, both of which must be run and both of which now check
@@ -254,9 +282,15 @@ scripts/ci/provision_test_roles.sh grant-ddl-ownership
 
 # 2. the independent verifier (unchanged by D111, D33's own "installer AND verifier" convention):
 #    reads live prosrc through the function's own regprocedure OID, so it follows whatever body is
-#    actually live regardless of which migration file most recently created it.
+#    actually live regardless of which migration file most recently created it. ADR-0007 Addendum 20
+#    D155 correction: the invocation this document previously showed here is not runnable as
+#    written -- it fails with "snapshot encryption key is required," omitting --key-file and
+#    --anchor-key-file, the exact set D84 already spells out above. This is the complete,
+#    fully-specified flag set, run and confirmed against a real database before being written here.
 screening-ledger status --postgres-dsn-env <VAR> \
-  --policy-file <path> --policy-public-key-file <path> --ledger-dir <dir> --ledger-id <id>
+  --policy-file <path> --policy-public-key-file <path> \
+  --key-file <K_snap key file> --anchor-key-file <K_anchor key file> \
+  --ledger-dir <dir> --ledger-id <id>
 ```
 
 Before Addendum 12 D111, only command 2 examined the body at all -- `grant-ddl-ownership` printed
@@ -264,6 +298,12 @@ Before Addendum 12 D111, only command 2 examined the body at all -- `grant-ddl-o
 correctly (D111's own reproduction: the pre-D111 procedure installs the superseded, pre-D98
 ANY-expired bodies and is told it succeeded). Both commands must now report clean before the
 recovery is considered complete.
+
+A DSN-free test (`TestSEC7DatabaseCopiesDocNamesCurrentPurgeMigrationFiles`,
+`internal/screeningledger/d155_doc_drift_test.go`) derives the current per-overload defining files
+directly from `db/migrations/*.sql` (the same directory-scan population D99 already uses) and
+asserts this document names exactly those files above -- so the next time either overload's body
+moves to a new file, the gate fails rather than leaving this document pointing at a superseded one.
 
 **A note on `screening_ledger_snapshot` (ADR-0007 Addendum 10 D89, R40):** that table's own guard
 triggers (`screening_ledger_snapshot_guard_trigger`, `screening_ledger_snapshot_no_truncate`) are

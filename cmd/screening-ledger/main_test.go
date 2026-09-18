@@ -242,17 +242,141 @@ func TestVerifyNoDatabaseExitsNonZeroInAnchoredMode(t *testing.T) {
 	}
 }
 
+// ADR-0007 Addendum 20 D154(b): export/replay now require the signed
+// policy pair and route through verification before reading evidence --
+// the same CLI contract change as status/verify already had.
 func TestHappyPath_Export(t *testing.T) {
 	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
 	outputPath := filepath.Join(t.TempDir(), "export.json")
 	stdout, stderr, code := run("export",
 		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored",
 		"--event-id", fixtureEventID, "--output", outputPath)
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d (stderr: %q)", code, stderr)
 	}
 	if !bytes.Contains([]byte(stdout), []byte(`"event_id":"`+fixtureEventID+`"`)) {
 		t.Fatalf("expected the export manifest to reference the fixture event, got: %s", stdout)
+	}
+}
+
+// TestExportRequiresPolicyFlags is ADR-0007 Addendum 20 D154(b)'s CLI
+// contract change, named: export without --policy-file/
+// --policy-public-key-file must now fail closed rather than reading
+// unverified evidence (the exact gap G2 demonstrated -- export used to
+// authenticate neither the requested event's identity nor its MAC).
+func TestExportRequiresPolicyFlags(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	outputPath := filepath.Join(t.TempDir(), "export.json")
+	_, stderr, code := run("export",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--event-id", fixtureEventID, "--output", outputPath)
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code when export is run with no --policy-file (ADR-0007 Addendum 20 D154(b))")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("verification policy trust-root public key is required")) {
+		t.Fatalf("expected a message naming the missing policy trust-root key, got: %q", stderr)
+	}
+	_, pubKeyPath := policyFixture(t, true)
+	_, stderr, code = run("export",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-public-key-file", pubKeyPath,
+		"--event-id", fixtureEventID, "--output", outputPath)
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code when export is run with --policy-public-key-file but no --policy-file (ADR-0007 Addendum 20 D154(b))")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("--policy-file is required")) {
+		t.Fatalf("expected a message naming --policy-file as required, got: %q", stderr)
+	}
+}
+
+// TestExportRefusesMACBrokenEvent is ADR-0007 Addendum 20 D154(b), the
+// exact gap measured against this tree before the fix: a MAC-broken event
+// (one `verify` itself refuses) used to export verbatim, rc=0, because
+// ExportBundle never called Verify/VerifyAnchored on the path at all.
+func TestExportRefusesMACBrokenEvent(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	eventPath := filepath.Join(ledgerDir, "events", fixtureEventID+".json")
+	raw, err := os.ReadFile(eventPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited := bytes.Replace(raw, []byte(`"http_status":200`), []byte(`"http_status":403`), 1)
+	if bytes.Equal(raw, edited) {
+		t.Fatal("test construction bug: http_status:200 not found in the fixture event")
+	}
+	if err := os.WriteFile(eventPath, edited, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	policyPath, pubKeyPath := policyFixture(t, true)
+	outputPath := filepath.Join(t.TempDir(), "export.json")
+	_, stderr, code := run("export",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored",
+		"--event-id", fixtureEventID, "--output", outputPath)
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code exporting a MAC-broken event (ADR-0007 Addendum 20 D154(b))")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("refusing to export unverified evidence")) {
+		t.Fatalf("expected a message naming the refusal to export unverified evidence, got: %q", stderr)
+	}
+	if _, err := os.Stat(outputPath); err == nil {
+		t.Fatal("expected no bundle to be written for a MAC-broken event")
+	}
+}
+
+// TestExportRefusesFilenameSwappedEvent is ADR-0007 Addendum 20 D154(a):
+// GetEvent used to return whatever events/<id>.json held with no check
+// that its own event_id matched the requested id -- a filename swap made
+// a request for one event's evidence return a bundle for a different
+// event entirely (verify itself is unaffected by the swap, since it
+// walks the chain by each file's own decoded sequence, not by filename).
+func TestExportRefusesFilenameSwappedEvent(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	entries, err := os.ReadDir(filepath.Join(ledgerDir, "events"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("test construction bug: expected 2 fixture events, got %d", len(entries))
+	}
+	a := filepath.Join(ledgerDir, "events", entries[0].Name())
+	b := filepath.Join(ledgerDir, "events", entries[1].Name())
+	tmp := a + ".swaptmp"
+	if err := os.Rename(a, tmp); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(b, a); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmp, b); err != nil {
+		t.Fatal(err)
+	}
+	policyPath, pubKeyPath := policyFixture(t, true)
+	// Confirm the swap does NOT break the whole-chain verify (D152/D153's
+	// content-based walk never depended on filenames) -- the exposure is
+	// specifically GetEvent's identity, below.
+	_, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored")
+	if code != 0 {
+		t.Fatalf("expected verify to remain unaffected by a pure filename swap, got exit %d (stderr: %q)", code, stderr)
+	}
+	outputPath := filepath.Join(t.TempDir(), "export.json")
+	_, stderr, code = run("export",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored",
+		"--event-id", fixtureEventID, "--output", outputPath)
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code exporting from a filename-swapped ledger (ADR-0007 Addendum 20 D154(a))")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("holds event_id")) {
+		t.Fatalf("expected a message naming the event_id mismatch, got: %q", stderr)
 	}
 }
 
@@ -296,9 +420,12 @@ func TestUsageMessageNamesExportsRealFlagsOnly(t *testing.T) {
 // still succeeds -- confirming removal, not a new refusal.
 func TestExportNoLongerAcceptsRetentionDaysOrMaxSnapshotBytes(t *testing.T) {
 	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
 	outputPath := filepath.Join(t.TempDir(), "export.json")
 	stdout, stderr, code := run("export",
 		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored",
 		"--event-id", fixtureEventID, "--output", outputPath,
 		"--retention-days", "99999999", "--max-snapshot-bytes", "-1")
 	if code != 0 {
@@ -326,6 +453,48 @@ func TestMissingRequiredFlagFailsCleanly(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(stderr), []byte("--ledger-dir is required")) {
 		t.Fatalf("expected a '--ledger-dir is required' message, got %q", stderr)
+	}
+}
+
+// TestRepeatedFlagIsRefused is ADR-0007 Addendum 20 D158 (G6): parseOptions
+// used to store out[flag]=value, silently keeping the last occurrence of a
+// repeated flag -- measured: a repeated --policy-public-key-file with the
+// real key first and a wrong one second used the wrong key with rc=0.
+func TestRepeatedFlagIsRefused(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	_, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath,
+		"--policy-public-key-file", pubKeyPath,
+		"--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored")
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code for a repeated flag (ADR-0007 Addendum 20 D158)")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("was passed more than once")) {
+		t.Fatalf("expected a message naming the repeated flag, got: %q", stderr)
+	}
+}
+
+// TestKeyFileAndKeyEnvCollisionIsRefused is ADR-0007 Addendum 20 D158
+// (G6): readKeyMaterial used to silently prefer a file over an env var
+// when both were supplied for the same key -- measured: --key-file <real>
+// --key-env <wrong> exits 0, the file silently winning.
+func TestKeyFileAndKeyEnvCollisionIsRefused(t *testing.T) {
+	ledgerDir := freshLedgerCopy(t)
+	policyPath, pubKeyPath := policyFixture(t, true)
+	t.Setenv("OWL_A20_D158_WRONG_KEY", "00")
+	_, stderr, code := run("verify",
+		"--ledger-dir", ledgerDir, "--key-file", keyFile, "--key-env", "OWL_A20_D158_WRONG_KEY",
+		"--ledger-id", fixtureLedgerID,
+		"--policy-file", policyPath, "--policy-public-key-file", pubKeyPath,
+		"--verification-mode", "historical-unanchored")
+	if code == 0 {
+		t.Fatal("expected a nonzero exit code when both --key-file and --key-env are supplied (ADR-0007 Addendum 20 D158)")
+	}
+	if !bytes.Contains([]byte(stderr), []byte("both a file")) {
+		t.Fatalf("expected a message naming the file/env collision, got: %q", stderr)
 	}
 }
 
