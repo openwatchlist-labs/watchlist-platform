@@ -629,7 +629,9 @@ grant-ddl-ownership)
   # cross-language cost.
   for decl in \
     "screening_ledger_anchor:screening_ledger_anchor_immutable,screening_ledger_anchor_no_truncate:screening_ledger_anchor_pkey" \
-    "screening_ledger_retention_tombstone:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey"
+    "screening_ledger_retention_tombstone:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey" \
+    "screening_ledger_event:screening_ledger_event_immutable,screening_ledger_event_no_truncate:screening_ledger_event_pkey,screening_ledger_event_event_sha256_key,screening_ledger_event_ledger_id_sequence_key" \
+    "screening_ledger_snapshot:screening_ledger_snapshot_guard_trigger,screening_ledger_snapshot_no_truncate:screening_ledger_snapshot_pkey"
   do
     decl_table="${decl%%:*}"
     decl_rest="${decl#*:}"
@@ -698,7 +700,11 @@ grant-ddl-ownership)
     "screening_ledger_anchor_immutable:screening_ledger_anchor:27:screening_ledger_reject_mutation:5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1" \
     "screening_ledger_anchor_no_truncate:screening_ledger_anchor:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0" \
     "screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone:27:screening_ledger_reject_mutation:5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1" \
-    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0"
+    "screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0" \
+    "screening_ledger_snapshot_guard_trigger:screening_ledger_snapshot:27:screening_ledger_snapshot_guard:24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616" \
+    "screening_ledger_snapshot_no_truncate:screening_ledger_snapshot:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0" \
+    "screening_ledger_event_immutable:screening_ledger_event:27:screening_ledger_reject_mutation:5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1" \
+    "screening_ledger_event_no_truncate:screening_ledger_event:34:owl_reject_truncate:e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf,fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0"
   do
     trig_name="${decl_trigger%%:*}"
     trig_rest="${decl_trigger#*:}"
@@ -740,7 +746,15 @@ grant-ddl-ownership)
     "trigger:screening_ledger_retention_tombstone_immutable:screening_ledger_retention_tombstone" \
     "trigger:screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone" \
     "index:screening_ledger_anchor_pkey:screening_ledger_anchor" \
-    "index:screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone"
+    "index:screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone" \
+    "trigger:screening_ledger_snapshot_guard_trigger:screening_ledger_snapshot" \
+    "trigger:screening_ledger_snapshot_no_truncate:screening_ledger_snapshot" \
+    "trigger:screening_ledger_event_immutable:screening_ledger_event" \
+    "trigger:screening_ledger_event_no_truncate:screening_ledger_event" \
+    "index:screening_ledger_snapshot_pkey:screening_ledger_snapshot" \
+    "index:screening_ledger_event_pkey:screening_ledger_event" \
+    "index:screening_ledger_event_event_sha256_key:screening_ledger_event" \
+    "index:screening_ledger_event_ledger_id_sequence_key:screening_ledger_event"
   do
     obj_kind="${guard_object%%:*}"
     obj_rest="${guard_object#*:}"
@@ -775,7 +789,11 @@ grant-ddl-ownership)
   # D62(a)/D69/D77 are (R23): a bash script cannot import a Go literal.
   for decl_index in \
     "screening_ledger_anchor_pkey:screening_ledger_anchor:true:true:1 2:2" \
-    "screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone:true:true:1:1"
+    "screening_ledger_retention_tombstone_pkey:screening_ledger_retention_tombstone:true:true:1:1" \
+    "screening_ledger_snapshot_pkey:screening_ledger_snapshot:true:true:1:1" \
+    "screening_ledger_event_pkey:screening_ledger_event:true:true:1:1" \
+    "screening_ledger_event_event_sha256_key:screening_ledger_event:true:false:4:1" \
+    "screening_ledger_event_ledger_id_sequence_key:screening_ledger_event:true:false:2 3:2"
   do
     idx_name="${decl_index%%:*}"
     idx_rest="${decl_index#*:}"
@@ -828,14 +846,16 @@ grant-ddl-ownership)
         COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
         (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
       FROM pg_class c
-      WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid);
+      WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid, 'screening_ledger_event'::regclass::oid, 'screening_ledger_snapshot'::regclass::oid);
     " || return 1
     psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN index_defs SET NOT NULL;" || return 1
     psql_super -c "ALTER TABLE sec7_protected_relation ALTER COLUMN identity SET NOT NULL;" || return 1
     local protected_relation_row_count
     protected_relation_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation")" || return 1
-    if [[ "$protected_relation_row_count" != "2" ]]; then
-      echo "FAIL: expected 2 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
+    # ADR-0007 Addendum 21 D166: 2 -> 4 (screening_ledger_event and
+    # screening_ledger_snapshot join the registry).
+    if [[ "$protected_relation_row_count" != "4" ]]; then
+      echo "FAIL: expected 4 rows in sec7_protected_relation, found $protected_relation_row_count" >&2
       return 1
     fi
     psql_super -c "DELETE FROM sec7_protected_object;" || return 1
@@ -853,14 +873,23 @@ grant-ddl-ownership)
         ('screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'),
         ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object (the registry itself)'),
         ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation (ADR-0007 Addendum 4 D40''s second registry)'),
-        ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)')
+        ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding (ADR-0007 Addendum 5 D45''s copy-diagnosis marker; never read by CheckProvisioningState)'),
+        -- ADR-0007 Addendum 21 D166: seven rows closing R40's DROP
+        -- TRIGGER route and R44 together. 13 -> 20.
+        ('screening_ledger_snapshot'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_snapshot'),
+        ('screening_ledger_snapshot_guard()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_snapshot_guard (ADR-0007 Addendum 21 D163/D164/D165: expiry-aware, schema-qualified retention guard)'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_snapshot_guard_trigger' AND tgrelid='screening_ledger_snapshot'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_snapshot_guard_trigger'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_snapshot_no_truncate' AND tgrelid='screening_ledger_snapshot'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_snapshot_no_truncate'),
+        ('screening_ledger_event'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_event'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_event_immutable' AND tgrelid='screening_ledger_event'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_event_immutable'),
+        ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_event_no_truncate' AND tgrelid='screening_ledger_event'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_event_no_truncate')
       ;
     " || return 1
     psql_super -c "ALTER TABLE sec7_protected_object ALTER COLUMN classid SET NOT NULL;" || return 1
     local registry_row_count
     registry_row_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object")" || return 1
-    if [[ "$registry_row_count" != "13" ]]; then
-      echo "FAIL: expected 13 rows in sec7_protected_object, found $registry_row_count" >&2
+    if [[ "$registry_row_count" != "20" ]]; then
+      echo "FAIL: expected 20 rows in sec7_protected_object, found $registry_row_count" >&2
       return 1
     fi
     return 0
@@ -925,10 +954,13 @@ grant-ddl-ownership)
       obj_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_object" 2>/dev/null || echo 0)"
       rel_count="$(psql_super -tAc "SELECT count(*) FROM sec7_protected_relation" 2>/dev/null || echo 0)"
       bind_count="$(psql_super -tAc "SELECT count(*) FROM sec7_instance_binding" 2>/dev/null || echo 0)"
-      if [[ "$live_count" == "2" && "$obj_count" == "13" && "$rel_count" == "2" && "$bind_count" == "1" ]]; then
-        echo "== ADR-0007 Addendum 10 D90: failure recovery restored the full declared state (both event triggers ENABLE ALWAYS; sec7_protected_object=13, sec7_protected_relation=2, sec7_instance_binding=1) ==" >&2
+      # ADR-0007 Addendum 21 D172: sec7_protected_object 13 -> 20 and
+      # sec7_protected_relation 2 -> 4 (D166); this trap's own literals
+      # move with the same change, same reason D90's comment above names.
+      if [[ "$live_count" == "2" && "$obj_count" == "20" && "$rel_count" == "4" && "$bind_count" == "1" ]]; then
+        echo "== ADR-0007 Addendum 10 D90: failure recovery restored the full declared state (both event triggers ENABLE ALWAYS; sec7_protected_object=20, sec7_protected_relation=4, sec7_instance_binding=1) ==" >&2
       else
-        echo "WARNING: ADR-0007 Addendum 10 D90: this database is left with DDL enforcement NOT fully restored (event triggers ENABLE ALWAYS: ${live_count}/2, sec7_protected_object: ${obj_count}/13, sec7_protected_relation: ${rel_count}/2, sec7_instance_binding: ${bind_count}/1) -- do not trust it until grant-ddl-ownership succeeds" >&2
+        echo "WARNING: ADR-0007 Addendum 10 D90: this database is left with DDL enforcement NOT fully restored (event triggers ENABLE ALWAYS: ${live_count}/2, sec7_protected_object: ${obj_count}/20, sec7_protected_relation: ${rel_count}/4, sec7_instance_binding: ${bind_count}/1) -- do not trust it until grant-ddl-ownership succeeds" >&2
       fi
     fi
     return $rc
@@ -1292,7 +1324,7 @@ grant-ddl-ownership)
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
   }
-  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, their guard triggers, the shared row-immutability/TRUNCATE guard functions, both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 2 rows) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-defs-policy sets after every DDL statement (ADR-0007 Addendum 6 D50: index sets compared by definition, not OID), naming the relation and the copy/restore instance on failure (D46, D52, D54, D55) via sec7_instance_binding (D45, diagnostic-only, never gates)"
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, screening_ledger_event, screening_ledger_snapshot, their guard triggers, the shared row-immutability/TRUNCATE guard functions, screening_ledger_snapshot_guard(), both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 4 rows -- ADR-0007 Addendum 21 D166) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-defs-policy sets after every DDL statement (ADR-0007 Addendum 6 D50: index sets compared by definition, not OID), naming the relation and the copy/restore instance on failure (D46, D52, D54, D55) via sec7_instance_binding (D45, diagnostic-only, never gates)"
   ;;
 create-restored-database)
   # ADR-0007 Addendum 5 D43/D49 test 1 (I-A, CAP #4 §7.6): the two pg_dump

@@ -23,7 +23,7 @@ import (
 // the live digest -- while CheckProvisioningState (the pre-existing
 // verifier) refuses in both, unregressed. Plus D90's own over-
 // tightening negative: the refusal must leave both event triggers
-// evtenabled='A' and all three registries at 13/2/1 -- a refusal that
+// evtenabled='A' and all three registries at 20/4/1 (ADR-0007 Addendum 21 D166) -- a refusal that
 // disarms the protections it is checking is the shape D90 exists to
 // forbid.
 func TestGrantDdlOwnershipDetectsASubstitutedDefinerBody(t *testing.T) {
@@ -93,7 +93,7 @@ func TestGrantDdlOwnershipDetectsASubstitutedDefinerBody(t *testing.T) {
 
 	// D90 unregressed: the refusal must not disarm what is already
 	// installed -- both event triggers stay ENABLE ALWAYS, and all
-	// three registries stay at their declared 13/2/1 population.
+	// three registries stay at their declared 20/4/1 population (ADR-0007 Addendum 21 D166).
 	var alterEnabled, dropEnabled string
 	if err := superuser.QueryRow(ctx, `SELECT evtenabled FROM pg_event_trigger WHERE evtname='sec7_protect_ddl_objects_on_alter'`).Scan(&alterEnabled); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestGrantDdlOwnershipDetectsASubstitutedDefinerBody(t *testing.T) {
 	if err := superuser.QueryRow(ctx, `SELECT count(*) FROM sec7_instance_binding`).Scan(&instanceCount); err != nil {
 		t.Fatal(err)
 	}
-	if objectCount != 13 || relationCount != 2 || instanceCount != 1 {
-		t.Fatalf("ADR-0007 Addendum 9 D90: expected registries at 13/2/1 after the refusal, got object=%d relation=%d instance=%d", objectCount, relationCount, instanceCount)
+	if objectCount != 20 || relationCount != 4 || instanceCount != 1 {
+		t.Fatalf("ADR-0007 Addendum 9 D90: expected registries at 20/4/1 after the refusal (ADR-0007 Addendum 21 D166), got object=%d relation=%d instance=%d", objectCount, relationCount, instanceCount)
 	}
 }

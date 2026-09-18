@@ -46,14 +46,20 @@ func TestCheckProvisioningStateDetectsRepointedAndEmptiedRegistry(t *testing.T) 
 	t.Run("repointed_to_a_different_existing_relation", func(t *testing.T) {
 		// CAP #3 §7.2's exact repoint: the registry's claim
 		// ("screening_ledger_anchor") no longer matches what its objid
-		// actually resolves to.
+		// actually resolves to. The other relation must itself be
+		// UNREGISTERED, or this UPDATE collides with that relation's own
+		// registry row on sec7_protected_object's objid PRIMARY KEY --
+		// screening_ledger_event stopped being a safe choice for this
+		// once ADR-0007 Addendum 21 D166 registered it too (screening_
+		// ledger_replication is not a protected object on either
+		// bootstrap path and remains so after this addendum).
 		var originalOID uint32
 		var otherOID uint32
 		if err := superuser.QueryRow(ctx, `SELECT objid FROM sec7_protected_object WHERE note LIKE 'table: screening_ledger_anchor%'`).Scan(&originalOID); err != nil {
 			t.Fatalf("read anchor registry row: %v", err)
 		}
-		if err := superuser.QueryRow(ctx, `SELECT 'screening_ledger_event'::regclass::oid`).Scan(&otherOID); err != nil {
-			t.Fatalf("resolve screening_ledger_event oid: %v", err)
+		if err := superuser.QueryRow(ctx, `SELECT 'screening_ledger_replication'::regclass::oid`).Scan(&otherOID); err != nil {
+			t.Fatalf("resolve screening_ledger_replication oid: %v", err)
 		}
 		if _, err := superuser.Exec(ctx, `UPDATE sec7_protected_object SET objid = $1 WHERE note LIKE 'table: screening_ledger_anchor%'`, otherOID); err != nil {
 			t.Fatalf("repoint registry row: %v", err)

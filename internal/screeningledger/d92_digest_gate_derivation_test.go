@@ -233,6 +233,13 @@ const (
 	purgeSnapshotsTimeFloorBodySHA256Superseded022 = "8771275cef309f91a0564e76514238fe8081466d8a7b4d5a9810e3ca449885be"
 	purgeSnapshotsArrayFormBodySHA256Superseded022 = "925f0969e063833ec291afb3ed6c1244b7fc1c58d38f98573b16907fc6f2558d"
 	purgeSnapshotsArrayFormBodySHA256Superseded023 = "d32a2ffaab5a803779a458fb750f40429ea21b21f9c861eda905ed0ce87088cd"
+	// screeningLedgerSnapshotGuardBodySHA256Superseded008g is ADR-0007
+	// Addendum 21 D170: the pre-Addendum-21 guard body (008g:17),
+	// superseded by db/migrations/025's CREATE OR REPLACE -- D99(b)'s own
+	// shape, applied to a function this gate did not range over before
+	// D170 (drift note 5: declaredFunctions() had exactly four entries
+	// and screening_ledger_snapshot_guard was never among them).
+	screeningLedgerSnapshotGuardBodySHA256Superseded008g = "f9cb95289a3fdead146dc24a3f8d0824dc225e37bfa98a0dc120731f09872330"
 )
 
 func declaredFunctions() []declaredFunction {
@@ -293,6 +300,20 @@ func declaredFunctions() []declaredFunction {
 				purgeSnapshotsArrayFormBodySHA256Superseded022,
 				purgeSnapshotsArrayFormBodySHA256Superseded023,
 			},
+		},
+		{
+			// ADR-0007 Addendum 21 D170: the guard takes no arguments,
+			// so its entry has typeList "" -- the same dispatch
+			// owl_reject_truncate already uses (D132(b)'s own second
+			// case) -- but unlike owl_reject_truncate its migration and
+			// SchemaSQL literals are byte-identical (D165), so it takes
+			// the acceptedMigration/acceptedSchemaSQL branch of
+			// declaredAcceptedSet rather than the blank/blank one.
+			label:                "screening_ledger_snapshot_guard",
+			funcName:             "screening_ledger_snapshot_guard",
+			acceptedMigration:    screeningLedgerSnapshotGuardBodySHA256,
+			acceptedSchemaSQL:    screeningLedgerSnapshotGuardBodySHA256,
+			historicalBodySHA256: []string{screeningLedgerSnapshotGuardBodySHA256Superseded008g},
 		},
 	}
 }

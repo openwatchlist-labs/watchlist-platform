@@ -398,13 +398,25 @@ func TestD50IndexReferentSurvivesConcurrentRebuild(t *testing.T) {
 		}
 		defer superuserConn.Close(context.Background())
 
+		// ADR-0007 Addendum 21 D166: screening_ledger_event is now itself a
+		// protected relation, so it stopped being a safe "unprotected"
+		// fixture for this subtest set -- REINDEX/CREATE INDEX CONCURRENTLY
+		// against it would exercise the block D50's own blocks battery
+		// above already proves, not the collateral-damage negative this
+		// set exists to prove, and (measured) once tripped it cascades:
+		// the ddl_command_end event trigger re-asserts EVERY registered
+		// relation's state on every later DDL statement in the same
+		// session, so a real divergence here would fail every subsequent
+		// subtest too. screening_ledger_replication is not a protected
+		// object on either bootstrap path and remains so after this
+		// addendum.
 		t.Run("REINDEX_TABLE_CONCURRENTLY_on_unprotected_relation", func(t *testing.T) {
-			if _, err := superuserConn.Exec(ctx, `REINDEX TABLE CONCURRENTLY screening_ledger_event`); err != nil {
+			if _, err := superuserConn.Exec(ctx, `REINDEX TABLE CONCURRENTLY screening_ledger_replication`); err != nil {
 				t.Fatalf("REINDEX TABLE CONCURRENTLY on an unprotected relation should succeed under D50: %v", err)
 			}
 		})
 		t.Run("CREATE_INDEX_CONCURRENTLY_on_unprotected_relation", func(t *testing.T) {
-			if _, err := superuserConn.Exec(ctx, `CREATE INDEX CONCURRENTLY zz_d50_collateral_idx ON screening_ledger_event (ledger_id)`); err != nil {
+			if _, err := superuserConn.Exec(ctx, `CREATE INDEX CONCURRENTLY zz_d50_collateral_idx ON screening_ledger_replication (replicated_at)`); err != nil {
 				t.Fatalf("CREATE INDEX CONCURRENTLY on an unprotected relation should succeed under D50: %v", err)
 			}
 			if _, err := superuserConn.Exec(ctx, `DROP INDEX zz_d50_collateral_idx`); err != nil {
