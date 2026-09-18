@@ -351,7 +351,7 @@ func TestProvisioningStateDetectsMissingFunctionExecuteHolder(t *testing.T) {
 // state exits non-zero naming owl_app, where it printed three PASS
 // lines before D149 -- and D90's non-disarm property (Addendum 10)
 // holds on this new refusal path too: both event triggers stay
-// ENABLE ALWAYS and all three registries stay at 13/2/1.
+// ENABLE ALWAYS and all three registries stay at 20/4/1 (ADR-0007 Addendum 21 D166).
 func TestGrantDdlOwnershipRefusesUndeclaredFunctionExecuteHolder(t *testing.T) {
 	superuserDSN := requireBootstrapSuperuserDatabaseURL(t)
 	migratorDSN := requireMigratorDSN(t)
@@ -390,7 +390,7 @@ func TestGrantDdlOwnershipRefusesUndeclaredFunctionExecuteHolder(t *testing.T) {
 		t.Fatalf("ADR-0007 Addendum 10 D90 (unregressed): expected both event triggers ENABLE ALWAYS after this refusal, got %v\noutput:\n%s", triggers, output)
 	}
 	obj, rel, bind := registryRowCounts(t, ctx, superuser)
-	if obj != 13 || rel != 2 || bind != 1 {
-		t.Fatalf("ADR-0007 Addendum 10 D90 (unregressed): expected registries at 13/2/1 after this refusal, got obj=%d rel=%d bind=%d\noutput:\n%s", obj, rel, bind, output)
+	if obj != 20 || rel != 4 || bind != 1 {
+		t.Fatalf("ADR-0007 Addendum 10 D90 (unregressed): expected registries at 20/4/1 after this refusal (ADR-0007 Addendum 21 D166), got obj=%d rel=%d bind=%d\noutput:\n%s", obj, rel, bind, output)
 	}
 }

@@ -437,7 +437,8 @@ type protectedObjectIdentity struct {
 }
 
 // requiredProtectedObjects is scripts/ci/provision_test_roles.sh
-// grant-ddl-ownership's thirteen-row sec7_protected_object population,
+// grant-ddl-ownership's sec7_protected_object population (twenty rows as
+// of ADR-0007 Addendum 21 D166, up from thirteen),
 // named here independently so the verifier and the installer are two
 // separate assertions of the same fact rather than one trusting the
 // other (D41: "the property is checked by the installer AND by the
@@ -460,6 +461,17 @@ var requiredProtectedObjects = []protectedObjectIdentity{
 	// marker, is itself a protected object -- same reasoning as the two
 	// registries above it (R15: a registry is a new trust object).
 	{"pg_class", "public.sec7_instance_binding"},
+	// ADR-0007 Addendum 21 D166: seven rows, closing R40's DROP TRIGGER
+	// route and R44 together -- registration is the mechanism that makes
+	// the route refused; D78 treatment plus conditional trigger creation
+	// (D165) only makes registration survivable. 13 -> 20.
+	{"pg_class", "public.screening_ledger_snapshot"},
+	{"pg_proc", "public.screening_ledger_snapshot_guard()"},
+	{"pg_trigger", "screening_ledger_snapshot_guard_trigger on public.screening_ledger_snapshot"},
+	{"pg_trigger", "screening_ledger_snapshot_no_truncate on public.screening_ledger_snapshot"},
+	{"pg_class", "public.screening_ledger_event"},
+	{"pg_trigger", "screening_ledger_event_immutable on public.screening_ledger_event"},
+	{"pg_trigger", "screening_ledger_event_no_truncate on public.screening_ledger_event"},
 }
 
 // protectedObjectIdentityReason asserts sec7_protected_object contains
@@ -506,6 +518,9 @@ func (p *PostgresSink) protectedObjectIdentityReason(ctx context.Context) (strin
 var requiredProtectedRelations = []string{
 	"public.screening_ledger_anchor",
 	"public.screening_ledger_retention_tombstone",
+	// ADR-0007 Addendum 21 D166: 2 -> 4.
+	"public.screening_ledger_event",
+	"public.screening_ledger_snapshot",
 }
 
 // protectedRelationIdentityReason mirrors protectedObjectIdentityReason
@@ -729,6 +744,14 @@ const (
 	screeningLedgerRejectMutationBodySHA256  = "5632734b5c67628baa1cc6301bc814740a532013f66a708d1b2b1d60581f4bb1"
 	owlRejectTruncateBodySHA256Migration     = "e8db5083c6bf20d9be5274752245831913a845becb8bd889e479df410040f8bf"
 	owlRejectTruncateBodySHA256SchemaSQLBoot = "fd848d025a04be3dd8c0b0c026131d81b8820d6c471864f59740f41698bea6a0"
+	// screeningLedgerSnapshotGuardBodySHA256 is ADR-0007 Addendum 21
+	// D165: the ONE legitimate body for screening_ledger_snapshot_guard()
+	// after D163/D164 -- db/migrations/025's literal and this package's
+	// SchemaSQL literal are byte-identical, unlike owl_reject_truncate()'s
+	// two-member set. The pre-Addendum-21 body (008g:17) is now
+	// superseded and digests to f9cb95289a3fdead146dc24a3f8d0824dc225e37bfa98a0dc120731f09872330,
+	// OUTSIDE this set (D99(b)).
+	screeningLedgerSnapshotGuardBodySHA256 = "24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616"
 )
 
 // owlRejectTruncateAcceptedBodySHA256 is the two-member set D77 requires
@@ -764,6 +787,36 @@ var requiredProtectedRelationStates = []requiredProtectedRelationState{
 		},
 		indexes: []requiredProtectedIndexState{
 			{name: "screening_ledger_retention_tombstone_pkey", indisunique: true, indisprimary: true, indkey: "1", indnkeyatts: 1},
+		},
+	},
+	// ADR-0007 Addendum 21 D166: the two new sec7_protected_relation rows.
+	// relowner is owl_migrator for both -- unlike the two entries above,
+	// ownership of screening_ledger_event and screening_ledger_snapshot
+	// never moves to owl_ledger_ddl; measured on both bootstrap paths.
+	{
+		identity: "public.screening_ledger_event",
+		relowner: "owl_migrator",
+		relkind:  "r",
+		triggers: []requiredProtectedTriggerState{
+			{name: "screening_ledger_event_immutable", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_reject_mutation()", acceptedBodySHA256: []string{screeningLedgerRejectMutationBodySHA256}},
+			{name: "screening_ledger_event_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
+		},
+		indexes: []requiredProtectedIndexState{
+			{name: "screening_ledger_event_pkey", indisunique: true, indisprimary: true, indkey: "1", indnkeyatts: 1},
+			{name: "screening_ledger_event_event_sha256_key", indisunique: true, indisprimary: false, indkey: "4", indnkeyatts: 1},
+			{name: "screening_ledger_event_ledger_id_sequence_key", indisunique: true, indisprimary: false, indkey: "2 3", indnkeyatts: 2},
+		},
+	},
+	{
+		identity: "public.screening_ledger_snapshot",
+		relowner: "owl_migrator",
+		relkind:  "r",
+		triggers: []requiredProtectedTriggerState{
+			{name: "screening_ledger_snapshot_guard_trigger", tgtype: 27, tgnargs: 0, tgattr: "", functionOID: "public.screening_ledger_snapshot_guard()", acceptedBodySHA256: []string{screeningLedgerSnapshotGuardBodySHA256}},
+			{name: "screening_ledger_snapshot_no_truncate", tgtype: 34, tgnargs: 0, tgattr: "", functionOID: "public.owl_reject_truncate()", acceptedBodySHA256: owlRejectTruncateAcceptedBodySHA256},
+		},
+		indexes: []requiredProtectedIndexState{
+			{name: "screening_ledger_snapshot_pkey", indisunique: true, indisprimary: true, indkey: "1", indnkeyatts: 1},
 		},
 	},
 }
@@ -2101,13 +2154,66 @@ BEGIN
     END IF;
   END IF;
 END $$;
-DROP TRIGGER IF EXISTS screening_ledger_event_immutable ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_immutable BEFORE UPDATE OR DELETE ON screening_ledger_event FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
+-- ADR-0007 Addendum 21 D165 part 2: this trigger creation becomes
+-- conditional on the trigger's absence (replacing the unconditional
+-- DROP TRIGGER IF EXISTS ... CREATE TRIGGER above) because D166/D167
+-- bring screening_ledger_event into sec7_protected_object -- once
+-- registered, D34's event trigger refuses a DROP TRIGGER against it on
+-- every provisioned database, so an unconditional re-creation here would
+-- fail Migrate()/sync/import-audit on exactly the healthy databases this
+-- registration protects. Skips re-touching this trigger only once it
+-- already exists, i.e. once its protection is already in place --
+-- created here on true first bootstrap, or by db/migrations/008g.sql
+-- otherwise -- the same "guard on current state" shape D21/D78 already
+-- established, applied to a trigger's presence rather than a function
+-- body's digest.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'screening_ledger_event_immutable' AND tgrelid = 'screening_ledger_event'::regclass) THEN
+    EXECUTE 'CREATE TRIGGER screening_ledger_event_immutable BEFORE UPDATE OR DELETE ON screening_ledger_event FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation()';
+  END IF;
+END $$;
 DROP TRIGGER IF EXISTS screening_ledger_audit_immutable ON screening_ledger_audit;CREATE TRIGGER screening_ledger_audit_immutable BEFORE UPDATE OR DELETE ON screening_ledger_audit FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
 DROP TRIGGER IF EXISTS watchlist_operational_audit_immutable ON watchlist_operational_audit;CREATE TRIGGER watchlist_operational_audit_immutable BEFORE UPDATE OR DELETE ON watchlist_operational_audit FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
 DROP TRIGGER IF EXISTS screening_idempotency_receipt_immutable ON screening_idempotency_receipt;CREATE TRIGGER screening_idempotency_receipt_immutable BEFORE UPDATE OR DELETE ON screening_idempotency_receipt FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
 DROP TRIGGER IF EXISTS screening_ledger_replication_immutable ON screening_ledger_replication;CREATE TRIGGER screening_ledger_replication_immutable BEFORE UPDATE OR DELETE ON screening_ledger_replication FOR EACH ROW EXECUTE FUNCTION screening_ledger_reject_mutation();
-CREATE OR REPLACE FUNCTION screening_ledger_snapshot_guard()RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF TG_OP='DELETE'THEN RAISE EXCEPTION 'screening snapshots cannot be deleted';END IF;IF OLD.purged_at IS NULL AND NEW.purged_at IS NOT NULL AND OLD.snapshot_sha256=NEW.snapshot_sha256 AND OLD.kind=NEW.kind AND OLD.created_at=NEW.created_at AND OLD.expires_at=NEW.expires_at AND OLD.retention_class=NEW.retention_class AND NOT(NEW.envelope_json?'ciphertext_base64')THEN RETURN NEW;END IF;RAISE EXCEPTION 'screening snapshot mutation is not an allowed retention transition';END $$;
-DROP TRIGGER IF EXISTS screening_ledger_snapshot_guard_trigger ON screening_ledger_snapshot;CREATE TRIGGER screening_ledger_snapshot_guard_trigger BEFORE UPDATE OR DELETE ON screening_ledger_snapshot FOR EACH ROW EXECUTE FUNCTION screening_ledger_snapshot_guard();
+-- ADR-0007 Addendum 21 D165 part 1: screening_ledger_snapshot_guard()
+-- becomes a protected object (D166), so the unconditional
+-- CREATE OR REPLACE FUNCTION above trips D34's event trigger on every
+-- invocation after provisioning -- the identical reasoning
+-- screening_ledger_reject_mutation()'s and owl_reject_truncate()'s own
+-- D78 blocks above already apply to their bodies, extended here to a
+-- third function. The accepted set has exactly ONE member (measured:
+-- db/migrations/025's literal and this literal are byte-identical, both
+-- digest to screeningLedgerSnapshotGuardBodySHA256) -- unlike
+-- owl_reject_truncate()'s two-member set, this function's migration and
+-- SchemaSQL literals do not disagree on whitespace, so a second member
+-- would accept a body no bootstrap path produces (D165's own warning).
+-- Deliberately does NOT repair, D78's own reasoning: a repairing
+-- CREATE OR REPLACE is refused by D34 on every provisioned database, so
+-- repairing here would convert a silent acceptance into a hard failure
+-- of migrate/sync/import-audit on exactly the healthy databases this
+-- control protects.
+DO $$
+DECLARE live_sha256 text;
+BEGIN
+  IF to_regprocedure('screening_ledger_snapshot_guard()') IS NULL THEN
+    EXECUTE $exec$CREATE FUNCTION screening_ledger_snapshot_guard()RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public AS $func$ BEGIN IF TG_OP='DELETE'THEN RAISE EXCEPTION 'screening snapshots cannot be deleted';END IF;IF OLD.purged_at IS NULL AND NEW.purged_at IS NOT NULL AND OLD.snapshot_sha256=NEW.snapshot_sha256 AND OLD.kind=NEW.kind AND OLD.created_at=NEW.created_at AND OLD.expires_at=NEW.expires_at AND OLD.retention_class=NEW.retention_class AND NOT(NEW.envelope_json?'ciphertext_base64')THEN IF NOT EXISTS(SELECT 1 FROM public.screening_ledger_event e WHERE e.request_snapshot_sha256=OLD.snapshot_sha256 OR e.response_snapshot_sha256=OLD.snapshot_sha256)THEN RAISE EXCEPTION 'ADR-0007 Addendum 21 D163: snapshot % has no referencing screening_ledger_event row: refusing to strip protected content rather than reading an absent obligation as an expired one',OLD.snapshot_sha256;END IF;IF EXISTS(SELECT 1 FROM public.screening_ledger_event e WHERE(e.request_snapshot_sha256=OLD.snapshot_sha256 OR e.response_snapshot_sha256=OLD.snapshot_sha256)AND e.expires_at>=clock_timestamp())THEN RAISE EXCEPTION 'ADR-0007 Addendum 21 D163: snapshot % is still under a live retention obligation (mirror MAX(screening_ledger_event.expires_at)=%): refusing to strip protected content',OLD.snapshot_sha256,(SELECT max(e.expires_at)FROM public.screening_ledger_event e WHERE e.request_snapshot_sha256=OLD.snapshot_sha256 OR e.response_snapshot_sha256=OLD.snapshot_sha256);END IF;RETURN NEW;END IF;RAISE EXCEPTION 'screening snapshot mutation is not an allowed retention transition';END $func$ $exec$;
+  ELSE
+    SELECT encode(sha256(convert_to(prosrc,'UTF8')),'hex') INTO live_sha256 FROM pg_proc WHERE oid = to_regprocedure('screening_ledger_snapshot_guard()');
+    IF live_sha256 <> '24b20526089312abbe8b07acb7ecdf94bc24c4bba7eb140c742f0d3b1534d616' THEN
+      RAISE EXCEPTION 'ADR-0007 Addendum 21 D165: screening_ledger_snapshot_guard() already exists but its body digest % is not in the accepted set declared by Addendum 21 D165 -- Migrate() deliberately does not repair this (see docs/operations/sec7-database-copies.md); investigate before proceeding', live_sha256;
+    END IF;
+  END IF;
+END $$;
+-- ADR-0007 Addendum 21 D165 part 2: same conditional-creation shape as
+-- screening_ledger_event_immutable above, applied to this trigger.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'screening_ledger_snapshot_guard_trigger' AND tgrelid = 'screening_ledger_snapshot'::regclass) THEN
+    EXECUTE 'CREATE TRIGGER screening_ledger_snapshot_guard_trigger BEFORE UPDATE OR DELETE ON screening_ledger_snapshot FOR EACH ROW EXECUTE FUNCTION screening_ledger_snapshot_guard()';
+  END IF;
+END $$;
 -- REL-9-adjacent (found implementing SEC-7 Stage 2, ADR-0007 D3): Migrate
 -- is a live, independently-executed bootstrap path that db/migrations/
 -- never has to run before it, so it must carry its own TRUNCATE guard
@@ -2138,8 +2244,21 @@ BEGIN
     END IF;
   END IF;
 END $$;
-DROP TRIGGER IF EXISTS screening_ledger_event_no_truncate ON screening_ledger_event;CREATE TRIGGER screening_ledger_event_no_truncate BEFORE TRUNCATE ON screening_ledger_event FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
-DROP TRIGGER IF EXISTS screening_ledger_snapshot_no_truncate ON screening_ledger_snapshot;CREATE TRIGGER screening_ledger_snapshot_no_truncate BEFORE TRUNCATE ON screening_ledger_snapshot FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
+-- ADR-0007 Addendum 21 D165 part 2: same conditional-creation shape as
+-- screening_ledger_event_immutable above, applied to these two TRUNCATE
+-- guards (screening_ledger_event's and screening_ledger_snapshot's).
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'screening_ledger_event_no_truncate' AND tgrelid = 'screening_ledger_event'::regclass) THEN
+    EXECUTE 'CREATE TRIGGER screening_ledger_event_no_truncate BEFORE TRUNCATE ON screening_ledger_event FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
+  END IF;
+END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'screening_ledger_snapshot_no_truncate' AND tgrelid = 'screening_ledger_snapshot'::regclass) THEN
+    EXECUTE 'CREATE TRIGGER screening_ledger_snapshot_no_truncate BEFORE TRUNCATE ON screening_ledger_snapshot FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate()';
+  END IF;
+END $$;
 DROP TRIGGER IF EXISTS screening_ledger_replication_no_truncate ON screening_ledger_replication;CREATE TRIGGER screening_ledger_replication_no_truncate BEFORE TRUNCATE ON screening_ledger_replication FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS screening_idempotency_receipt_no_truncate ON screening_idempotency_receipt;CREATE TRIGGER screening_idempotency_receipt_no_truncate BEFORE TRUNCATE ON screening_idempotency_receipt FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();
 DROP TRIGGER IF EXISTS watchlist_operational_audit_no_truncate ON watchlist_operational_audit;CREATE TRIGGER watchlist_operational_audit_no_truncate BEFORE TRUNCATE ON watchlist_operational_audit FOR EACH STATEMENT EXECUTE FUNCTION owl_reject_truncate();

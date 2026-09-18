@@ -46,7 +46,7 @@ func preD62RecordProtectedRelationState(t *testing.T, ctx context.Context, super
 		  COALESCE((SELECT array_agg(p.oid ORDER BY p.oid) FROM pg_policy p WHERE p.polrelid = c.oid), ARRAY[]::oid[]),
 		  (pg_identify_object('pg_class'::regclass, c.oid, 0)).identity
 		FROM pg_class c
-		WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid)
+		WHERE c.oid IN ('screening_ledger_anchor'::regclass::oid, 'screening_ledger_retention_tombstone'::regclass::oid, 'screening_ledger_event'::regclass::oid, 'screening_ledger_snapshot'::regclass::oid)
 	`); err != nil {
 		t.Fatalf("pre-D62 INSERT INTO sec7_protected_relation: %v", err)
 	}

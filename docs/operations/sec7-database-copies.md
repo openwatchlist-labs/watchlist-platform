@@ -304,30 +304,67 @@ A DSN-free test (`TestSEC7DatabaseCopiesDocNamesCurrentPurgeMigrationFiles`,
 directly from `db/migrations/*.sql` (the same directory-scan population D99 already uses) and
 asserts this document names exactly those files above -- so the next time either overload's body
 moves to a new file, the gate fails rather than leaving this document pointing at a superseded one.
+**ADR-0007 Addendum 21 D172(2):** that test's population widened from one hard-coded function name
+(`screening_ledger_purge_snapshots`) to the full declared function set (`declaredFunctions()` after
+D170) -- D99's own directory-scan discipline, applied to the function axis rather than the file
+axis -- so it now also tracks `screening_ledger_snapshot_guard`'s defining file
+(`db/migrations/025_screening_ledger_snapshot_guard_expiry.sql`) without a second, separately
+hard-coded name.
 
-**A note on `screening_ledger_snapshot` (ADR-0007 Addendum 10 D89, R40):** that table's own guard
-triggers (`screening_ledger_snapshot_guard_trigger`, `screening_ledger_snapshot_no_truncate`) are
-**not** protected objects -- neither the table, the guard function, nor either trigger appears in
-`sec7_protected_object`. `owl_migrator` can drop them with no event-trigger refusal and nothing
-observes it. This is a known, separately-scoped gap (not part of any SEC-7 retention-claim guarantee
-this document describes: D89 withdrew `created_at` as a referent of any control, so this relation's
-guards no longer undermine a purge's `purged_at` floor either way) -- do not assume the drop is
-refused the way the anchor and tombstone tables' own triggers are.
+**`screening_ledger_snapshot` and `screening_ledger_event` (ADR-0007 Addendum 21 D163/D164/D166/D167,
+closing the gap this section previously documented as open):** as of `db/migrations/025`, both
+relations' guard triggers -- `screening_ledger_snapshot_guard_trigger`,
+`screening_ledger_snapshot_no_truncate`, `screening_ledger_event_immutable`,
+`screening_ledger_event_no_truncate` -- **are** protected objects, alongside both tables and
+`screening_ledger_snapshot_guard()` itself (seven rows, `sec7_protected_object` 13 -> 20,
+`sec7_protected_relation` 2 -> 4). `owl_migrator` can no longer `DROP TRIGGER` either guard, and
+`screening_ledger_event.expires_at` -- the referent of D97's aggregate, D98's eligibility predicate,
+D107/D116's corroboration, and now D163's own guard predicate -- can no longer be rewritten out from
+under a live retention obligation by dropping `screening_ledger_event_immutable` first (R44, closed
+together with R40 by D167). This closes both gaps this section described until Addendum 21: neither
+table's rows, nor either guard, are rewritable/droppable by `owl_migrator` or `owl_ledger_ddl`
+without the documented disable window below. What remains open, unchanged by this addendum: R57's
+enumeration gap (nothing stops an undeclared `SECURITY DEFINER` overload of
+`screening_ledger_snapshot_guard` from being *created* on a fully provisioned database -- D163's
+guard still refuses the destructive `UPDATE` it would attempt, since a `BEFORE ROW` trigger fires
+regardless of the calling function's own security mode, but the overload's mere existence is not
+itself detected), and R80 (a bootstrap superuser who opens the disable window below is, by
+construction, outside every guard this document describes -- unchanged from every other D34-protected
+object).
 
-**The same note applies to `screening_ledger_event` (ADR-0007 Addendum 13 D121, carried forward
-from D111's own text, which named this obligation and did not discharge it until now).** Its guard
-triggers (`screening_ledger_event_immutable`, `screening_ledger_event_no_truncate`) are, on exactly
-the same terms as `screening_ledger_snapshot`'s above, **not** protected objects -- confirmed
-directly (`DROP TRIGGER screening_ledger_event_immutable ON screening_ledger_event` succeeds as
-`owl_migrator` with no event-trigger refusal, and neither the table, the guard function, nor either
-trigger appears in `sec7_protected_object`). Unlike `screening_ledger_snapshot`, this gap is **not**
-merely a scoped-out concern: `screening_ledger_event.expires_at` is the referent of D97's aggregate,
-D98's eligibility predicate, D89's floor, and D107/D116's corroboration -- and, after Addendum 13
-D116, of a corroboration that ranges over the WHOLE relation, not one ledger's own scoped slice of
-it. A caller whose "corroboration" is adjudicated against a table they can themselves rewrite is not
-being corroborated against anything independent. Do not assume this table's rows are protected from
-direct mutation the way the anchor and tombstone tables' own rows are -- they are not, and this
-document does not claim otherwise.
+**Re-provisioning this migration (ADR-0007 Addendum 21 D172(1)):** `db/migrations/025` is a
+re-provisioning event on every already-provisioned database, for three independent reasons stated
+together rather than the one that is easiest to notice: the guard function's declared body digest
+moves; `sec7_protected_object`'s declared cardinality moves (13 -> 20); and `sec7_protected_relation`
+gains two entries (2 -> 4). On a **fresh** database none of this applies -- `025` runs in
+`db/migrations/` order, as `owl_migrator`, before `grant-ddl-ownership` ever installs the event
+triggers. The same disable-window procedure as every other protected-function repair above covers
+it, **executed literally end to end against a real bricked-restore reproduction before this
+paragraph was written (D84's standard), with one correction D155's own text does not generalise to
+this migration:**
+
+**D172's correction: the disable window is a per-object requirement; the *superuser identity*
+requirement is per-ownership, and the two do not always travel together.** `screening_ledger_purge_
+snapshots`'s two overloads are owned by `owl_ledger_ddl` after `grant-ddl-ownership`, so re-applying
+either requires both the disable window **and** the bootstrap superuser identity (D155's own
+paragraph above, unchanged and correct for those two functions). `screening_ledger_snapshot_guard()`
+is different: `grant-ddl-ownership` never transfers its ownership away from `owl_migrator` --
+verified by execution (`SELECT pg_get_userbyid(proowner) ...` reports `owl_migrator` both before and
+after `grant-ddl-ownership`) -- so `owl_migrator` itself can apply `025` inside the disable window;
+no superuser identity is required for this one function, only the window. Do not generalise D155's
+"must be applied as the bootstrap superuser" to every protected function from this document's own
+two examples of it; check ownership (`\df+` or the query above) before assuming which identity a
+given repair needs.
+
+```sh
+# as owl_migrator (NOT the bootstrap superuser -- ownership of this one function never moved),
+# with the event-trigger disable window open (see step 1 above)
+psql -h <host> -p <port> -U owl_migrator -d <database> -v ON_ERROR_STOP=1 \
+  -f db/migrations/025_screening_ledger_snapshot_guard_expiry.sql
+# then, as the bootstrap superuser, close the window and re-run grant-ddl-ownership to re-register
+# the seven new objects and restore both event triggers to ENABLE ALWAYS
+scripts/ci/provision_test_roles.sh grant-ddl-ownership
+```
 
 ## A drifted, non-copied database
 

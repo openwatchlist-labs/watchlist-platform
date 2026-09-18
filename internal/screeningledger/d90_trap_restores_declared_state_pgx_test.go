@@ -74,7 +74,7 @@ func mAForgery(ctx context.Context, migratorConn *pgx.Conn) error {
 
 // TestRefusalRestoresTheDeclaredState is D90/D95 test 4: a failure after
 // the trap is armed restores both event triggers to ENABLE ALWAYS AND all
-// three registries to their declared row counts (13/2/1) -- not merely
+// three registries to their declared row counts (20/4/1, ADR-0007 Addendum 21 D166) -- not merely
 // "unchanged from before," since the whole point is recovering FROM a
 // state where they were already taken down. Before this fix: evtenabled
 // 'O'/'O' and an EMPTY sec7_protected_object (0 rows), and M-A's forgery
@@ -105,8 +105,8 @@ func TestRefusalRestoresTheDeclaredState(t *testing.T) {
 		t.Fatalf("ADR-0007 Addendum 10 D90: expected both event triggers ENABLE ALWAYS after the trap's own restoration, got %v\noutput:\n%s", after, output)
 	}
 	obj, rel, bind := registryRowCounts(t, ctx, superuser)
-	if obj != 13 || rel != 2 || bind != 1 {
-		t.Fatalf("ADR-0007 Addendum 10 D90: expected registries restored to 13/2/1, got obj=%d rel=%d bind=%d\noutput:\n%s", obj, rel, bind, output)
+	if obj != 20 || rel != 4 || bind != 1 {
+		t.Fatalf("ADR-0007 Addendum 10 D90: expected registries restored to 20/4/1 (ADR-0007 Addendum 21 D166), got obj=%d rel=%d bind=%d\noutput:\n%s", obj, rel, bind, output)
 	}
 
 	// The named consequence regression: M-A's one-statement forgery, as

@@ -57,7 +57,21 @@ func preD62RecordProtectedObjectRegistry(t *testing.T, ctx context.Context, supe
 		  ('screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_purge_snapshots(text[],text,int4[],timestamptz[],text,text)'),
 		  ('sec7_protected_object'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_object'),
 		  ('sec7_protected_relation'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_protected_relation'),
-		  ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding')
+		  ('sec7_instance_binding'::regclass::oid, 'pg_class'::regclass::oid, 'table: sec7_instance_binding'),
+		  -- ADR-0007 Addendum 21 D166: the seven rows requiredProtectedObjects
+		  -- gained, reconstructed here too so this helper still matches the
+		  -- CURRENT declared population (not a frozen Addendum-8-era one) --
+		  -- the object-identity check this file's own doc comment (line 36-40)
+		  -- explains this function exists to satisfy runs against
+		  -- requiredProtectedObjects as it stands today, not as it stood when
+		  -- this test was written.
+		  ('screening_ledger_snapshot'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_snapshot'),
+		  ('screening_ledger_snapshot_guard()'::regprocedure::oid, 'pg_proc'::regclass::oid, 'function: screening_ledger_snapshot_guard'),
+		  ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_snapshot_guard_trigger' AND tgrelid='screening_ledger_snapshot'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_snapshot_guard_trigger'),
+		  ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_snapshot_no_truncate' AND tgrelid='screening_ledger_snapshot'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_snapshot_no_truncate'),
+		  ('screening_ledger_event'::regclass::oid, 'pg_class'::regclass::oid, 'table: screening_ledger_event'),
+		  ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_event_immutable' AND tgrelid='screening_ledger_event'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_event_immutable'),
+		  ((SELECT oid FROM pg_trigger WHERE tgname='screening_ledger_event_no_truncate' AND tgrelid='screening_ledger_event'::regclass), 'pg_trigger'::regclass::oid, 'trigger: screening_ledger_event_no_truncate')
 	`); err != nil {
 		t.Fatalf("pre-D62 INSERT INTO sec7_protected_object: %v", err)
 	}

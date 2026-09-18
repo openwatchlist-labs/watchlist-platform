@@ -37,6 +37,35 @@ import (
 	"time"
 )
 
+// applyMigration025ForStaleAnchorFixture is ADR-0007 Addendum 21: this
+// fixture (owl_ci_sec7_stale, owl_migrator-owned, never touched by any
+// other suite -- see the file-header comment above) is migrated only
+// through db/migrations/016 by CI, which predates migration 025.
+// SchemaSQL's own D165 assert-and-fail block for screening_ledger_
+// snapshot_guard() now runs before checkRequiredSchemaObjects inside
+// Migrate() (postgres.go:101 then :104, D165's own citation), so on an
+// UNMODIFIED copy of this fixture, Migrate() now fails on the guard's
+// stale (pre-025) body digest -- a real, also-legitimate fail-closed
+// outcome -- before ever reaching the anchor-table check this test was
+// written to exercise (F-E, D21). Migration 025 touches no anchor-table
+// object at all, so applying it here does not un-stale the fixture's
+// actual target condition (017's trigger/columns remain absent); it only
+// restores this test's original code path. Applied here rather than by
+// widening .github/workflows/ci.yml's own migration-glob step
+// (CLAUDE.md Boundaries: gate/workflow changes are their own reviewed
+// PR) -- this fixture is exclusively owned by this file, so extending
+// its setup here is the minimal, local fix.
+func applyMigration025ForStaleAnchorFixture(t *testing.T, ctx context.Context, sink *PostgresSink) {
+	t.Helper()
+	migrationSQL, err := os.ReadFile("../../db/migrations/025_screening_ledger_snapshot_guard_expiry.sql")
+	if err != nil {
+		t.Fatalf("read migration 025: %v", err)
+	}
+	if _, err := sink.conn.Exec(ctx, string(migrationSQL)); err != nil {
+		t.Fatalf("apply migration 025 to the stale-anchor fixture (idempotent CREATE OR REPLACE, safe to re-run): %v", err)
+	}
+}
+
 func requireStaleAnchorDatabaseURL(t *testing.T) string {
 	t.Helper()
 	dsn := os.Getenv("OWL_MIGRATOR_STALE_DATABASE_URL")
@@ -61,6 +90,8 @@ func TestMigrateFailsOnStaleAnchorTable(t *testing.T) {
 		t.Fatalf("NewPostgresSink: %v", err)
 	}
 	defer sink.Close(context.Background())
+
+	applyMigration025ForStaleAnchorFixture(t, ctx, sink)
 
 	// D21: Migrate() must not report success on this database. Before
 	// the fix, SchemaSQL's `IF to_regclass('screening_ledger_anchor') IS
