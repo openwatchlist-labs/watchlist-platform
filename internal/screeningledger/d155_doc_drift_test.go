@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -132,5 +133,77 @@ func TestSEC7DatabaseCopiesDocNamesCurrentPurgeMigrationFiles(t *testing.T) {
 	// executable `-f db/migrations/022...` line is.
 	if regexp.MustCompile(`-f\s+db/migrations/022_screening_ledger_purge_chain_corroboration\.sql`).MatchString(doc) {
 		t.Fatalf("ADR-0007 Addendum 20 D155: %s still instructs applying the superseded single-file pointer 022_screening_ledger_purge_chain_corroboration.sql, which installs a stale body for at least one overload", docPath)
+	}
+}
+
+// TestSEC7DatabaseCopiesDocRegistryCountsMatchDeclared is the registry-count
+// half of the same drift-proofing (SEC-7 CAP #22, finding I6-A). Addendum 21
+// D166 moved the declared registry cardinalities from 13/2/1 to 20/4/1, and
+// the test above, which ranges over defining-file NAMES only, did not notice
+// that this document still told operators to expect 13/2/1 in three places
+// -- so an operator confirming a correct recovery would see 20/4/1 and read
+// the right state as the "padded" registry D41's own message describes.
+//
+// DSN-free. The declared counts come from the two independent literals D41
+// already compares through the catalog, not from a third copy here:
+// len(requiredProtectedObjects) and len(requiredProtectedRelations) on the Go
+// side, and the D90 trap postcondition in scripts/ci/provision_test_roles.sh
+// on the installer side (which is also the only declaration of the
+// instance-binding count). The two sides are asserted to agree before the
+// document is checked against them.
+//
+// Every count-bearing claim shape the document uses is checked, and each
+// shape must match at least once, so a rewording that escapes a pattern
+// fails as a test construction bug rather than passing vacuously. The
+// "13 -> 20" history lines are a different shape (no "=" and no "expected
+// exactly") and are deliberately not matched.
+func TestSEC7DatabaseCopiesDocRegistryCountsMatchDeclared(t *testing.T) {
+	scriptRaw, err := os.ReadFile("../../scripts/ci/provision_test_roles.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	trap := regexp.MustCompile(`"\$obj_count" == "(\d+)" && "\$rel_count" == "(\d+)" && "\$bind_count" == "(\d+)"`).FindAllStringSubmatch(string(scriptRaw), -1)
+	if len(trap) != 1 {
+		t.Fatalf("test construction bug: expected exactly one D90 trap postcondition (obj/rel/bind count literals) in provision_test_roles.sh, found %d", len(trap))
+	}
+	obj, rel, bind := trap[0][1], trap[0][2], trap[0][3]
+	if goObj := strconv.Itoa(len(requiredProtectedObjects)); obj != goObj {
+		t.Fatalf("provision_test_roles.sh's D90 trap declares sec7_protected_object=%s but len(requiredProtectedObjects)=%s -- the installer and verifier literals disagree (D41)", obj, goObj)
+	}
+	if goRel := strconv.Itoa(len(requiredProtectedRelations)); rel != goRel {
+		t.Fatalf("provision_test_roles.sh's D90 trap declares sec7_protected_relation=%s but len(requiredProtectedRelations)=%s -- the installer and verifier literals disagree (D41)", rel, goRel)
+	}
+
+	docPath := "../../docs/operations/sec7-database-copies.md"
+	docRaw, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := string(docRaw)
+
+	type claim struct {
+		shape string
+		re    *regexp.Regexp
+		want  []string
+	}
+	claims := []claim{
+		{"D41 cardinality message for sec7_protected_object", regexp.MustCompile(`sec7_protected_object has \d+ row\(s\), expected exactly (\d+)`), []string{obj}},
+		{"sec7_protected_object=N", regexp.MustCompile(`sec7_protected_object` + "`" + `?=(\d+)`), []string{obj}},
+		{"sec7_protected_relation=N", regexp.MustCompile(`sec7_protected_relation` + "`" + `?=(\d+)`), []string{rel}},
+		{"sec7_instance_binding=N", regexp.MustCompile(`sec7_instance_binding` + "`" + `?=(\d+)`), []string{bind}},
+		{"confirmation query's expected counts", regexp.MustCompile(`--\s*expect\s+(\d+),\s*(\d+),\s*(\d+)`), []string{obj, rel, bind}},
+	}
+	for _, c := range claims {
+		matches := c.re.FindAllStringSubmatch(doc, -1)
+		if len(matches) == 0 {
+			t.Fatalf("test construction bug: %s no longer contains any %q claim -- the document's wording changed and this test's pattern needs updating, not deleting", docPath, c.shape)
+		}
+		for _, m := range matches {
+			for i, want := range c.want {
+				if m[i+1] != want {
+					t.Errorf("SEC-7 CAP #22 I6-A: %s says %q, but the declared count is %s (requiredProtectedObjects/requiredProtectedRelations and provision_test_roles.sh's D90 trap: obj=%s rel=%s bind=%s) -- the document has drifted and must be corrected, not the other way around", docPath, m[0], want, obj, rel, bind)
+				}
+			}
+		}
 	}
 }
