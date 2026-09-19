@@ -919,7 +919,7 @@ grant-ddl-ownership)
   #      normal path's own postcondition assertion exists to refuse.
   #   3. Assert the postcondition here too, not only in the normal path:
   #      both event triggers ENABLE ALWAYS and all three registry row
-  #      counts 13/2/1. If it cannot be restored, name the exact state
+  #      counts 20/4/1. If it cannot be restored, name the exact state
   #      left behind rather than a generic warning, so an operator does
   #      not have to re-derive what "not fully restored" means.
   # A no-op on a true first run that failed before the guard function

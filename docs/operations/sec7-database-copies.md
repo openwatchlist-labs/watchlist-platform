@@ -161,7 +161,7 @@ This is the state a database provisioned before Addendum 5 (D45), or a schema-on
 missing. If this is a fresh, never-provisioned database, run `grant-ddl-ownership`; otherwise
 investigate before doing so.
 
-A related message, `sec7_protected_object has 0 row(s), expected exactly 13`, is the **schema-only
+A related message, `sec7_protected_object has 0 row(s), expected exactly 20`, is the **schema-only
 clone** case. The registries were never populated in this database. Re-run `grant-ddl-ownership`.
 
 ## Refusal modes `grant-ddl-ownership` can report (ADR-0007 Addendum 9 D84)
@@ -338,10 +338,10 @@ together rather than the one that is easiest to notice: the guard function's dec
 moves; `sec7_protected_object`'s declared cardinality moves (13 -> 20); and `sec7_protected_relation`
 gains two entries (2 -> 4). On a **fresh** database none of this applies -- `025` runs in
 `db/migrations/` order, as `owl_migrator`, before `grant-ddl-ownership` ever installs the event
-triggers. The same disable-window procedure as every other protected-function repair above covers
-it, **executed literally end to end against a real bricked-restore reproduction before this
-paragraph was written (D84's standard), with one correction D155's own text does not generalise to
-this migration:**
+triggers. On an already-provisioned database the procedure is below, **executed literally end to
+end before this paragraph was written (D84's standard), with two corrections D155's own text does
+not generalise to this migration -- which identity applies it, and whether the disable window is
+needed at all:**
 
 **D172's correction: the disable window is a per-object requirement; the *superuser identity*
 requirement is per-ownership, and the two do not always travel together.** `screening_ledger_purge_
@@ -350,19 +350,53 @@ either requires both the disable window **and** the bootstrap superuser identity
 paragraph above, unchanged and correct for those two functions). `screening_ledger_snapshot_guard()`
 is different: `grant-ddl-ownership` never transfers its ownership away from `owl_migrator` --
 verified by execution (`SELECT pg_get_userbyid(proowner) ...` reports `owl_migrator` both before and
-after `grant-ddl-ownership`) -- so `owl_migrator` itself can apply `025` inside the disable window;
-no superuser identity is required for this one function, only the window. Do not generalise D155's
-"must be applied as the bootstrap superuser" to every protected function from this document's own
-two examples of it; check ownership (`\df+` or the query above) before assuming which identity a
-given repair needs.
+after `grant-ddl-ownership`) -- so `owl_migrator` itself can apply `025`; no superuser identity is
+required for this one function. Do not generalise D155's "must be applied as the bootstrap
+superuser" to every protected function from this document's own two examples of it; check
+ownership (`\df+` or the query above) before assuming which identity a given repair needs.
+
+**Whether `025` needs the disable window at all depends on one fact: is
+`screening_ledger_snapshot_guard()` already registered in `sec7_protected_object`?** (SEC-7 CAP #22,
+finding I6-B.) D34 refuses DDL against a *registered* object, and it refuses it whatever the
+function's body is -- measured, a re-application of `025`'s own, already-current body is refused
+on a registered database exactly as a superseded one would be. It does nothing for an object that
+is not registered. The guard is registered by `grant-ddl-ownership` **from Addendum 21 onward**
+(D166), so:
+
+- **A database provisioned before Addendum 21** (registries 13/2/1) does not have the guard
+  registered. `025` applies as `owl_migrator` with both event triggers still `ENABLE ALWAYS` and
+  **no disable window**; opening one there only takes protection down for no reason. Measured on a
+  database built by the pre-Addendum-21 tree (`9eaf272`): registration count `0`; `025` without a
+  window, `psql rc=0`, both event triggers still `A`; then `grant-ddl-ownership`, 3 `PASS` lines,
+  registries `20/4/1`, `migrate` reports `"provisioned":true`.
+- **A database already provisioned at Addendum 21 or later** (registries 20/4/1) has the guard
+  registered, and `025` is already applied -- there is nothing to re-apply. If a body there ever
+  does need re-applying (a legitimate repair, or a later migration that supersedes `025`), the
+  disable window **is** required. Measured on a database built by the Addendum 21 tree: registration
+  count `1`; `025` without a window is refused with `ERROR: ADR-0007 Addendum 3 D34:
+  public.screening_ledger_snapshot_guard() (objid ..., tag CREATE FUNCTION) is protected by a
+  superuser-only DDL event trigger`, and the state is unchanged (`20/4/1`, both `A`); with the window
+  open, `025` applies (`rc=0`) and `grant-ddl-ownership` restores both event triggers to `A`.
+
+Check first, as the bootstrap superuser:
 
 ```sh
-# as owl_migrator (NOT the bootstrap superuser -- ownership of this one function never moved),
-# with the event-trigger disable window open (see step 1 above)
+psql -h <host> -p <port> -U <bootstrap superuser> -d <database> -Atc "
+  SELECT count(*) FROM sec7_protected_object
+   WHERE classid = 'pg_proc'::regclass
+     AND objid = to_regprocedure('public.screening_ledger_snapshot_guard()');"
+# 0 -> not registered: no disable window. 1 -> registered: the window is required.
+```
+
+Then:
+
+```sh
+# as owl_migrator (NOT the bootstrap superuser -- ownership of this one function never moved).
+# Only if the check above printed 1: open the event-trigger disable window first (see step 1 above).
 psql -h <host> -p <port> -U owl_migrator -d <database> -v ON_ERROR_STOP=1 \
   -f db/migrations/025_screening_ledger_snapshot_guard_expiry.sql
-# then, as the bootstrap superuser, close the window and re-run grant-ddl-ownership to re-register
-# the seven new objects and restore both event triggers to ENABLE ALWAYS
+# then, as the bootstrap superuser, re-run grant-ddl-ownership to register the seven new objects
+# (20/4/1) and, if a window was opened, close it by restoring both event triggers to ENABLE ALWAYS
 scripts/ci/provision_test_roles.sh grant-ddl-ownership
 ```
 
@@ -463,7 +497,7 @@ precondition `grant-ddl-ownership` can refuse on (the "Refusal modes" section ab
 state step 2 started in. For a failure **after** that point (a `psql` error, the registry row-count
 assertion, or any other failure once enforcement is already down), the trap now restores the **full
 declared state** -- not only the two event triggers, but all three registries
-(`sec7_protected_object`=13, `sec7_protected_relation`=2, `sec7_instance_binding`=1), from the same
+(`sec7_protected_object`=20, `sec7_protected_relation`=4, `sec7_instance_binding`=1), from the same
 declared literals the normal run uses, and it asserts its own postcondition before finishing. **Before
 Addendum 10, the trap re-created the two event triggers but left them `evtenabled='O'` (not `'A'`) and
 never touched the registries** -- a database in that state passed for "restored" by eye (both event
@@ -476,7 +510,7 @@ psql -h <host> -p <port> -U <bootstrap superuser> -d <the restored db> -c "
   SELECT evtname, evtenabled FROM pg_event_trigger WHERE evtname LIKE 'sec7%';   -- expect 'A' for both
   SELECT (SELECT count(*) FROM sec7_protected_object) obj,
          (SELECT count(*) FROM sec7_protected_relation) rel,
-         (SELECT count(*) FROM sec7_instance_binding) bind;                     -- expect 13, 2, 1
+         (SELECT count(*) FROM sec7_instance_binding) bind;                     -- expect 20, 4, 1
 "
 ```
 
