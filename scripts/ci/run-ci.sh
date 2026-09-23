@@ -41,6 +41,16 @@ if [[ -n "${OWL_LEDGER_DDL_DATABASE_URL:-}" ]]; then
 else
   printf 'SKIP: provisioning no-dangling-membership test (OWL_LEDGER_DDL_DATABASE_URL not set; see fail-open banner above)\n'
 fi
+# ADR-0007 Addendum 22 D174/D179 test 7: same rationale and same gate as
+# the two lines above -- riding along per CLAUDE.md Boundaries and D30/
+# D35's own precedent for it (an already-committed test, no new gate, no
+# pass/fail semantics changed for any environment that was passing
+# before).
+if [[ -n "${OWL_LEDGER_DDL_DATABASE_URL:-}" ]]; then
+  ./scripts/ci/tests/test_provisioning_maintain_population.sh
+else
+  printf 'SKIP: provisioning MAINTAIN-population test (OWL_LEDGER_DDL_DATABASE_URL not set; see fail-open banner above)\n'
+fi
 # ADR-0007 Addendum 9 D83/D85 test 7: the static checks (no stray mktemp,
 # no PRIMARY_PGSUPERPASSWORD default) always run; the live checks
 # (temp-count hygiene, concurrent invocations) self-skip inside the test

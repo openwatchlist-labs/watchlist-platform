@@ -161,6 +161,22 @@ grant-ddl-ownership)
     echo "FAIL: owl_migrator is already a member of owl_ledger_ddl before this step ran (ADR-0007 Addendum 3 D35/G-E) -- an older script version, an interrupted run, or a manual grant left this membership; a superuser must REVOKE owl_ledger_ddl FROM owl_migrator before re-running this step" >&2
     exit 1
   }
+  # ADR-0007 Addendum 22 D174/D176 (C22-A/B): the single declaration of
+  # sec7_protected_relation's four-member population this script uses --
+  # table:owner:triggers:indexes -- read by the MAINTAIN revoke/
+  # postcondition loop below AND by the existing D62(a) undeclared-
+  # trigger/index refusal loop further down, so the script gains no
+  # fifth list for this addendum (D174's own text). Duplicated from
+  # internal/screeningledger/postgres.go's requiredProtectedRelationStates
+  # for the same cross-language reason (R23/R35) the trigger/index/digest
+  # declarations elsewhere in this script already are: a bash script
+  # cannot import a Go literal.
+  sec7_protected_relations=(
+    "screening_ledger_anchor:owl_ledger_ddl:screening_ledger_anchor_immutable,screening_ledger_anchor_no_truncate:screening_ledger_anchor_pkey"
+    "screening_ledger_retention_tombstone:owl_ledger_ddl:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey"
+    "screening_ledger_event:owl_migrator:screening_ledger_event_immutable,screening_ledger_event_no_truncate:screening_ledger_event_pkey,screening_ledger_event_event_sha256_key,screening_ledger_event_ledger_id_sequence_key"
+    "screening_ledger_snapshot:owl_migrator:screening_ledger_snapshot_guard_trigger,screening_ledger_snapshot_no_truncate:screening_ledger_snapshot_pkey"
+  )
   table_exists="$(psql_super -tAc "SELECT count(*) FROM pg_class WHERE relname = 'screening_ledger_anchor' AND relnamespace = 'public'::regnamespace")"
   [[ "$table_exists" == "1" ]] || {
     echo "FAIL: public.screening_ledger_anchor matched $table_exists row(s) in pg_class, expected exactly 1 (ADR-0007 Addendum 11 D101/D96 row 20) -- 0 means run db/migrations/015_screening_ledger_anchor.sql first; more than 1 is not possible for a single schema-qualified relation and means this check itself is broken" >&2
@@ -179,26 +195,12 @@ grant-ddl-ownership)
   if [[ "$anchor_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_anchor OWNER TO owl_ledger_ddl;"
   fi
-  # ADR-0007 Addendum 6 D51: MAINTAIN (REINDEX/VACUUM/ANALYZE/CLUSTER/
-  # REFRESH MATERIALIZED VIEW/LOCK TABLE) is held implicitly by a table's
-  # owner but, unlike ownership itself, is revocable -- confirmed by
-  # execution during this addendum's design pass. Run unconditionally,
-  # every invocation, not only on first ownership transfer: GRANT/REVOKE
-  # always report objid=NULL to the D34 event trigger (confirmed by
-  # execution), so this never trips it regardless of installation state,
-  # and re-running this step is the documented recovery from R25's
-  # accepted residual (an operator or a superuser re-granting MAINTAIN to
-  # owl_ledger_ddl after this step has already run once).
-  #
-  # ADR-0007 Addendum 7 D60: FROM PUBLIC joins FROM owl_ledger_ddl -- the
-  # verifier's assertion now ranges over the live role population
-  # (nonSuperuserUserCreatedRoleFilter), not one named role, so the
-  # REVOKE here removes the capability over the same population the
-  # check asserts empty. This does not close K-A by itself (the owner can
-  # still GRANT MAINTAIN to any role after this step runs, D60's own
-  # limit) but a REVOKE narrower than its own check would reproduce the
-  # finding's shape in the installer.
-  psql_super -c "REVOKE MAINTAIN ON TABLE screening_ledger_anchor FROM owl_ledger_ddl, PUBLIC;"
+  # ADR-0007 Addendum 6 D51 / Addendum 7 D60, extended by Addendum 22
+  # D174: the MAINTAIN REVOKE and its two-limb postcondition no longer
+  # run inline per table here -- they run once, after every protected
+  # relation's ownership is in its final state, over
+  # sec7_protected_relations (declared above) -- see the unified loop
+  # below the tombstone/purge-function section.
   # owl_ledger_anchor (the runtime writer) gets INSERT only -- never
   # ownership, never SELECT/UPDATE/DELETE, never DDL. This is the
   # privilege set ADR-0007 §5.3 point 2 and anchor.go's doc comment
@@ -267,36 +269,7 @@ grant-ddl-ownership)
     echo "FAIL: owl_ledger_anchor owns screening_ledger_anchor; ownership must belong to owl_ledger_ddl (F6)" >&2
     exit 1
   }
-  # ADR-0007 Addendum 6 D51 / Addendum 7 D60, extended by Addendum 8
-  # D72/D73: the revoke actually holds over the live role population
-  # (not merely absent from owl_ledger_ddl by name -- an owner can GRANT
-  # MAINTAIN to any role, K-A), and ALTER TABLE is still refused
-  # separately by D34 -- proving the revoke did not over-reach into
-  # ordinary DDL rights. D72 replaces the oid >= 16384 range with the
-  # explicit, measured allowlist {pg_maintain} (the only predefined role
-  # that structurally reports MAINTAIN=true); D73 re-quantifies the
-  # population via pg_has_role(..., 'MEMBER') so a NOINHERIT/WITH
-  # INHERIT FALSE member is named too, not merely a role that directly
-  # holds the privilege. Same predefinedRoleStructuralPrivilege /
-  # privilegeHolderRoleFilterSQLTemplate population
-  # (internal/screeningledger/postgres.go) the verifier's D60/D72/D73
-  # check uses, reconstructed here in SQL since the script has no access
-  # to the Go literal.
-  maintain_holders_anchor="$(psql_super -tAc "
-    SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
-    FROM pg_roles r
-    WHERE NOT r.rolsuper AND r.rolname <> 'pg_maintain'
-      AND EXISTS (
-        SELECT 1 FROM pg_roles s
-        WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
-          AND has_table_privilege(s.rolname, 'screening_ledger_anchor', 'MAINTAIN')
-      )
-  ")"
-  [[ -z "$maintain_holders_anchor" ]] || {
-    echo "FAIL: MAINTAIN on screening_ledger_anchor is held by: $maintain_holders_anchor (ADR-0007 Addendum 7 D60): REVOKE did not hold" >&2
-    exit 1
-  }
-  echo "PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner; owl_migrator's DDL membership dropped and it has SELECT-only; MAINTAIN held by no non-superuser role in the live population (ADR-0007 Addendum 6 D51 / Addendum 7 D60)"
+  echo "PASS: screening_ledger_anchor owned by owl_ledger_ddl; owl_ledger_anchor is INSERT-only and not owner; owl_migrator's DDL membership dropped and it has SELECT-only (MAINTAIN is asserted for every protected relation together, below)"
 
   # ADR-0007 Addendum 2 D27 (F-D, MEDIUM): screening_ledger_retention_
   # tombstone and both screening_ledger_purge_snapshots overloads
@@ -319,10 +292,9 @@ grant-ddl-ownership)
   if [[ "$tombstone_owner_before" != "owl_ledger_ddl" ]]; then
     psql_super -c "ALTER TABLE screening_ledger_retention_tombstone OWNER TO owl_ledger_ddl;"
   fi
-  # ADR-0007 Addendum 6 D51 / Addendum 7 D60: same reasoning as the
-  # anchor table's REVOKE above, run unconditionally every invocation,
-  # FROM PUBLIC added alongside FROM owl_ledger_ddl.
-  psql_super -c "REVOKE MAINTAIN ON TABLE screening_ledger_retention_tombstone FROM owl_ledger_ddl, PUBLIC;"
+  # ADR-0007 Addendum 22 D174: the tombstone's MAINTAIN revoke moved into
+  # the unified sec7_protected_relations loop below, alongside the other
+  # three protected relations.
   # ADR-0007 Addendum 3 D34 registers both overloads below as protected
   # objects, so -- exactly like the two ALTER TABLE OWNER TO statements
   # above -- these must be guarded on current ownership rather than run
@@ -470,29 +442,12 @@ grant-ddl-ownership)
       exit 1
     }
   done
-  # ADR-0007 Addendum 6 D51 / Addendum 7 D60 / Addendum 8 D72/D73: same
-  # live-population postcondition as the anchor table above.
-  maintain_holders_tombstone="$(psql_super -tAc "
-    SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
-    FROM pg_roles r
-    WHERE NOT r.rolsuper AND r.rolname <> 'pg_maintain'
-      AND EXISTS (
-        SELECT 1 FROM pg_roles s
-        WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
-          AND has_table_privilege(s.rolname, 'screening_ledger_retention_tombstone', 'MAINTAIN')
-      )
-  ")"
-  [[ -z "$maintain_holders_tombstone" ]] || {
-    echo "FAIL: MAINTAIN on screening_ledger_retention_tombstone is held by: $maintain_holders_tombstone (ADR-0007 Addendum 7 D60): REVOKE did not hold" >&2
-    exit 1
-  }
   # ADR-0007 Addendum 19 D149 (F2): "the installer proves the property it
   # installs" (D60's own reasoning, applied one object over) -- both
   # screening_ledger_purge_snapshots overloads' EXECUTE holder set is
-  # asserted here too, using the same two-limb pattern
-  # (maintain_holders_tombstone above): holder-side (pg_has_role MEMBER,
-  # no allowlist -- measured, no predefined role structurally carries
-  # EXECUTE) and grantee-side (aclexplode(proacl)). Both directions:
+  # asserted here too, using the same two-limb pattern the unified
+  # sec7_protected_relations MAINTAIN loop below uses: holder-side
+  # (pg_has_role MEMBER,
   # a live holder/grantee outside {owl_ledger_ddl, owl_migrator} is a
   # named failure, and so is a declared holder missing the privilege.
   for decl_purge_fn_execute in \
@@ -537,7 +492,58 @@ grant-ddl-ownership)
       }
     done
   done
-  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only; MAINTAIN held by no non-superuser role in the live population (ADR-0007 Addendum 6 D51 / Addendum 7 D60); EXECUTE on both purge_snapshots overloads held by exactly {owl_ledger_ddl, owl_migrator} in both the holder-side and grantee-side senses (ADR-0007 Addendum 19 D149)"
+  echo "PASS: screening_ledger_retention_tombstone and both screening_ledger_purge_snapshots overloads owned by owl_ledger_ddl (SECURITY DEFINER); owl_migrator lost table DML, gained EXECUTE only; EXECUTE on both purge_snapshots overloads held by exactly {owl_ledger_ddl, owl_migrator} in both the holder-side and grantee-side senses (ADR-0007 Addendum 19 D149)"
+
+  # ADR-0007 Addendum 22 D174 (C22-A): the MAINTAIN REVOKE and its
+  # two-limb empty-set postcondition (ADR-0007 Addendum 6 D51 / Addendum
+  # 7 D60 / Addendum 8 D72/D73), extended to range over every relation
+  # sec7_protected_relations declares (all four -- D166's own population)
+  # rather than the anchor and tombstone alone. One loop, not two inline
+  # blocks per table: D166 grew the protected set from two members to
+  # four and these controls had silently stopped covering the other two
+  # (Addendum 22's population principle). Run unconditionally, every
+  # invocation, for the same reason the pre-Addendum-22 per-table REVOKEs
+  # were: GRANT/REVOKE always report objid=NULL to the D34 event trigger,
+  # so this never trips it, and re-running this step is the documented
+  # recovery from R25's accepted residual (an operator or a superuser
+  # re-granting MAINTAIN after this step has already run once). The
+  # grantee-side (aclexplode) limb is new here -- the pre-Addendum-22
+  # installer postcondition asserted only the holder-side (pg_has_role
+  # MEMBER) limb; the verifier's own D73 two-limb shape is now mirrored
+  # exactly, using the same aclexplode(relacl) pattern the EXECUTE
+  # postcondition above already uses for proacl.
+  for decl_rel in "${sec7_protected_relations[@]}"; do
+    decl_rel_table="${decl_rel%%:*}"
+    decl_rel_rest="${decl_rel#*:}"
+    decl_rel_owner="${decl_rel_rest%%:*}"
+    psql_super -c "REVOKE MAINTAIN ON TABLE ${decl_rel_table} FROM ${decl_rel_owner}, PUBLIC;"
+    maintain_holder_side="$(psql_super -tAc "
+      SELECT coalesce(string_agg(DISTINCT r.rolname, ', ' ORDER BY r.rolname), '')
+      FROM pg_roles r
+      WHERE NOT r.rolsuper AND r.rolname <> 'pg_maintain'
+        AND EXISTS (
+          SELECT 1 FROM pg_roles s
+          WHERE pg_has_role(r.oid, s.oid, 'MEMBER')
+            AND has_table_privilege(s.rolname, '${decl_rel_table}', 'MAINTAIN')
+        )
+    ")"
+    [[ -z "$maintain_holder_side" ]] || {
+      echo "FAIL: MAINTAIN on ${decl_rel_table} is held by (holder-side, pg_has_role MEMBER): $maintain_holder_side (ADR-0007 Addendum 7 D60 / Addendum 8 D73 / Addendum 22 D174): REVOKE did not hold" >&2
+      exit 1
+    }
+    maintain_grantee_side="$(psql_super -tAc "
+      SELECT coalesce(string_agg(DISTINCT grantee_name, ', ' ORDER BY grantee_name), '')
+      FROM (
+        SELECT (CASE WHEN a.grantee=0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END) AS grantee_name
+        FROM pg_class c, aclexplode(c.relacl) a
+        WHERE c.oid = '${decl_rel_table}'::regclass AND a.privilege_type='MAINTAIN'
+      ) granted
+    ")"
+    [[ -z "$maintain_grantee_side" ]] || {
+      echo "FAIL: MAINTAIN on ${decl_rel_table} is granted to (grantee-side, aclexplode): $maintain_grantee_side (ADR-0007 Addendum 8 D73 / Addendum 22 D174): a literal ACL grantee the holder-side limb's membership traversal did not independently confirm" >&2
+      exit 1
+    }
+  done
 
   # ADR-0007 Addendum 3 D34 (G-B, G-D, G-G): D26's event trigger scoped
   # itself twice -- WHEN TAG on the trigger, object_identity string
@@ -626,15 +632,15 @@ grant-ddl-ownership)
   # internal/screeningledger/postgres.go's requiredProtectedRelationStates:
   # a bash script cannot import a Go literal, so this is the second
   # independent declaration R23 already tracks as this control's own
-  # cross-language cost.
-  for decl in \
-    "screening_ledger_anchor:screening_ledger_anchor_immutable,screening_ledger_anchor_no_truncate:screening_ledger_anchor_pkey" \
-    "screening_ledger_retention_tombstone:screening_ledger_retention_tombstone_immutable,screening_ledger_retention_tombstone_no_truncate:screening_ledger_retention_tombstone_pkey" \
-    "screening_ledger_event:screening_ledger_event_immutable,screening_ledger_event_no_truncate:screening_ledger_event_pkey,screening_ledger_event_event_sha256_key,screening_ledger_event_ledger_id_sequence_key" \
-    "screening_ledger_snapshot:screening_ledger_snapshot_guard_trigger,screening_ledger_snapshot_no_truncate:screening_ledger_snapshot_pkey"
-  do
+  # cross-language cost. ADR-0007 Addendum 22 D174: reads
+  # sec7_protected_relations (declared once, near the top of this
+  # subcommand) rather than its own literal -- the same declaration the
+  # MAINTAIN revoke loop above uses, so the script gains no fifth list.
+  for decl in "${sec7_protected_relations[@]}"; do
     decl_table="${decl%%:*}"
     decl_rest="${decl#*:}"
+    decl_owner="${decl_rest%%:*}"
+    decl_rest="${decl_rest#*:}"
     decl_triggers="${decl_rest%%:*}"
     decl_indexes="${decl_rest#*:}"
     decl_triggers_sql="'$(echo "$decl_triggers" | sed "s/,/','/g")'"
@@ -1324,7 +1330,7 @@ grant-ddl-ownership)
     echo "FAIL: sec7_protect_ddl_objects() is not SECURITY DEFINER -- an invoker-rights version breaks every unrelated DDL statement in the database (ADR-0007 Addendum 3 D34)" >&2
     exit 1
   }
-  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, screening_ledger_event, screening_ledger_snapshot, their guard triggers, the shared row-immutability/TRUNCATE guard functions, screening_ledger_snapshot_guard(), both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 4 rows -- ADR-0007 Addendum 21 D166) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-defs-policy sets after every DDL statement (ADR-0007 Addendum 6 D50: index sets compared by definition, not OID), naming the relation and the copy/restore instance on failure (D46, D52, D54, D55) via sec7_instance_binding (D45, diagnostic-only, never gates)"
+  echo "PASS: D34 object-scoped (OID-keyed, unfiltered) DDL event triggers installed and ENABLE ALWAYS, protecting screening_ledger_anchor, screening_ledger_retention_tombstone, screening_ledger_event, screening_ledger_snapshot, their guard triggers, the shared row-immutability/TRUNCATE guard functions, screening_ledger_snapshot_guard(), both screening_ledger_purge_snapshots overloads, and all three registries from any DDL statement by any non-superuser role, owner included; D40's second phase (sec7_protected_relation, 4 rows -- ADR-0007 Addendum 21 D166) re-asserts owner/kind/RLS-flags/rules/inheritance/trigger-index-defs-policy sets after every DDL statement (ADR-0007 Addendum 6 D50: index sets compared by definition, not OID), naming the relation and the copy/restore instance on failure (D46, D52, D54, D55) via sec7_instance_binding (D45, diagnostic-only, never gates); MAINTAIN held by no non-superuser role, in both the holder-side and grantee-side senses, on all four protected relations (ADR-0007 Addendum 6 D51 / Addendum 7 D60 / Addendum 8 D72/D73 / Addendum 22 D174)"
   ;;
 create-restored-database)
   # ADR-0007 Addendum 5 D43/D49 test 1 (I-A, CAP #4 §7.6): the two pg_dump
