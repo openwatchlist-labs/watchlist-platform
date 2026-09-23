@@ -20940,3 +20940,744 @@ and is why U1 is first.
 
 Every file:line citation in this addendum was verified against that tree. For a CAP record covering the
 implementation of this addendum, use the tip of whichever stage PR is under audit, not this value.
+
+## Addendum 22: the population a sibling control inherits -- CAP #22's C22-A/B/C, and the three controls that did not follow D166's registry growth (2026-09-23)
+
+- **Status:** Proposed
+- **Trigger:** the twenty-second Composition Audit Program record, produced in two parts against
+  `ecf843d` and continued at `4627bf0`
+  (`docs/backlog/sec-7-cap-record-ecf843da99a2898f599b2e11b87a394dcc23127a.md` and its
+  `-continued.md`), returned **PARTIAL -- no verdict**. Of its six items, items 4 and 6 ran in the
+  first session and items 1, 2, 3 and 5 ran in the second as reading-and-catalog work only. This
+  addendum remediates the three findings that round produced: **C22-A (MEDIUM)**, **C22-B (population
+  fact confirmed, impact analysis stopped)** and **C22-C (LOW)**. It is not a forgery round: none of
+  the three is a bypass, and C22-A is an availability wedge.
+- **What this addendum deliberately does not touch, and why.** CAP #22 records a named
+  **human-review gap**: the security analysis of Addendum 21's D163/D164 guard, R84's precondition,
+  C22-B's *impact*, whether the guard's RAISE text is an R72-class disclosure, R81/`proconfig`, and
+  the operator document's "Refusal modes" section. **None of those is analysed, reasoned about or
+  resolved here.** They were not passed and not deferred; they were not performed, and they remain
+  the human reviewer's. This addendum ranges over privilege populations only.
+- **What CAP #22 confirmed, and this addendum does not disturb.** Item 4 was green across
+  `run-ci.sh`, `go test -race` (98 packages), `cargo test` and both legacy gates. Addendum 21's
+  D163 guard is live and refusing -- re-measured here on a clone carrying this addendum's own
+  candidate revoke, so the interaction is measured rather than assumed. D166's registries are
+  20/4/1, both event triggers `ENABLE ALWAYS`. **Every prior addendum's principle stands** --
+  Addendum 3's scoping, 4's referent, 5's population, 6's atomicity, 7's quantifier, 8's naming, 9's
+  composition, 10's whole-round obligation, 11's cardinality, 12's reduction, 13's derivation, 14's
+  element set, 15's placement, 16's identity resolution, 17's tokenization, 18's span, 19's
+  JSON-layer identity, 20's canonical bytes and 21's expiry-aware guard -- and this addendum reopens
+  none of them.
+- **Scope:** a pure addition. Nothing above this section is edited -- not D1-D172, not AR7, not the
+  D19 correction note, not R1-R86. Decision numbering continues at **D173**; risk numbering at
+  **R87**. Where a prior decision's or a brief's *text* is narrower or wrong, the new decision says
+  so in its own words -- the AR7 convention, and the construction D145/D150/D160/D168 used.
+- **Verification basis:** every `file:line` below was re-derived from the working tree at
+  `4627bf062f919c6c7d2eee15fe26dbf17cc8bc6f`. Measured as the first act of this pass:
+
+  ```
+  $ git rev-parse HEAD
+  4627bf062f919c6c7d2eee15fe26dbf17cc8bc6f
+  $ git rev-parse --abbrev-ref HEAD
+  sec-7-addendum-22-cap22-remediation
+  $ git status --porcelain
+  ?? docs/OpenWatchlist-Program-Status-Report-v4.md
+  ?? sable-metro-preview.png
+  ```
+
+  Every database measurement ran on a disposable PostgreSQL **17.11** cluster built in this
+  session's scratchpad (`initdb -U owl_ci --auth=scram-sha-256 --pwfile`,
+  `listen_addresses=127.0.0.1`, port **55702**, `unix_socket_directories=''` -- the scratchpad
+  socket path exceeds PostgreSQL's 103-byte limit), provisioned in `.github/workflows/ci.yml`'s
+  exact order (`create-roles`, all 22 `db/migrations/*.sql` as `owl_migrator`,
+  `grant-app-privileges`, `grant-ddl-ownership`, then each fixture database **with its own migration
+  step**):
+
+  ```
+  $ psql -Atc "select version(), inet_server_addr(), inet_server_port()"
+  PostgreSQL 17.11 (Homebrew) on aarch64-apple-darwin25.6.0, ... 64-bit|127.0.0.1|55702
+  obj|20
+  rel|4
+  bind|1
+  sec7_protect_ddl_objects_on_alter|A
+  sec7_protect_ddl_objects_on_drop|A
+  ```
+
+  **Connection hygiene (R63).** One `env.sh` exporting all ten `OWL_*_DATABASE_URL` DSNs **and**
+  `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`/`PGSUPERUSER`/`PGSUPERPASSWORD`, all pointing
+  at `127.0.0.1:55702`, was sourced into the same shell for every script, gate and test run. **The
+  developer's own server on port 5432 was never contacted** -- at pass start the only PostgreSQL
+  processes were PID 2475 (started `Thu Sep 17 23:40:55 2026`) and its children, and it remained the
+  only listener on 5432 throughout. Every destructive probe ran on a
+  `CREATE DATABASE ... TEMPLATE owl_ci` clone created for this pass; **no named CI fixture was
+  re-provisioned by a different command** (the CAP #15 lesson), and the one fixture the suite
+  consumes (`owl_ci_sec7_stale`) was rebuilt by its own creator plus its own migration step before
+  each gate run (the CAP #17 lesson).
+
+  **The five results that shaped the design, each with its transcript in the section that relies on
+  it:**
+
+  1. **C22-A escalates from PLAUSIBLE to CONFIRMED, and its consequence is worse than the record
+     carries.** One ordinary `REINDEX TABLE CONCURRENTLY` as `owl_migrator`, cancelled by an
+     ordinary `statement_timeout`, wedges **every DDL statement in the database for every role
+     including the bootstrap superuser**, and `migrate` fails. CAP #22 rated it PLAUSIBLE on
+     consequence carried from D65/R24's measurements on `screening_ledger_anchor`; it is executed
+     here on `screening_ledger_event` (D173 row 3, the reproduction below).
+  2. **The wedge is not self-healing one index at a time.** R24 records the leftover as "cleared by
+     `DROP INDEX` ... with no event-trigger disable" (`0007:5331-5333`), measured on a relation with
+     **one** index. `screening_ledger_event` has **three**, so every intermediate drop leaves the
+     set still divergent and is refused; only a single statement naming **every** leftover clears it
+     (D174's recovery note).
+  3. **The brief's D33 premise does not survive measurement.** `screening_ledger_event` and
+     `screening_ledger_snapshot` are owned by `owl_migrator` **by design, on both bootstrap paths**,
+     so extending D33's `relowner = owl_ledger_ddl` assertion to them would false-fail every healthy
+     database -- D45's pre-declared shape. The population is right to widen; the *expected value*
+     must be derived per relation (D176).
+  4. **The revoke does not make R24 superuser-only on the two new relations, and saying otherwise
+     would be a false attestation.** `CREATE INDEX CONCURRENTLY` is gated by **ownership plus
+     `CREATE` on the schema**, not by `MAINTAIN`, and `owl_migrator` holds both -- where
+     `owl_ledger_ddl` holds neither on the old two. Measured both ways (R87).
+  5. **Of the three re-grant routes, one is already caught and two are not.** A `pg_maintain`
+     membership confers `MAINTAIN` on every relation including the two D60 already covers, so the
+     shipped check catches it incidentally; a direct grant or a `GRANT ... TO PUBLIC` scoped to one
+     of the two **new** relations is not caught (D174's route matrix).
+
+### Drift found while writing this addendum
+
+Recorded rather than corrected silently, the convention section 3.4, section 6.1 and every prior
+addendum's own drift block set.
+
+1. **The brief's citation for D51's revocation is `postgres.go:235`.** At this tree `:235-238` is
+   `requiredDDLOwnedTables`'s *declaration*; the revoke itself is
+   `scripts/ci/provision_test_roles.sh:201` and `:325`, and the verifier's loop over it is
+   `postgres.go:1161`. The substance -- that both range over two relations -- is exactly as stated.
+2. **The brief describes D33's owner check as a fourth instance of the same "2 of 4" shape.** It is
+   not; see result 3 and D176. The correction moves the fix, which is why it is recorded here rather
+   than applied silently.
+3. **CAP #22's C22-A verdict is "PLAUSIBLE ... not re-executed" on the new relations.** It is
+   executed here and the finding is CONFIRMED, with a consequence the record does not carry (result
+   2). The record's own reasoning was right; only its confidence was conservative.
+4. **R71's re-entry condition fires in this round.** R71 (`0007:19085-19090`) states it as "the
+   first change to either declared literal", and D175 changes `requiredTablePrivilegeHolders`. It is
+   re-measured and re-deferred with its reason, not silently carried (R88).
+5. **CAP #22's continuation cites `provision_test_roles.sh:201`, `:325`, `:292`, `:482` and
+   `verify_cross_cluster_dr.sh:251`.** All five are accurate at this commit. The D62(a) declaration
+   loop it does not cite -- `provision_test_roles.sh:630-634` -- already carries the **four**-relation
+   list, and is the reason D174's installer half has a population to derive from rather than invent.
+
+### Addendum 22 context: a list that coincides with a population is not a population
+
+Every axis this arc has established asks a question about a control's own terms. C22-A is one turn
+earlier: the control's terms are right, and the set it ranges over was correct when it was written
+and silently stopped being correct when a *different* decision grew the population.
+
+D166 (`0007:20356-20372`) grew `sec7_protected_relation` from two rows to four. Three controls that
+range over "every protected relation" terminate instead on `requiredDDLOwnedTables`
+(`postgres.go:235-238`) -- a list whose *name* says what it actually means ("relations that must be
+owned by `owl_ledger_ddl`") and whose membership merely **coincided** with the protected set while
+that set had two members:
+
+| Control | Loop | Declared population | Is that the protected set? |
+|---|---|---|---|
+| D60 `MAINTAIN` empty-set assertion | `postgres.go:1161` | `requiredDDLOwnedTables` | **no** -- 2 of 4 |
+| D61 privilege-holder matrix | `postgres.go:1262` | `requiredDDLOwnedTables` | **no** -- 2 of 4 |
+| D33 owner assertion | `postgres.go:281` | `requiredDDLOwnedTables` | correct set for *its own* question, see D176 |
+| D51 installer revoke | `provision_test_roles.sh:201`, `:325` | two inline statements | **no** -- 2 of 4 |
+| D60 installer postcondition | `provision_test_roles.sh:285-298`, `:475-488` | two inline blocks | **no** -- 2 of 4 |
+| D62(a)/D69/D77 installer declaration | `provision_test_roles.sh:630-634` | its own four-entry list | **yes** -- D166 moved it |
+
+**The sentence this addendum adds:**
+
+> **Where a control's population is "every member of a set another decision declares", it must be
+> derived from that declaration, not from a second list that happens to contain the same members. A
+> list that coincides with a population is not a population -- it is a coincidence carrying a
+> maintenance obligation nobody wrote down, and it fails silently in the direction of covering less
+> than it claims.**
+
+This is Addendum 5's population principle (`0007:3742-3746`) and Addendum 10's whole-round
+obligation (D86) composed: D43 says state the population a control is meaningful over; D86 says apply
+a round's own principle to every decision it ships. What neither says, and what C22-A is, is that a
+**later** round can invalidate an **earlier** round's population without touching its code. D173 is
+the audit that answers it for this document's whole relation-population surface.
+
+### C22-A, reproduced independently before anything is repaired
+
+Nothing below is taken from CAP #22's transcripts; every run was rebuilt against the baseline above.
+
+**The gap, on the provisioned primary.** D60's own two-limb enumeration (D72's allowlist, D73's
+`pg_has_role MEMBER`, and the `aclexplode` grantee limb), asked of each of the four protected
+relations:
+
+```
+screening_ledger_anchor                  owner=owl_ledger_ddl  holder-side=<EMPTY>      grantee-side=<EMPTY>
+screening_ledger_retention_tombstone     owner=owl_ledger_ddl  holder-side=<EMPTY>      grantee-side=<EMPTY>
+screening_ledger_event                   owner=owl_migrator    holder-side=owl_migrator grantee-side=owl_migrator
+screening_ledger_snapshot                owner=owl_migrator    holder-side=owl_migrator grantee-side=owl_migrator
+
+$ screening-ledger migrate --postgres-dsn-env OWL_MIGRATOR_DATABASE_URL
+{"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+```
+
+**The wedge, executed.** A `CREATE DATABASE ... TEMPLATE owl_ci` clone, 300,000 ordinary event rows
+so a rebuild outlives a short statement timeout, and then the most routine maintenance command
+PostgreSQL has -- as `owl_migrator`, no superuser, no adversary, both event triggers `ENABLE ALWAYS`
+throughout:
+
+```
+$ psql -Atc "select has_table_privilege('owl_migrator','screening_ledger_event','MAINTAIN')"
+t
+$ PGOPTIONS='-c statement_timeout=40ms' psql <migrator DSN> -c "REINDEX TABLE CONCURRENTLY screening_ledger_event;"
+ERROR:  canceling statement due to statement timeout
+
+-- the leftovers the cancellation left behind:
+screening_ledger_event_event_sha256_key valid=true ready=true
+screening_ledger_event_event_sha256_key_ccnew valid=false ready=false
+screening_ledger_event_ledger_id_sequence_key valid=true ready=true
+screening_ledger_event_ledger_id_sequence_key_ccnew valid=false ready=false
+screening_ledger_event_pkey valid=true ready=true
+screening_ledger_event_pkey_ccnew valid=false ready=false
+```
+
+and from that moment every DDL statement in the database fails, for **every** role:
+
+```
+[owl_migrator]        CREATE TABLE cap22_probe_mig(x int);
+ERROR:  ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_event" (objid 16389): its index set changed
+[bootstrap superuser] CREATE TABLE cap22_probe_super(x int);
+ERROR:  ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_event" (objid 16389): its index set changed
+
+$ screening-ledger migrate --postgres-dsn-env <the wedged DSN>
+ERROR: ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_event" (objid 16389): its index set changed (SQLSTATE P0001)
+exit status 1
+```
+
+**R28's blindness, measured one relation over.** The runtime control and the provisioning-state check
+do not compare the same set -- D47 filters the live side to the *declared* index names, so the
+`_ccnew` leftovers that wedge D40 are invisible to it:
+
+```
+recorded  : 3 defs
+live UNfiltered (what D40 sees): 6
+live filtered to declared names (what D47 compares): 3
+```
+
+**The recovery, and the part R24 does not say.** Dropping the leftovers **one at a time** is refused,
+because each intermediate state still diverges from the recording; only a single statement naming
+**every** leftover clears it -- and that statement succeeds for the relation's owner, with no
+event-trigger disable and no superuser:
+
+```
+[owl_migrator] DROP INDEX screening_ledger_event_pkey_ccnew;
+ERROR:  ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_event" ... its index set changed
+[owl_migrator] DROP INDEX <all three leftovers, one statement>;
+DROP INDEX
+[owl_migrator] CREATE TABLE cap22_heal2(x int); DROP TABLE cap22_heal2;
+CREATE TABLE
+$ screening-ledger migrate ...
+{"operation":"migrate","provisioned":true,"provisioning_reason":"", ...}
+```
+
+**Severity: MEDIUM**, adopted from CAP #22 unchanged and for its stated reasons -- D50 already makes
+a *completed* rebuild harmless on every protected relation, this is R24's recoverable wedge, and it
+is an availability failure rather than a bypass, a forgery or evidence destruction. What the
+execution changes is the record's own confidence (PLAUSIBLE -> CONFIRMED) and the recovery's shape.
+
+### D173. The relation-population audit, discharged for this addendum before any fix is designed
+
+D86's whole-round obligation, in the form this round's axis requires. **One row per control that
+ranges over a set of relations**, each answering: what declares its population, is that the
+protected-relation set, and what is the disposition -- "checked, and it does not apply" included.
+The population was derived by reading `checkProvisioningState` and `provision_test_roles.sh`'s
+`grant-ddl-ownership` end to end, not by listing the controls a finding named.
+
+| # | Control | Population declared by | Protected set? | Disposition |
+|---|---|---|---|---|
+| 1 | D60 `MAINTAIN` empty-set assertion (`postgres.go:1161`) | `requiredDDLOwnedTables` | **no** | **C22-A -- D174** |
+| 2 | D51 installer revoke (`provision_test_roles.sh:201`, `:325`) | two inline statements | **no** | **C22-A -- D174** |
+| 3 | D60 installer postcondition (`:285-298`, `:475-488`) | two inline blocks | **no** | **C22-A -- D174** |
+| 4 | D61 privilege-holder matrix (`postgres.go:1262`, literal `:1218-1224`) | `requiredDDLOwnedTables` | **no** | **C22-B -- D175** |
+| 5 | D33 owner assertion (`postgres.go:281`) | `requiredDDLOwnedTables` | **its own question's set** | **D176** -- population widens, expected value derived |
+| 6 | D41 object registry (`postgres.go:447-475`) | `requiredProtectedObjects` | n/a (objects, not relations) | **checked, and it does not apply** -- D166 moved it to 20 |
+| 7 | D41 relation registry (`postgres.go:518-524`) | `requiredProtectedRelations` | **yes** | unchanged -- D166 moved it to 4 |
+| 8 | D47/D69/D77/D80/D91 recorded state (`postgres.go:767-822`) | `requiredProtectedRelationStates` | **yes** | unchanged -- D166 moved it to 4, and it is the literal D174/D175/D176 derive from |
+| 9 | D62(a)/D69/D77 installer declaration (`provision_test_roles.sh:630-634`) | its own four-entry list | **yes** | unchanged; D174's installer half derives from this list rather than adding a fifth |
+| 10 | D40 phase 2 runtime invariant (`sec7_protect_ddl_objects()`) | `sec7_protected_relation` rows | **yes** | unchanged -- the runtime control reads the live registry by design |
+| 11 | D149 EXECUTE holders (`postgres.go:1322-1345`) | `requiredDefinerFunctions` | n/a (functions) | **checked, and it does not apply** |
+| 12 | D41 part three `CREATE` probes (`postgres.go:409-421`) | one role, two objects | n/a | **checked, and it does not apply** -- D61's own argument (`0007:5830-5838`) is unchanged, and R87 is where its consequence is recorded |
+| 13 | D90 trap postcondition (`provision_test_roles.sh:952-964`) | literal counts 20/4/1 | **yes** | unchanged -- D172 already moved these literals |
+| 14 | D74's DR proof (`verify_cross_cluster_dr.sh:251`) | one index on one relation | **no** | **D178** |
+| 15 | `grant-app-privileges` | its own tenant-scoped list | n/a | **checked, and it does not apply** -- `owl_app` holds nothing on any protected relation (measured) |
+
+**Rows 5, 12 and 14 are what this addendum owes to the audit rather than to the CAP** -- the D86 row
+8 / D96 rows 19-20 / D123 rows 3-4 analogue for this round. Row 5 is the premise correction (D176);
+row 12 is the privilege coincidence that makes R87 real; row 14 is a DR proof whose own assertion
+ranges over one index of one relation while claiming "enforcement genuinely live on the recovered
+copy".
+
+### D174. C22-A (MEDIUM): the `MAINTAIN` revoke and its assertion derive their population from the protected-relation declaration
+
+**Decision: both limbs of D51/D60 -- the installer's `REVOKE` and the verifier's empty-set assertion
+-- range over every relation declared in `requiredProtectedRelationStates`, and neither mentions
+`requiredDDLOwnedTables` at all.**
+
+- **Verifier.** `maintainHoldersReason` (`postgres.go:1160-1177`) iterates the declared protected
+  relations. The assertion itself is unchanged in every other respect: still empty-set, still both
+  limbs (D73), still `predefinedRoleStructuralPrivilege["MAINTAIN"]`'s measured `{pg_maintain}`
+  allowlist (D72), still `has_table_privilege` rather than a column probe (D51's own note, which D39
+  does not reach because `MAINTAIN` has no column form).
+- **Installer.** The two inline revokes (`provision_test_roles.sh:201`, `:325`) and the two inline
+  postcondition blocks (`:285-298`, `:475-488`) become **one loop over the declaration
+  `provision_test_roles.sh:630-634` already carries** -- the same four-relation list D62(a), D69 and
+  D77 range over -- performing `REVOKE MAINTAIN ON TABLE <relation> FROM <the relation's declared
+  owner>, PUBLIC` and then the two-limb empty-set postcondition per relation. The script gains no
+  fifth list. This is the only form of "derive, do not enumerate" a bash script can express, and it
+  is the same cross-language cost R23 already tracks.
+- **Empty set, not a matrix.** The measurement is what settles it, exactly as it settled D60's own
+  scope: after the revoke, **no non-superuser role holds `MAINTAIN` on any of the four**, and
+  nothing in this repository needs it -- a grep over `internal/`, `cmd/`, `scripts/` and `.github/`
+  finds no `VACUUM`, `ANALYZE`, `CLUSTER`, `REINDEX` or `LOCK TABLE` issued as `owl_migrator`
+  against either new relation, and autovacuum is a background worker unaffected by table-level
+  grants (D51's own argument, one owner over).
+
+**Executed: the revoke on a clean clone, and the accident afterwards.**
+
+```
+[bootstrap superuser] REVOKE MAINTAIN ON TABLE screening_ledger_event    FROM owl_migrator, PUBLIC;   REVOKE
+[bootstrap superuser] REVOKE MAINTAIN ON TABLE screening_ledger_snapshot FROM owl_migrator, PUBLIC;   REVOKE
+
+screening_ledger_anchor                  <EMPTY>
+screening_ledger_retention_tombstone     <EMPTY>
+screening_ledger_event                   <EMPTY>
+screening_ledger_snapshot                <EMPTY>
+
+-- the same 300,000-row clone, the same cancelled rebuild as the reproduction above:
+[owl_migrator] REINDEX TABLE CONCURRENTLY screening_ledger_event;   ERROR:  permission denied for table screening_ledger_event
+[owl_migrator] REINDEX INDEX CONCURRENTLY screening_ledger_event_pkey;  ERROR:  permission denied for index screening_ledger_event_pkey
+[owl_migrator] VACUUM FULL screening_ledger_snapshot;   WARNING:  permission denied to vacuum "screening_ledger_snapshot", skipping it
+[owl_migrator] CLUSTER screening_ledger_event USING screening_ledger_event_pkey;   ERROR:  permission denied for table screening_ledger_event
+
+[owl_migrator] CREATE TABLE cap22_ok(x int); DROP TABLE cap22_ok;   CREATE TABLE
+3 indexes on screening_ledger_event (3 = clean)
+```
+
+**The revoke does not over-reach, and that is the check D51 built for its own version:**
+`owl_migrator` keeps every ordinary DDL right it had, so `ALTER TABLE` is still refused **by D34**
+rather than by privilege, and the verifier still reports the database provisioned:
+
+```
+[owl_migrator] ALTER TABLE screening_ledger_event ADD COLUMN cap22_probe int;
+ERROR:  ADR-0007 Addendum 3 D34: public.screening_ledger_event (objid 16389, tag ALTER TABLE) is protected by a superuser-only DDL event trigger
+$ screening-ledger migrate ...
+{"operation":"migrate","provisioned":true,"provisioning_reason":"", ...}
+```
+
+**The route matrix the enumeration must cover, measured on clones of the repaired state.** Each row
+grants `MAINTAIN` on `screening_ledger_event` by one of the routes D59/D72/D73 established, and is
+asked of both limbs and of the shipped verifier:
+
+```
+r0_clean       holder-side=<EMPTY>        grantee-side=<EMPTY>      shipped-verifier: provisioned=true
+r1_direct      holder-side=cap22_third    grantee-side=cap22_third  shipped-verifier: provisioned=true
+r2_public      holder-side=cap22_third,owl_app,owl_ledger_anchor,owl_ledger_ddl,owl_migrator,
+                            pg_checkpoint, ... (19 roles)          grantee-side=PUBLIC       shipped-verifier: provisioned=true
+r3_pgmaintain  holder-side=cap22_third    grantee-side=<EMPTY>      shipped-verifier: provisioned=false
+```
+
+**Row r3 is caught today and rows r1 and r2 are not, and the reason is worth stating**: a
+`pg_maintain` membership confers `MAINTAIN` on *every* relation, including the two D60 already
+covers, so the shipped check notices it for a reason that has nothing to do with the new relations.
+A grant scoped to one of the two newly protected relations is invisible. **A control that catches an
+attack only when it is aimed somewhere else is not covering the population it claims.**
+
+**Nothing legitimate breaks, measured rather than asserted.** With the revoke applied to the primary
+database, the full package suite and the CLI paths that run as `owl_migrator`:
+
+```
+BASELINE (shipped state)   go test -race -count=1 ./internal/screeningledger/   rc=0   --- FAIL count: 0   ok 205.140s
+WITH THE REVOKE            go test -race -count=1 ./internal/screeningledger/   rc=0   --- FAIL count: 0   ok 202.100s
+$ screening-ledger migrate ...            {"operation":"migrate","provisioned":true, ...}
+$ provision_test_roles.sh grant-ddl-ownership     PASS lines: 3
+MAINTAIN holders after a grant-ddl-ownership re-run: <EMPTY>
+```
+
+The last line matters for idempotence: the revoke survives a re-provisioning run, because nothing in
+`grant-ddl-ownership` grants `ALL` on these relations and ownership is not re-transferred.
+
+**Positive controls, a shipping requirement and not a nicety (D37 verbatim).** On a clone carrying
+the revoke, a legitimately expired snapshot is purged end to end through **both** definer overloads,
+and Addendum 21's guard still refuses a live-obligation strip:
+
+```
+-- array form (the path RecordPurge uses)   -> {capA}
+-- time-floor form                          -> 1
+capA purged=true has_ct=false
+capB purged=true has_ct=false
+tombstones: 2
+
+[owl_migrator] UPDATE screening_ledger_snapshot SET purged_at=now(), envelope_json = envelope_json - 'ciphertext_base64' WHERE snapshot_sha256='capLive';
+ERROR:  ADR-0007 Addendum 21 D163: snapshot capLive is still under a live retention obligation
+        (mirror MAX(screening_ledger_event.expires_at)=2106-09-23 09:34:40.942897-04): refusing to strip protected content
+```
+
+**What this buys, and what it does not -- D51's and D60's own language, preserved deliberately.**
+`REVOKE MAINTAIN` is an **accident boundary, not a security boundary** (R25): an owner can grant it
+back to any role, `GRANT` reports `objid = NULL` so D34 never sees it, and only the next
+`CheckProvisioningState` reports the restored capability (R27's point-in-time class). D174 closes
+the *routine mistake* on the two relations where it was open -- after it, an operator who types the
+most ordinary maintenance command PostgreSQL has gets a clean permission error instead of a database
+no role can perform DDL in -- and converts a deliberate re-grant into a named verification failure.
+**It prevents nothing, and a later reader must not cite it as prevention.**
+
+### D175. C22-B (population fact confirmed, impact stopped): D61's matrix covers every protected relation
+
+**The finding, restated from the code.** `tablePrivilegeHoldersReason` (`postgres.go:1261-1294`)
+iterates `requiredDDLOwnedTables`, and `requiredTablePrivilegeHolders` (`postgres.go:1218-1224`)
+declares rows for the anchor and the tombstone only. The two newly protected relations therefore have
+**no privilege-holder enumeration at all**: no declared literal names them, and no set-equality
+comparison covers them, while their owner (`owl_migrator`) can `GRANT` any of the seven kinds to any
+role and `GRANT` reports `objid = NULL` to the event triggers.
+
+**Decision: `tablePrivilegeHoldersReason` iterates the declared protected relations, and
+`requiredTablePrivilegeHolders` gains the rows for the two that had none -- measured on the shipped
+baseline, not transcribed from any design text** (D61's own standard, `0007:5847-5856`):
+
+```
+screening_ledger_event     | owl_ledger_ddl | SELECT
+screening_ledger_event     | owl_migrator   | DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+screening_ledger_snapshot  | owl_ledger_ddl | SELECT,UPDATE
+screening_ledger_snapshot  | owl_migrator   | DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
+```
+
+`owl_app` and `owl_ledger_anchor` hold nothing on either relation (measured, all seven kinds). The
+`owl_ledger_ddl` rows are the grants `provision_test_roles.sh:350` and `:357` issue for the definer
+bodies' own reads; the `owl_migrator` rows are the owner's implicit privileges, carrying no
+`MAINTAIN`, which is D174's revoke visible in the matrix exactly as D51's is for the other two.
+
+**What this declaration claims, stated precisely because C22-B's impact analysis was stopped.** It
+claims that the live privilege-holder set on every protected relation equals the set this repository
+provisions, in both limbs, so that **a change becomes a named failure on the next `verify`**. It
+does **not** claim that this baseline is the correct privilege set with respect to D163's referent --
+whether an unobserved grantee on `screening_ledger_snapshot` or `screening_ledger_event` could
+affect what the Addendum 21 guard adjudicates is exactly the question CAP #22 stopped, and it stays
+with the human reviewer. Pinning the baseline neither answers that question nor forecloses it: if
+the review concludes the baseline is wrong, the literal is where the correction lands.
+
+**Both directions, unchanged from D61.** An extra live holder in either limb is a named failure, and
+so is a *missing* declared holder -- the direction that catches a provisioning step that silently
+stopped granting what the design requires.
+
+### D176. C22-B's other half: D33's owner assertion derives its expected value per relation, and the brief's premise is corrected
+
+**The brief names D33's owner check as a fourth instance of C22-A's shape. Measured, it is not, and
+the correction changes the fix.** `requiredDDLOwnedTables` means *relations whose owner must be
+`owl_ledger_ddl`*, and D33 asserts exactly that (`postgres.go:281-289`). The two relations D166
+added are owned by `owl_migrator` **by design** -- `requiredProtectedRelationStates` declares it
+(`postgres.go:792-795`), D166 measured it on both bootstrap paths (`0007:20392-20398`), and this
+pass re-measured it:
+
+```
+-- migration path (owl_ci):
+screening_ledger_anchor=owl_ledger_ddl
+screening_ledger_event=owl_migrator
+screening_ledger_retention_tombstone=owl_ledger_ddl
+screening_ledger_snapshot=owl_migrator
+-- SchemaSQL-only path (owl_ci_schemasql_only, bootstrapped through the real Migrate()):
+screening_ledger_anchor=owl_migrator
+screening_ledger_event=owl_migrator
+screening_ledger_retention_tombstone=owl_migrator
+screening_ledger_snapshot=owl_migrator
+```
+
+**Extending D33's literal to those two would therefore false-fail every healthy database** -- D45's
+pre-declared shape, and precisely the failure D117 had to repair one round after it shipped.
+
+**Decision: the population widens and the expected value is derived. For every relation declared in
+`requiredProtectedRelationStates`, the live `relowner` must equal the owner that entry declares.**
+`requiredDDLOwnedTables` stops being a hand-maintained second list and becomes the derived subset
+whose declared owner is `owl_ledger_ddl`, so the two questions stay distinct -- "has ownership moved
+where provisioning moves it?" and "is every protected relation owned by whom the declaration says?"
+-- while neither can drift when the registry grows again.
+
+**Three properties this must preserve, each measured or cited rather than assumed:**
+
+- **The SchemaSQL-only path does not regress.** `checkProvisioningState` reaches the owner loop only
+  after the event-trigger checks, and on an unprovisioned database it returns before that:
+  `{"provisioned":false,"provisioning_reason":"DDL event trigger sec7_protect_ddl_objects_on_drop
+  does not exist (ADR-0007 Addendum 3 D33/D34): scripts/ci/provision_test_roles.sh
+  grant-ddl-ownership has not run"}` -- measured on `owl_ci_schemasql_only` above. D21 point 3's
+  "ownership is reported, not enforced, by the schema check" is untouched.
+- **It is a strict widening, not a re-statement.** Today the live owner of the two new relations is
+  compared to nothing; `requiredProtectedRelationStates`'s `relowner` is compared against
+  `sec7_protected_relation`'s *recorded* column (D47), which is a different assertion about a
+  different artifact. After D176 the live catalog value is asserted for all four.
+- **C22-C's third bullet is closed by this decision rather than by rewording.** The comment at
+  `postgres.go:583-586` says `relowner` "is already declared by `requiredDDLOwnedTables` and asserted
+  by D33". D176 is what makes that true of all four relations; D177 updates the words.
+
+### D177. C22-C (LOW): the three stale comments, and one count stated so it cannot go stale again
+
+Comments only -- every enforced value is correct today and fails closed -- and fixed anyway, on the
+standard this arc has used since H-E: a claim the code makes about its own referent that is true of
+yesterday's population and not of the referent as written is the thing this document has spent
+twenty-one addenda learning to stop shipping.
+
+1. **`postgres.go:478`** says `requiredProtectedObjects`'s "thirteen (classid, identity) pairs"; the
+   declared and live value is twenty. It is corrected **and de-numbered**: the sentence states the
+   cardinality as `len(requiredProtectedObjects)`, which is what the code compares
+   (`postgres.go:495-497`), so the next registry growth cannot leave it stale. D56 made exactly this
+   move for `provision_test_roles.sh:740`'s own count ("the fix is to drop the number, not to update
+   it", `0007:5148-5151`), and PR #200 made it for `:922`.
+2. **`postgres.go:588-590`** says "Both protected relations are plain tables today". There are four,
+   and all four are `relkind='r'` (measured; D166 declares it per entry).
+3. **`postgres.go:583-586`**'s `relowner` framing is made true by D176 rather than reworded around,
+   and the comment says which assertion covers which population.
+
+### D178. D74's DR proof ranges over the population it claims
+
+**The finding, from the code.** `verify_cross_cluster_dr.sh:249-258` asserts that D51's revoke
+survived the restore by attempting one `REINDEX INDEX CONCURRENTLY screening_ledger_anchor_pkey` as
+`owl_ledger_ddl`, and the script's closing line claims "enforcement genuinely live on the recovered
+copy ... D33/D60/D61/D69-D73 all asserted true". After D174 that assertion covers one index of one
+of four protected relations, and the `MAINTAIN` state a `pg_dump | psql` restore carries across is
+per-relation ACL state -- L-A(i)'s own shape, which is why D74 made this assertion real in the first
+place (`0007:7233-7239`).
+
+**Decision: the DR proof's `MAINTAIN` assertion ranges over every protected relation** -- the same
+enumeration D174 installs, run against the recovered copy, rather than one statement against one
+index. **Per CLAUDE.md Boundaries this ships as its own reviewed gate PR**, not folded into the
+provisioning or verifier stages, following D159's precedent (`0007:19663-19665`). The existing
+`screening-ledger migrate` assertion at the end of that script (D74 L-D) already reaches the D60/D61
+enumeration transitively, so this is a narrowing of the gap between what the script *asserts
+directly* and what its closing sentence *claims*, not a new guarantee.
+
+### D179. Test ownership and pre-declared withdrawal conditions
+
+The specific shape the implementation must satisfy, so nothing weaker can be claimed to discharge
+this addendum -- the standard D20 (`0007:1293-1338`), D26, D37, D42, D49, D58, D67, D75, D85, D95,
+D103, D112, D122, D131, D136, D138, D140, D146, D151, D161 and D171 set. **Every test below must
+fail before its change, per CLAUDE.md rule 5** -- confirmed for D174, D175 and D176 during this
+design pass by running each construction against the shipped code (the transcripts above). Where a
+transcript exists above, the test reproduces it, not a paraphrase.
+
+1. **C22-A, the finding itself (pgx, DSN-gated).** On a `TEMPLATE` clone: `owl_migrator` holds
+   `MAINTAIN` on `screening_ledger_event` and `screening_ledger_snapshot` and
+   `CheckProvisioningState` returns `Provisioned=true Reason=""` **today**; after the change the
+   enumeration is empty on **all four** and the state is a named failure identifying the relation and
+   the role. **Plus the control that proves the mechanism is present rather than absent**: the same
+   assertion on the two original relations passes before and after.
+2. **C22-A's consequence (pgx, DSN-gated).** The cancelled-rebuild reproduction: as `owl_migrator`,
+   under a `statement_timeout`, `REINDEX TABLE CONCURRENTLY screening_ledger_event` leaves invalid
+   `_ccnew` indexes and wedges an unrelated `CREATE TABLE` **for the bootstrap superuser too**
+   today; after the change the same statement is a clean `42501` and the database is healthy. **Plus
+   the recovery assertion**: while wedged, dropping the leftovers one at a time is refused and a
+   single statement naming all of them succeeds for the owner -- the property R24's text does not
+   carry.
+3. **The re-grant route matrix (pgx, DSN-gated), table-driven** over D59/D72/D73's routes on **each
+   of the four** relations: a direct grant to a third role, `GRANT ... TO PUBLIC`, `pg_maintain`
+   membership, and a `NOINHERIT` member of a role holding it. Each asserts `Provisioned=true
+   Reason=""` today for the two new relations and a named failure after. **Plus the over-tightening
+   positive D67 test 1 established and this round must not lose**: a clean database on which
+   `pg_maintain` exists and is untouched returns `Provisioned=true`.
+4. **D175 (pgx, DSN-gated).** A grant of any of the seven kinds to an undeclared role on
+   `screening_ledger_event` or `screening_ledger_snapshot` is a named failure after and is accepted
+   today; the missing-declared-holder direction is equally a failure; and the clean database and a
+   `TEMPLATE` clone are both accepted (Addendum 5's population positive).
+5. **D176 (pgx, DSN-gated).** Changing the live owner of a protected relation away from its declared
+   owner is a named failure naming the relation and both owners; the clean database passes on the
+   migration path; and an unprovisioned/SchemaSQL-only database still returns the **event-trigger**
+   reason rather than an owner reason -- the assertion that would fail if D176 were implemented as
+   an unconditional `owl_ledger_ddl` comparison.
+6. **The derivation guard, DSN-free -- the test that catches the next registry growth.** Every
+   member of `requiredProtectedRelations` has exactly one `requiredProtectedRelationStates` entry;
+   `requiredDDLOwnedTables` equals the derived `owl_ledger_ddl` subset of that literal; every
+   protected relation is named by at least one `requiredTablePrivilegeHolders` row; and the
+   populations D60, D61 and D33 iterate are the protected-relation set. **A fifth protected relation
+   added without its own `MAINTAIN` revoke, holder rows and declared owner fails here rather than
+   shipping** -- D99(a)'s "covered without an edit" property, applied to the relation axis.
+7. **The installer half.** `grant-ddl-ownership` on a re-granted state exits non-zero naming the
+   relation and the role, on each of the four; on a clean database it exits 0 with three `PASS`
+   lines; the revoke is idempotent across re-runs; and **D90 is unregressed** -- both event triggers
+   `evtenabled='A'` and all three registries at 20/4/1 after every new refusal path.
+8. **The positive controls, a shipping requirement and not a nicety (D37 verbatim).** A legitimately
+   expired snapshot is purged end to end through **both** definer overloads on a database carrying
+   the revoke, each writing its tombstone and stripping its ciphertext; Addendum 21's D163 guard
+   still refuses a live-obligation strip; and `go test -race ./internal/screeningledger/` is green
+   with the revoke in place.
+
+**Withdrawal conditions, declared now rather than decided after the fact:**
+
+- **D176 must not be discharged by adding the two new relations to `requiredDDLOwnedTables`.**
+  Measured on both bootstrap paths: they are `owl_migrator`-owned by design, so the assertion would
+  false-fail every healthy database. The population widens; the expected value is derived per
+  relation.
+- **No population in this addendum may be derived from a live registry table.** D41's arrangement
+  (`0007:3415-3435`) is that the verifier compares against an independent literal rather than the
+  artifact's own account of itself; deriving D60/D61/D33's population from `sec7_protected_relation`
+  rows would let a truncated registry shrink the population it is checked against.
+- **D174 must not be cited as prevention, and D51's "accident boundary, not a security boundary"
+  language must survive the edit verbatim.** R25 is unchanged; an owner can re-grant, and only the
+  next verification notices.
+- **D174 must not be discharged by revoking `MAINTAIN` in the installer without widening the
+  assertion** -- a `REVOKE` narrower than its own check is the asymmetry Addendum 7 exists to remove,
+  and a `REVOKE` cannot observe a later `GRANT` (D60's own reasoning, `0007:5776-5780`).
+- **D175 must not fold `is_grantable` into the declared literal inside this addendum's
+  implementation.** It would change D61's shipped matrix and D149's function literal together; R88
+  carries the question.
+- **The D163/D164 guard, R84's precondition and the operator document's "Refusal modes" section must
+  not be analysed, adjusted or relied upon anywhere in this addendum's implementation.** They are
+  CAP #22's named human-review gap; a stage that touched them would be claiming an analysis this
+  round did not perform.
+- **No tolerance, anywhere.** If any comparison cannot be made exact, the implementation stops and
+  this addendum is amended rather than shipping an equivalence relation invented in the implementing
+  pass. The **twelfth** round to restate D85's condition.
+
+**Prior addenda's pre-declared withdrawal conditions remain correctly un-triggered**, re-verified
+against what this addendum designs rather than inherited from CAP #22's records. D163's guard body,
+D165's one-member digest set and D166's registry populations are untouched -- **no function body
+changes in this addendum**, so no declared digest moves and no re-provisioning event is created.
+D167's R44 closure, D168's R57 disposition and D170's gate population are untouched. D60's empty-set
+assertion keeps its shape and gains a population; D72's allowlist and D73's two limbs are reused
+unchanged. D61's set-equality in both directions is unchanged. D47's recorded-state comparison,
+D50's `index_defs`, D65's validity branch, D80/D91's index shape and D69/D77's trigger properties are
+untouched, so Addendum 6's and Addendum 7's stated fallbacks are **not** required. D90's restore and
+D79's hoist are untouched. `prosrc` is not normalised anywhere. D153's canonical-bytes rule, D147's
+`EqualFold` equality and D148's strict decode are untouched. The withdrawn D74 reaper is not
+reintroduced. The instance binding is still not a gate. D46 is not split from D45. D69's rejection of
+`pg_get_triggerdef` stands.
+
+### New accepted risks
+
+**R87 -- after D174 the `MAINTAIN`-gated routes are closed on all four relations, but R24's
+`CREATE INDEX CONCURRENTLY` route stays reachable to a non-superuser on the two newly protected ones,
+and R24's "superuser-only" terminus does not transfer.** R24 (`0007:5327-5338`) records both
+non-atomic index routes as "unreachable to `owl_ledger_ddl`, which holds `CREATE` on no schema
+(asserted by D41 part three) and, after D51, no `MAINTAIN` on either table". That reasoning is exact
+for the relations R24 was written about and **false for the two D166 added**, because
+`CREATE INDEX CONCURRENTLY` is gated by ownership plus schema `CREATE` -- not by `MAINTAIN` -- and
+`owl_migrator` holds both. Measured on a clone carrying D174's revoke:
+
+```
+owl_migrator: MAINTAIN=false schema-CREATE=true owner=owl_migrator
+[owl_migrator]   CREATE INDEX CONCURRENTLY cap22_r87 ON screening_ledger_event (occurred_at);
+ERROR:  ADR-0007 Addendum 6 D50: protected relation "public.screening_ledger_event" (objid 16389): its index set changed
+[owl_migrator]   CREATE TABLE cap22_probe2(x int);     -- wedged
+ERROR:  ADR-0007 Addendum 6 D50: ... its index set changed
+[owl_migrator]   DROP INDEX cap22_r87;                 DROP INDEX     -- self-healing, one statement, no superuser
+[owl_migrator]   CREATE TABLE cap22_probe3(x int); DROP TABLE cap22_probe3;   CREATE TABLE
+[owl_ledger_ddl] CREATE INDEX CONCURRENTLY cap22_r87b ON screening_ledger_anchor (anchored_at);
+ERROR:  permission denied for schema public
+```
+
+It is **self-healing by a single `DROP INDEX`** for this shape (one added definition), which is the
+property that keeps it an accepted residual rather than a second C22-A, and the declared indexes
+themselves are not droppable (`cannot drop index ... because constraint ... requires it`, measured on
+both unique indexes), so R24's other route is not newly reachable. **D41 part three's `CREATE`-probe
+argument is unchanged and is not widened here** -- `owl_migrator` legitimately holds `CREATE` on
+`public` (`provision_test_roles.sh:69`), so asserting otherwise would false-fail every database, which
+is D61's own recorded reasoning (`0007:5830-5838`) and D145's measured inversion
+(`0007:17681-17687`). The re-entry condition is any change that gives the two new relations an owner
+without schema `CREATE`, or that makes a protected relation carry a non-constraint index.
+
+**R88 -- R71's re-entry condition fired in this round, was re-measured, and is re-deferred with its
+reason.** R71 (`0007:19085-19090`) states that a grant option on a declared holder is a latent
+re-grant capability the enumeration does not see until it is exercised, and sets its re-entry
+condition as "the first change to either declared literal". D175 changes
+`requiredTablePrivilegeHolders`, so the condition is met. Re-measured on the provisioned baseline:
+**every grant on all four protected relations has `is_grantable = false`** (`aclexplode` over each
+relation's `relacl`; zero grantable rows), so no latent window exists today. It is **not** closed
+here, and the reason is R71's own: folding `is_grantable` into the declared literal changes D61's
+matrix **and** D149's function literal together, which is a decision about both and outside a round
+scoped to C22-A/B/C. The re-entry condition is restated as: **the first change to either declared
+literal after this one, or the first measured `is_grantable = true` on any declared grant.**
+
+**R89 -- the coordinated-edit surface grows by two literal rows and one derived list, and shrinks by
+one hand-maintained one.** R23, R29, R33, R42, R46, R50, R55, R59, R60, R65-R67, R73 and R82 track a
+declaration surface that has grown nearly every round. D175 adds four rows to
+`requiredTablePrivilegeHolders`; D174 replaces two inline installer blocks with one loop over a list
+the script already declares; and D176 **removes** a hand-maintained list by deriving
+`requiredDDLOwnedTables` from `requiredProtectedRelationStates`. No new *kind* of literal is
+introduced, and D179 item 6 is the first test in this arc to assert that a relation population is
+covered rather than asserting a count. **Every one of these assertions fails closed.** The
+aggravating property section 10.3 names -- that these controls have no single owner -- is unchanged
+and is not addressed here.
+
+### Staging
+
+Same shape and reason as section 8 and the twenty-one prior addenda: each stage independently
+reviewable and independently provable, ordered by dependency rather than severity.
+
+1. **This addendum**, merged before any code (CLAUDE.md rule 7).
+2. **Stage W1 -- the population, verifier and installer together.** D174, D175 and D176 in one stage
+   with D179 items 1-8. They edit the same two functions (`checkProvisioningState`'s loops) and the
+   same provisioning step, and splitting them would ship a tree in which the installer revokes over
+   four relations while the verifier asserts over two, or the reverse -- the exact asymmetry
+   Addendum 7 exists to remove. **No function body changes, no declared digest moves, no registry
+   cardinality changes, so this is not a re-provisioning event** (D172's three grounds, none of which
+   this round meets).
+3. **Stage W2 -- the comments.** D177. Blocks nothing, and is therefore sequenced after W1 and
+   explicitly **not** droppable -- D23 was sequenced last on the same "blocks nothing" reasoning and
+   CAP #2 rated the resulting gap HIGH, the lesson Addenda 5 through 21 each repeated. D176 is what
+   makes one of the three comments true, so W2 must not precede W1.
+4. **Stage W3 -- the DR proof.** D178, as its own reviewed gate PR per CLAUDE.md Boundaries,
+   following D159's precedent.
+
+Per CLAUDE.md Boundaries, any `.github/workflows/*.yml` wiring is named explicitly in the stage PR
+description, following D30's precedent. **No stage needs a new DSN or a new fixture database**, so
+no workflow wiring is expected -- and a local `run-ci.sh` pass does not prove workflow wiring, which
+this document does not pretend otherwise.
+
+**SEC-7 does not close on this addendum, and this round does not start or continue any clean count.**
+CAP #22 carries no verdict: four of its six items were not run as security analysis, and the
+D163/D164 guard has had no adversarial attention in any round. Section 8's closing condition remains
+met for the **chain**, the **signed policy** and the **evidence files**. What this addendum closes is
+narrower and is stated at exactly its strength: three controls that claim to range over every
+protected relation ranged over half of them, so a role inside section 2's own adversary set held a
+maintenance capability on two protected relations that no observer reported, and one ordinary
+maintenance command turned that into a database in which no role -- including the bootstrap
+superuser -- could execute any DDL statement.
+
+### Addendum 22 summary
+
+- **CAP #22 carries no verdict (PARTIAL).** Items 1, 2, 3 and 5 ran as reading-and-catalog work
+  after a safety classifier stopped hands-on adversarial construction twice; the D163/D164 guard's
+  security analysis, R84's precondition, C22-B's impact and the operator document's refusal modes
+  are a **named human-review gap this addendum does not touch**. Three findings are remediated here:
+  C22-A (MEDIUM), C22-B (population fact) and C22-C (LOW).
+- **This addendum introduces no new axis.** C22-A is Addendum 5's population principle and Addendum
+  10's whole-round obligation composed, at a boundary neither states: a **later** round grew the
+  protected-relation set and three sibling controls kept terminating on a list that had merely
+  coincided with it. The sentence it adds: a list that coincides with a population is not a
+  population.
+- **The design is D173-D179.** The relation-population audit discharged before any fix, with three
+  rows owed to the audit rather than to the CAP (D173); the `MAINTAIN` revoke and its empty-set
+  assertion deriving their population from the protected-relation declaration, on both the installer
+  and verifier sides (D174); D61's matrix covering every protected relation, with the measured
+  baseline pinned and C22-B's stopped impact question explicitly left open (D175); D33's owner
+  assertion widened in population and derived in expected value, correcting the brief's premise
+  (D176); the three stale comments, with the count de-numbered so it cannot go stale again (D177);
+  the DR proof's own population (D178); and the proof obligations with pre-declared withdrawal
+  conditions (D179).
+- **This design pass executed its assumptions rather than reasoning about them, and the execution
+  strengthened the finding and corrected the brief.** C22-A moved from PLAUSIBLE to **CONFIRMED**: an
+  ordinary cancelled `REINDEX ... CONCURRENTLY` as `owl_migrator` wedges every DDL statement for
+  every role including the bootstrap superuser, and `migrate` fails. The wedge is **not** self-healing
+  one index at a time -- only a single statement naming every leftover clears it, which R24's text
+  does not carry. The brief's D33 premise is false on both bootstrap paths. After the revoke the
+  accident is a clean `42501` on all four relations, ordinary DDL is still refused by D34 rather than
+  by privilege, both definer overloads still purge, D163's guard still refuses a live-obligation
+  strip, and the package suite is green before (205.1s) and after (202.1s) with zero failures.
+- **Three risks are recorded** rather than designed away: R24's `CREATE INDEX CONCURRENTLY` route
+  stays reachable to `owl_migrator` on the two new relations and R24's superuser-only terminus does
+  not transfer (R87); R71's re-entry condition fired, was re-measured at `is_grantable = false`
+  everywhere, and is re-deferred with a restated condition (R88); and the coordinated-edit surface
+  grows by four declared rows while losing one hand-maintained list (R89).
+- **This addendum revises no prior decision.** D1-D172 stand; R1-R86 stand. R24's *characterisation*
+  of its own reachability is corrected forward in R87's own words rather than by an edit above this
+  section, the AR7 convention; R24's disposition, its self-healing property for a single leftover and
+  its superuser terminus on the two original relations are unchanged.
+
+**Audit basis commit:** `4627bf062f919c6c7d2eee15fe26dbf17cc8bc6f`
+
+Every file:line citation in this addendum was verified against that tree. For a CAP record covering
+the implementation of this addendum, use the tip of whichever stage PR is under audit, not this
+value.
