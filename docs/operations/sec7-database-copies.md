@@ -547,6 +547,54 @@ this script was `SIGKILL`ed, find the scratch root from that run's own printed s
 and run the two commands the script itself printed. CI is unaffected: the runner is destroyed after
 the job regardless.
 
+## `owl_migrator` must not hold `CREATE` on the database (ADR-0007 Addendum 23 D182)
+
+**This is a required step for existing deployments, not only new ones.** Once ADR-0007 Addendum 23's
+verifier change ships, `screening-ledger status` and `verify` report `provisioned=false` with
+`owl_migrator holds CREATE on the current database` on any database where `owl_migrator` can
+create a schema. That covers two cases:
+
+- **`owl_migrator` owns the database**, for example because it was created with `CREATE DATABASE
+  ... OWNER owl_migrator`, or restored into a target created that way. A database owner holds
+  `CREATE` implicitly, and can re-grant it to itself after a `REVOKE`, so revoking alone does not
+  hold. **Move ownership.**
+- **`owl_migrator` was granted `CREATE ON DATABASE` explicitly.** **Revoke it.**
+
+A schema `owl_migrator` can create would sit ahead of `public` on its own `search_path`
+(`"$user", public`), which is where every bare relation name the verifier and the migrations use
+is resolved.
+
+The remedy below was executed verbatim against a database built this way (created `OWNER
+owl_migrator`, migrated, then provisioned by `grant-app-privileges` and `grant-ddl-ownership`)
+before it was written here. Afterwards the verifier reported `provisioned=true` and `migrate` still
+succeeded as `owl_migrator`. Set `DB` to the protected database's name, and connect as the
+bootstrap superuser (`PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`):
+
+```bash
+# 1. inspect, as the bootstrap superuser
+psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "SELECT pg_get_userbyid(datdba) AS database_owner, has_database_privilege('owl_migrator', datname, 'CREATE') AS owl_migrator_database_create, has_schema_privilege('owl_migrator', 'public', 'CREATE') AS owl_migrator_public_create FROM pg_database WHERE datname = current_database();"
+# 2. if database_owner is owl_migrator: move ownership away from it
+psql -X -v ON_ERROR_STOP=1 -d postgres -c "ALTER DATABASE \"$DB\" OWNER TO CURRENT_USER;"
+# 3. owl_migrator's CREATE on schema public came from owning the database (PostgreSQL 15+: public is owned
+#    by pg_database_owner); restore it explicitly, exactly as provision_test_roles.sh create-roles grants it
+psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT ALL ON SCHEMA public TO owl_migrator;"
+# 4. if owl_migrator_database_create was true for a reason other than ownership, it was granted explicitly
+psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "REVOKE CREATE ON DATABASE \"$DB\" FROM owl_migrator;"
+# 5. re-inspect: expect database_owner <> owl_migrator, owl_migrator_database_create = f, owl_migrator_public_create = t
+psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "SELECT pg_get_userbyid(datdba) AS database_owner, has_database_privilege('owl_migrator', datname, 'CREATE') AS owl_migrator_database_create, has_schema_privilege('owl_migrator', 'public', 'CREATE') AS owl_migrator_public_create FROM pg_database WHERE datname = current_database();"
+```
+
+**Do not skip step 3.** On PostgreSQL 15 and later, schema `public` is owned by
+`pg_database_owner`, so an `owl_migrator` that owned the database held `CREATE` on `public`
+through ownership alone. Moving ownership removes it. Run without step 3, the same remedy leaves the
+verifier reporting `provisioned=true` while the next `migrate` fails with `permission denied for
+schema public (SQLSTATE 42501)`. The grant is the same one `provision_test_roles.sh create-roles`
+issues. It restores a capability the design gives `owl_migrator`; it does not widen one.
+
+**Step 2 does not need the event-trigger disable window.** `ALTER DATABASE` is not a protected
+object's DDL. Both event triggers were still `ENABLE ALWAYS` (`evtenabled = 'A'`) after the run
+above.
+
 ## What this does not cover
 
 - **Backup content.** This document is about the protections, not the data. `pg_dump` remains a
