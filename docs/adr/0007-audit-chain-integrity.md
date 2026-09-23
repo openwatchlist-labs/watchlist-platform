@@ -22565,15 +22565,18 @@ package-wide change to the migration artifact, not a text fix, and it is the rev
 ### Staging
 
 1. **This addendum**, merged before any code (CLAUDE.md rule 7).
-2. **Stage X1 -- verifier and Go tests.** D181, D182, D186 and D187, with D188 items 1-3, 6 and 7,
-   plus D185(1) and D185(2). **Blocked on R92's disposition** (D188). Stage X1 may be split so that
-   D182, D186 and D185 ship first: none of them reads a different object than today, so none can
-   convert a refusal into an attestation. These edit `checkProvisioningState` and `internal/screeningledger` tests only.
-3. **Stage X2 -- the gate PR.** D183's PASS line and D185(3)'s test-7 assertions, as their own
-   reviewed PR per CLAUDE.md Boundaries (D159/D178 precedent). They are sequenced after X1 because
+2. **Stage X1a -- SHIP NOW.** D182, D185(1), D185(2) and D186, with D188 items 3, 5 (for D185(1)
+   and D185(2)) and 6. None of them changes which object any check reads, so none can convert a
+   refusal into an attestation. They edit `checkProvisioningState` and `internal/screeningledger`
+   tests only.
+3. **Stage X1b -- BLOCKED, pending human design.** D181, D187 and R92's fix, with D188 items 1, 2
+   and 7. Not to be implemented until a human-authored design for R92 has been reviewed and merged.
+   This stage carries no design text in this addendum.
+4. **Stage X2 -- the gate PR.** D183's PASS line and D185(3)'s test-7 assertions, as their own
+   reviewed PR per CLAUDE.md Boundaries (D159/D178 precedent). They are sequenced after X1a because
    D185(2)'s guard binds the files X2 edits, so X2 runs against an already-active guard.
-4. **D184 needs no stage.** Its correction is this addendum's own text.
-5. **The operator runbook section ships in this design PR, at the reviewer's direction.** It
+5. **D184 needs no stage.** Its correction is this addendum's own text.
+6. **The operator runbook section ships in this design PR, at the reviewer's direction.** It
    documents a remediation that is correct today (a database owned by `owl_migrator` gives it a
    capability the design does not), ahead of the verifier change that will start reporting it, so
    an operator meets the documented fix before the error.
