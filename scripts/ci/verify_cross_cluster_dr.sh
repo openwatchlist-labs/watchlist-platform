@@ -247,16 +247,44 @@ grep -q "Addendum 3 D34" "$DR_ERR_TMP" || {
   exit 1
 }
 
-if PGPASSWORD=owl_ledger_ddl "$PG_BIN_DIR/psql" -h localhost -p "$DR_PORT" -U owl_ledger_ddl -d owl_dr2 \
-  -c "REINDEX INDEX CONCURRENTLY screening_ledger_anchor_pkey;" >/dev/null 2>"$DR_ERR_TMP"; then
-  echo "FAIL: REINDEX INDEX CONCURRENTLY succeeded as owl_ledger_ddl against the recovered DR copy -- Addendum 6 D51's revoke should survive the restore" >&2
-  exit 1
-fi
-grep -q "permission denied" "$DR_ERR_TMP" || {
-  echo "FAIL: expected a permission-denied refusal (Addendum 6 D51's revoke), got:" >&2
-  cat "$DR_ERR_TMP" >&2
-  exit 1
-}
+# ADR-0007 Addendum 22 D178: the MAINTAIN-survives-restore assertion
+# ranges over every protected relation (the same enumeration D174
+# installs), not one index of one relation. A pg_dump|psql restore
+# carries per-relation ACL state across (L-A(i)'s own shape -- the
+# reason D74 made this assertion real in the first place), and after
+# D174 that state differs by relation: screening_ledger_anchor and
+# screening_ledger_retention_tombstone are owl_ledger_ddl-owned;
+# screening_ledger_event and screening_ledger_snapshot are
+# owl_migrator-owned (measured, D176). One declared (table, owning
+# role, one of its own indexes) triple per relation -- duplicated from
+# provision_test_roles.sh's sec7_protected_relations /
+# internal/screeningledger/postgres.go's requiredProtectedRelationStates
+# for the same cross-script/cross-language reason (R23/R35) every other
+# declaration in this file already is.
+for decl_dr_rel in \
+  "screening_ledger_anchor:owl_ledger_ddl:screening_ledger_anchor_pkey" \
+  "screening_ledger_retention_tombstone:owl_ledger_ddl:screening_ledger_retention_tombstone_pkey" \
+  "screening_ledger_event:owl_migrator:screening_ledger_event_pkey" \
+  "screening_ledger_snapshot:owl_migrator:screening_ledger_snapshot_pkey"
+do
+  dr_rel_table="${decl_dr_rel%%:*}"
+  dr_rel_rest="${decl_dr_rel#*:}"
+  dr_rel_role="${dr_rel_rest%%:*}"
+  dr_rel_index="${dr_rel_rest#*:}"
+  # The role's own name is its dev/CI password in this repository's
+  # convention (provision_test_roles.sh's OWL_*_PASSWORD defaults, used
+  # unqualified by this same script's D66 steps above).
+  if PGPASSWORD="$dr_rel_role" "$PG_BIN_DIR/psql" -h localhost -p "$DR_PORT" -U "$dr_rel_role" -d owl_dr2 \
+    -c "REINDEX INDEX CONCURRENTLY ${dr_rel_index};" >/dev/null 2>"$DR_ERR_TMP"; then
+    echo "FAIL: REINDEX INDEX CONCURRENTLY succeeded as ${dr_rel_role} on ${dr_rel_index} against the recovered DR copy -- ADR-0007 Addendum 22 D174's revoke should survive the restore on every protected relation, not only screening_ledger_anchor" >&2
+    exit 1
+  fi
+  grep -q "permission denied" "$DR_ERR_TMP" || {
+    echo "FAIL: expected a permission-denied refusal on ${dr_rel_table} (ADR-0007 Addendum 22 D174's revoke), got:" >&2
+    cat "$DR_ERR_TMP" >&2
+    exit 1
+  }
+done
 
 # ADR-0007 Addendum 8 D74 L-D: "enforcement genuinely live on the
 # recovered copy" was, before this addendum, a claim this script's own
@@ -288,4 +316,4 @@ case "$migrate_output" in
   ;;
 esac
 
-echo "PASS: ADR-0007 Addendum 7 D66 / Addendum 8 D74 -- corrected cross-cluster DR procedure completed with zero errors on a genuinely second PostgreSQL cluster, enforcement genuinely live on the recovered copy (D33/D60/D61/D69-D73 all asserted true, not merely D34/D46/D51)"
+echo "PASS: ADR-0007 Addendum 7 D66 / Addendum 8 D74 / Addendum 22 D178 -- corrected cross-cluster DR procedure completed with zero errors on a genuinely second PostgreSQL cluster, enforcement genuinely live on the recovered copy (D33/D60/D61/D69-D73 all asserted true, not merely D34/D46/D51; MAINTAIN's survival directly asserted on all four protected relations, not one index of one)"
