@@ -230,12 +230,49 @@ var requiredEventTriggers = []string{
 	"sec7_protect_ddl_objects_on_alter",
 }
 
-// requiredDDLOwnedTables is ADR-0007 Addendum 3 D33: relations that must
-// be owned by owl_ledger_ddl once provisioning has actually run.
-var requiredDDLOwnedTables = []string{
-	"screening_ledger_anchor",
-	"screening_ledger_retention_tombstone",
+// protectedRelationTableName strips the "public." schema qualifier from
+// a requiredProtectedRelationStates identity, yielding the bare relation
+// name has_table_privilege/regclass/SchemaObjectOwner expect. Every
+// declared identity is in the public schema (measured).
+func protectedRelationTableName(identity string) string {
+	return strings.TrimPrefix(identity, "public.")
 }
+
+// requiredProtectedRelationNames is ADR-0007 Addendum 22 D174/D175: the
+// bare relation-name population the MAINTAIN empty-set assertion and the
+// table-privilege-holder matrix range over, derived from
+// requiredProtectedRelationStates rather than a second list that merely
+// coincided with it while sec7_protected_relation had two members
+// (Addendum 22's population principle: "a list that coincides with a
+// population is not a population").
+func requiredProtectedRelationNames() []string {
+	names := make([]string, len(requiredProtectedRelationStates))
+	for i, s := range requiredProtectedRelationStates {
+		names[i] = protectedRelationTableName(s.identity)
+	}
+	return names
+}
+
+// ddlOwnedRelationNames returns, in declaration order, the subset of
+// states whose declared owner is owl_ledger_ddl.
+func ddlOwnedRelationNames(states []requiredProtectedRelationState) []string {
+	var tables []string
+	for _, s := range states {
+		if s.relowner == "owl_ledger_ddl" {
+			tables = append(tables, protectedRelationTableName(s.identity))
+		}
+	}
+	return tables
+}
+
+// requiredDDLOwnedTables is ADR-0007 Addendum 3 D33: relations that must
+// be owned by owl_ledger_ddl once provisioning has actually run. ADR-0007
+// Addendum 22 D176: derived from requiredProtectedRelationStates's own
+// declared relowner rather than hand-maintained as a second list --
+// screening_ledger_event and screening_ledger_snapshot are owned by
+// owl_migrator BY DESIGN on both bootstrap paths (measured), so this is
+// no longer every protected relation, only the subset D166 did not add.
+var requiredDDLOwnedTables = ddlOwnedRelationNames(requiredProtectedRelationStates)
 
 // ProvisioningState is ADR-0007 Addendum 3 D33: whether
 // scripts/ci/provision_test_roles.sh grant-ddl-ownership has actually run
@@ -278,13 +315,21 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 			return ProvisioningState{Reason: fmt.Sprintf("DDL event trigger %s exists but is not ENABLE ALWAYS (evtenabled=%q) (ADR-0007 Addendum 3 D33)", name, enabled)}, nil
 		}
 	}
-	for _, table := range requiredDDLOwnedTables {
+	// ADR-0007 Addendum 22 D176: the population widens to every protected
+	// relation, and the expected owner is derived per relation from
+	// requiredProtectedRelationStates rather than a single hardcoded
+	// owl_ledger_ddl literal -- screening_ledger_event and
+	// screening_ledger_snapshot are owned by owl_migrator BY DESIGN on
+	// both bootstrap paths (measured), so asserting owl_ledger_ddl for
+	// them would false-fail every healthy database.
+	for _, state := range requiredProtectedRelationStates {
+		table := protectedRelationTableName(state.identity)
 		owner, err := p.SchemaObjectOwner(ctx, table)
 		if err != nil {
 			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owner of %s: %w", table, err)
 		}
-		if owner != "owl_ledger_ddl" {
-			return ProvisioningState{Reason: fmt.Sprintf("%s is owned by %q, not owl_ledger_ddl (ADR-0007 Addendum 3 D33): grant-ddl-ownership has not transferred ownership", table, owner)}, nil
+		if owner != state.relowner {
+			return ProvisioningState{Reason: fmt.Sprintf("%s is owned by %q, not %q (ADR-0007 Addendum 3 D33 / Addendum 22 D176): grant-ddl-ownership has not transferred ownership", table, owner, state.relowner)}, nil
 		}
 	}
 	for _, fn := range requiredDefinerFunctions {
@@ -334,8 +379,9 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 	} else if reason != "" {
 		return ProvisioningState{Reason: reason}, nil
 	}
-	// ADR-0007 Addendum 7 D60: MAINTAIN on either protected table must be
-	// held by no non-superuser role in the live population, not merely
+	// ADR-0007 Addendum 7 D60, widened by Addendum 22 D174: MAINTAIN on
+	// any protected relation must be held by no non-superuser role in
+	// the live population, not merely
 	// absent from owl_ledger_ddl by name (Addendum 6 D51's shape). An
 	// owner may GRANT a table privilege to any role whether or not it
 	// still holds that privilege itself -- K-A's exact attack, confirmed
@@ -475,11 +521,13 @@ var requiredProtectedObjects = []protectedObjectIdentity{
 }
 
 // protectedObjectIdentityReason asserts sec7_protected_object contains
-// exactly requiredProtectedObjects's thirteen (classid, identity) pairs --
-// no more, no fewer -- resolved via pg_identify_object rather than the
-// registry's own unchecked `note` column. Returns a non-empty Reason on
-// the first fact found false; empty Reason and nil error when the
-// registry matches exactly.
+// exactly requiredProtectedObjects's declared (classid, identity) pairs
+// (len(requiredProtectedObjects) of them -- ADR-0007 Addendum 22 D177
+// de-numbers this comment so the next registry growth cannot leave it
+// stale) -- no more, no fewer -- resolved via pg_identify_object rather
+// than the registry's own unchecked `note` column. Returns a non-empty
+// Reason on the first fact found false; empty Reason and nil error when
+// the registry matches exactly.
 func (p *PostgresSink) protectedObjectIdentityReason(ctx context.Context) (string, error) {
 	exists, err := p.regclassExists(ctx, "sec7_protected_object")
 	if err != nil {
@@ -580,15 +628,16 @@ type requiredProtectedRelationState struct {
 	// so it is not left as an unchecked claim the way D41's own `note`
 	// column on sec7_protected_object was (H-E).
 	identity string
-	// relowner: requiredDDLOwnedTables already declares this fact and
-	// D33 already asserts it live (SchemaObjectOwner); this is a second,
-	// independently-scoped assertion of the same fact, not a new one --
-	// D21 point 3 / D33's own "two assertions beside each other" design.
+	// relowner: ADR-0007 Addendum 22 D176 -- this is the literal D33's
+	// owner loop (checkProvisioningState) compares the live relowner
+	// against, per relation. requiredDDLOwnedTables is derived FROM this
+	// field (the subset whose declared value is owl_ledger_ddl), not a
+	// second independent declaration D33 happens to agree with.
 	relowner string
-	// relkind: 'r', ordinary table. Both protected relations are plain
-	// tables today; true of both, verified against the real schema.
+	// relkind: 'r', ordinary table. All four protected relations are
+	// plain tables today; verified against the real schema.
 	relkind string
-	// Neither protected relation has row-level security enabled.
+	// No protected relation has row-level security enabled.
 	relrowsecurity      bool
 	relforcerowsecurity bool
 	// triggers: requiredSchemaObjects above already declares each
@@ -1152,13 +1201,17 @@ func (p *PostgresSink) privilegeHolders(ctx context.Context, kind privilegeObjec
 // MEMBER, D72's allowlist) and grantee-side (aclexplode) senses --
 // asserted empty outright rather than against a declared literal,
 // because nothing in this system has any legitimate need to hold
-// MAINTAIN on either protected table (Addendum 6 D51), and an empty-set
+// MAINTAIN on any protected table (Addendum 6 D51), and an empty-set
 // assertion has no literal to drift out of sync with. MAINTAIN has no
 // column form (confirmed by execution: has_column_privilege raises
 // "unrecognized privilege type" for it), so has_table_privilege is the
-// right question here, not anyColumnPrivilege.
+// right question here, not anyColumnPrivilege. ADR-0007 Addendum 22
+// D174 (C22-A): ranges over every protected relation
+// (requiredProtectedRelationNames), not requiredDDLOwnedTables -- D166
+// grew sec7_protected_relation to four members and this assertion's
+// population had silently stopped covering the other two.
 func (p *PostgresSink) maintainHoldersReason(ctx context.Context) (string, error) {
-	for _, table := range requiredDDLOwnedTables {
+	for _, table := range requiredProtectedRelationNames() {
 		holderSide, granteeSide, err := p.privilegeHolders(ctx, privilegeObjectKindTable, table, "MAINTAIN",
 			`has_table_privilege(s.rolname, $1::regclass, 'MAINTAIN')`,
 			predefinedRoleStructuralPrivilege["MAINTAIN"],
@@ -1221,6 +1274,18 @@ var requiredTablePrivilegeHolders = []tablePrivilegeGrant{
 	{"screening_ledger_anchor", "owl_migrator", []string{"SELECT"}},
 	{"screening_ledger_retention_tombstone", "owl_ledger_ddl", []string{"DELETE", "INSERT", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"}},
 	{"screening_ledger_retention_tombstone", "owl_migrator", []string{"SELECT"}},
+	// ADR-0007 Addendum 22 D175 (C22-B): screening_ledger_event and
+	// screening_ledger_snapshot had no privilege-holder enumeration at
+	// all before this addendum. Measured against the shipped baseline
+	// (owl_ledger_ddl's rows are the grants provision_test_roles.sh
+	// issues for the purge_snapshots definer bodies' own reads;
+	// owl_migrator's rows are the owner's implicit privileges, excluding
+	// MAINTAIN, which D174's revoke removes and D60 asserts empty
+	// separately).
+	{"screening_ledger_event", "owl_ledger_ddl", []string{"SELECT"}},
+	{"screening_ledger_event", "owl_migrator", []string{"DELETE", "INSERT", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"}},
+	{"screening_ledger_snapshot", "owl_ledger_ddl", []string{"SELECT", "UPDATE"}},
+	{"screening_ledger_snapshot", "owl_migrator", []string{"DELETE", "INSERT", "REFERENCES", "SELECT", "TRIGGER", "TRUNCATE", "UPDATE"}},
 }
 
 // requiredTablePrivilegeHolderRoles returns, sorted, the declared
@@ -1257,9 +1322,12 @@ func requiredTablePrivilegeHolderRoles(table, priv string) []string {
 // negative, which is what closes the coverage gap D39 never had (a
 // privilege the design requires a role to hold was never independently
 // checked before this), and CAP #7 confirmed this matrix has the same
-// NOINHERIT/no-current-member hole D73 closes for D60.
+// NOINHERIT/no-current-member hole D73 closes for D60. ADR-0007 Addendum
+// 22 D175 (C22-B): ranges over every protected relation
+// (requiredProtectedRelationNames), not requiredDDLOwnedTables -- the
+// same population correction D174 makes for D60, applied to D61.
 func (p *PostgresSink) tablePrivilegeHoldersReason(ctx context.Context) (string, error) {
-	for _, table := range requiredDDLOwnedTables {
+	for _, table := range requiredProtectedRelationNames() {
 		for _, priv := range requiredTablePrivilegeKinds {
 			var holderClause string
 			if tablePrivilegesWithColumnForm[priv] {
