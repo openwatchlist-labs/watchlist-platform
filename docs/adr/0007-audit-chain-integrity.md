@@ -21698,6 +21698,17 @@ value.
   - a test that Addendum 22 declared and did not ship.
   **One consequence is more than mechanical, and it is flagged, not absorbed:** D182 changes the
   verdict for any database *owned* by `owl_migrator` (R91).
+- **Revised after review (same PR).** The reviewer made two decisions:
+  - **D182 is kept as designed**, and its effect on existing deployments is stated as an
+    operational requirement, with the remediation documented in
+    `docs/operations/sec7-database-copies.md` in this PR.
+  - **R90 is folded in as D187**: `checkRequiredSchemaObjects` gets D181's qualification.
+
+  Carrying out those two decisions surfaced a third fact, and it is **flagged, not absorbed**. D180's
+  enumeration was incomplete, and one member of the missing population, `SchemaSQL`'s own bare DDL,
+  makes D181 and D187 **produce a false attestation** in an environment reached by an ordinary DBA
+  action, where the shipped code refuses. That is R92, and **Stage X1 is blocked on its
+  disposition** (D188).
 - **What this addendum deliberately does not touch.** These remain the **named human-review gap**,
   exactly as Addenda 21 and 22 left them:
   - CAP #22's D163/D164 guard analysis;
@@ -21827,9 +21838,12 @@ relations whose *expected* owner is `owl_migrator`, the role the verifier connec
 ### D180. The name-resolution audit, discharged before any fix is designed
 
 D86's whole-round obligation, in the form this round's axis requires. There is one row per verifier
-site that resolves a relation name to an object. The population was derived by grepping
+site that resolves a relation name to an object. The population was first derived by grepping
 `postgres.go` for every `::regclass`, `to_regclass` and `SchemaObjectOwner(` call and reading each
-one's argument, not by listing the sites CAP #23 named:
+one's argument, not by listing the sites CAP #23 named. **That method was incomplete, and it is
+corrected below rather than silently (rows 8-10):** a relation name written as bare text in a
+`FROM`, `JOIN`, `INTO` or DDL clause resolves through exactly the same `search_path`, and the cast
+grep cannot see it. The first grep:
 
 ```
 $ grep -n '::regclass\|::regprocedure\|SchemaObjectOwner(ctx\|regclassExists(ctx' internal/screeningledger/postgres.go | grep -v '^\s*//'
@@ -21853,8 +21867,39 @@ $ grep -n '::regclass\|::regprocedure\|SchemaObjectOwner(ctx\|regclassExists(ctx
 | 5 | D80/D91 index shape (`:1026-1031`) | `want.identity` | **yes** | **checked, and it does not apply** |
 | 6 | D21/G-A `checkRequiredSchemaObjects` + `triggerEnabled` + `columnExists` (`:1537`, `:1587`, `:1602`) | `requiredSchemaObjects[].table`: eight bare names, four of them not protected relations | **no** | **same class, NOT fixed here -- R90** |
 | 7 | `cmd/screening-ledger/main.go:58` `SchemaObjectOwner(ctx, "screening_ledger_anchor")` | literal bare name | **no** | **same class, diagnostic output only -- R90** |
+| 8 | Verifier registry reads (`postgres.go:540` `FROM sec7_protected_object`, `:589` `FROM sec7_protected_relation`) | bare text in SQL | **no** | **same class, NOT fixed -- R92** |
+| 9 | Runtime data path (`:1666`-`:2163`, e.g. `:1698` `INTO screening_ledger_event`), eight relations | bare text in SQL | **no** | **same class, NOT fixed -- R92** |
+| 10 | `SchemaSQL` (`:2181` onward): 6 `CREATE TABLE IF NOT EXISTS`, 16 `CREATE TRIGGER ... ON`, and `'...'::regclass` guards, all bare | bare DDL | **no** | **same class, NOT fixed -- R92; measured to fork the schema** |
 
-**Row 6 is flagged rather than absorbed.** CAP #23 named the protected-relation path.
+**Rows 8-10, from the widened grep** (clause-level, outside and inside `SchemaSQL`, which starts at
+`postgres.go:2181`):
+
+```
+--- bare user-relation names in Go SQL text OUTSIDE SchemaSQL (FROM/JOIN/INTO/UPDATE/regclass):
+   3 589:FROM sec7_protected_relation
+   3 1887:FROM screening_ledger_event
+   3 1799:FROM screening_ledger_anchor
+   2 540:FROM sec7_protected_object
+   2 1994:FROM screening_ledger_retention_tombstone
+   1 2163:INTO screening_ledger_snapshot
+   1 2150:INTO watchlist_operational_audit
+   1 1924:FROM screening_ledger_audit
+   1 1761:INTO screening_ledger_audit
+   1 1727:INTO screening_idempotency_receipt
+   1 1716:INTO screening_ledger_replication
+   1 1698:INTO screening_ledger_event
+   1 1666:FROM screening_idempotency_receipt
+--- bare names after SchemaSQL start (count by statement kind):
+   6 CREATE TABLE IF
+   1 CREATE TRIGGER screening_idempotency_receipt_immutable
+   ... (16 CREATE TRIGGER lines, one per trigger)
+```
+
+`db/migrations/*.sql` are written the same way. They were not enumerated here, and R92 carries
+them.
+
+**Rows 6 and 7 were first flagged as R90; at review they are folded in as D187.** The paragraph
+below is the original reasoning, kept because D187 answers it. CAP #23 named the protected-relation path.
 `requiredSchemaObjects` is D21's schema-completeness check over eight relations, including four that
 are not in the protected registry, and it runs on the SchemaSQL-only path as well. Qualifying it is
 the same mechanical edit, but it is a different control over a different population. Absorbing it
@@ -21923,9 +21968,9 @@ Only qualification does, which is D164's point restated.
 
 The shipped verifier evaluates the decoy. It reports a D61 failure about `screening_ledger_event`,
 whose real relation is untouched and correct. The prototype evaluates the real relation. **This is
-the failing-first shape for D187 test 1**: a verifier that reports on an object other than the one it
+the failing-first shape for D188 test 1**: a verifier that reports on an object other than the one it
 names. The variant where the decoy is shaped to *pass* while a real relation is re-granted is C23-A's
-stopped consequence. It was not constructed, and D187 does not require it: the resolution test
+stopped consequence. It was not constructed, and D188 does not require it: the resolution test
 proves which object is read, and that is the property D181 changes.
 
 **The prototype (scratch only; not the implementation).** Verbatim `git diff -U1` hunks, with one
@@ -22045,7 +22090,61 @@ The implementation's reason text must therefore name the **durable** remediation
 again: an owner can reverse it. **A deployment that created its database `OWNER owl_migrator`, which
 is a common idiom, will begin reporting `provisioned=false` on the first `verify` after this ships.**
 That is the intended reading of the property, but it is a verdict change for a real deployment
-shape, so R91 records it. The repository contains no deployment documentation that creates the
+shape, so R91 records it.
+
+**Operational requirement, for existing deployments as well as new ones (accepted at review).**
+D182 is not a provisioning-time check a new deployment meets once. It is part of every
+`CheckProvisioningState`. **An existing deployment whose database is owned by `owl_migrator`, or
+where `owl_migrator` was granted `CREATE ON DATABASE`, will report `provisioned=false` on its first
+`verify` after Stage X1 ships.** It must be brought into compliance by its operator: move database
+ownership off `owl_migrator`, and revoke any explicit grant. That is a required upgrade step, not
+optional hardening. The remediation is documented, executed verbatim before it was written, in
+`docs/operations/sec7-database-copies.md`, section "`owl_migrator` must not hold `CREATE` on the
+database (ADR-0007 Addendum 23 D182)". That section ships **in this PR**, ahead of the code, so the
+fix is documented before the error can appear. The implementation's reason text names that section
+(prototype text below).
+
+**The remediation, executed end to end on a realistic existing deployment.** The database was
+created `OWNER owl_migrator`, with no explicit schema grant in it, migrated as `owl_migrator`, then
+provisioned by `grant-app-privileges` and `grant-ddl-ownership`:
+
+```
+grant-app-privileges rc=0
+grant-ddl-ownership rc=0 PASS=3
+[before upgrade: shipped verifier] {"provisioned":true,"reason":""}
+[after upgrade: D182 verifier]     {"provisioned":false,"reason":"owl_migrator holds CREATE on the current database (ADR-0007 Addendum 4 D41 / Addendum 23 PROTOTYPE D182): it could create a schema ahead of public on its own search_path -- if owl_migrator OWNS this database, REVOKE alone does not hold (an owner can re-grant itself); a superuser must run ALTER DATABASE <this database> OWNER TO a role other than owl_migrator (see docs/operations/sec7-database-copies.md)"}
+## the runbook snippet, verbatim (DB=a23_existing; connection via PGHOST/PGPORT/PGUSER/PGPASSWORD as the bootstrap superuser)
+ database_owner | owl_migrator_database_create | owl_migrator_public_create
+----------------+------------------------------+----------------------------
+ owl_migrator   | t                            | t
+ALTER DATABASE
+GRANT
+REVOKE
+ database_owner | owl_migrator_database_create | owl_migrator_public_create
+----------------+------------------------------+----------------------------
+ owl_ci         | f                            | t
+snippet rc=0
+[after remediation: D182 verifier]  {"provisioned":true,"reason":""}
+[after remediation: migrate still works as owl_migrator] {"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+sec7_protect_ddl_objects_on_alter=A
+sec7_protect_ddl_objects_on_drop=A
+```
+
+**The runbook's step 3 (`GRANT ALL ON SCHEMA public TO owl_migrator`) is load-bearing, measured.**
+On PostgreSQL 15+, `public` is owned by `pg_database_owner`, so a database-owning `owl_migrator`
+held `CREATE` on `public` through ownership alone, and moving ownership removes it. The same
+deployment shape, with the snippet run **without** step 3:
+
+```
+7d6
+< psql -X -v ON_ERROR_STOP=1 -d "$DB" -c "GRANT ALL ON SCHEMA public TO owl_migrator;"
+ owl_ci         | f                            | f
+[without step 3: verifier] {"provisioned":true,"reason":""}
+[without step 3: migrate]  ERROR: permission denied for schema public (SQLSTATE 42501)
+```
+
+That grant is the one `provision_test_roles.sh create-roles` already issues (`:69`). It restores a
+capability the design gives `owl_migrator` (R87); it does not add one. The repository contains no deployment documentation that creates the
 database under any owner (`grep -rn 'CREATE DATABASE' docs/operations` finds only the `TEMPLATE`
 copy rows at `sec7-database-copies.md:29`, `:65`).
 
@@ -22253,7 +22352,95 @@ returns nothing), and the prototype suite above is green.
 - **Making the installer re-own event and snapshot.** That is an ownership transfer no decision has
   designed. Both relations are `owl_migrator`-owned *by design* (D176), so it is not a text fix.
 
-### D187. Test ownership and pre-declared withdrawal conditions
+### D187. R90 folded in: D21's schema-completeness check resolves the qualified name -- found opportunistically, not demanded by CAP #23
+
+**Provenance, stated because it is not a CAP finding.** CAP #23 named the protected-relation path
+(C23-A). `checkRequiredSchemaObjects` was **found while fixing C23-A**, by the D180 audit, not
+demanded by the CAP round. It was first carried as an accepted risk (R90), then folded in at review.
+This is D164's pattern: a defect found in the course of a remediation is named as such, with its own
+decision, rather than presented as part of the finding that led to it.
+
+**The defect.** D21's postcondition (`postgres.go:1535-1570`) resolves `requiredSchemaObjects[].table`
+bare through `regclassExists`, `triggerEnabled` and `columnExists`. That is eight relations, four of
+them not in the protected registry (`screening_ledger_replication`,
+`screening_idempotency_receipt`, `watchlist_operational_audit`, `screening_ledger_audit`). Its only
+caller is `Migrate()` (`postgres.go:104`). `cmd/screening-ledger/main.go:58` reads
+`SchemaObjectOwner(ctx, "screening_ledger_anchor")` for its output field (D180 row 7).
+
+**Decision: D181's edit, applied at the call sites.** `checkRequiredSchemaObjects` passes
+`"public." + obj.table` to all three helpers, and `main.go:58` passes
+`"public.screening_ledger_anchor"`. The `requiredSchemaObjects` literal keeps its bare names:
+`postgres_schema_test.go:84-89` pins them against `protectedTables` element by element, and error
+messages keep naming the bare table. Qualifying the literal would move both for no gain.
+
+**Measured before and after.** The check was called **directly**, DDL-free, from a scratch in-package
+test built against the shipped tree and against the prototype. It was not measured through
+`Migrate()`, because `Migrate()`'s own bare DDL would confound it (R92). The decoy is a superuser
+`CREATE SCHEMA AUTHORIZATION owl_migrator` plus one `owl_migrator`-created table named after a
+**non-protected** relation, with no change to any real relation:
+
+```
+[1 clean clone a23_clone]
+  shipped: checkRequiredSchemaObjects -> <nil>
+  proto: checkRequiredSchemaObjects -> <nil>
+[2 a23_d187: superuser CREATE SCHEMA AUTHORIZATION owl_migrator; owl_migrator creates owl_migrator.screening_idempotency_receipt(x int) -- a NON-protected table; no change to any real relation]
+screening_idempotency_receipt -> owl_migrator.screening_idempotency_receipt oid=19145
+public.screening_idempotency_receipt -> public.screening_idempotency_receipt oid=16422
+  shipped: checkRequiredSchemaObjects -> schema incomplete (ADR-0007 D21): screening_idempotency_receipt is missing its row-immutability trigger screening_idempotency_receipt_immutable (installed by db/migrations/008g_screening_ledger.sql) -- Migrate() will not report success on a table whose protections are n
+  proto: checkRequiredSchemaObjects -> <nil>
+[3 fixtures, unchanged]
+ owl_ci
+  shipped: checkRequiredSchemaObjects -> <nil>
+  proto: checkRequiredSchemaObjects -> <nil>
+ owl_ci_sec7_unprovisioned
+  shipped: checkRequiredSchemaObjects -> <nil>
+  proto: checkRequiredSchemaObjects -> <nil>
+ owl_ci_sec7_stale
+  shipped: checkRequiredSchemaObjects -> schema incomplete (ADR-0007 D21): screening_ledger_anchor is missing its row-immutability trigger screening_ledger_anchor_immutable (installed by db/migrations/017_screening_ledger_anchor_policy_binding.sql) -- Migrate() will not report success on a table whose protecti
+  proto: checkRequiredSchemaObjects -> schema incomplete (ADR-0007 D21): screening_ledger_anchor is missing its row-immutability trigger screening_ledger_anchor_immutable (installed by db/migrations/017_screening_ledger_anchor_policy_binding.sql) -- Migrate() will not report success on a table whose protecti
+```
+
+What the rows show:
+
+- **Row 2 is the failing-first shape.** The shipped check reads the decoy and reports a healthy real
+  table as incomplete; the prototype reads `public`.
+- **`owl_ci_sec7_stale` is the control that matters.** It is a genuinely incomplete fixture (017
+  never applied), and it reports the **same real incompleteness** under both, so qualification keeps
+  the check's purpose.
+
+**The prototype edit (scratch only):**
+
+```
+-		exists, err := p.regclassExists(ctx, obj.table)
++		qualified := "public." + obj.table // A23 PROTOTYPE D187
++		exists, err := p.regclassExists(ctx, qualified)
+-		immutableOK, err := p.triggerEnabled(ctx, obj.table, obj.immutableTrigger)
++		immutableOK, err := p.triggerEnabled(ctx, qualified, obj.immutableTrigger)
+-		noTruncateOK, err := p.triggerEnabled(ctx, obj.table, obj.noTruncateTrigger)
++		noTruncateOK, err := p.triggerEnabled(ctx, qualified, obj.noTruncateTrigger)
+-			colOK, err := p.columnExists(ctx, obj.table, col.name)
++			colOK, err := p.columnExists(ctx, qualified, col.name)
+## cmd/screening-ledger/main.go
+-		anchorOwner, err := sink.SchemaObjectOwner(ctx, "screening_ledger_anchor")
++		anchorOwner, err := sink.SchemaObjectOwner(ctx, "public.screening_ledger_anchor") // A23 PROTOTYPE D187
+```
+
+**The package suites are green with every prototype in this addendum applied together** (D181, D182
+with its revised reason text, D186, D187 and D185(2)'s guard). This is a clean run with no concurrent
+edits, including `cmd/screening-ledger`, whose `main.go` D187 touches:
+
+```
+proto suite rc=0
+ok  	github.com/openwatchlist-labs/watchlist-platform/internal/screeningledger	223.381s
+ok  	github.com/openwatchlist-labs/watchlist-platform/cmd/screening-ledger	3.865s
+FAIL lines: 0
+```
+
+**What D187 does not do, and why that now matters (R92).** D187, like D181, makes one *check* read
+the right object. It does not make `Migrate()` *write* to the right object, and the next section
+measures that the difference is not academic.
+
+### D188. Test ownership and pre-declared withdrawal conditions
 
 Every test below must fail before its change (CLAUDE.md rule 5), or, where it covers already-correct
 behaviour (D185), be shown non-vacuous against the named mutation. Where a transcript exists above,
@@ -22279,6 +22466,12 @@ the test reproduces it.
    `CheckProvisioningState` reason for an `owl_migrator`-declared relation contains `ALTER TABLE
    public.<relation> OWNER TO owl_migrator` and does not contain `has not transferred ownership`.
    The same drift on an `owl_ledger_ddl`-declared relation keeps D176's text.
+7. **D187 (pgx, DSN-gated).** The row-2 decoy above: today `checkRequiredSchemaObjects` reports
+   the real table incomplete; after the change it returns `nil`. **Plus the control:**
+   `owl_ci_sec7_stale`'s real incompleteness is reported identically before and after.
+8. **The runbook section (executed, not tested).** Its snippet was run verbatim above, including
+   without step 3. Any later edit to the snippet is re-executed before merging, the D128 convention
+   the document already states.
 
 **Withdrawal conditions, declared now:**
 
@@ -22290,40 +22483,100 @@ the test reproduces it.
   concludes L-D is insufficient, that is a new decision, not this one's implementation.
 - **D185(2) must not be discharged by a shared declaration file.** That is the rejected alternative,
   and it would need its own ADR.
-- **No stage may touch** the D163/D164 guard, R84, `requiredSchemaObjects` (R90) or any function
-  body. **No declared digest moves and no registry cardinality changes**, so this is not a
+- **Stage X1 (D181, D187) must not ship before R92 has a decision.** Measured: in an environment
+  reached by one ordinary DBA statement, the shipped verifier refuses (by accident) and the
+  D181+D187 prototype attests `provisioned=true` while the bare runtime names resolve to an
+  unprotected fork. Shipping the check fixes without the write-side fix converts a refusal into a
+  false attestation, the shape Addendum 10's whole-round principle exists to stop.
+- **No stage may touch** the D163/D164 guard, R84 or any function body. **No declared digest moves and no registry cardinality changes**, so this is not a
   re-provisioning event.
 - **No tolerance, anywhere.** If a comparison cannot be made exact, the implementation stops and this
   addendum is amended.
 
 ### New accepted risks
 
-**R90 -- the D21 schema-completeness check and one CLI diagnostic still resolve bare names.**
-`checkRequiredSchemaObjects`, `triggerEnabled` and `columnExists` resolve
-`requiredSchemaObjects[].table`, eight bare names, and `cmd/screening-ledger/main.go:58` resolves
-`"screening_ledger_anchor"` for its output field (D180 rows 6-7). D182 detects their
-database-`CREATE` route at the next `verify`. The `CREATE SCHEMA AUTHORIZATION` route stays open to them, and its
-consequence is unmeasured: it is C23-A's class, and C23-A's consequence was stopped. They are **not**
-fixed here because CAP #23 named the protected-relation path, and this addendum was scoped to CAP
-#23's five findings. **Re-entry condition:** the next CAP, or any change to `requiredSchemaObjects`.
-The fix, when taken, is D181's exact edit.
+**R90 -- withdrawn before merge: folded into D187 at review.** As first proposed, R90 accepted the
+D21 schema-completeness check and one CLI diagnostic resolving bare names (D180 rows 6-7). The
+reviewer folded both into this addendum, and D187 fixes them. The number is kept, not reused, so
+review references stay valid.
 
 **R91 -- D182 changes the verdict for a database owned by `owl_migrator`.** The owner holds
 `CREATE` implicitly and can re-grant it after a revoke (measured). Such a deployment will report
 `provisioned=false` until its database owner is changed. This is the property working as stated. It
 is recorded because it is a behaviour change for a real deployment shape rather than a
-fixture-internal one. **Re-entry condition:** any deployment document that prescribes a database
-owner.
+fixture-internal one. **Accepted at review, as an operational requirement for existing deployments
+(D182).** Its original re-entry condition, "any deployment document that prescribes a database
+owner", **fires in this same PR**: `docs/operations/sec7-database-copies.md` now prescribes one, and
+that section is where the requirement lives. **Re-entry condition from here:** any change to that
+section's snippet, which is re-executed before merging.
+
+**R92 -- NOT ACCEPTED; OPEN FOR DECISION. `Migrate()`, the runtime data path and the verifier's
+registry reads resolve bare names, and one ordinary DBA statement makes `Migrate()` fork the ledger
+schema.** D180 rows 8-10. Measured on two fresh clones of the provisioned primary, identical except
+for the binary. On each, a superuser ran `CREATE SCHEMA AUTHORIZATION owl_migrator`, a standard
+idiom that leaves the schema **empty**, gives `owl_migrator` no database `CREATE` and adds no
+object. The ordinary `migrate` then ran:
+
+```
+[shipped] before migrate: relations in schema owl_migrator: 0
+[shipped] migrate: {"operation":"migrate","provisioned":false,"provisioning_reason":"live DELETE privilege grantees (grantee-side, aclexplode) on screening_ledger_event are {<none>}, expected exactly {owl_migrator} (ADR
+[shipped] after migrate:  relations in schema owl_migrator: 6 [screening_idempotency_receipt,screening_ledger_audit,screening_ledger_event,screening_ledger_replication,screening_ledger_snapshot,watchlist_operational_audit]
+[shipped] verifier (DDL-free): {"provisioned":false,"reason":"live DELETE privilege grantees (grantee-side, aclexplode) on screening_ledger_event are {<none>}, expected exactly {owl_migrator} (ADR-0007 Addendum 8 D73): a
+bare screening_ledger_event resolves to owl_migrator.screening_ledger_event
+[proto] before migrate: relations in schema owl_migrator: 0
+[proto] migrate: {"operation":"migrate","provisioned":true,"provisioning_reason":"","screening_ledger_anchor_owner":"owl_ledger_ddl","status":"ok"}
+[proto] after migrate:  relations in schema owl_migrator: 6 [screening_idempotency_receipt,screening_ledger_audit,screening_ledger_event,screening_ledger_replication,screening_ledger_snapshot,watchlist_operational_audit]
+[proto] verifier (DDL-free): {"provisioned":true,"reason":""}
+bare screening_ledger_event resolves to owl_migrator.screening_ledger_event
+```
+
+What this shows:
+
+- **`SchemaSQL`'s bare `CREATE TABLE IF NOT EXISTS` creates six ledger tables in the first schema on
+  the path.** After that, every bare runtime reference, `INSERT INTO screening_ledger_event`
+  included, resolves to the fork, which D34, D40 and the protected registry do not cover.
+- **The shipped verifier refuses, and only by accident:** it reads the fork's empty ACL.
+- **D181+D187 read `public`, which is intact, and attest `provisioned=true`.**
+- **D182 does not fire.** The schema was created *for* `owl_migrator` by a superuser.
+
+**This is not mechanical, so it is not designed here.** A fix must act inside `Migrate()` *before*
+its DDL runs, because the fork happens there, and it must also cover the runtime and registry reads.
+One candidate was measured and **not adopted**: assert that the connecting role's effective path
+contains nothing ahead of `public`:
+
+```
+a23_clone                  current_user=owl_migrator current_schemas(false)={public}
+a23_fork_proto             current_user=owl_migrator current_schemas(false)={owl_migrator,public}
+a23_fork_shipped           current_user=owl_migrator current_schemas(false)={owl_migrator,public}
+a23_d187                   current_user=owl_migrator current_schemas(false)={owl_migrator,public}
+owl_ci                     current_user=owl_migrator current_schemas(false)={public}
+owl_ci_sec7_restored       current_user=owl_migrator current_schemas(false)={public}
+owl_ci_sec7_cloned         current_user=owl_migrator current_schemas(false)={public}
+owl_ci_sec7_stale          current_user=owl_migrator current_schemas(false)={public}
+owl_ci_sec7_unprovisioned  current_user=owl_migrator current_schemas(false)={public}
+owl_ci_schemasql_only      current_user=owl_migrator current_schemas(false)={public}
+```
+
+It separates every measured state with no false failure on any CI fixture. The alternative is
+qualifying every relation name in `SchemaSQL`, the runtime SQL and `db/migrations/*.sql`. That is a
+package-wide change to the migration artifact, not a text fix, and it is the reviewer's call which
+(or both), and in which addendum. **Until then, R92 blocks Stage X1** (D188).
 
 ### Staging
 
 1. **This addendum**, merged before any code (CLAUDE.md rule 7).
-2. **Stage X1 -- verifier and Go tests.** D181, D182 and D186, with D187 items 1-3 and 6, plus
-   D185(1) and D185(2). These edit `checkProvisioningState` and `internal/screeningledger` tests only.
+2. **Stage X1 -- verifier and Go tests.** D181, D182, D186 and D187, with D188 items 1-3, 6 and 7,
+   plus D185(1) and D185(2). **Blocked on R92's disposition** (D188). Stage X1 may be split so that
+   D182, D186 and D185 ship first: none of them reads a different object than today, so none can
+   convert a refusal into an attestation. These edit `checkProvisioningState` and `internal/screeningledger` tests only.
 3. **Stage X2 -- the gate PR.** D183's PASS line and D185(3)'s test-7 assertions, as their own
    reviewed PR per CLAUDE.md Boundaries (D159/D178 precedent). They are sequenced after X1 because
    D185(2)'s guard binds the files X2 edits, so X2 runs against an already-active guard.
 4. **D184 needs no stage.** Its correction is this addendum's own text.
+5. **The operator runbook section ships in this design PR, at the reviewer's direction.** It
+   documents a remediation that is correct today (a database owned by `owl_migrator` gives it a
+   capability the design does not), ahead of the verifier change that will start reporting it, so
+   an operator meets the documented fix before the error.
 
 **No stage needs a new DSN, fixture or workflow wiring.** SEC-7 does not close on this addendum, and
 this round starts no clean count. CAP #22's human-review gap is untouched.
@@ -22351,9 +22604,18 @@ this round starts no clean count. CAP #22's human-review gap is untouched.
   - The bash-copy guard fails on four mutations.
   - The extended route rows catch a pre-Addendum-22 population mutant.
   - D186's remediation recovers a drifted relation end to end, where the shipped text's does not.
-  - The package suite is green with the prototype: `rc=0`, 230.149s, 0 FAIL.
-- **Flagged rather than absorbed:** D182's verdict change for `owl_migrator`-owned databases (R91),
-  and the eight bare names in D21's schema-completeness check (R90).
+  - The package suite is green with the prototype: `rc=0`, 230.149s, 0 FAIL. After the review
+    revision, with D187 added, it is green again: `internal/screeningledger` 223.381s and
+    `cmd/screening-ledger` 3.865s, 0 FAIL.
+- **Revised at review:** D182's verdict change for `owl_migrator`-owned databases is accepted as an
+  operational requirement for existing deployments. Its remediation was executed verbatim and ships
+  in the operator runbook in this PR, and its step 3 was measured to be load-bearing (R91). R90 is
+  folded in as D187, found opportunistically and labelled as such.
+- **Flagged, and blocking Stage X1: R92.** D180's first enumeration missed bare names written as SQL
+  text. One of them, `SchemaSQL`'s DDL, forks six ledger tables into an `owl_migrator` schema that a
+  DBA's `CREATE SCHEMA AUTHORIZATION` creates. In that state D181+D187 attest `provisioned=true`
+  where the shipped code refuses. A candidate assertion is measured and not adopted; the disposition
+  is the reviewer's.
 - **This addendum revises no prior decision.** D1-D179 and R1-R89 stand. D178's and R88's *texts*
   are corrected forward (D183, D184) in the AR7 form.
 
