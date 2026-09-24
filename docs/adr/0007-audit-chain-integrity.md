@@ -21578,17 +21578,23 @@ is D61's own recorded reasoning (`0007:5830-5838`) and D145's measured inversion
 (`0007:17681-17687`). The re-entry condition is any change that gives the two new relations an owner
 without schema `CREATE`, or that makes a protected relation carry a non-constraint index.
 
-**R88 -- R71's re-entry condition fired in this round, was re-measured, and is re-deferred with its
-reason.** R71 (`0007:19085-19090`) states that a grant option on a declared holder is a latent
-re-grant capability the enumeration does not see until it is exercised, and sets its re-entry
-condition as "the first change to either declared literal". D175 changes
+**R88 (revised per ADR-0007 Addendum 23 D184) -- "no latent window exists today" was measured only
+against grant-option flags.** R71 (`0007:19085-19090`) states that a grant option on a declared
+holder is a latent re-grant capability the enumeration does not see until it is exercised, and sets
+its re-entry condition as "the first change to either declared literal". D175 changes
 `requiredTablePrivilegeHolders`, so the condition is met. Re-measured on the provisioned baseline:
 **every grant on all four protected relations has `is_grantable = false`** (`aclexplode` over each
-relation's `relacl`; zero grantable rows), so no latent window exists today. It is **not** closed
-here, and the reason is R71's own: folding `is_grantable` into the declared literal changes D61's
-matrix **and** D149's function literal together, which is a decision about both and outside a round
-scoped to C22-A/B/C. The re-entry condition is restated as: **the first change to either declared
-literal after this one, or the first measured `is_grantable = true` on any declared grant.**
+relation's `relacl`; zero of 34 rows carry a grant-option flag, across the four protected relations
+and the two purge functions). That measurement does not cover the case where the declared MAINTAIN
+holder is also the relation's owner -- true for `screening_ledger_event` and `screening_ledger_snapshot`
+as of Addendum 22: an owner can always re-grant a privilege it holds, and that path never sets a
+grant-option flag, so it is not visible to what this measurement actually checked. This is not a new
+exploitable gap -- **R25** and **R27** already track the general owner-re-grant risk -- but the
+original wording above overstated its own scope. It is **not** closed here, and the reason is R71's
+own: folding `is_grantable` into the declared literal changes D61's matrix **and** D149's function
+literal together, which is a decision about both and outside a round scoped to C22-A/B/C. The
+re-entry condition is restated as: **the first change to either declared literal after this one, or
+the first measured `is_grantable = true` on any declared grant.**
 
 **R89 -- the coordinated-edit surface grows by two literal rows and one derived list, and shrinks by
 one hand-maintained one.** R23, R29, R33, R42, R46, R50, R55, R59, R60, R65-R67, R73 and R82 track a
