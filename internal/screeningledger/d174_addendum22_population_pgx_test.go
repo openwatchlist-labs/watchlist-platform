@@ -263,15 +263,20 @@ func TestD174ReindexConcurrentlyCancellationWedge(t *testing.T) {
 	assertHealthy(t, ctx, clone.superuserDSN, "zz_d174_health_probe_b")
 }
 
-// TestD174RouteMatrixOnNewRelations is ADR-0007 Addendum 22 D179 test 3
-// (abbreviated): the re-grant route matrix D174's own text lists,
-// exercised against screening_ledger_event -- a direct grant to a third
-// role (r1_direct) and a PUBLIC grant (r2_public), both invisible before
-// this addendum; a pg_maintain membership (r3_pgmaintain), caught before
-// this addendum for the wrong reason (it also covers the two original
-// relations) and still caught after. Plus the over-tightening positive
-// D67 test 1 established and this round must not lose: a clean database
-// on which pg_maintain exists and is untouched returns Provisioned=true.
+// TestD174RouteMatrixOnNewRelations is ADR-0007 Addendum 22 D179 test 3,
+// completed by ADR-0007 Addendum 23 D185(1) (C23-D): the abbreviated
+// version (event-only, direct/PUBLIC/pg_maintain, no NOINHERIT route)
+// left three gaps CAP #23 named -- no snapshot coverage, no NOINHERIT
+// route, and no D61 (table-privilege) route for either new relation.
+// Table-driven over each of the four relations x {direct third-role
+// grant, PUBLIC grant, pg_maintain membership, NOINHERIT member of a
+// role that itself holds MAINTAIN directly}, plus a D61 UPDATE-grant
+// row for each of the two D166-added relations. Non-vacuity against the
+// specific regression this completes -- the pre-Addendum-22 population
+// (D60/D61 scoped to requiredDDLOwnedTables, the anchor/tombstone pair
+// alone) -- is TestD174D175D176DerivationGuard's sibling proof in this
+// same package, plus the mutant comparison this test's own package
+// comment/PR description records executed.
 func TestD174RouteMatrixOnNewRelations(t *testing.T) {
 	superuserDSN := requireBootstrapSuperuserDatabaseURL(t)
 	migratorDSN := requireMigratorDSN(t)
@@ -293,92 +298,212 @@ func TestD174RouteMatrixOnNewRelations(t *testing.T) {
 	}
 	defer superuserConn.Close(context.Background())
 
-	thirdRole := fmt.Sprintf("cap22_d174_third_%d", time.Now().UnixNano())
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN`, thirdRole)); err != nil {
-		t.Fatalf("create third role: %v", err)
+	requireClean := func(t *testing.T, label string) {
+		t.Helper()
+		state, err := sink.CheckProvisioningState(ctx)
+		if err != nil {
+			t.Fatalf("CheckProvisioningState %s: %v", label, err)
+		}
+		if !state.Provisioned {
+			t.Fatalf("%s: expected Provisioned=true, got Reason=%q", label, state.Reason)
+		}
+	}
+	requireClean(t, "r0_clean (precondition)")
+
+	relations := []string{
+		"screening_ledger_anchor",
+		"screening_ledger_retention_tombstone",
+		"screening_ledger_event",
+		"screening_ledger_snapshot",
 	}
 
-	// r0_clean: the positive control.
-	base, err := sink.CheckProvisioningState(ctx)
-	if err != nil {
-		t.Fatalf("CheckProvisioningState r0_clean: %v", err)
+	// direct/public/noinherit routes: table-driven per relation. Each
+	// setup returns a revert function so the relation is restored to a
+	// clean state before the next case runs.
+	type route struct {
+		name  string
+		setup func(t *testing.T, rel string) (revert func(t *testing.T))
+		// wantNamesRelation: the direct/public/noinherit routes are
+		// relation-scoped (they grant on exactly one relation), so the
+		// reason must name it. pg_maintain is NOT relation-scoped -- a
+		// pg_maintain membership confers MAINTAIN on every relation, so
+		// maintainHoldersReason's iteration-order fixed point (the FIRST
+		// relation in requiredProtectedRelationStates) is what actually
+		// gets named, regardless of which relation this loop iteration
+		// is nominally targeting. Asserting a specific relation name for
+		// that route would be asserting something D174's own text does
+		// not claim.
+		wantNamesRelation bool
 	}
-	if !base.Provisioned {
-		t.Fatalf("r0_clean: expected Provisioned=true, got Reason=%q", base.Reason)
+	routes := []route{
+		{
+			name:              "direct_third_role_grant",
+			wantNamesRelation: true,
+			setup: func(t *testing.T, rel string) func(t *testing.T) {
+				third := uniqueID("zz_d185_direct")
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN`, pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("create third role: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT MAINTAIN ON TABLE %s TO %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("GRANT MAINTAIN TO third role: %v", err)
+				}
+				return func(t *testing.T) {
+					// The ACL entry must be revoked before DROP ROLE, or
+					// PostgreSQL refuses with "cannot be dropped because
+					// some objects depend on it" (2BP01) -- unlike role
+					// MEMBERSHIP (pg_auth_members), an ACL grant is a
+					// dependency DROP ROLE does not clear on its own.
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE MAINTAIN ON TABLE %s FROM %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{third}.Sanitize())); err != nil {
+						t.Fatalf("revoke third role's MAINTAIN grant: %v", err)
+					}
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, pgx.Identifier{third}.Sanitize())); err != nil {
+						t.Fatalf("drop third role: %v", err)
+					}
+				}
+			},
+		},
+		{
+			name:              "public_grant",
+			wantNamesRelation: true,
+			setup: func(t *testing.T, rel string) func(t *testing.T) {
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT MAINTAIN ON TABLE %s TO PUBLIC`, pgx.Identifier{rel}.Sanitize())); err != nil {
+					t.Fatalf("GRANT MAINTAIN TO PUBLIC: %v", err)
+				}
+				return func(t *testing.T) {
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE MAINTAIN ON TABLE %s FROM PUBLIC`, pgx.Identifier{rel}.Sanitize())); err != nil {
+						t.Fatalf("REVOKE MAINTAIN FROM PUBLIC: %v", err)
+					}
+				}
+			},
+		},
+		{
+			name:              "pg_maintain_membership",
+			wantNamesRelation: false,
+			setup: func(t *testing.T, rel string) func(t *testing.T) {
+				third := uniqueID("zz_d185_pgm")
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN`, pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("create third role: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT pg_maintain TO %s`, pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("GRANT pg_maintain: %v", err)
+				}
+				return func(t *testing.T) {
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, pgx.Identifier{third}.Sanitize())); err != nil {
+						t.Fatalf("drop third role (also revokes its pg_maintain membership): %v", err)
+					}
+				}
+			},
+		},
+		{
+			// A role holding MAINTAIN directly on the target relation,
+			// then a second role NOINHERIT member of it -- D73's own
+			// MEMBER-side (pg_has_role) enumeration, applied to the two
+			// new relations, which is exactly what D174 widened.
+			name:              "noinherit_member_of_a_holding_role",
+			wantNamesRelation: true,
+			setup: func(t *testing.T, rel string) func(t *testing.T) {
+				holder := uniqueID("zz_d185_holder")
+				member := uniqueID("zz_d185_ni")
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN`, pgx.Identifier{holder}.Sanitize())); err != nil {
+					t.Fatalf("create holder role: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT MAINTAIN ON TABLE %s TO %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{holder}.Sanitize())); err != nil {
+					t.Fatalf("GRANT MAINTAIN to holder role: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN NOINHERIT`, pgx.Identifier{member}.Sanitize())); err != nil {
+					t.Fatalf("create NOINHERIT member role: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT %s TO %s`, pgx.Identifier{holder}.Sanitize(), pgx.Identifier{member}.Sanitize())); err != nil {
+					t.Fatalf("GRANT holder TO NOINHERIT member: %v", err)
+				}
+				return func(t *testing.T) {
+					// member's only dependency is its pg_auth_members
+					// row (role membership), which DROP ROLE clears on
+					// its own. holder's MAINTAIN grant is an ACL
+					// dependency and must be revoked first (same 2BP01
+					// reason as the direct-grant route above).
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, pgx.Identifier{member}.Sanitize())); err != nil {
+						t.Fatalf("drop NOINHERIT member role: %v", err)
+					}
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE MAINTAIN ON TABLE %s FROM %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{holder}.Sanitize())); err != nil {
+						t.Fatalf("revoke holder role's MAINTAIN grant: %v", err)
+					}
+					if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, pgx.Identifier{holder}.Sanitize())); err != nil {
+						t.Fatalf("drop holder role: %v", err)
+					}
+				}
+			},
+		},
 	}
 
-	// r1_direct: a grant to a third role -- invisible before D174.
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT MAINTAIN ON screening_ledger_event TO %s`, thirdRole)); err != nil {
-		t.Fatalf("r1_direct grant: %v", err)
-	}
-	r1, err := sink.CheckProvisioningState(ctx)
-	if err != nil {
-		t.Fatalf("CheckProvisioningState r1_direct: %v", err)
-	}
-	if r1.Provisioned {
-		t.Fatal("r1_direct: expected a named failure after D174 (a direct grant on screening_ledger_event to a third role), got Provisioned=true")
-	}
-	if !strings.Contains(r1.Reason, "screening_ledger_event") {
-		t.Fatalf("r1_direct: expected the reason to name screening_ledger_event, got %q", r1.Reason)
-	}
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE MAINTAIN ON screening_ledger_event FROM %s`, thirdRole)); err != nil {
-		t.Fatalf("r1_direct revert: %v", err)
+	for _, rel := range relations {
+		for _, rt := range routes {
+			t.Run(rel+"/"+rt.name, func(t *testing.T) {
+				revert := rt.setup(t, rel)
+				defer func() {
+					revert(t)
+					requireClean(t, fmt.Sprintf("%s/%s (after revert)", rel, rt.name))
+				}()
+
+				state, err := sink.CheckProvisioningState(ctx)
+				if err != nil {
+					t.Fatalf("CheckProvisioningState: %v", err)
+				}
+				if state.Provisioned {
+					t.Fatalf("ADR-0007 Addendum 22 D174 / Addendum 23 D185(1): route %q on %s was not caught (Provisioned=true)", rt.name, rel)
+				}
+				if !strings.Contains(state.Reason, "MAINTAIN") {
+					t.Fatalf("expected the reason to name MAINTAIN, got %q", state.Reason)
+				}
+				if rt.wantNamesRelation && !strings.Contains(state.Reason, rel) {
+					t.Fatalf("expected the reason to name %s, got %q", rel, state.Reason)
+				}
+			})
+		}
 	}
 
-	// r2_public: invisible before D174.
-	if _, err := superuserConn.Exec(ctx, `GRANT MAINTAIN ON screening_ledger_event TO PUBLIC`); err != nil {
-		t.Fatalf("r2_public grant: %v", err)
-	}
-	r2, err := sink.CheckProvisioningState(ctx)
-	if err != nil {
-		t.Fatalf("CheckProvisioningState r2_public: %v", err)
-	}
-	if r2.Provisioned {
-		t.Fatal("r2_public: expected a named failure after D174 (MAINTAIN granted to PUBLIC on screening_ledger_event), got Provisioned=true")
-	}
-	if !strings.Contains(r2.Reason, "screening_ledger_event") {
-		t.Fatalf("r2_public: expected the reason to name screening_ledger_event, got %q", r2.Reason)
-	}
-	if _, err := superuserConn.Exec(ctx, `REVOKE MAINTAIN ON screening_ledger_event FROM PUBLIC`); err != nil {
-		t.Fatalf("r2_public revert: %v", err)
-	}
-
-	// r3_pgmaintain: caught even before D174 (for the wrong reason --
-	// pg_maintain covers the original two relations too), still caught
-	// after, and now for a reason that can legitimately name any of the
-	// four.
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT pg_maintain TO %s`, thirdRole)); err != nil {
-		t.Fatalf("r3_pgmaintain grant: %v", err)
-	}
-	r3, err := sink.CheckProvisioningState(ctx)
-	if err != nil {
-		t.Fatalf("CheckProvisioningState r3_pgmaintain: %v", err)
-	}
-	if r3.Provisioned {
-		t.Fatal("r3_pgmaintain: expected a named failure (pg_maintain membership), got Provisioned=true")
-	}
-	if !strings.Contains(r3.Reason, "MAINTAIN") {
-		t.Fatalf("r3_pgmaintain: expected the reason to name MAINTAIN, got %q", r3.Reason)
-	}
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE pg_maintain FROM %s`, thirdRole)); err != nil {
-		t.Fatalf("r3_pgmaintain revert: %v", err)
-	}
-
-	if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, thirdRole)); err != nil {
-		t.Fatalf("drop third role: %v", err)
+	// D61 UPDATE-grant route, one row per D166-added relation (D174's
+	// own text: "plus a D61 row per new relation, an undeclared UPDATE
+	// grant") -- the privilege-holder matrix's own population widen
+	// (D175), exercised the same way D61's existing tests exercise
+	// SELECT, to confirm the widened population catches an undeclared
+	// grant of a DIFFERENT privilege kind too.
+	for _, rel := range []string{"screening_ledger_event", "screening_ledger_snapshot"} {
+		t.Run(rel+"/d61_undeclared_update_grant", func(t *testing.T) {
+			third := uniqueID("zz_d185_d61")
+			if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`CREATE ROLE %s NOSUPERUSER NOLOGIN`, pgx.Identifier{third}.Sanitize())); err != nil {
+				t.Fatalf("create third role: %v", err)
+			}
+			defer func() {
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`REVOKE UPDATE ON %s FROM %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("revoke third role's UPDATE grant: %v", err)
+				}
+				if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`DROP ROLE %s`, pgx.Identifier{third}.Sanitize())); err != nil {
+					t.Fatalf("drop third role: %v", err)
+				}
+				requireClean(t, rel+"/d61_undeclared_update_grant (after revert)")
+			}()
+			if _, err := superuserConn.Exec(ctx, fmt.Sprintf(`GRANT UPDATE ON %s TO %s`, pgx.Identifier{rel}.Sanitize(), pgx.Identifier{third}.Sanitize())); err != nil {
+				t.Fatalf("GRANT UPDATE to third role: %v", err)
+			}
+			state, err := sink.CheckProvisioningState(ctx)
+			if err != nil {
+				t.Fatalf("CheckProvisioningState: %v", err)
+			}
+			if state.Provisioned {
+				t.Fatalf("ADR-0007 Addendum 22 D175 / Addendum 23 D185(1): an undeclared UPDATE grant on %s was not caught", rel)
+			}
+			if !strings.Contains(state.Reason, rel) || !strings.Contains(state.Reason, "UPDATE") {
+				t.Fatalf("expected the reason to name %s and UPDATE, got %q", rel, state.Reason)
+			}
+		})
 	}
 
 	// The over-tightening positive (D67 test 1): a clean database on
 	// which pg_maintain exists and is untouched still returns
-	// Provisioned=true -- this addendum must not make the mere existence
-	// of the predefined role itself a failure.
-	clean, err := sink.CheckProvisioningState(ctx)
-	if err != nil {
-		t.Fatalf("CheckProvisioningState after every tampering reverted: %v", err)
-	}
-	if !clean.Provisioned {
-		t.Fatalf("expected Provisioned=true once every tampering is reverted (pg_maintain itself untouched), got Reason=%q", clean.Reason)
-	}
+	// Provisioned=true -- this addendum must not make the mere
+	// existence of the predefined role itself a failure.
+	requireClean(t, "final positive control")
 }
 
 // TestD175PrivilegeHolderMatrixCoversAllFourRelations is ADR-0007

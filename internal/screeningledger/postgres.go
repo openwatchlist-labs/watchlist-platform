@@ -329,6 +329,19 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 			return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 3 D33: checking owner of %s: %w", table, err)
 		}
 		if owner != state.relowner {
+			// ADR-0007 Addendum 23 D186 (C23-E): the remediation named
+			// here depends on the relation's DECLARED owner, not a
+			// single sentence for every relation. The two D166 relations
+			// are owl_migrator-owned by design (D176) -- grant-ddl-
+			// ownership never transfers their ownership, so "re-run
+			// grant-ddl-ownership" cannot correct the drift most likely
+			// to trigger this branch for them. The remaining two are
+			// still owl_ledger_ddl-transferred, so grant-ddl-ownership
+			// (D51's REVOKE-then-OWNER-TO idempotent form) remains the
+			// correct and only fix, and keeps D176's original text.
+			if state.relowner == "owl_migrator" {
+				return ProvisioningState{Reason: fmt.Sprintf("%s is owned by %q, not %q (ADR-0007 Addendum 3 D33 / Addendum 22 D176 / Addendum 23 D186): this relation is owl_migrator-owned by design, and grant-ddl-ownership never transfers its ownership, so re-running that step alone cannot correct this -- a superuser must disable both sec7_protect_ddl_objects_* event triggers, run ALTER TABLE %s OWNER TO owl_migrator, then re-run grant-ddl-ownership (which re-enables them)", table, owner, state.relowner, state.identity)}, nil
+			}
 			return ProvisioningState{Reason: fmt.Sprintf("%s is owned by %q, not %q (ADR-0007 Addendum 3 D33 / Addendum 22 D176): grant-ddl-ownership has not transferred ownership", table, owner, state.relowner)}, nil
 		}
 	}
@@ -464,6 +477,35 @@ func (p *PostgresSink) checkProvisioningState(ctx context.Context) (Provisioning
 	}
 	if ddlHasDatabaseCreate {
 		return ProvisioningState{Reason: "owl_ledger_ddl holds CREATE on the current database (ADR-0007 Addendum 4 D41): defence in depth behind D40 is not holding"}, nil
+	}
+	// ADR-0007 Addendum 23 D182 (C23-A(b)): a third fact beside D41 part
+	// three's two owl_ledger_ddl ones -- owl_migrator must hold no
+	// CREATE on the current database. Defence in depth behind D181
+	// (Stage X1b, out of scope for this stage): it covers the route
+	// where owl_migrator could create a schema itself (the only way it
+	// fills its own "$user" search_path slot without a superuser's
+	// help), and does not cover a superuser's own CREATE SCHEMA
+	// AUTHORIZATION owl_migrator (measured during this addendum's design
+	// pass: db CREATE=false in exactly that state) -- D181 remains the
+	// control this defends, and this must not be cited as discharging
+	// C23-A on its own.
+	//
+	// Two routes give owl_migrator database CREATE, and this one query
+	// catches both: an explicit GRANT, and database OWNERSHIP (which
+	// confers CREATE implicitly and is not discharged by a bare REVOKE,
+	// because the owner can re-grant itself -- R25's class, R91). The
+	// reason therefore names the durable remediation (ALTER DATABASE
+	// ... OWNER TO a role other than owl_migrator), documented in
+	// docs/operations/sec7-database-copies.md's "owl_migrator must not
+	// hold CREATE on the database" section, which an existing deployment
+	// created OWNER owl_migrator must follow on upgrade (R91's accepted
+	// operational requirement).
+	var migratorHasDatabaseCreate bool
+	if err := p.conn.QueryRow(ctx, `SELECT has_database_privilege('owl_migrator', current_database(), 'CREATE')`).Scan(&migratorHasDatabaseCreate); err != nil {
+		return ProvisioningState{}, fmt.Errorf("ADR-0007 Addendum 23 D182: checking owl_migrator database CREATE privilege: %w", err)
+	}
+	if migratorHasDatabaseCreate {
+		return ProvisioningState{Reason: "owl_migrator holds CREATE on the current database (ADR-0007 Addendum 4 D41 / Addendum 23 D182): it could create a schema ahead of public on its own search_path -- if owl_migrator OWNS this database, a REVOKE alone does not hold (an owner can re-grant itself); a superuser must run ALTER DATABASE <this database> OWNER TO a role other than owl_migrator (see docs/operations/sec7-database-copies.md, \"owl_migrator must not hold CREATE on the database\")"}, nil
 	}
 	return ProvisioningState{Provisioned: true}, nil
 }
