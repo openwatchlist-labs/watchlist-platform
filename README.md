@@ -93,26 +93,17 @@ The public repository has progressed beyond its clean-restart baseline:
 - **ADR-0007 (SEC-7):** The audit chain is HMAC-keyed and anchored to a
   separate, role-isolated `screening_ledger_anchor` table. **SEC-7 remains
   open, not closed.** Since the original three-stage close (PRs #106–#107–#109),
-  twenty-two rounds of adversarial chain-integrity audit have run (CAP #1
-  through CAP #23; round 21 has no record by design — Addendum 21 closed two
-  named residuals, R40 and R57, by decision rather than by audit). Every round
-  has returned QUALIFIED except CAP #18 (the arc's only PASS, broken by the
-  very next round's finding) and CAP #22 (PARTIAL — no PASS/QUALIFIED verdict;
-  a safety-classifier stop interrupted the guard's own security analysis
-  mid-round, and it has not since been retried). Three consecutive rounds,
-  CAP #7 through CAP #9, each demonstrated a forgery in the exact mechanism
-  the immediately preceding round had shipped to close the prior one (named
-  L-B, M-A, N-A in ADR-0007). No round since CAP #13 has returned a CRITICAL
-  finding; the most recent, CAP #23, returned 5 LOW findings and no forgery.
-  ADR-0007 Addenda 22 and 23 are merged on `main` through Addendum 23's Stage
-  X2 (PRs #204–#209). Two items remain open: **Addendum 23's Stage X1b** — a
-  fix for a bare-relation-name gap, where one ordinary superuser action can
-  make the verifier attest a healthy database while `migrate` has silently
-  forked six ledger tables into a shadow schema — is designed but explicitly
-  blocked pending a human-authored implementation, and is not yet on `main`;
-  and **CAP #22's D163/D164 guard security analysis** remains an incomplete,
-  named human-review gap. The previously stated anchored-integrity guarantee
-  should not be relied on until both close and a clean CAP round follows.
+  twelve rounds of adversarial chain-integrity audit have run (CAP #1–CAP #12),
+  every one returning QUALIFIED rather than PASS; three of them demonstrated
+  an actual forgery (named L-B, M-A, N-A in ADR-0007), each in a mechanism the
+  immediately preceding round had shipped to close the prior one. The three
+  most recent rounds found no forgery within the audited surface, but CAP #12
+  still returned a CRITICAL finding — a retention-expiry value that can
+  silently pass every check while wrong — and its designed fix (ADR-0007
+  Addendum 13) has not yet been implemented or re-audited. The critical path
+  to closing SEC-7 is: implement Addendum 13, then pass a thirteenth CAP
+  round. The previously stated anchored-integrity guarantee should not be
+  relied on until requalification completes.
 
 The R2.4 result is a controlled homelab qualification, not a production,
 customer, regulatory, or compliance certification. The catalog runtime was
