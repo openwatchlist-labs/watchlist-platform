@@ -316,4 +316,18 @@ case "$migrate_output" in
   ;;
 esac
 
-echo "PASS: ADR-0007 Addendum 7 D66 / Addendum 8 D74 / Addendum 22 D178 -- corrected cross-cluster DR procedure completed with zero errors on a genuinely second PostgreSQL cluster, enforcement genuinely live on the recovered copy (D33/D60/D61/D69-D73 all asserted true, not merely D34/D46/D51; MAINTAIN's survival directly asserted on all four protected relations, not one index of one)"
+# ADR-0007 Addendum 23 D183 (C23-B): the sentence below used to claim
+# MAINTAIN's survival was "directly asserted on all four protected
+# relations, not one index of one" by "the same enumeration D174
+# installs" -- CAP #23 found this overstated. What this script directly
+# asserts, per protected relation, is the REINDEX INDEX CONCURRENTLY
+# probe in the loop above, run as that relation's owner: it observes
+# MAINTAIN held by the owner or by PUBLIC (the owner is itself a member
+# of PUBLIC -- measured), and is blind only to MAINTAIN held by a role
+# that is neither. That remaining case is covered, not by a second
+# enumeration mechanism in this script (D183 considered and rejected
+# wiring in a copy of D60/D73's two-limb SQL as redundant CI-script
+# drift surface -- option (b)), but indirectly, by the migrate assertion
+# immediately above, which runs the full, authoritative D60/D61/D73
+# enumeration from Go against this same recovered copy.
+echo "PASS: ADR-0007 Addendum 7 D66 / Addendum 8 D74 / Addendum 22 D178 / Addendum 23 D183 -- corrected cross-cluster DR procedure completed with zero errors on a genuinely second PostgreSQL cluster, enforcement genuinely live on the recovered copy (D33/D60/D61/D69-D73 all asserted true, not merely D34/D46/D51; MAINTAIN's survival on all four protected relations is directly asserted by a REINDEX INDEX CONCURRENTLY probe per relation as that relation's owner, which observes MAINTAIN held by the owner or by PUBLIC, and is covered indirectly, by the migrate assertion above, for MAINTAIN held by a non-owner role)"
